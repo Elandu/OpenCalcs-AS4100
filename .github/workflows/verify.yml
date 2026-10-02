@@ -1,0 +1,16 @@
+name: Verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install build
+      - run: python -m build --wheel
+      - run: python -m pip install "opencalcs @ git+https://github.com/Elandu/OpenCalcs.git@0f4ede838f3b992ad8d90738f1b3bfdb7bb7543a" "$(find dist -name '*.whl' | head -n 1)[dev]"
+      - run: python -m ruff check .
+      - run: python -m ruff format --check .
+      - run: python -m pytest -q -o pythonpath= --import-mode=importlib
