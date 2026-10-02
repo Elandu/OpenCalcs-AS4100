@@ -1,34 +1,56 @@
 # OpenCalcs AS 4100
 
-An installed OpenCalcs plugin for bounded AS 4100:2020 axial **section** checks.
-The first release implements clause 7.2 tension (gross yielding and net fracture)
-and clause 6.2.1 compression section capacity, using capacity factor 0.9.
+OpenCalcs plugin version 0.2.0 provides nine bounded calculation families for
+AS 4100:2020 steel design. It evaluates selected equations and declared
+conditions; it does not establish full standard or project compliance. Every
+applicable member, connection, action, detail and construction requirement needs
+an engineering assessment supported by evidence.
 
-Install with `pip install .`, then discover calculation
-`structural.as4100.section_analysis` through the `opencalcs.plugins` entry point.
-For development and host integration verification from a sibling checkout:
+| Calculation ID suffix | Scope |
+| --- | --- |
+| `section_analysis` | Axial tension and compression section capacities (7.2, 6.2.1). |
+| `member_design` | Plate slenderness, compression, selected bending and shear, combined actions and tension distribution. |
+| `advanced_members` | Selected variable/built-up member, buckling-analysis, plastic, restraint, separator/diaphragm, lacing, batten and pin/angle geometry checks. |
+| `connection_design` | Selected bolts, pins, welds, groups, holes and connection detailing. |
+| `durability` | Selected brittle-fracture, fatigue, fire and earthquake checks. |
+| `design_actions` | Stability, serviceability, notional load and selected buckling/amplification calculations. |
+| `webs` | Selected web bearing, bearing/bending and stiffener checks. |
+| `design_review` | Calculation schedule and engineering-evidence register across Sections 1–17. |
+| `testing` | Selected proof/prototype load-test comparisons, existing-material prerequisites and informative Appendix B deflection suggestions. |
+
+All IDs have the `structural.as4100.` prefix. Each family exposes an input
+schema through the installed `opencalcs.plugins` entry point. Most families
+accept one tagged operation per call; `design_review` accepts a schedule of
+calculation tasks and evidence records. Use the descriptors for exact input
+fields, units and result shapes. Start with [coverage](docs/coverage.md) to
+identify what is calculated, what requires external assessment and what remains
+unsupported. The detailed family notes are in
+[member design](docs/member-design.md),
+[further members](docs/advanced-members.md),
+[connections](docs/connections.md),
+[durability](docs/durability.md) and
+[testing](docs/testing.md).
+
+Install with `pip install .`, then restart OpenCalcs. For development and host
+integration verification from a sibling checkout:
 
 ```bash
 python -m pip install -e ".[dev]" -e ../OpenCalcs
 python -m pytest
 ```
 
-Restart OpenCalcs after installing the plugin. Its existing API exposes
-`GET /api/v1/calculations/structural.as4100.section_analysis` and
-`POST /api/v1/calculations/structural.as4100.section_analysis/run`.
-The POST body is `{"inputs": <contents of examples/axial_section.json>}`; use
-the host's normal credentials. The example returns tension design capacity
-367.2 kN and compression section design capacity 270 kN.
+The host exposes each installed calculation at
+`GET /api/v1/calculations/{calculation_id}` and
+`POST /api/v1/calculations/{calculation_id}/run`, using its normal credentials.
+The POST body is `{"inputs": <calculation input object>}`. For example,
+`examples/axial_section.json` is the input object for
+`structural.as4100.section_analysis`; it returns tension design capacity
+367.2 kN and compression section design capacity 270 kN. These are illustrative
+section results, not a compression-member design.
 
-Supply gross and net areas in mm², strengths in MPa, assessed tension distribution
-factor `kt`, compression form factor `kf`, and nonnegative factored action magnitudes
-in kN. Neither factor defaults to 1.0. Material strengths must reflect product and
-thickness; a grade label is insufficient. The example contains explicit illustrative inputs.
-
-Results show nominal/design capacities, utilisation and section capacity satisfaction.
-They do not establish full member or structure compliance. Member buckling,
-bending, shear, combined actions, connections, fatigue, fire, section classification
-and selection of factors are outside this release. Compression section capacity
-alone is insufficient for a compression member design.
-
-See [provenance](docs/provenance.md) for sources and verification limits.
+Inputs such as material strengths, section properties, effective lengths,
+restrained lengths, design actions, connection geometry and fatigue categories
+must be assessed for the actual product and structure. A grade label or a
+passing isolated check cannot replace that assessment. See
+[scope and provenance](docs/provenance.md) for the reviewed source and
+verification limits.

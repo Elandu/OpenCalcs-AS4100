@@ -1,0 +1,67 @@
+{
+  "package_version": "0.2.0",
+  "standard": "AS 4100:2020",
+  "passed": true,
+  "cases": [
+    {
+      "name": "7.2 axial tension, hand arithmetic",
+      "actual": 367.20000000000005,
+      "expected": 367.2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "6.2.1 axial section compression, hand arithmetic",
+      "actual": 270.0,
+      "expected": 270,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 6.3.3(C), alpha_b=0.5, lambda=50",
+      "actual": 0.8079391778296219,
+      "expected": 0.808,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Table 6.3.3(C), alpha_b=0.5, lambda=100",
+      "actual": 0.48549963124694845,
+      "expected": 0.485,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Pin-ended Euler analytical benchmark",
+      "actual": 986.9604401089358,
+      "expected": 986.9604401089358,
+      "absolute_tolerance": 1e-08,
+      "passed": true
+    },
+    {
+      "name": "5.16.2 longitudinal stiffener, hand arithmetic",
+      "actual": 3200000.0,
+      "expected": 3200000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "9.3 bolt design shear, hand arithmetic",
+      "actual": 92.628,
+      "expected": 92.628,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "5.6.4 external buckling moment, hand arithmetic",
+      "actual": 60.0,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    }
+  ],
+  "limitations": [
+    "Fixed benchmarks verify selected arithmetic and table values.",
+    "This report does not establish complete standard coverage."
+  ]
+}

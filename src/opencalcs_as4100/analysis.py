@@ -7,12 +7,14 @@ from typing import Any
 from jsonschema import Draft202012Validator, ValidationError
 
 from .schemas import INPUT_SCHEMA, OUTPUT_SCHEMA
+from .validation import validate_standard_strengths
 
 
 def run_analysis(inputs: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(inputs, Mapping):
         raise ValueError("Inputs must be an object.")  # noqa: TRY004 - host validation contract
     data = dict(inputs)
+    validate_standard_strengths(data)
     try:
         Draft202012Validator(INPUT_SCHEMA).validate(data)
     except ValidationError as exc:

@@ -3,8 +3,8 @@ requires = ["hatchling>=1.26,<2"]
 build-backend = "hatchling.build"
 [project]
 name = "opencalcs-as4100"
-version = "0.1.0"
-description = "Bounded AS 4100 steel section checks for OpenCalcs."
+version = "0.2.0"
+description = "Clause-traced AS 4100 steel design calculations for OpenCalcs."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "AGPL-3.0-only"

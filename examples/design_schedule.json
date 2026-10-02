@@ -1,0 +1,36 @@
+{
+  "project_reference": "Illustrative steel calculation schedule",
+  "engineering_evidence": [],
+  "tasks": [
+    {
+      "id": "TIE-ULS1",
+      "family": "section_analysis",
+      "entity_reference": "Tie 1",
+      "combination_reference": "Illustrative ULS 1",
+      "inputs": {
+        "gross_area_mm2": 2000,
+        "net_area_mm2": 1500,
+        "yield_strength_mpa": 250,
+        "ultimate_strength_mpa": 400,
+        "tension_distribution_factor": 0.8,
+        "compression_form_factor": 0.8,
+        "tension_action_kn": 200,
+        "compression_action_kn": 135
+      }
+    },
+    {
+      "id": "COLUMN-ULS1",
+      "family": "advanced_members",
+      "entity_reference": "Column 1",
+      "combination_reference": "Illustrative ULS 1",
+      "inputs": {
+        "operation": "varying_compression",
+        "minimum_section_capacity_kn": 1000,
+        "elastic_buckling_load_kn": 1000,
+        "section_constant": 0,
+        "action_kn": 500,
+        "flexural_mode_verified": true
+      }
+    }
+  ]
+}

@@ -111,3 +111,11 @@ def test_11_tension_audit_modes(inputs):
         "gross_yielding": 500,
         "net_fracture": pytest.approx(408),
     }
+
+
+def test_12_yield_strength_scope_boundary(inputs):
+    inputs.update(yield_strength_mpa=690, ultimate_strength_mpa=800)
+    assert run_analysis(inputs)["compression"]["design_capacity_kn"] > 0
+    inputs["yield_strength_mpa"] = 690.1
+    with pytest.raises(ValueError, match="690 MPa"):
+        run_analysis(inputs)
