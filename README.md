@@ -1,6 +1,6 @@
 # OpenCalcs AS 4100
 
-OpenCalcs plugin version 0.3.0 provides ten bounded calculation families for
+OpenCalcs plugin version 0.5.0 provides ten bounded calculation families for
 AS 4100:2020 steel design. It evaluates selected equations and declared
 conditions; it does not establish full standard or project compliance. Every
 applicable member, connection, action, detail and construction requirement needs
@@ -8,7 +8,7 @@ an engineering assessment supported by evidence.
 
 | Calculation ID suffix | Scope |
 | --- | --- |
-| `materials` | Selected product, form, grade and thickness strength lookups from Table 2.1. |
+| `materials` | Table 2.1 strength lookups; Clauses 2.2.3, 2.2.4 and 2.2.5 material checks, including assessed through-thickness Z demand versus Z-quality class. |
 | `section_analysis` | Axial tension and compression section capacities (7.2, 6.2.1). |
 | `member_design` | Plate slenderness, compression, selected bending and shear, combined actions and tension distribution. |
 | `advanced_members` | Selected variable/built-up member, buckling-analysis, plastic, restraint, separator/diaphragm, lacing, batten and pin/angle geometry checks. |

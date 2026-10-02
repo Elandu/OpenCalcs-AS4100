@@ -6,11 +6,17 @@ families. The scan, page images and extracted standard text are not distributed
 with this repository. No separate amendments were supplied or verified;
 applicable amendments and project requirements require engineering review.
 
-Table 2.1 material strengths are available for explicitly listed product forms,
-grades and thickness ranges. Material certification, Table 2.1 notes and
-clauses 2.2–2.5 are still assessed outside this lookup.
+Table 2.1 material strengths are available for the listed product forms, grades
+and thickness ranges. Clause 2.2.3 also compares unidentified-steel design
+strengths with its limits or requires an attested full AS 1391 test. Clause
+2.2.4 supplies the standard steel design properties used by the applicable
+calculations. Clause 2.2.5 compares an externally assessed Appendix M design
+Z-value with AS/NZS 3678 Z-quality class and thickness; it does not calculate
+the weld/detail demand. Material certification, test evidence, Table 2.1 notes,
+Clause 3.8 detailing and clauses 2.3–2.5 remain assessed outside these
+calculations.
 
-Version 0.3.0 exposes ten installed calculation families. The code implements
+Version 0.5.0 exposes ten installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing
@@ -34,7 +40,7 @@ The input factors `kt` and `kf` require assessment.
 
 [BeamDesign](https://github.com/skane88/BeamDesign) was inspected as a comparison;
 no license was identified, so no source or test vectors were copied.
-[section-properties](https://github.com/robbievanleeuwen/section-properties) can
+[sectionproperties](https://github.com/robbievanleeuwen/section-properties) can
 calculate geometric properties such as centroid, inertias, plastic properties,
 torsion and warping constants. It cannot select AS 4100 reductions, net areas,
 restraints or tension distribution factors. It is not a required dependency;

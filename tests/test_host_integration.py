@@ -50,6 +50,49 @@ def test_host_catalog_and_http_run(axial_inputs):
         assert response.json()["tension"]["utilisation"] == pytest.approx(150 / 210.528)
 
 
+def test_unidentified_steel_clause_2_2_3_runs_through_host():
+    inputs = {
+        "operation": "unidentified_steel",
+        "design_yield_strength_mpa": 170,
+        "design_tensile_strength_mpa": 300,
+        "surface_imperfections_verified": True,
+        "properties_and_weldability_verified": True,
+        "full_test_to_as1391_verified": False,
+    }
+    with TestClient(create_app(authenticator=AllowAllAuthenticator())) as client:
+        response = client.post(
+            "/api/v1/calculations/structural.as4100.materials/run",
+            json={"inputs": inputs},
+        )
+    assert response.status_code == 200
+    assert response.json()["clauses"] == ["2.2.3"]
+    assert [check["limit_mpa"] for check in response.json()["checks"]] == [170, 300]
+    assert response.json()["checked_conditions_satisfied"]
+
+
+def test_through_thickness_clause_2_2_5_runs_through_host():
+    inputs = {
+        "operation": "through_thickness_deformation",
+        "product_standard": "AS/NZS 3678",
+        "material_thickness_mm": 20,
+        "required_design_z_value": 21,
+        "appendix_m_assessment_verified": True,
+        "appendix_m_assessment_reference": "WELD-DESIGN-4100-01",
+        "available_z_quality_class": "Z25",
+        "material_certificate_verified": True,
+        "material_certificate_reference": "MILL-CERT-4100-01",
+    }
+    with TestClient(create_app(authenticator=AllowAllAuthenticator())) as client:
+        response = client.post(
+            "/api/v1/calculations/structural.as4100.materials/run",
+            json={"inputs": inputs},
+        )
+    assert response.status_code == 200
+    assert response.json()["clauses"] == ["2.2.5"]
+    assert response.json()["values"]["required_z_quality_class"] == "Z25"
+    assert response.json()["checked_conditions_satisfied"]
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

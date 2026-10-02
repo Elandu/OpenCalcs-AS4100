@@ -19,6 +19,19 @@ def test_euler_pin_ended_hand_benchmark():
     assert r["values"]["elastic_buckling_load_kn"] == pytest.approx(100 * pi * pi)
 
 
+def test_euler_buckling_uses_clause_2_2_4_elastic_modulus():
+    with pytest.raises(ValueError, match="elastic_modulus_mpa"):
+        run(
+            {
+                "operation": "euler_buckling",
+                "elastic_modulus_mpa": 199000,
+                "second_moment_mm4": 8e6,
+                "member_length_mm": 4000,
+                "effective_length_factor": 1,
+            }
+        )
+
+
 def test_moment_amplification_and_instability_gate():
     d = {
         "operation": "moment_amplification",

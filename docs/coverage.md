@@ -1,6 +1,6 @@
 # AS 4100:2020 coverage map
 
-This map describes the bounded version 0.3.0 implementation. **Calculated**
+This map describes the bounded version 0.5.0 implementation. **Calculated**
 means a stated operation evaluates an equation or compares supplied values.
 **Assessed** means the user must establish applicability, inputs and supporting
 evidence independently. **Missing** identifies examples of provisions for
@@ -12,7 +12,7 @@ for every Section, but does not independently validate that evidence.
 | Section | Calculated or compared in this release | Assessed externally; remaining gaps |
 | --- | --- | --- |
 | 1 — Scope and general | No normative design check. `design_review` records scope evidence. | Applicability, exclusions, edition, referenced standards and project basis; no automatic scope decision. |
-| 2 — Materials | `materials`: Table 2.1 product-standard, form, grade and thickness lookup for listed structural steel rows. | Certification, Table 2.1 notes, product/process effects, bolting/welding consumables, 2.2–2.5 conformity, heat treatment and lamellar tearing need separate assessment. |
+| 2 — Materials | `materials`: all listed Table 2.1 product/form/grade/thickness strengths; 2.2.3 unidentified-steel 170/300 MPa design-strength limits or AS 1391 test route; 2.2.4 steel design properties; 2.2.5 comparison of an externally assessed Appendix M `ZEd` demand against AS/NZS 3678 Z-quality class and thickness. | Certification and test evidence, Table 2.1 notes, product/process effects, Appendix M weld/detail assessment and Clause 3.8 detailing, bolting/welding consumables, 2.3–2.5 conformity, heat treatment and complete lamellar-tearing assessment need separate review. |
 | 3 — Design requirements | `design_actions`: 3.2.4 notional horizontal load, 3.3 stability effect and 3.5 serviceability deflection comparison. | Select governing action combinations, reliability/serviceability criteria, restraint and load paths; no load generator or complete limit-state assessment. |
 | 4 — Structural analysis | `design_actions`: selected Euler load, elastic moment/storey sway and plastic amplification calculations. | Establish analysis model, effective lengths, second-order effects and restraints; no full frame analysis, eigenvalue analysis or model verification. |
 | 5 — Bending members | `member_design`: selected 5.2 plate classification, 5.6.1 equal-flange lateral buckling, 5.11 shear and 5.12.3 interaction. `advanced_members`: selected 5.6.2(i) and Table 5.6.2 one-end-unrestrained cases, Table 5.6.3 effective-length factors, 5.6.4 analysis-input buckling, 5.7 nonprincipal bending, 5.4.3 restraint force and 5.8 separator/diaphragm minimum force. `webs`: selected 5.13–5.16 bearing/stiffener checks. | Supply section properties, actual restraints and load position, web configuration and force paths. Table 5.6.2 is limited to its three diagrammed cases and verified reference moment; 5.6.2(ii), unequal-flange/monosymmetric LTB, several other 5.3–5.10 paths and complete web/stiffener detailing remain unsupported. |

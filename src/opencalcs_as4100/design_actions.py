@@ -3,13 +3,14 @@
 
 from math import isfinite, pi
 
+from .standards import ELASTIC_MODULUS_MPA
 from .validation import NONNEGATIVE, POSITIVE, SIGNED, object_schema, result, validate
 
 SCHEMAS = {
     "euler_buckling": object_schema(
         {
             "operation": {"const": "euler_buckling"},
-            "elastic_modulus_mpa": POSITIVE,
+            "elastic_modulus_mpa": {"const": ELASTIC_MODULUS_MPA},
             "second_moment_mm4": POSITIVE,
             "member_length_mm": POSITIVE,
             "effective_length_factor": POSITIVE,

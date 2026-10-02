@@ -20,3 +20,9 @@ class StandardReference:
 
 
 STANDARD = StandardReference()
+
+# AS 4100:2020 Clause 2.2.4 design properties.
+ELASTIC_MODULUS_MPA = 200_000
+SHEAR_MODULUS_MPA = 80_000
+POISSON_RATIO = 0.25
+THERMAL_EXPANSION_PER_C = 11.7e-6

@@ -10,6 +10,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
 
+from .standards import ELASTIC_MODULUS_MPA, SHEAR_MODULUS_MPA
 from .validation import validate_standard_strengths
 
 
@@ -361,10 +362,10 @@ def _bending(d):
     # E and G in MPa, dimensions in mm: result N.mm converted to kN.m.
     mo = (
         sqrt(
-            (pi**2 * 200000 * d["iy_mm4"] / le**2)
+            (pi**2 * ELASTIC_MODULUS_MPA * d["iy_mm4"] / le**2)
             * (
-                80000 * d["torsion_constant_mm4"]
-                + pi**2 * 200000 * d["warping_constant_mm6"] / le**2
+                SHEAR_MODULUS_MPA * d["torsion_constant_mm4"]
+                + pi**2 * ELASTIC_MODULUS_MPA * d["warping_constant_mm6"] / le**2
             )
         )
         / 1e6

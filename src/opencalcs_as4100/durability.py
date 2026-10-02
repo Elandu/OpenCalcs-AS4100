@@ -5,6 +5,7 @@ from math import isfinite, log
 
 from jsonschema import Draft202012Validator, ValidationError
 
+from .standards import ELASTIC_MODULUS_MPA, POISSON_RATIO
 from .validation import validate_standard_strengths
 
 
@@ -81,16 +82,16 @@ INPUT_SCHEMA = {
             {
                 "temperature_c": _number(0, 905, True),
                 "yield_strength_20_mpa": _POS,
-                "elastic_modulus_20_mpa": _POS,
-                "poisson_ratio": _number(0, 0.5),
+                "elastic_modulus_20_mpa": {"const": ELASTIC_MODULUS_MPA},
+                "poisson_ratio": {"const": POISSON_RATIO},
             },
         ),
         _operation(
             "fire_modulus",
             {
                 "temperature_c": _number(0, 1000, True),
-                "elastic_modulus_20_mpa": _POS,
-                "poisson_ratio": _number(0, 0.5),
+                "elastic_modulus_20_mpa": {"const": ELASTIC_MODULUS_MPA},
+                "poisson_ratio": {"const": POISSON_RATIO},
             },
         ),
         _operation("fire_limiting_temperature", {"fire_action_ratio": _number(0, 1)}),

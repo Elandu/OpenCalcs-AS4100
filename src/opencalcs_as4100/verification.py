@@ -65,6 +65,24 @@ def verify():
         material["values"]["tensile_strength_mpa"],
         450,
     )
+    through_thickness = run_materials(
+        {
+            "operation": "through_thickness_deformation",
+            "product_standard": "AS/NZS 3678",
+            "material_thickness_mm": 20,
+            "required_design_z_value": 21,
+            "appendix_m_assessment_verified": True,
+            "appendix_m_assessment_reference": "WELD-DESIGN-4100-01",
+            "available_z_quality_class": "Z25",
+            "material_certificate_verified": True,
+            "material_certificate_reference": "MILL-CERT-4100-01",
+        }
+    )
+    record(
+        "Clause 2.2.5 ZEd=21 minimum reduction of area",
+        through_thickness["checks"][0]["required_reduction_of_area_percent"],
+        25,
+    )
     for slenderness, expected in [(50, 0.808), (100, 0.485)]:
         record(
             f"Table 6.3.3(C), alpha_b=0.5, lambda={slenderness}",

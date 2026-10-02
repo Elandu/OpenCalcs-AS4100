@@ -1,14 +1,20 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Material strength limits tabulated by AS 4100:2020 Table 2.1."""
+"""Selected AS 4100:2020 material strengths, properties and quality checks."""
 
 from collections.abc import Mapping
 
 from jsonschema import Draft202012Validator, ValidationError
 
-from .validation import object_schema
+from .standards import (
+    ELASTIC_MODULUS_MPA,
+    POISSON_RATIO,
+    SHEAR_MODULUS_MPA,
+    THERMAL_EXPANSION_PER_C,
+)
+from .validation import object_schema, validate_standard_strengths
 
 _P = {"type": "number", "exclusiveMinimum": 0, "maximum": 10000}
-INPUT_SCHEMA = object_schema(
+TABLED_STRENGTH_SCHEMA = object_schema(
     {
         "operation": {"const": "tabulated_strength"},
         "product_standard": {
@@ -37,7 +43,33 @@ INPUT_SCHEMA = object_schema(
         "material_thickness_mm": _P,
     }
 )
-OUTPUT_SCHEMA = {
+DESIGN_PROPERTIES_SCHEMA = object_schema({"operation": {"const": "design_properties"}})
+THROUGH_THICKNESS_SCHEMA = object_schema(
+    {
+        "operation": {"const": "through_thickness_deformation"},
+        "product_standard": {"const": "AS/NZS 3678"},
+        "material_thickness_mm": _P,
+        "required_design_z_value": {
+            "type": ["integer", "null"],
+            "minimum": -32,
+            "maximum": 43,
+        },
+        "appendix_m_assessment_verified": {"type": "boolean"},
+        "appendix_m_assessment_reference": {"type": ["string", "null"], "maxLength": 2000},
+        "available_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
+        "material_certificate_verified": {"type": "boolean"},
+        "material_certificate_reference": {"type": ["string", "null"], "maxLength": 2000},
+    },
+    required=[
+        "operation",
+        "product_standard",
+        "material_thickness_mm",
+        "available_z_quality_class",
+        "material_certificate_verified",
+        "material_certificate_reference",
+    ],
+)
+TABLED_STRENGTH_OUTPUT_SCHEMA = {
     "type": "object",
     "required": ["standard", "operation", "values", "clauses", "warnings"],
     "properties": {
@@ -56,6 +88,211 @@ OUTPUT_SCHEMA = {
         "warnings": {"type": "array", "items": {"type": "string"}},
     },
     "additionalProperties": False,
+}
+DESIGN_PROPERTIES_OUTPUT_SCHEMA = {
+    "type": "object",
+    "required": ["standard", "operation", "values", "clauses", "warnings"],
+    "properties": {
+        "standard": {"const": "AS 4100:2020"},
+        "operation": {"const": "design_properties"},
+        "values": {
+            "type": "object",
+            "required": [
+                "elastic_modulus_mpa",
+                "shear_modulus_mpa",
+                "poisson_ratio",
+                "thermal_expansion_per_c",
+            ],
+            "properties": {
+                "elastic_modulus_mpa": {"const": ELASTIC_MODULUS_MPA},
+                "shear_modulus_mpa": {"const": SHEAR_MODULUS_MPA},
+                "poisson_ratio": {"const": POISSON_RATIO},
+                "thermal_expansion_per_c": {"const": THERMAL_EXPANSION_PER_C},
+            },
+            "additionalProperties": False,
+        },
+        "clauses": {"const": ["2.2.4"]},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+_THROUGH_THICKNESS_CHECK = {
+    "type": "object",
+    "required": [
+        "clause",
+        "required_design_z_value",
+        "exemption_applies",
+        "required_z_quality_class",
+        "available_z_quality_class",
+        "required_reduction_of_area_percent",
+        "class_sufficient",
+        "certificate_evidence_satisfied",
+        "satisfied",
+    ],
+    "properties": {
+        "clause": {"const": "2.2.5"},
+        "required_design_z_value": {"type": ["integer", "null"]},
+        "exemption_applies": {"type": "boolean"},
+        "required_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
+        "available_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
+        "required_reduction_of_area_percent": {"type": ["number", "null"]},
+        "class_sufficient": {"type": "boolean"},
+        "certificate_evidence_satisfied": {"type": "boolean"},
+        "satisfied": {"type": "boolean"},
+    },
+    "additionalProperties": False,
+}
+THROUGH_THICKNESS_OUTPUT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "standard",
+        "operation",
+        "clauses",
+        "values",
+        "checks",
+        "checked_conditions_satisfied",
+        "full_standard_compliance",
+        "warnings",
+    ],
+    "properties": {
+        "standard": {"const": "AS 4100:2020"},
+        "operation": {"const": "through_thickness_deformation"},
+        "clauses": {"const": ["2.2.5"]},
+        "values": {
+            "type": "object",
+            "required": [
+                "product_standard",
+                "material_thickness_mm",
+                "required_design_z_value",
+                "appendix_m_assessment_verified",
+                "appendix_m_assessment_reference",
+                "available_z_quality_class",
+                "material_certificate_verified",
+                "material_certificate_reference",
+                "required_z_quality_class",
+                "required_reduction_of_area_percent",
+            ],
+            "properties": {
+                "product_standard": {"const": "AS/NZS 3678"},
+                "material_thickness_mm": {"type": "number", "exclusiveMinimum": 0},
+                "required_design_z_value": {"type": ["integer", "null"]},
+                "appendix_m_assessment_verified": {"type": "boolean"},
+                "appendix_m_assessment_reference": {"type": ["string", "null"]},
+                "available_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
+                "material_certificate_verified": {"type": "boolean"},
+                "material_certificate_reference": {"type": ["string", "null"]},
+                "required_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
+                "required_reduction_of_area_percent": {"type": ["number", "null"]},
+            },
+            "additionalProperties": False,
+        },
+        "checks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": _THROUGH_THICKNESS_CHECK,
+        },
+        "checked_conditions_satisfied": {"type": "boolean"},
+        "full_standard_compliance": {"const": False},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+
+_UNIDENTIFIED_BASE = {
+    "design_yield_strength_mpa": {"type": "number", "exclusiveMinimum": 0, "maximum": 690},
+    "design_tensile_strength_mpa": _P,
+    "surface_imperfections_verified": {"const": True},
+    "properties_and_weldability_verified": {"const": True},
+}
+_UNIDENTIFIED_NO_TEST_SCHEMA = object_schema(
+    {
+        "operation": {"const": "unidentified_steel"},
+        **_UNIDENTIFIED_BASE,
+        "full_test_to_as1391_verified": {"const": False},
+    }
+)
+_UNIDENTIFIED_TESTED_SCHEMA = object_schema(
+    {
+        "operation": {"const": "unidentified_steel"},
+        **_UNIDENTIFIED_BASE,
+        "full_test_to_as1391_verified": {"const": True},
+        "test_report_reference": {"type": "string", "minLength": 1, "maxLength": 2000},
+    }
+)
+INPUT_SCHEMA = {
+    "oneOf": [
+        TABLED_STRENGTH_SCHEMA,
+        DESIGN_PROPERTIES_SCHEMA,
+        THROUGH_THICKNESS_SCHEMA,
+        _UNIDENTIFIED_NO_TEST_SCHEMA,
+        _UNIDENTIFIED_TESTED_SCHEMA,
+    ]
+}
+
+_UNIDENTIFIED_CHECK = {
+    "type": "object",
+    "required": ["clause", "strength", "value_mpa", "limit_mpa", "basis", "satisfied"],
+    "properties": {
+        "clause": {"const": "2.2.3"},
+        "strength": {"enum": ["yield", "tensile"]},
+        "value_mpa": {"type": "number", "exclusiveMinimum": 0},
+        "limit_mpa": {"type": ["number", "null"]},
+        "basis": {"enum": ["maximum_design_strength", "full_test_to_as1391"]},
+        "satisfied": {"type": "boolean"},
+    },
+    "additionalProperties": False,
+}
+UNIDENTIFIED_STEEL_OUTPUT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "standard",
+        "operation",
+        "clauses",
+        "values",
+        "checks",
+        "checked_conditions_satisfied",
+        "full_standard_compliance",
+        "warnings",
+    ],
+    "properties": {
+        "standard": {"const": "AS 4100:2020"},
+        "operation": {"const": "unidentified_steel"},
+        "clauses": {"const": ["2.2.3"]},
+        "values": {
+            "type": "object",
+            "required": [
+                "design_yield_strength_mpa",
+                "design_tensile_strength_mpa",
+                "full_test_to_as1391_verified",
+                "test_report_reference",
+            ],
+            "properties": {
+                "design_yield_strength_mpa": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 690,
+                },
+                "design_tensile_strength_mpa": {"type": "number", "exclusiveMinimum": 0},
+                "full_test_to_as1391_verified": {"type": "boolean"},
+                "test_report_reference": {"type": ["string", "null"]},
+            },
+            "additionalProperties": False,
+        },
+        "checks": {"type": "array", "minItems": 2, "maxItems": 2, "items": _UNIDENTIFIED_CHECK},
+        "checked_conditions_satisfied": {"type": "boolean"},
+        "full_standard_compliance": {"const": False},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+OUTPUT_SCHEMA = {
+    "oneOf": [
+        TABLED_STRENGTH_OUTPUT_SCHEMA,
+        DESIGN_PROPERTIES_OUTPUT_SCHEMA,
+        THROUGH_THICKNESS_OUTPUT_SCHEMA,
+        UNIDENTIFIED_STEEL_OUTPUT_SCHEMA,
+    ]
 }
 
 # Rows: standard, form, grade, lower t, lower inclusive, upper t, upper inclusive, fy, fu.
@@ -172,6 +409,14 @@ def run_materials(inputs: Mapping) -> dict:
         Draft202012Validator(INPUT_SCHEMA).validate(data)
     except ValidationError as exc:
         raise ValueError(exc.message) from exc
+    validate_standard_strengths(data)
+    if data["operation"] == "design_properties":
+        return _design_properties()
+    if data["operation"] == "through_thickness_deformation":
+        return _through_thickness_deformation(data)
+    if data["operation"] == "unidentified_steel":
+        return _unidentified_steel(data)
+
     lookup_standard = data["product_standard"]
     lookup_form = data["form"]
     welded_i = lookup_standard == "AS/NZS 3679.2" and lookup_form == "welded_i_sections"
@@ -202,6 +447,156 @@ def run_materials(inputs: Mapping) -> dict:
         "values": {"yield_strength_mpa": row[7], "tensile_strength_mpa": row[8]},
         "clauses": ["2.1.1", "2.1.2", "Table 2.1"],
         "warnings": warnings,
+    }
+    Draft202012Validator(OUTPUT_SCHEMA).validate(result)
+    return result
+
+
+def _design_properties() -> dict:
+    result = {
+        "standard": "AS 4100:2020",
+        "operation": "design_properties",
+        "values": {
+            "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+            "shear_modulus_mpa": SHEAR_MODULUS_MPA,
+            "poisson_ratio": POISSON_RATIO,
+            "thermal_expansion_per_c": THERMAL_EXPANSION_PER_C,
+        },
+        "clauses": ["2.2.4"],
+        "warnings": [
+            "These are the Clause 2.2.4 design properties for steel; they do not "
+            "establish material certification or project applicability."
+        ],
+    }
+    Draft202012Validator(OUTPUT_SCHEMA).validate(result)
+    return result
+
+
+def _unidentified_steel(data: Mapping) -> dict:
+    """Compare unidentified-steel design strengths with the Clause 2.2.3 limits."""
+    tested = data["full_test_to_as1391_verified"]
+    report = data.get("test_report_reference")
+    limits = {"yield": 170, "tensile": 300}
+    checks = []
+    for strength, key in (
+        ("yield", "design_yield_strength_mpa"),
+        ("tensile", "design_tensile_strength_mpa"),
+    ):
+        value = data[key]
+        limit = None if tested else limits[strength]
+        checks.append(
+            {
+                "clause": "2.2.3",
+                "strength": strength,
+                "value_mpa": value,
+                "limit_mpa": limit,
+                "basis": "full_test_to_as1391" if tested else "maximum_design_strength",
+                "satisfied": tested or value <= limit,
+            }
+        )
+    result = {
+        "standard": "AS 4100:2020",
+        "operation": "unidentified_steel",
+        "clauses": ["2.2.3"],
+        "values": {
+            "design_yield_strength_mpa": data["design_yield_strength_mpa"],
+            "design_tensile_strength_mpa": data["design_tensile_strength_mpa"],
+            "full_test_to_as1391_verified": tested,
+            "test_report_reference": report,
+        },
+        "checks": checks,
+        "checked_conditions_satisfied": all(item["satisfied"] for item in checks),
+        "full_standard_compliance": False,
+        "warnings": [
+            "Verify unidentified steel is free from surface imperfections and its "
+            "physical properties and weldability do not adversely affect "
+            "strength or serviceability.",
+            "Prerequisite attestations and any AS 1391 test report are not "
+            "authenticated by this check.",
+        ],
+    }
+    Draft202012Validator(OUTPUT_SCHEMA).validate(result)
+    return result
+
+
+def _through_thickness_deformation(data: Mapping) -> dict:
+    """Compare an assessed Appendix M demand with Clause 2.2.5 Z-quality limits."""
+    thickness = data["material_thickness_mm"]
+    z_ed = data.get("required_design_z_value")
+    exempt = thickness <= 16 or (z_ed is not None and z_ed <= 10)
+    required_class = None
+    required_reduction = None
+    if not exempt and z_ed is not None:
+        if z_ed <= 20:
+            required_class, required_reduction = "Z15", 15
+        elif z_ed <= 30:
+            required_class, required_reduction = "Z25", 25
+        else:
+            required_class, required_reduction = "Z35", 35
+
+    available_class = data["available_z_quality_class"]
+    class_rank = {"Z15": 15, "Z25": 25, "Z35": 35}
+    class_sufficient = required_class is None or (
+        available_class is not None and class_rank[available_class] >= class_rank[required_class]
+    )
+    assessment_evidence_satisfied = thickness <= 16 or (
+        z_ed is not None
+        and data.get("appendix_m_assessment_verified", False)
+        and bool(data.get("appendix_m_assessment_reference"))
+    )
+    certificate_evidence_satisfied = required_class is None or (
+        data["material_certificate_verified"] and bool(data["material_certificate_reference"])
+    )
+    satisfied = (
+        assessment_evidence_satisfied and class_sufficient and certificate_evidence_satisfied
+    )
+    result = {
+        "standard": "AS 4100:2020",
+        "operation": "through_thickness_deformation",
+        "clauses": ["2.2.5"],
+        "values": {
+            "product_standard": data["product_standard"],
+            "material_thickness_mm": thickness,
+            "required_design_z_value": z_ed,
+            "appendix_m_assessment_verified": data.get("appendix_m_assessment_verified", False),
+            "appendix_m_assessment_reference": data.get("appendix_m_assessment_reference"),
+            "available_z_quality_class": available_class,
+            "material_certificate_verified": data["material_certificate_verified"],
+            "material_certificate_reference": data["material_certificate_reference"],
+            "required_z_quality_class": required_class,
+            "required_reduction_of_area_percent": required_reduction,
+        },
+        "checks": [
+            {
+                "clause": "2.2.5",
+                "required_design_z_value": z_ed,
+                "exemption_applies": exempt,
+                "required_z_quality_class": required_class,
+                "available_z_quality_class": available_class,
+                "required_reduction_of_area_percent": required_reduction,
+                "class_sufficient": class_sufficient,
+                "certificate_evidence_satisfied": certificate_evidence_satisfied,
+                "satisfied": satisfied,
+            }
+        ],
+        "checked_conditions_satisfied": satisfied,
+        "full_standard_compliance": False,
+        "warnings": [
+            (
+                "The thickness exemption to the Clause 2.2.5 Z-quality requirement applies."
+                if thickness <= 16
+                else (
+                    "The required Appendix M design Z-value is missing for material "
+                    "thicker than 16 mm."
+                    if z_ed is None
+                    else "The design Z-value is supplied from an external Appendix M assessment; "
+                    "the plugin does not interpret weld-layout diagrams or calculate ZEd."
+                )
+            ),
+            "Assessment references and material certificates are recorded but not authenticated.",
+            "Clause 3.8 joint detailing, through-thickness stress and weld-size requirements "
+            "still require engineering assessment.",
+        ],
     }
     Draft202012Validator(OUTPUT_SCHEMA).validate(result)
     return result

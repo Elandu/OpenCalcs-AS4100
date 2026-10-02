@@ -121,7 +121,7 @@ def test_d08_fire_yield_and_moduli():
         "temperature_c": 215,
         "yield_strength_20_mpa": 350,
         "elastic_modulus_20_mpa": 200000,
-        "poisson_ratio": 0.3,
+        "poisson_ratio": 0.25,
     }
     assert result(d)["yield_ratio"] == 1
     d["temperature_c"] = 560
@@ -129,7 +129,7 @@ def test_d08_fire_yield_and_moduli():
     d["temperature_c"] = 800
     r = result(d)
     assert r["elastic_ratio"] == pytest.approx(138 / 746.5)
-    assert r["shear_modulus_mpa"] == pytest.approx(r["elastic_modulus_mpa"] / 2.6)
+    assert r["shear_modulus_mpa"] == pytest.approx(r["elastic_modulus_mpa"] / 2.5)
     d["temperature_c"] = 905
     assert result(d)["yield_strength_mpa"] == 0
 
@@ -266,9 +266,16 @@ def test_d16_modulus_upper_domain():
         "check_type": "fire_modulus",
         "temperature_c": 1000,
         "elastic_modulus_20_mpa": 200000,
-        "poisson_ratio": 0.3,
+        "poisson_ratio": 0.25,
     }
     assert result(d)["elastic_ratio"] == 0
+    d["poisson_ratio"] = 0.3
+    with pytest.raises(ValueError, match="poisson_ratio"):
+        result(d)
+    d["poisson_ratio"] = 0.25
+    d["elastic_modulus_20_mpa"] = 199999
+    with pytest.raises(ValueError, match="elastic_modulus_20_mpa"):
+        result(d)
     d["temperature_c"] = 1000.001
     with pytest.raises(ValueError):
         result(d)

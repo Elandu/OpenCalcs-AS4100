@@ -1,5 +1,5 @@
 {
-  "package_version": "0.3.0",
+  "package_version": "0.5.0",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -28,6 +28,13 @@
       "name": "Table 2.1 grade 350 plate at 16 mm, tensile strength",
       "actual": 450,
       "expected": 450,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.2.5 ZEd=21 minimum reduction of area",
+      "actual": 25,
+      "expected": 25,
       "absolute_tolerance": 1e-09,
       "passed": true
     },
