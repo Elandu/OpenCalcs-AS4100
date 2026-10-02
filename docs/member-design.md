@@ -38,9 +38,11 @@ The following cannot currently be claimed as completed by these member primitive
 - 5.2.5: slender plates with compression at one supported edge and tension at the other
   require effective-section assessment; the simple uniform-compression reduction is rejected.
 - 5.3–5.5: restraint stiffness/strength, critical flange/section, continuity and load position.
-- 5.6.1 unequal-flange, monosymmetric and varying-section paths; 5.6.2 unrestrained-end
-  segments; 5.6.3 automatic twist/load-height/rotation length factors; 5.6.4 buckling analysis.
-- 5.7 nonprincipal bending; 5.8 separators/diaphragms; 5.9–5.10 web configuration,
+- 5.6.1 unequal-flange, monosymmetric and varying-section paths; 5.6.2(ii) unrestrained-end
+  alternative based on an independently determined elastic buckling moment (the selected
+  Table 5.6.2(i) cases are in `advanced_members`); 5.6.3 automatic twist/load-height/rotation
+  length factors; broader 5.6.4 buckling analysis outside the selected advanced operation.
+- 5.7 nonprincipal bending; 5.9–5.10 web configuration,
   minimum thickness, openings and longitudinal-stiffener applicability.
 - 5.11.4 CHS shear effective-area selection; flange-restraint enhancement in 5.11.5.2;
   longitudinal-stiffener/rational buckling-analysis alternatives.

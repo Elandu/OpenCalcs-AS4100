@@ -6,7 +6,11 @@ families. The scan, page images and extracted standard text are not distributed
 with this repository. No separate amendments were supplied or verified;
 applicable amendments and project requirements require engineering review.
 
-Version 0.2.0 exposes nine installed calculation families. The code implements
+Table 2.1 material strengths are available for explicitly listed product forms,
+grades and thickness ranges. Material certification, Table 2.1 notes and
+clauses 2.2–2.5 are still assessed outside this lookup.
+
+Version 0.3.0 exposes ten installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing
@@ -31,8 +35,10 @@ The input factors `kt` and `kf` require assessment.
 [BeamDesign](https://github.com/skane88/BeamDesign) was inspected as a comparison;
 no license was identified, so no source or test vectors were copied.
 [section-properties](https://github.com/robbievanleeuwen/section-properties) can
-supply geometry in a separate workflow but cannot select AS 4100 reductions,
-net areas or tension distribution factors.
+calculate geometric properties such as centroid, inertias, plastic properties,
+torsion and warping constants. It cannot select AS 4100 reductions, net areas,
+restraints or tension distribution factors. It is not a required dependency;
+an optional adapter can be added if geometry-to-property automation is in scope.
 
 [OpenSees](https://github.com/OpenSees/OpenSees) could supply external structural
 analysis after separate licensing and model review; it is not bundled. This
@@ -45,7 +51,7 @@ conditions, schema checks and host descriptor checks. They verify implemented
 arithmetic and supported input domains. They do not verify product certificates,
 construction records, physical tests, a complete AS 4100 implementation or
 fitness of a particular structure. In particular, unequal-flange and
-monosymmetric lateral-torsional buckling, rational torsional-flexural analysis,
-5.8 separators/diaphragms and the special 8.4.6 angle interaction remain
+monosymmetric lateral-torsional buckling, rational torsional-flexural analysis
+and the special 8.4.6 angle interaction remain
 unresolved. Engineers must identify every applicable provision before relying
 on a result.

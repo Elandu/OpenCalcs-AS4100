@@ -93,6 +93,7 @@ def test_all_calculation_families_discovered_with_schemas():
 @pytest.mark.parametrize(
     "suffix",
     [
+        "materials",
         "member_design",
         "advanced_members",
         "connection_design",
@@ -139,6 +140,16 @@ def test_family_http_validation(suffix):
                 "section_constant": 0,
                 "action_kn": 500,
                 "flexural_mode_verified": True,
+            },
+        ),
+        (
+            "materials",
+            {
+                "operation": "tabulated_strength",
+                "product_standard": "AS/NZS 3678",
+                "form": "plate_floorplate",
+                "grade": "350",
+                "material_thickness_mm": 16,
             },
         ),
     ],

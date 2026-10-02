@@ -1,6 +1,6 @@
 # OpenCalcs AS 4100
 
-OpenCalcs plugin version 0.2.0 provides nine bounded calculation families for
+OpenCalcs plugin version 0.3.0 provides ten bounded calculation families for
 AS 4100:2020 steel design. It evaluates selected equations and declared
 conditions; it does not establish full standard or project compliance. Every
 applicable member, connection, action, detail and construction requirement needs
@@ -8,6 +8,7 @@ an engineering assessment supported by evidence.
 
 | Calculation ID suffix | Scope |
 | --- | --- |
+| `materials` | Selected product, form, grade and thickness strength lookups from Table 2.1. |
 | `section_analysis` | Axial tension and compression section capacities (7.2, 6.2.1). |
 | `member_design` | Plate slenderness, compression, selected bending and shear, combined actions and tension distribution. |
 | `advanced_members` | Selected variable/built-up member, buckling-analysis, plastic, restraint, separator/diaphragm, lacing, batten and pin/angle geometry checks. |
@@ -29,7 +30,7 @@ unsupported. The detailed family notes are in
 [further members](docs/advanced-members.md),
 [connections](docs/connections.md),
 [durability](docs/durability.md) and
-[testing](docs/testing.md).
+[testing](docs/testing.md), and [materials](docs/materials.md).
 
 Install with `pip install .`, then restart OpenCalcs. For development and host
 integration verification from a sibling checkout:
@@ -47,6 +48,7 @@ The POST body is `{"inputs": <calculation input object>}`. For example,
 `structural.as4100.section_analysis`; it returns tension design capacity
 367.2 kN and compression section design capacity 270 kN. These are illustrative
 section results, not a compression-member design.
+`examples/material_strength.json` demonstrates the Table 2.1 material lookup.
 
 Inputs such as material strengths, section properties, effective lengths,
 restrained lengths, design actions, connection geometry and fatigue categories

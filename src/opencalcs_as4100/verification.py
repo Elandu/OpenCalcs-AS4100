@@ -10,6 +10,7 @@ from .advanced_members import run_advanced_members
 from .analysis import run_analysis
 from .connections import run_connections
 from .design_actions import run_design_actions
+from .materials import run_materials
 from .webs import buckling_alpha, run_webs
 
 
@@ -44,6 +45,25 @@ def verify():
         "6.2.1 axial section compression, hand arithmetic",
         axial["compression"]["design_capacity_kn"],
         270,
+    )
+    material = run_materials(
+        {
+            "operation": "tabulated_strength",
+            "product_standard": "AS/NZS 3678",
+            "form": "plate_floorplate",
+            "grade": "350",
+            "material_thickness_mm": 16,
+        }
+    )
+    record(
+        "Table 2.1 grade 350 plate at 16 mm, yield strength",
+        material["values"]["yield_strength_mpa"],
+        350,
+    )
+    record(
+        "Table 2.1 grade 350 plate at 16 mm, tensile strength",
+        material["values"]["tensile_strength_mpa"],
+        450,
     )
     for slenderness, expected in [(50, 0.808), (100, 0.485)]:
         record(
@@ -119,6 +139,29 @@ def verify():
         bending["values"]["member_capacity_knm"],
         60,
     )
+    effective_length = run_advanced_members(
+        {
+            "operation": "lateral_buckling_effective_length",
+            "segment_length_mm": 1000,
+            "clear_flange_depth_mm": 200,
+            "critical_flange_thickness_mm": 20,
+            "web_thickness_mm": 10,
+            "number_of_webs": 2,
+            "restraint_arrangement": "PP",
+            "gravity_load_position": "within_segment",
+            "load_height_position": "top_flange",
+            "effective_rotation_restraint_count": 2,
+            "effective_rotation_restraints_verified": True,
+        }
+    )
+    for key, expected in [
+        ("twist_restraint_factor", 1.2),
+        ("load_height_factor", 1.4),
+        ("lateral_rotation_factor", 0.7),
+        ("effective_length_factor", 1.176),
+        ("effective_length_mm", 1176),
+    ]:
+        record(f"Table 5.6.3 {key}", effective_length["values"][key], expected)
     return {
         "package_version": __version__,
         "standard": "AS 4100:2020",

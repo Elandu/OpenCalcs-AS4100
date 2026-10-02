@@ -44,6 +44,105 @@ def test_external_lateral_buckling(ends, factor, expected):
     assert out["values"]["member_capacity_knm"] == pytest.approx(expected)
 
 
+@pytest.mark.parametrize(
+    "distribution,factor,expected_capacity",
+    [
+        ("uniform_end_moment", 0.25, 15),
+        ("tip_force", 1.25, 75),
+        ("uniform_load", 2.25, 100),  # alpha_m*alpha_s*Ms is capped at Ms
+    ],
+)
+def test_table_5_6_2_moment_factors(distribution, factor, expected_capacity):
+    out = run_advanced_members(
+        {
+            "operation": "one_unrestrained_table_bending",
+            "section_capacity_knm": 100,
+            "reference_buckling_moment_knm": 100,
+            "moment_distribution": distribution,
+            "action_knm": 0,
+            "one_end_restraint_and_continuity_verified": True,
+            "reference_buckling_moment_verified": True,
+        }
+    )
+    assert out["values"]["moment_factor"] == factor
+    assert out["values"]["reduction"] == pytest.approx(0.6)
+    assert out["values"]["member_capacity_knm"] == pytest.approx(expected_capacity)
+    assert out["clauses"] == [
+        "5.6.1.1(1)",
+        "5.6.1.1(2)",
+        "5.6.1.1(3)",
+        "5.6.2",
+        "Table 5.6.2",
+    ]
+    assert out["full_standard_compliance"] is False
+
+
+def test_table_5_6_2_capacity_limit_boundary_and_case_validation():
+    inputs = {
+        "operation": "one_unrestrained_table_bending",
+        "section_capacity_knm": 100,
+        "reference_buckling_moment_knm": 100,
+        "moment_distribution": "uniform_end_moment",
+        "action_knm": 13.5,
+        "one_end_restraint_and_continuity_verified": True,
+        "reference_buckling_moment_verified": True,
+    }
+    assert run_advanced_members(inputs)["checked_conditions_satisfied"]
+    inputs["action_knm"] = 13.500001
+    assert not run_advanced_members(inputs)["checked_conditions_satisfied"]
+    inputs["moment_distribution"] = "cantilever_point_load"
+    with pytest.raises(ValueError, match="moment_distribution"):
+        run_advanced_members(inputs)
+
+
+@pytest.mark.parametrize(
+    "arrangement,position,height,rotation_count,factor",
+    [
+        ("PP", "within_segment", "top_flange", 2, 1.176),
+        ("PU", "within_segment", "top_flange", 0, 2.2),
+        ("FL", "within_segment", "top_flange", 1, 1.4),
+        ("FF", "within_segment", "shear_centre", 1, 0.85),
+        ("PP", "at_segment_end", "top_flange", 1, 1.02),
+    ],
+)
+def test_table_5_6_3_effective_length(arrangement, position, height, rotation_count, factor):
+    out = run_advanced_members(
+        {
+            "operation": "lateral_buckling_effective_length",
+            "segment_length_mm": 1000,
+            "clear_flange_depth_mm": 200,
+            "critical_flange_thickness_mm": 20,
+            "web_thickness_mm": 10,
+            "number_of_webs": 2,
+            "restraint_arrangement": arrangement,
+            "gravity_load_position": position,
+            "load_height_position": height,
+            "effective_rotation_restraint_count": rotation_count,
+            "effective_rotation_restraints_verified": True,
+        }
+    )
+    assert out["values"]["effective_length_factor"] == pytest.approx(factor)
+    assert out["values"]["effective_length_mm"] == pytest.approx(1000 * factor)
+
+
+def test_table_5_6_3_requires_effective_rotation_restraint_evidence():
+    inputs = {
+        "operation": "lateral_buckling_effective_length",
+        "segment_length_mm": 1000,
+        "clear_flange_depth_mm": 200,
+        "critical_flange_thickness_mm": 20,
+        "web_thickness_mm": 10,
+        "number_of_webs": 2,
+        "restraint_arrangement": "FF",
+        "gravity_load_position": "within_segment",
+        "load_height_position": "shear_centre",
+        "effective_rotation_restraint_count": 1,
+        "effective_rotation_restraints_verified": False,
+    }
+    with pytest.raises(ValueError, match="effective rotational restraints"):
+        run_advanced_members(inputs)
+
+
 def test_nonprincipal_rational_moments():
     out = run_advanced_members(
         {

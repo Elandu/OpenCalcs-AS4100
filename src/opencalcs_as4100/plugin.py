@@ -89,6 +89,7 @@ def _calculations():
     from importlib import import_module
 
     families = [
+        ("materials", "Steel material properties", "materials", "run_materials"),
         ("member_design", "Steel member design", "members", "run_members"),
         (
             "advanced_members",

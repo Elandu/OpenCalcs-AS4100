@@ -40,6 +40,7 @@ _TASK = object_schema(
         "family": {
             "enum": [
                 "section_analysis",
+                "materials",
                 "members",
                 "advanced_members",
                 "connections",
@@ -79,6 +80,7 @@ def run_review(inputs):
     seen_checks = 0
     runners = {
         "section_analysis": ("analysis", "run_analysis"),
+        "materials": ("materials", "run_materials"),
         "members": ("members", "run_members"),
         "advanced_members": ("advanced_members", "run_advanced_members"),
         "connections": ("connections", "run_connections"),

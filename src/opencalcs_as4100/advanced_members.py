@@ -60,6 +60,21 @@ SCHEMAS = {
             "reference_buckling_moment_verified": VERIFIED,
         },
     ),
+    "lateral_buckling_effective_length": _schema(
+        "lateral_buckling_effective_length",
+        {
+            "segment_length_mm": P,
+            "clear_flange_depth_mm": P,
+            "critical_flange_thickness_mm": P,
+            "web_thickness_mm": P,
+            "number_of_webs": {"type": "integer", "minimum": 1, "maximum": 100},
+            "restraint_arrangement": {"enum": ["FF", "FL", "LL", "FU", "FP", "PL", "PU", "PP"]},
+            "gravity_load_position": {"enum": ["within_segment", "at_segment_end"]},
+            "load_height_position": {"enum": ["shear_centre", "top_flange"]},
+            "effective_rotation_restraint_count": {"type": "integer", "enum": [0, 1, 2]},
+            "effective_rotation_restraints_verified": BOOL,
+        },
+    ),
     "nonprincipal_bending": _schema(
         "nonprincipal_bending",
         {
@@ -298,6 +313,7 @@ def run_advanced_members(inputs):
             ],
         )
     if op == "one_unrestrained_table_bending":
+        # Table 5.6.2 applies to the three illustrated one-end-unrestrained cases.
         factors = {"uniform_end_moment": 0.25, "tip_force": 1.25, "uniform_load": 2.25}
         am = factors[d["moment_distribution"]]
         ms, mo = d["section_capacity_knm"], d["reference_buckling_moment_knm"]
@@ -306,7 +322,7 @@ def run_advanced_members(inputs):
         mb = min(ms, am * reduction * ms)
         return result(
             op,
-            ["5.6.1.1", "5.6.2", "Table 5.6.2"],
+            ["5.6.1.1(1)", "5.6.1.1(2)", "5.6.1.1(3)", "5.6.2", "Table 5.6.2"],
             {
                 "moment_factor": am,
                 "reduction": reduction,
@@ -320,6 +336,56 @@ def run_advanced_members(inputs):
                 "or restrained against lateral rotation; the opposite end is unrestrained.",
                 "Reference buckling moment Mo must be determined from 5.6.1.1(3) "
                 "using effective length from 5.6.3 and eligible section properties.",
+            ],
+        )
+    if op == "lateral_buckling_effective_length":
+        arrangement = d["restraint_arrangement"]
+        if (
+            d["effective_rotation_restraint_count"]
+            and not d["effective_rotation_restraints_verified"]
+        ):
+            raise ValueError("Count only effective rotational restraints verified under 5.4.3.4.")
+        kt = 1.0
+        if arrangement in {"FP", "PL", "PU", "PP"}:
+            ratio = (d["clear_flange_depth_mm"] / d["segment_length_mm"]) * (
+                d["critical_flange_thickness_mm"] / (2 * d["web_thickness_mm"])
+            ) ** 3
+            kt += ratio * (2 if arrangement == "PP" else 1) / d["number_of_webs"]
+        if d["gravity_load_position"] == "within_segment":
+            kl = (
+                1.0
+                if d["load_height_position"] == "shear_centre"
+                else (2.0 if arrangement in {"FU", "PU"} else 1.4)
+            )
+        else:
+            kl = (
+                1.0
+                if d["load_height_position"] == "shear_centre"
+                else (2.0 if arrangement in {"FU", "PU"} else 1.0)
+            )
+        rotation_count = d["effective_rotation_restraint_count"]
+        kr = 1.0
+        if arrangement in {"FF", "FP", "PP"}:
+            kr = {0: 1.0, 1: 0.85, 2: 0.70}[rotation_count]
+        factor = kt * kl * kr
+        return result(
+            op,
+            ["5.6.3", "Table 5.6.3(A)", "Table 5.6.3(B)", "Table 5.6.3(C)"],
+            {
+                "twist_restraint_factor": kt,
+                "load_height_factor": kl,
+                "lateral_rotation_factor": kr,
+                "effective_length_factor": factor,
+                "effective_length_mm": factor * d["segment_length_mm"],
+            },
+            [],
+            [
+                "Tables 5.6.3(A) and (B) cover only the listed beam-end restraint "
+                "and gravity-load cases.",
+                "Only effective lateral-rotation restraints under 5.4.3.4 reduce kr.",
+                "The segment length must use restraint spacing or a valid sub-segment length.",
+                "Verify geometry, end labels, loading, intermediate restraint and "
+                "applicability independently.",
             ],
         )
     if op == "nonprincipal_bending":
