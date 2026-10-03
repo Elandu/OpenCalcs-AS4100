@@ -10,10 +10,14 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 
 | Operation | Reviewed clauses | Behavior and prerequisites |
 | --- | --- | --- |
-| `plate` | 5.2.2–5.2.5, 6.2.3–6.2.4 | Table-selected slenderness limits; compact/noncompact/slender effective bending modulus; uniform-compression effective width or CHS effective diameter. Each call is one controlling element. |
+| `plate` | 5.2.2–5.2.5, 6.2.3–6.2.4 | Table-selected slenderness limits; compact/noncompact/slender effective bending modulus, including slender internal-gradient reduction; uniform-compression effective width or CHS effective diameter. Each call is one controlling element. |
+| `section_moduli` | 5.2.6 | Checks each flange's fastener-hole area reduction and selects gross moduli, the `An/Ag` area-ratio method, or supplied net-section moduli. The area-ratio method uses the sum of net flange areas plus gross web area for `An`. |
 | `compression` | 6.2.1–6.3.3 | Effective-area form factor, net-section capacity and constant-section flexural buckling about both axes. Only doubly symmetric/RHS/CHS member modes are supported. |
-| `bending` | 5.6.1.1 | Constant equal-flanged open section with both segment ends fully/partially restrained; reference elastic buckling moment and lateral-buckling reduction. E=200000 MPa and G=80000 MPa. |
+| `bending` | 5.3.2.1, 5.6.1.1 | Constant equal-flanged open section with both segment ends fully/partially restrained; reference elastic buckling moment and lateral-buckling reduction. Reports the capacity-based full-restraint route when nominal Mb reaches Ms. E=200000 MPa and G=80000 MPa. `moment_modification_factor` in `advanced_members` calculates 5.6.1.1(a)(iii) from the segment moment diagram. |
 | `shear` | 5.11.2–5.11.5, 5.12.3 | Flat unstiffened/stiffened webs, uniform/nonuniform stress reduction and whole-section shear/bending interaction. Conservative flange factor 1. Optional tension-field credit requires assessed stiffeners/end posts. |
+| `shear_with_flange_restraint` | 5.11.2–5.11.5.2, 5.12.3 | Flat-web shear and bending interaction with the calculated flange-restraint factor. The clause route requires verified absence of longitudinal web stiffeners; section geometry and web count must be supplied. |
+| `chs_shear` | 5.11.3–5.11.4, 5.12.3 | Circular hollow section shear-yield capacity with the specified gross/net effective-area rule and whole-section shear/bending interaction. Requires supplied gross/net area and section moment capacity. |
+| `shear_proportioning` | 5.12.2 | Flange-only bending capacity with separate web shear capacity, using the effective compression-flange area and the net-area/tensile-strength limit for the tension flange. |
 | `interaction` | 8.3.2–8.3.4, 8.4.2, 8.4.4–8.4.5 | General linear section interaction; elastic in-plane and out-of-plane compression/tension reduction; biaxial member interaction. Section and member checks are reported separately. |
 | `tension_distribution` | 7.3.1–7.3.2 | Supported Table 7.3.2 arrangements and both-flange connection length gate. Explicit confirmation of arrangement and force transfer conditions is required. |
 
@@ -34,17 +38,18 @@ utilisation instead of emitting infinity. No overall structure compliance flag i
 
 The following cannot currently be claimed as completed by these member primitives:
 
-- 5.2.6: automatic net/gross modulus assessment for holes. Supplied moduli must be assessed.
-- 5.2.5: slender plates with compression at one supported edge and tension at the other
-  require effective-section assessment; the simple uniform-compression reduction is rejected.
+- 5.2.6: fastener-hole deductions under 9.1.10 remain assessed. The area-ratio path is
+  limited to inputs where the supplied flange and gross-web areas make up the gross section;
+  the net-section path requires independently established net moduli.
 - 5.3–5.5: restraint stiffness/strength, critical flange/section, continuity and load position.
-- 5.6.1 unequal-flange, monosymmetric and varying-section paths; 5.6.2(ii) unrestrained-end
-  alternative based on an independently determined elastic buckling moment (the selected
-  Table 5.6.2(i) cases are in `advanced_members`); 5.6.3 automatic twist/load-height/rotation
-  length factors; broader 5.6.4 buckling analysis outside the selected advanced operation.
-- 5.7 nonprincipal bending; 5.9–5.10 web configuration,
-  minimum thickness, openings and longitudinal-stiffener applicability.
-- 5.11.4 CHS shear effective-area selection; flange-restraint enhancement in 5.11.5.2;
+- 5.6.1.1(b)(iii) elastic buckling-analysis alternative and calculation of the elastic
+  buckling moment under 5.6.2(ii)/5.6.4 still require independently verified analysis inputs.
+  Unequal-flange I-section buckling under 5.6.1.2 and selected varying-section methods under
+  5.6.1.1(b)(i)–(ii) are in `advanced_members`; 5.6.3 effective-length factors are available
+  there for selected cases.
+- 5.7 nonprincipal bending; rational web configuration and opening resistance remain outside
+  the selected 5.10 geometry, thickness and transfer checks.
+- Rational flange-restraint analysis in 5.11.5.2 and longitudinal-stiffener cases;
   longitudinal-stiffener/rational buckling-analysis alternatives.
 - 5.12.2 flange-only proportioning alternative. The general 5.12.3 method is implemented.
 - 5.13–5.16 bearing/stiffener design: handled separately where available, never implied
@@ -65,7 +70,8 @@ calculation or a recorded engineering assessment; applicability is never assumed
 
 ## Verification
 
-Tests use independent hand arithmetic for effective moduli/widths, moment/shear capacities,
+Tests use independent hand arithmetic for hole-adjusted section moduli, effective moduli/widths,
+moment/shear capacities,
 combined action reductions and boundary cases. Compression reduction is checked against
 Table 6.3.3(C) at multiple slenderness and imperfection values, including both ends of the
 table. Stiffened shear is checked against Table 5.11.5.2. The table comparisons allow only

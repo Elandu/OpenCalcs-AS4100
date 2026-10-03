@@ -1,13 +1,21 @@
 # Further member provisions
 
 The `advanced_members` module supplies additional calculations reviewed directly from
-AS 4100:2020 pages 61, 65–67, 69, 93–98, 101–102 and 107–112. The licensed document
+AS 4100:2020 pages 57–65, 67, 69, 93–98, 101–102 and 107–112. The licensed document
 is not included. `INPUT_SCHEMA`, `OUTPUT_SCHEMA` and `run_advanced_members` are exported.
 Every result retains `full_standard_compliance: false` and lists its prerequisites.
 Supplied capacities are nominal; strength checks apply phi=0.9.
 
 | Operation | Calculated provisions | External prerequisites |
 | --- | --- | --- |
+| `continuous_lateral_restraints` | 5.3.2.1–5.3.2.2 continuous-restraint route conditions | Verify both-end restraints, continuity at the critical flange and restraint effectiveness under 5.4.3.1. Evidence flags are assessed inputs; the operation does not design the restraint system. |
+| `full_lateral_restraint_limit` | 5.3.2.4 segment slenderness limits for equal-flanged I-sections/channels, unequal-flange I-sections, RHS/SHS and angles; conservative beta_m=-1, transverse-load beta_m=-0.8, or the signed end-moment ratio | Verify both-end full/partial restraints under 5.4.2 and 5.4.3, section type/properties, compression-flange inertia and effective Z_ex for unequal I-sections. End-moment beta applies only when there are no transverse loads; restraint stiffness/strength and force transfer are separate checks. |
+| `intermediate_lateral_restraints` | 5.3.2.1 and 5.3.2.3 route; evaluates each subsegment against 5.3.2.4 | Verify both-end restraints, critical-flange location and restraint effectiveness under 5.4.3.1. Supply every subsegment's verified section data; restraint strength/stiffness and force transfer remain external. |
+| `critical_section` | 5.3.3 section with the largest design-moment/nominal-section-capacity ratio | Supply matching-axis design moments and nominal section moment capacities for all candidate cross-sections; run per design action case and bending axis. |
+| `critical_flange` | 5.5.1–5.5.3 prescribed critical-flange selection for both-end-restraint, gravity-dominant and wind-dominant segments | Verify segment end conditions, dominant action, wind pressure/suction case and exterior-flange orientation. Other configurations require verified elastic buckling analysis under 5.5.1. |
+| `moment_modification_factor` | 5.6.1.1(a)(iii) moment modification factor from the maximum segment moment and its quarter-point/midpoint values, capped at 2.5 | Supply nonnegative moment magnitudes from one verified segment diagram. Table 5.6.1 and elastic-buckling alternatives remain separate assessed routes. |
+| `unequal_flange_bending` | 5.6.1.1(a), 5.6.1.1(2) and 5.6.1.2(a) constant-section unequal-flange I-section reference buckling moment and member moment capacity; calculates signed `beta_x` from compression-flange inertia or accepts a verified section-integral value | Supply verified gross-section capacity and constants, constant-section evidence, effective length and compression flange. Derive the moment factor with `moment_modification_factor` or assess it under another 5.6.1.1 route. The section-integral route requires an independently verified integral and shear-centre coordinate. Elastic buckling analysis remains an alternative under 5.6.1.2(b). |
+| `varying_section_bending` | 5.6.1.1(b)(i) minimum-section method and 5.6.1.1(b)(ii) critical-section method, including the stepped/tapered `alpha_st` reference-moment reduction | Supply the reference moment and nominal section capacity calculated from the same verified minimum or critical section. Verify section selection under 5.3.3, flange areas, depths and the segment length over which the section is reduced. The buckling-analysis alternative under 5.6.1.1(b)(iii) requires an independently verified analysis. |
 | `varying_compression` | 6.3.4 minimum section capacity and equivalent modified slenderness, then 6.3.3 member reduction | Rational elastic flexural buckling load for actual variation; minimum assessed Ns; applicable section constant; repeat for both axes. |
 | `buckling_analysis_bending` | 5.6.4 Moa=Mob/alpha_m and member moment reduction; 5.6.2(ii) unrestrained-end analysis method | Elastic flexural-torsional analysis representing actual restraints/loading. Unrestrained-end path requires opposite-end restraint/continuity and uses alpha_m=1. |
 | `one_unrestrained_table_bending` | 5.6.1.1(1)–(3), 5.6.2(i), Table 5.6.2 moment factors and member moment capacity | One end must be restrained and laterally continuous or restrained against lateral rotation; other end unrestrained. Only uniform end moment (alpha_m=0.25), tip force (1.25), and uniform load (2.25) are represented. Supply verified Mo from 5.6.1.1(3); combined/different load cases and 5.6.2(ii) are outside this operation. |
@@ -18,7 +26,7 @@ Supplied capacities are nominal; strength checks apply phi=0.9.
 | `lacing` | 6.4.2 angle/effective-length/slenderness; tie width/thickness; 7.4.4 tensile lacing limit | Double-lacing crossing connection; tie placement and connection force transfer; component slenderness; torsional assessment for opposed lacing. |
 | `batten` | 6.4.3 batten geometry/effective length/slenderness, simultaneous connection shear/moment; 7.4.5 thickness and intermediate width | End/component geometry, effective section properties, connection design; tension force distribution and two-bolt requirement. Compression connection force formulas return null for tension members. |
 | `pin_tension_member` | 7.5 pin-hole member thickness and beyond-hole/perpendicular net area ratios | Separately assessed member net area, all potential beyond-hole directions, pin capacity under 9.4, eccentricity-free load distribution. |
-| `restraint_action` | 5.4.3 minimum flange/twist restraint force; 6.6 compression restraint envelope; parallel-member accumulation up to seven members | Critical flange force/local compression, rational analysis including notional loads and full load path, stiffness/slip/anchor assessment. |
+| `restraint_action` | 5.4.3.1 lateral-restraint force, 5.4.3.2 twist-restraint force, 5.4.3.3 parallel-member accumulation up to seven members, and 6.6 compression restraint envelope | For 5.4.3.1 supply the maximum critical-flange force from adjacent segments/sub-segments; for other cases supply the applicable flange or compression force. Include rational analysis, notional loads and the full load path; restraint stiffness, slip and anchorage remain assessed. |
 | `separator_diaphragm` | 5.8 minimum transverse force for separators/diaphragms and equal share per supplied device count | Verify side-by-side members act together, external force distribution, resulting shear and device capacities; separators are rejected where external vertical force transfer is required. |
 | `angle_eccentricity` | Figure 8.4.6 eccentricity and minimum Nh moment | Loading/geometry as drawn; double-bolted or welded angle. No special angle interaction capacity is claimed. |
 
@@ -31,8 +39,7 @@ interpretation for this special interaction. It does not invent an equation.
 No operation performs elastic eigenvalue analysis. The external buckling load/moment
 must be checked against analytical benchmarks and account for the intended mode,
 restraints and loading. A solver eigenvalue without that assessment is insufficient.
-Unequal-flange/monosymmetric LTB,
-rational torsional-flexural buckling, and automatic built-up
+Rational torsional-flexural buckling and automatic built-up
 component/connection sizing remain separate requirements. Built-up tension component
 slenderness, connection distribution and required tie/batten placement remain assessed
 under 7.4, even when the lacing or batten primitive passes.

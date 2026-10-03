@@ -39,6 +39,13 @@
       "passed": true
     },
     {
+      "name": "Clause 5.2.5 slender internal-gradient effective modulus",
+      "actual": 91840.2777777778,
+      "expected": 91840.2777777778,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Table 6.3.3(C), alpha_b=0.5, lambda=50",
       "actual": 0.8079391778296219,
       "expected": 0.808,
@@ -67,6 +74,125 @@
       "passed": true
     },
     {
+      "name": "Clause 5.10.4 transverse web minimum thickness, hand arithmetic",
+      "actual": 5.0,
+      "expected": 5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.1 flange bearing dispersion, Figure 5.13.1.1",
+      "actual": 80,
+      "expected": 80,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.1 web bearing dispersion to neutral axis, slope 1:1",
+      "actual": 260,
+      "expected": 260,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.14.5 stiffener-pair minimum inertia, bounded factor and hand arithmetic",
+      "actual": 62500.0,
+      "expected": 62500,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.14.4 connection transfer equality boundary",
+      "actual": 40,
+      "expected": 40,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.2 equality does not trigger load-bearing stiffeners",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.3 side-plate share limited by weakest transfer path",
+      "actual": 40,
+      "expected": 40,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.4 CHS net effective shear area",
+      "actual": 2500,
+      "expected": 2500,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.4 CHS nominal shear yield capacity",
+      "actual": 225.0,
+      "expected": 225,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.4 net area greater than 90 percent selects gross area",
+      "actual": 3000,
+      "expected": 3000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.12.3 shear reduction at design moment capacity",
+      "actual": 135.00000000000003,
+      "expected": 135,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.5.2 flange restraint factor, hand arithmetic",
+      "actual": 1.0522774424948338,
+      "expected": 1.0522774424948338,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.5.2 effective flange outstand",
+      "actual": 20,
+      "expected": 20,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.12.2 tension flange effective area",
+      "actual": 1360.0,
+      "expected": 1360,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.12.2 flange moment capacity, hand arithmetic",
+      "actual": 85.0,
+      "expected": 85,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.12.2 design web shear capacity",
+      "actual": 90.0,
+      "expected": 90,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.7(a) unstiffened opening ratio at limit",
+      "actual": 0.1,
+      "expected": 0.1,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
       "name": "9.3 bolt design shear, hand arithmetic",
       "actual": 92.628,
       "expected": 92.628,
@@ -78,6 +204,69 @@
       "actual": 60.0,
       "expected": 60,
       "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.1(a)(iii) moment factor, hand arithmetic",
+      "actual": 1.1258525035052873,
+      "expected": 1.1258525035052873,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 inertia method beta_x, larger flange in compression",
+      "actual": 63.999999999999986,
+      "expected": 64,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 positive-beta reference buckling moment, hand arithmetic",
+      "actual": 208.97650338006295,
+      "expected": 208.97650338006295,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1 unequal-flange member moment capacity, hand arithmetic",
+      "actual": 147.1430856197119,
+      "expected": 147.1430856197119,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 section-integral beta_x, smaller flange in compression",
+      "actual": -64,
+      "expected": -64,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 negative-beta reference buckling moment, hand arithmetic",
+      "actual": 180.90296197251985,
+      "expected": 180.90296197251985,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.1(b)(ii) stepped-section alpha_st, hand arithmetic",
+      "actual": 0.7599999999999999,
+      "expected": 0.76,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.1(b)(ii) adjusted reference moment, hand arithmetic",
+      "actual": 75.99999999999999,
+      "expected": 76,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.1(b)(ii) member moment capacity, hand arithmetic",
+      "actual": 71.5837437600708,
+      "expected": 71.58374376007083,
+      "absolute_tolerance": 1e-10,
       "passed": true
     },
     {
@@ -112,6 +301,69 @@
       "name": "Table 5.6.3 effective_length_mm",
       "actual": 1176.0,
       "expected": 1176,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.3.2.4 equal_flanged_i slenderness limit",
+      "actual": 30.0,
+      "expected": 30,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.3.2.4 equal_flanged_channel slenderness limit",
+      "actual": 20.0,
+      "expected": 20,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.3.2.4 unequal_flange_i slenderness limit",
+      "actual": 26.832815729997474,
+      "expected": 26.832815729997474,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.3.2.4 rhs_or_shs slenderness limit",
+      "actual": 150.0,
+      "expected": 150,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.3.2.4 angle slenderness limit",
+      "actual": 24.748737341529164,
+      "expected": 24.748737341529164,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.3.2.1 member moment capacity reaches section capacity",
+      "actual": 100,
+      "expected": 100,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.3.2.1 full-restraint classification",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.3.3 critical section moment-to-capacity ratio",
+      "actual": 0.6,
+      "expected": 0.6,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.5.3 internal pressure selects interior flange",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     }

@@ -5,7 +5,7 @@ Each operation is a calculation primitive, not a declaration of whole-member com
 """
 
 from collections.abc import Mapping
-from math import isfinite, pi, sqrt
+from math import isclose, isfinite, pi, sqrt
 from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
@@ -62,6 +62,78 @@ INPUT_SCHEMA = {
             ["yield_strength_mpa", "plate", "elastic_modulus_mm3", "plastic_modulus_mm3"],
         ),
         _variant(
+            "section_moduli",
+            {
+                "method": {"const": "area_ratio"},
+                "yield_strength_mpa": P,
+                "ultimate_strength_mpa": P,
+                "gross_area_mm2": P,
+                "gross_web_area_mm2": N,
+                "gross_flange_areas_mm2": {
+                    "type": "array",
+                    "items": P,
+                    "minItems": 1,
+                    "maxItems": 20,
+                },
+                "net_flange_areas_mm2": {
+                    "type": "array",
+                    "items": N,
+                    "minItems": 1,
+                    "maxItems": 20,
+                },
+                "gross_elastic_modulus_mm3": P,
+                "gross_plastic_modulus_mm3": P,
+            },
+            [
+                "method",
+                "yield_strength_mpa",
+                "ultimate_strength_mpa",
+                "gross_area_mm2",
+                "gross_web_area_mm2",
+                "gross_flange_areas_mm2",
+                "net_flange_areas_mm2",
+                "gross_elastic_modulus_mm3",
+                "gross_plastic_modulus_mm3",
+            ],
+        ),
+        _variant(
+            "section_moduli",
+            {
+                "method": {"const": "net_section"},
+                "yield_strength_mpa": P,
+                "ultimate_strength_mpa": P,
+                "gross_area_mm2": P,
+                "gross_web_area_mm2": N,
+                "gross_flange_areas_mm2": {
+                    "type": "array",
+                    "items": P,
+                    "minItems": 1,
+                    "maxItems": 20,
+                },
+                "net_flange_areas_mm2": {
+                    "type": "array",
+                    "items": N,
+                    "minItems": 1,
+                    "maxItems": 20,
+                },
+                "gross_elastic_modulus_mm3": P,
+                "gross_plastic_modulus_mm3": P,
+                "net_elastic_modulus_mm3": P,
+                "net_plastic_modulus_mm3": P,
+            },
+            [
+                "method",
+                "yield_strength_mpa",
+                "ultimate_strength_mpa",
+                "gross_area_mm2",
+                "gross_web_area_mm2",
+                "gross_flange_areas_mm2",
+                "net_flange_areas_mm2",
+                "gross_elastic_modulus_mm3",
+                "gross_plastic_modulus_mm3",
+            ],
+        ),
+        _variant(
             "compression",
             {
                 "yield_strength_mpa": P,
@@ -116,6 +188,54 @@ INPUT_SCHEMA = {
             ],
         ),
         _variant(
+            "chs_shear",
+            {
+                "yield_strength_mpa": P,
+                "gross_area_mm2": P,
+                "net_area_mm2": P,
+                "oversized_fastener_holes_present": {"type": "boolean"},
+                "action_kn": N,
+                "moment_action_knm": N,
+                "section_moment_capacity_knm": P,
+            },
+            [
+                "yield_strength_mpa",
+                "gross_area_mm2",
+                "net_area_mm2",
+                "oversized_fastener_holes_present",
+                "action_kn",
+                "moment_action_knm",
+                "section_moment_capacity_knm",
+            ],
+        ),
+        _variant(
+            "shear_proportioning",
+            {
+                "yield_strength_mpa": P,
+                "compression_flange_gross_area_mm2": P,
+                "compression_flange_effective_area_mm2": P,
+                "tension_flange_gross_area_mm2": P,
+                "tension_flange_net_area_mm2": P,
+                "tension_flange_ultimate_strength_mpa": P,
+                "flange_centroid_spacing_mm": P,
+                "nominal_web_shear_capacity_kn": P,
+                "action_kn": N,
+                "moment_action_knm": N,
+            },
+            [
+                "yield_strength_mpa",
+                "compression_flange_gross_area_mm2",
+                "compression_flange_effective_area_mm2",
+                "tension_flange_gross_area_mm2",
+                "tension_flange_net_area_mm2",
+                "tension_flange_ultimate_strength_mpa",
+                "flange_centroid_spacing_mm",
+                "nominal_web_shear_capacity_kn",
+                "action_kn",
+                "moment_action_knm",
+            ],
+        ),
+        _variant(
             "shear",
             {
                 "yield_strength_mpa": P,
@@ -137,6 +257,41 @@ INPUT_SCHEMA = {
                 "action_kn",
                 "moment_action_knm",
                 "section_moment_capacity_knm",
+            ],
+        ),
+        _variant(
+            "shear_with_flange_restraint",
+            {
+                "yield_strength_mpa": P,
+                "web_area_mm2": P,
+                "panel_depth_mm": P,
+                "web_thickness_mm": P,
+                "stiffener_spacing_mm": P,
+                "tension_field": {"type": "boolean"},
+                "stress_max_average_ratio": _number(1),
+                "action_kn": N,
+                "moment_action_knm": N,
+                "section_moment_capacity_knm": P,
+                "flange_thickness_mm": P,
+                "clear_web_depth_mm": P,
+                "flange_outstand_from_web_midplane_mm": N,
+                "number_of_webs": {"type": "integer", "minimum": 1, "maximum": 100},
+                "clear_distance_between_webs_mm": P,
+                "no_longitudinal_stiffeners_verified": {"const": True},
+            },
+            [
+                "yield_strength_mpa",
+                "web_area_mm2",
+                "panel_depth_mm",
+                "web_thickness_mm",
+                "action_kn",
+                "moment_action_knm",
+                "section_moment_capacity_knm",
+                "flange_thickness_mm",
+                "clear_web_depth_mm",
+                "flange_outstand_from_web_midplane_mm",
+                "number_of_webs",
+                "no_longitudinal_stiffeners_verified",
             ],
         ),
         _variant(
@@ -247,7 +402,7 @@ def _plate(d):
         compression_limit = 82
     elif stress == "internal_gradient":
         lp, ly = 82, 115
-        compression_limit = {"SR": 45, "HR": 45, "LW": 40, "CF": 40, "HW": 35}[residual]
+        compression_limit = None
     elif edge == "both":
         lp, ly = 30, {"SR": 45, "HR": 45, "LW": 40, "CF": 40, "HW": 35}[residual]
         compression_limit = ly
@@ -271,21 +426,21 @@ def _plate(d):
         effective = z + (ly - slenderness) / (ly - lp) * (compact - z)
         category = "non_compact"
     else:
-        if stress == "internal_gradient":
-            raise ValueError(
-                "Slender internal-gradient plates require effective-section assessment."
-            )
         ratio = ly / slenderness
-        factor = (
-            min(sqrt(ratio), (2 * ratio) ** 2)
-            if circular
-            else (ratio**2 if stress == "outstand_gradient" else ratio)
-        )
+        if circular:
+            factor = min(sqrt(ratio), (2 * ratio) ** 2)
+        elif stress == "internal_gradient" or stress == "outstand_gradient":
+            factor = ratio**2
+        else:
+            factor = ratio
         effective, category = z * factor, "slender"
-    ratio_c = compression_limit / compression_slenderness
-    effective_width = (
-        b * min(1, sqrt(ratio_c), (3 * ratio_c) ** 2) if circular else (b * min(1, ratio_c))
-    )
+    if compression_limit is None:
+        effective_width = None
+    else:
+        ratio_c = compression_limit / compression_slenderness
+        effective_width = (
+            b * min(1, sqrt(ratio_c), (3 * ratio_c) ** 2) if circular else b * min(1, ratio_c)
+        )
     return (
         {
             "element_slenderness": slenderness,
@@ -303,6 +458,93 @@ def _plate(d):
             "Select the controlling plate by greatest element-slenderness/yield-limit ratio.",
             "Moduli must include applicable hole deductions under 5.2.6.",
             "Effective width is for uniform compression; assemble effective area under 6.2.2.",
+        ],
+    )
+
+
+def _section_moduli(d):
+    gross_flanges = d["gross_flange_areas_mm2"]
+    net_flanges = d["net_flange_areas_mm2"]
+    if len(gross_flanges) != len(net_flanges):
+        raise ValueError("Gross and net flange area lists must have the same length.")
+    if any(net > gross for gross, net in zip(gross_flanges, net_flanges, strict=True)):
+        raise ValueError("A net flange area must not exceed its gross flange area.")
+
+    gross_area = d["gross_area_mm2"]
+    gross_components = sum(gross_flanges) + d["gross_web_area_mm2"]
+    if not isclose(gross_area, gross_components, rel_tol=1e-9, abs_tol=1e-6):
+        raise ValueError("Gross area must equal the supplied flange areas plus gross web area.")
+    net_area = sum(net_flanges) + d["gross_web_area_mm2"]
+    area_ratio = net_area / gross_area
+
+    fy, fu = d["yield_strength_mpa"], d["ultimate_strength_mpa"]
+    minimum_net_flange_ratio = fy / (0.85 * fu)
+    reductions = [
+        100 * (1 - net / gross) for gross, net in zip(gross_flanges, net_flanges, strict=True)
+    ]
+    reduction_limit = 100 * (1 - minimum_net_flange_ratio)
+    excessive_flange_indices = [
+        index
+        for index, (gross, net) in enumerate(zip(gross_flanges, net_flanges, strict=True), start=1)
+        if net / gross < minimum_net_flange_ratio
+    ]
+    gross_permitted = not excessive_flange_indices
+    has_net_elastic_modulus = "net_elastic_modulus_mm3" in d
+    has_net_plastic_modulus = "net_plastic_modulus_mm3" in d
+    if has_net_elastic_modulus != has_net_plastic_modulus:
+        raise ValueError("Supply both net elastic and plastic section moduli, or neither.")
+
+    if gross_permitted:
+        selected_method = "gross_section"
+        elastic_modulus = d["gross_elastic_modulus_mm3"]
+        plastic_modulus = d["gross_plastic_modulus_mm3"]
+    elif d["method"] == "area_ratio":
+        selected_method = "area_ratio"
+        elastic_modulus = d["gross_elastic_modulus_mm3"] * area_ratio
+        plastic_modulus = d["gross_plastic_modulus_mm3"] * area_ratio
+    else:
+        if not has_net_elastic_modulus:
+            raise ValueError(
+                "Net-section method requires both net_elastic_modulus_mm3 and "
+                "net_plastic_modulus_mm3."
+            )
+        selected_method = "net_section"
+        elastic_modulus = d["net_elastic_modulus_mm3"]
+        plastic_modulus = d["net_plastic_modulus_mm3"]
+
+    if d["gross_plastic_modulus_mm3"] < d["gross_elastic_modulus_mm3"]:
+        raise ValueError("Gross plastic modulus must not be below gross elastic modulus.")
+    if plastic_modulus < elastic_modulus:
+        raise ValueError("Selected plastic modulus must not be below elastic modulus.")
+
+    return (
+        {
+            "gross_area_mm2": gross_area,
+            "net_area_mm2": net_area,
+            "net_to_gross_area_ratio": area_ratio,
+            "flange_area_reductions_pct": reductions,
+            "permitted_flange_area_reduction_pct": reduction_limit,
+            "gross_section_moduli_permitted": gross_permitted,
+            "selected_method": selected_method,
+            "elastic_modulus_mm3": elastic_modulus,
+            "plastic_modulus_mm3": plastic_modulus,
+        },
+        {
+            "flange_hole_limit": {
+                "limit_reduction_pct": reduction_limit,
+                "actual_reductions_pct": reductions,
+                "gross_section_moduli_permitted": gross_permitted,
+            }
+        },
+        ["5.2.6"],
+        [
+            "Apply fastener-hole deductions in accordance with Clause 9.1.10.",
+            "The area-ratio method assumes the supplied flange and gross-web areas make up "
+            "the gross section.",
+            "Feed the selected elastic and plastic moduli into the applicable "
+            "Clause 5.2.2–5.2.5 check.",
+            "For the net-section method, net moduli must be independently established "
+            "for the actual geometry.",
         ],
     )
 
@@ -378,19 +620,23 @@ def _bending(d):
             "reference_buckling_moment_knm": mo,
             "slenderness_reduction": reduction,
             "member_capacity_knm": mb,
+            "full_lateral_restraint_qualifies": mb >= ms,
         },
         {"bending": _check(d["action_knm"], 0.9 * mb)},
-        ["5.6.1.1"],
+        ["5.3.2.1", "5.6.1.1"],
         [
             "Constant equal-flanged open section with full/partial restraint at both ends only.",
             "Effective length must include twist/load-height/lateral-rotation factors under 5.6.3.",
-            "Moment factor must be derived under 5.6.1.1; default conservative selection is 1.",
+            "Moment factor must be derived under 5.6.1.1; use the advanced_members "
+            "moment_modification_factor operation for the quarter-point equation or assess "
+            "another permitted route. Default conservative selection is 1.",
+            "Clause 5.3.2.1 full-restraint qualification is true only when nominal Mb reaches Ms.",
             "Restraints and critical section/critical flange require 5.3–5.5 assessment.",
         ],
     )
 
 
-def _shear(d):
+def _shear(d, flange_restraint_factor=1, flange_restraint_values=None):
     fy = d["yield_strength_mpa"]
     slenderness = d["panel_depth_mm"] / d["web_thickness_mm"] * sqrt(fy / 250)
     vw = 0.6 * fy * d["web_area_mm2"] / 1000
@@ -410,7 +656,7 @@ def _shear(d):
             raise ValueError("Tension field requires stiffener spacing/panel depth <= 3.")
     elif d.get("tension_field", False):
         raise ValueError("Tension field requires transverse stiffeners.")
-    vu = min(vw, av * ad * vw)
+    vu = min(vw, av * ad * flange_restraint_factor * vw)
     vv = vu * min(1, 2 / (0.9 + d.get("stress_max_average_ratio", 1)))
     moment_ratio = d["moment_action_knm"] / (0.9 * d["section_moment_capacity_knm"])
     vm = vv * (
@@ -422,22 +668,143 @@ def _shear(d):
         "shear_bending": _check(d["action_kn"], 0.9 * vm),
         "bending": _check(d["moment_action_knm"], 0.9 * d["section_moment_capacity_knm"]),
     }
+    values = {
+        "web_slenderness": slenderness,
+        "shear_yield_capacity_kn": vw,
+        "buckling_reduction": av,
+        "tension_field_factor": ad,
+        "flange_restraint_factor": flange_restraint_factor,
+        "shear_capacity_kn": vv,
+        "shear_bending_capacity_kn": vm,
+    }
+    if flange_restraint_values is not None:
+        values.update(flange_restraint_values)
+    clauses = ["5.11.2", "5.11.3", "5.11.4", "5.11.5"]
+    manual = [
+        "Flat webs only; web layout/thickness/openings require 5.9–5.10 assessment.",
+        "Tension-field credit requires verified stiffener/end-post provisions in 5.15.",
+        "Stress maximum/average ratio requires rational elastic stress analysis.",
+    ]
+    if flange_restraint_values is None:
+        manual.append("Flange restraint factor taken conservatively as 1 under 5.11.5.2.")
+    else:
+        clauses.append("5.11.5.2")
+        manual.append(
+            "Verify the no-longitudinal-stiffener condition and that supplied flange/web "
+            "dimensions describe the section."
+        )
+    clauses.append("5.12.3")
+    return values, checks, clauses, manual
+
+
+def _shear_with_flange_restraint(d):
+    if d["number_of_webs"] > 1:
+        if "clear_distance_between_webs_mm" not in d:
+            raise ValueError("Multiple webs require their clear distance for the flange limit.")
+        clear_limit = d["clear_distance_between_webs_mm"] / 2
+    else:
+        if "clear_distance_between_webs_mm" in d:
+            raise ValueError("Clear distance between webs applies only to multiple-web sections.")
+        clear_limit = float("inf")
+    material_limit = 12 * d["flange_thickness_mm"] / sqrt(d["yield_strength_mpa"] / 250)
+    candidates = {
+        "yield_scaled_flange_limit_mm": material_limit,
+        "flange_edge_limit_mm": d["flange_outstand_from_web_midplane_mm"],
+    }
+    if d["number_of_webs"] > 1:
+        candidates["half_clear_web_spacing_limit_mm"] = clear_limit
+    effective_outstand = min(candidates.values())
+    depth, thickness = d["clear_web_depth_mm"], d["web_thickness_mm"]
+    restraint_factor = 1.6 - 0.6 / sqrt(
+        1 + 40 * effective_outstand * d["flange_thickness_mm"] ** 2 / (depth**2 * thickness)
+    )
+    details = {
+        "effective_flange_outstand_mm": effective_outstand,
+        "effective_flange_outstand_limits_mm": candidates,
+    }
+    return _shear(d, restraint_factor, details)
+
+
+def _chs_shear(d):
+    gross = d["gross_area_mm2"]
+    net = d["net_area_mm2"]
+    if net > gross:
+        raise ValueError("Net area must not exceed gross area.")
+    use_gross = not d["oversized_fastener_holes_present"] or net > 0.9 * gross
+    effective_area = gross if use_gross else net
+    nominal_shear = 0.36 * d["yield_strength_mpa"] * effective_area / 1000
+    section_capacity = d["section_moment_capacity_knm"]
+    moment_design_capacity = 0.9 * section_capacity
+    moment_ratio = d["moment_action_knm"] / moment_design_capacity
+    if moment_ratio <= 0.75:
+        reduced_nominal = nominal_shear
+    elif moment_ratio <= 1:
+        reduced_nominal = nominal_shear * (2.2 - 1.6 * moment_ratio)
+    else:
+        reduced_nominal = 0
     return (
         {
-            "web_slenderness": slenderness,
-            "shear_yield_capacity_kn": vw,
-            "buckling_reduction": av,
-            "tension_field_factor": ad,
-            "shear_capacity_kn": vv,
-            "shear_bending_capacity_kn": vm,
+            "effective_shear_area_mm2": effective_area,
+            "effective_area_method": "gross" if use_gross else "net",
+            "nominal_shear_yield_capacity_kn": nominal_shear,
+            "nominal_shear_capacity_with_bending_kn": reduced_nominal,
+            "moment_to_design_capacity_ratio": moment_ratio,
         },
-        checks,
-        ["5.11.2", "5.11.3", "5.11.4", "5.11.5", "5.12.3"],
+        {
+            "shear_bending": _check(d["action_kn"], 0.9 * reduced_nominal),
+            "bending": _check(d["moment_action_knm"], moment_design_capacity),
+        },
+        ["5.11.3", "5.11.4", "5.12.3"],
         [
-            "Flat webs only; web layout/thickness/openings require 5.9–5.10 assessment.",
-            "Flange restraint factor taken conservatively as 1 under 5.11.5.2.",
-            "Tension-field credit requires verified stiffener/end-post provisions in 5.15.",
-            "Stress maximum/average ratio requires rational elastic stress analysis.",
+            "Circular hollow section only. Verify gross/net areas and hole conditions, "
+            "including Clause 9.1.10 deductions.",
+            "Use the whole-section interaction method in Clause 5.12.3; flange-only "
+            "proportioning under 5.12.2 is outside this operation.",
+            "Section shear area and moment capacity are supplied inputs; this does not "
+            "verify cross-section classification or connection capacity.",
+        ],
+    )
+
+
+def _shear_proportioning(d):
+    if d["compression_flange_effective_area_mm2"] > d["compression_flange_gross_area_mm2"]:
+        raise ValueError("Compression flange effective area must not exceed its gross area.")
+    if d["tension_flange_net_area_mm2"] > d["tension_flange_gross_area_mm2"]:
+        raise ValueError("Tension flange net area must not exceed its gross area.")
+    tension_area_by_fracture = (
+        0.85
+        * d["tension_flange_net_area_mm2"]
+        * d["tension_flange_ultimate_strength_mpa"]
+        / d["yield_strength_mpa"]
+    )
+    tension_effective_area = min(d["tension_flange_gross_area_mm2"], tension_area_by_fracture)
+    effective_flange_area = min(d["compression_flange_effective_area_mm2"], tension_effective_area)
+    nominal_flange_moment = (
+        effective_flange_area * d["flange_centroid_spacing_mm"] * d["yield_strength_mpa"] / 1e6
+    )
+    design_moment = 0.9 * nominal_flange_moment
+    design_shear = 0.9 * d["nominal_web_shear_capacity_kn"]
+    return (
+        {
+            "tension_flange_area_by_fracture_limit_mm2": tension_area_by_fracture,
+            "effective_tension_flange_area_mm2": tension_effective_area,
+            "effective_flange_area_mm2": effective_flange_area,
+            "nominal_flange_moment_capacity_knm": nominal_flange_moment,
+            "design_flange_moment_capacity_knm": design_moment,
+            "design_web_shear_capacity_kn": design_shear,
+        },
+        {
+            "flange_moment": _check(d["moment_action_knm"], design_moment),
+            "web_shear": _check(d["action_kn"], design_shear),
+        },
+        ["5.12.2"],
+        [
+            "Use only when bending is assumed to be resisted by the flanges; the web "
+            "shear capacity is supplied from Clause 5.11.",
+            "Compression flange effective area is supplied from Clause 6.2.2. Verify "
+            "tension-flange net area using Clause 9.1.10.",
+            "A single flange yield strength is used. Sections with differing flange "
+            "grades require separate assessment.",
         ],
     )
 
@@ -550,9 +917,13 @@ def run_members(inputs: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("All numerical values must be finite.")
     functions = {
         "plate": _plate,
+        "section_moduli": _section_moduli,
         "compression": _compression,
         "bending": _bending,
         "shear": _shear,
+        "shear_with_flange_restraint": _shear_with_flange_restraint,
+        "chs_shear": _chs_shear,
+        "shear_proportioning": _shear_proportioning,
         "interaction": _interaction,
         "tension_distribution": _distribution,
     }
