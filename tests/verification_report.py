@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from opencalcs_as4100.advanced_members import run_advanced_members  # noqa: E402
 from opencalcs_as4100.connections import run_connections  # noqa: E402
+from opencalcs_as4100.durability import run_durability  # noqa: E402
 from opencalcs_as4100.materials import run_materials  # noqa: E402
 from opencalcs_as4100.members import run_members  # noqa: E402
 from opencalcs_as4100.webs import run_webs  # noqa: E402
@@ -438,6 +439,147 @@ def clause_5_10_web_geometry():
     }
 
 
+def clause_6_5_1_5_interconnection():
+    connection_capacity = 7.5 * 3.141592653589793
+    result = run_advanced_members(
+        {
+            "operation": "built_up_compression",
+            "construction": "back_to_back",
+            "section_capacity_kn": 1000,
+            "member_capacity_kn": 500,
+            "modified_member_slenderness": 100,
+            "axial_action_kn": 100,
+            "integral_slenderness_perpendicular": 40,
+            "integral_slenderness_parallel": 100,
+            "component_slenderness": 30,
+            "number_of_bays": 3,
+            "similar_symmetric_components_verified": True,
+            "interconnection_design": {
+                "design_capacity_kn": connection_capacity,
+                "capacity_verified": True,
+            },
+        }
+    )
+    check = result["checks"][-1]
+    expect_close(check["design_demand_kn"], 7.5 * 3.141592653589793)
+    if check["clause"] != "6.5.1.5" or not check["satisfied"]:
+        raise AssertionError("Clause 6.5.1.5 interconnection equality boundary failed")
+    return {"interconnection_design_demand_kn": check["design_demand_kn"]}
+
+
+def clause_7_4_component_slenderness():
+    clauses = {
+        "separated_back_to_back": "7.4.3(a)(i)",
+        "laced": "7.4.4(b)",
+        "battened": "7.4.5(a)",
+    }
+    maximum = []
+    for arrangement, clause in clauses.items():
+        result = run_advanced_members(
+            {
+                "operation": "tension_component_slenderness",
+                "arrangement": arrangement,
+                "intervals_and_radii_verified": True,
+                "component_intervals": [
+                    {"unrestrained_length_mm": 3000, "minimum_radius_of_gyration_mm": 10}
+                ],
+            }
+        )
+        value = result["values"]["maximum_component_slenderness"]
+        expect_close(value, 300)
+        if result["clauses"] != [clause] or not result["checked_conditions_satisfied"]:
+            raise AssertionError(f"{clause} rejected its slenderness limit")
+        maximum.append(value)
+    return {"component_slenderness_at_limit": maximum}
+
+
+def clause_9_8_packing():
+    result = run_connections(
+        {
+            "check_type": "packing_construction",
+            "packing_thickness_mm": 5,
+            "too_thin_for_adequate_welds": False,
+            "too_thin_to_prevent_buckling": False,
+            "required_edge_weld_sizes_mm": [4, 5],
+            "provided_edge_weld_sizes_mm": [9, 10],
+            "trimmed_flush_with_member_edges": True,
+            "extends_beyond_member_edges": False,
+            "welded_to_fitted_piece": False,
+        }
+    )
+    if not all(check["satisfied"] for check in result["checks"].values()):
+        raise AssertionError("Clause 9.8 thin packing boundary was not satisfied")
+    return {"required_edge_weld_sizes_mm": result["checks"]["edge_weld_sizes"]["required_mm"]}
+
+
+def clause_12_6_3_single_test_history():
+    result = run_durability(
+        {
+            "check_type": "fire_single_test_history",
+            "limiting_temperature_c": 500,
+            "required_frl_min": 8,
+            "protection_thickness_mm": 25,
+            "prototype_protection_thickness_mm": 20,
+            "surface_mass_ratio_m2_per_tonne": 10,
+            "prototype_surface_mass_ratio_m2_per_tonne": 12,
+            "same_protection_system": True,
+            "same_exposure_condition": True,
+            "prototype_was_unloaded": True,
+            "stickability_demonstrated": True,
+            "temperature_history": [
+                {"time_min": 0, "steel_temperature_c": 20},
+                {"time_min": 5, "steel_temperature_c": 300},
+                {"time_min": 10, "steel_temperature_c": 600},
+            ],
+        }
+    )
+    values = result["results"]
+    expect_close(values["attained_time_min"], 8.333333333333334)
+    if not values["check_satisfied"]:
+        raise AssertionError("Clause 12.6.3 qualifying single-test history failed")
+    return {"limiting_temperature_time_min": values["attained_time_min"]}
+
+
+def clause_12_10_2_web_protection():
+    values = run_durability(
+        {
+            "check_type": "web_penetration_protection",
+            "required_thickness_above_mm": 20,
+            "required_thickness_below_mm": 25,
+            "required_thickness_whole_section_mm": 30,
+            "provided_thickness_mm": 30,
+            "beam_depth_mm": 450,
+            "protected_depth_mm": 450,
+            "left_extension_mm": 450,
+            "right_extension_mm": 450,
+        }
+    )["results"]
+    if values["required_thickness_mm"] != 30 or not values["check_satisfied"]:
+        raise AssertionError("Clause 12.10.2 thickness/extent boundary failed")
+    return {
+        "required_thickness_mm": values["required_thickness_mm"],
+        "minimum_extension_each_side_mm": values["minimum_extension_each_side_mm"],
+    }
+
+
+def clause_13_3_6_2_tension_brace():
+    values = run_durability(
+        {
+            "check_type": "concentric_tension_brace",
+            "bearing_wall_or_building_frame_system_verified": True,
+            "design_tension_action_kn": 85,
+            "member_design_tensile_capacity_kn": 100,
+            "connection_design_tensile_capacity_kn": 100,
+        }
+    )["results"]
+    if values["member_action_limit_kn"] != 85 or not values["check_satisfied"]:
+        raise AssertionError("Clause 13.3.6.2(a) exact limits were rejected")
+    return {
+        "member_design_force_limit_kn": values["member_action_limit_kn"],
+        "connection_capacity_kn": values["connection_design_tensile_capacity_kn"],
+    }
+
+
 def main():
     cases = {
         "fillet_lap_1700_mm": lambda: expect_close(fillet(1700), 98.784),
@@ -458,6 +600,12 @@ def main():
         "clause_5_6_1_1_a_iii_moment_factor": clause_5_6_1_1_a_iii_moment_factor,
         "clause_5_6_1_1_b_varying_section": clause_5_6_1_1_b_varying_section,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
+        "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
+        "clause_7_4_component_slenderness": clause_7_4_component_slenderness,
+        "clause_9_8_packing": clause_9_8_packing,
+        "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
+        "clause_12_10_2_web_protection": clause_12_10_2_web_protection,
+        "clause_13_3_6_2_tension_brace": clause_13_3_6_2_tension_brace,
     }
     results = []
     for name, check in cases.items():

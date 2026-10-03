@@ -167,6 +167,209 @@ def test_fillet_lap_length_boundaries(lap_length_mm, lap_factor):
     )
 
 
+def fillet_design(**changes):
+    inputs = {
+        "check_type": "fillet_design",
+        "weld_strength_mpa": 490,
+        "quality": "SP",
+        "leg_1_mm": 6,
+        "leg_2_mm": 6,
+        "included_angle_deg": 90,
+        "root_gap_mm": 0,
+        "thickest_part_mm": 10,
+        "thinnest_part_mm": 6,
+        "edge_material_thickness_mm": 10,
+        "edge_built_out_verified": False,
+        "reinforces_butt_weld": False,
+        "overall_length_per_segment_mm": 100,
+        "segment_count": 1,
+        "intermittent_segment": False,
+        "clear_spacing_mm": 0,
+        "at_built_up_member_end": False,
+        "member_force_type": "other",
+        "forms_built_up_member": False,
+        "parallel_weld_count": 1,
+        "parallel_load_share_verified": False,
+        "transverse_weld_spacing_mm": 0,
+        "thin_rhs_longitudinal": False,
+        "lap_length_mm": 0,
+        "action_kn": 50,
+    }
+    inputs.update(changes)
+    return run_connections(inputs)
+
+
+def test_fillet_design_calculates_throat_effective_area_and_strength():
+    result = fillet_design()
+    throat = 6 / 2**0.5
+    weld = result["checks"]["weld_strength"]
+    assert result["intermediate"]["design_throat_mm"] == pytest.approx(throat)
+    assert result["intermediate"]["effective_area_mm2"] == pytest.approx(throat * 100)
+    assert weld["design_capacity_kn"] == pytest.approx(0.8 * 0.6 * 490 * throat * 100 / 1000)
+    assert weld["satisfied"]
+    assert result["checks"]["weld_size"]["satisfied"]
+    assert result["checks"]["weld_length_and_area"]["satisfied"]
+    assert result["check_type"] == "fillet_design"
+
+
+def test_fillet_design_root_gap_short_length_and_minimum_size_boundaries():
+    short = fillet_design(
+        leg_1_mm=6,
+        leg_2_mm=6,
+        root_gap_mm=1,
+        overall_length_per_segment_mm=10,
+    )
+    assert short["intermediate"]["provided_leg_lengths_after_root_gap_mm"] == [5, 5]
+    assert short["checks"]["weld_length_and_area"]["length_based_size_reduction_factor"] == 0.5
+    assert short["intermediate"]["design_throat_mm"] == pytest.approx(2.5 / 2**0.5)
+
+    size_boundary = fillet_design(
+        leg_1_mm=5,
+        leg_2_mm=5,
+        thickest_part_mm=15,
+        edge_material_thickness_mm=6,
+    )
+    assert size_boundary["checks"]["weld_size"]["checks"]["minimum_size"]["required_mm"] == 5
+    assert size_boundary["checks"]["weld_size"]["checks"]["minimum_size"]["satisfied"]
+    assert (
+        size_boundary["checks"]["weld_size"]["checks"]["maximum_size_along_edge"]["maximum_mm"] == 5
+    )
+    assert size_boundary["checks"]["weld_size"]["satisfied"]
+
+    capped_minimum = fillet_design(
+        leg_1_mm=4,
+        leg_2_mm=4,
+        thickest_part_mm=16,
+        thinnest_part_mm=4,
+    )
+    assert capped_minimum["checks"]["weld_size"]["checks"]["minimum_size"]["required_mm"] == 4
+    assert capped_minimum["checks"]["weld_size"]["satisfied"]
+
+
+def test_fillet_design_checks_parallel_and_intermittent_built_up_spacing():
+    result = fillet_design(
+        overall_length_per_segment_mm=40,
+        segment_count=4,
+        intermittent_segment=True,
+        clear_spacing_mm=144,
+        member_force_type="tension",
+        forms_built_up_member=True,
+        parallel_weld_count=2,
+        parallel_load_share_verified=True,
+        transverse_weld_spacing_mm=96,
+    )
+    assert result["checks"]["weld_length_and_area"]["satisfied"]
+    assert result["checks"]["parallel_weld_spacing"]["maximum_mm"] == 96
+    assert result["checks"]["parallel_weld_spacing"]["satisfied"]
+    assert result["checks"]["intermittent_clear_spacing"]["maximum_mm"] == 144
+    assert result["checks"]["intermittent_clear_spacing"]["satisfied"]
+
+    too_wide = fillet_design(
+        intermittent_segment=True,
+        member_force_type="compression",
+        forms_built_up_member=True,
+        parallel_weld_count=2,
+        parallel_load_share_verified=True,
+        clear_spacing_mm=97,
+        transverse_weld_spacing_mm=193,
+    )
+    assert not too_wide["checks"]["parallel_weld_spacing"]["satisfied"]
+    assert not too_wide["checks"]["intermittent_clear_spacing"]["satisfied"]
+
+    at_member_end = fillet_design(
+        intermittent_segment=True,
+        member_force_type="compression",
+        forms_built_up_member=True,
+        parallel_weld_count=2,
+        parallel_load_share_verified=True,
+        clear_spacing_mm=1000,
+        at_built_up_member_end=True,
+    )
+    assert at_member_end["checks"]["intermittent_clear_spacing"]["satisfied"]
+
+    with pytest.raises(ValueError, match="Load sharing"):
+        fillet_design(parallel_weld_count=2)
+
+
+def test_clause_9_6_3_9_built_up_component_end_and_cap_plate_weld_lengths():
+    taper_end = run_connections(
+        {
+            "check_type": "built_up_component_end_weld",
+            "connected_component_width_mm": 50,
+            "weld_length_per_joint_line_mm": 90,
+            "side_fillet_only": True,
+            "tapered_component": True,
+            "widest_component_width_mm": 80,
+            "taper_length_mm": 90,
+        }
+    )
+    assert taper_end["checks"]["built_up_termination"]["minimum_length_mm"] == 90
+    assert taper_end["checks"]["built_up_termination"]["satisfied"]
+
+    short_taper_end = run_connections(
+        {
+            "check_type": "built_up_component_end_weld",
+            "connected_component_width_mm": 50,
+            "weld_length_per_joint_line_mm": 89,
+            "side_fillet_only": True,
+            "tapered_component": True,
+            "widest_component_width_mm": 80,
+            "taper_length_mm": 90,
+        }
+    )
+    assert not short_taper_end["checks"]["built_up_termination"]["satisfied"]
+
+    non_side_fillet = run_connections(
+        {
+            "check_type": "built_up_component_end_weld",
+            "connected_component_width_mm": 50,
+            "weld_length_per_joint_line_mm": 40,
+            "side_fillet_only": False,
+            "tapered_component": False,
+            "widest_component_width_mm": 50,
+            "taper_length_mm": 0,
+        }
+    )
+    assert not non_side_fillet["checks"]["built_up_termination"]["applicable"]
+    assert non_side_fillet["checks"]["built_up_termination"]["satisfied"]
+
+    cap_plate = run_connections(
+        {
+            "check_type": "cap_plate_weld",
+            "member_width_at_contact_face_mm": 200,
+            "weld_length_per_joint_line_mm": 200,
+        }
+    )
+    assert cap_plate["checks"]["built_up_termination"]["satisfied"]
+    short_cap_plate = run_connections(
+        {
+            "check_type": "cap_plate_weld",
+            "member_width_at_contact_face_mm": 200,
+            "weld_length_per_joint_line_mm": 199,
+        }
+    )
+    assert not short_cap_plate["checks"]["built_up_termination"]["satisfied"]
+
+
+@pytest.mark.parametrize("restraint,above", [("unrestrained", 0), ("restrained", 250)])
+def test_clause_9_6_3_9_beam_to_compression_member_weld_lengths(restraint, above):
+    result = run_connections(
+        {
+            "check_type": "beam_compression_member_weld",
+            "beam_depth_mm": 300,
+            "compression_member_max_dimension_mm": 250,
+            "connection_restraint": restraint,
+            "weld_length_between_beam_faces_mm": 300,
+            "weld_extension_above_top_mm": above,
+            "weld_extension_below_bottom_mm": 250,
+        }
+    )
+    checks = result["checks"]["built_up_termination"]["checks"]
+    assert result["checks"]["built_up_termination"]["satisfied"]
+    if restraint == "restrained":
+        assert checks["above_beam"]["required_mm"] == 250
+
+
 @pytest.mark.parametrize("quality,expected", [("SP", 270), ("GP", 180)])
 def test_complete_butt(quality, expected):
     r = run_connections(
@@ -318,3 +521,41 @@ def test_reject_yield_strength_above_as4100_scope():
     assert run_connections(data)["checks"]["shear"]["satisfied"]
     with pytest.raises(ValueError, match="690 MPa"):
         run_connections({**data, "yield_strength_mpa": 690.1})
+
+
+def test_packing_construction_thin_and_extended_routes():
+    data = {
+        "check_type": "packing_construction",
+        "packing_thickness_mm": 5.99,
+        "too_thin_for_adequate_welds": False,
+        "too_thin_to_prevent_buckling": False,
+        "required_edge_weld_sizes_mm": [4, 5],
+        "provided_edge_weld_sizes_mm": [10, 11],
+        "trimmed_flush_with_member_edges": True,
+        "extends_beyond_member_edges": False,
+        "welded_to_fitted_piece": False,
+    }
+    result = run_connections(data)
+    assert result["intermediate"]["flush_required"]
+    assert result["checks"]["edge_weld_sizes"]["required_mm"] == pytest.approx([9.99, 10.99])
+    assert result["checks"]["edge_weld_sizes"]["satisfied"]
+    data["provided_edge_weld_sizes_mm"][0] = 9.98
+    assert not run_connections(data)["checks"]["edge_weld_sizes"]["satisfied"]
+    data.update(
+        packing_thickness_mm=6,
+        too_thin_to_prevent_buckling=True,
+        provided_edge_weld_sizes_mm=[10, 11],
+        trimmed_flush_with_member_edges=False,
+    )
+    assert not run_connections(data)["checks"]["trimmed_flush"]["satisfied"]
+    data.update(
+        too_thin_to_prevent_buckling=False,
+        extends_beyond_member_edges=True,
+        welded_to_fitted_piece=True,
+    )
+    result = run_connections(data)
+    assert not result["intermediate"]["flush_required"]
+    assert result["checks"]["extends_beyond_edges"]["satisfied"]
+    assert result["checks"]["welded_to_fitted_piece"]["satisfied"]
+    data["extends_beyond_member_edges"] = False
+    assert not run_connections(data)["checks"]["extends_beyond_edges"]["satisfied"]

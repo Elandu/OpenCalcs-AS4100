@@ -10,6 +10,7 @@ from .advanced_members import run_advanced_members
 from .analysis import run_analysis
 from .connections import run_connections
 from .design_actions import run_design_actions
+from .durability import run_durability
 from .materials import run_materials
 from .members import run_members
 from .webs import buckling_alpha, run_webs
@@ -158,6 +159,84 @@ def verify():
         web_thickness["values"]["required_web_thickness_mm"],
         5,
     )
+    plastic_hinge_web = run_webs(
+        {
+            "operation": "web_minimum_thickness",
+            "design_case": "plastic_hinge",
+            "clear_web_depth_mm": 1000,
+            "web_thickness_mm": 12,
+            "web_yield_mpa": 250,
+            "hinge_zone_load_kn": 100,
+            "design_web_shear_yield_capacity_kn": 1000,
+            "bearing_or_shear_within_half_depth_of_hinge_verified": True,
+            "load_bearing_stiffeners_provided": True,
+            "stiffeners_within_half_depth_verified": True,
+            "stiffener_design_5_14_verified": True,
+            "flat_stiffener_plates": [
+                {
+                    "clear_outstand_mm": 80,
+                    "thickness_mm": 10,
+                    "yield_mpa": 250,
+                    "residual_stress_category": "SR",
+                }
+            ],
+        }
+    )
+    record(
+        "Clause 5.10.6 flat stiffener plate slenderness under 5.2.2 Table 5.2",
+        plastic_hinge_web["values"]["flat_stiffener_plate_checks"][0]["slenderness"],
+        8,
+    )
+    calculated_transverse_stiffener = run_webs(
+        {
+            "operation": "transverse_stiffener",
+            "clear_web_depth_mm": 1000,
+            "web_panel_depth_mm": 1000,
+            "web_thickness_mm": 5,
+            "panel_spacing_mm": 1000,
+            "web_area_mm2": 5000,
+            "web_yield_mpa": 250,
+            "stiffener_configuration": "pair",
+            "shear_action_kn": 50,
+            "stiffener_area_mm2": 1000,
+            "stiffener_second_moment_mm4": 200000,
+            "stiffener_outstand_mm": 100,
+            "stiffener_thickness_mm": 10,
+            "stiffener_yield_mpa": 250,
+            "outer_edge_continuously_stiffened": False,
+            "stiffener_layout_verified": True,
+            "longitudinal_stiffeners_present": False,
+            "stiffener_buckling_geometry": {
+                "radius_of_gyration_mm": 100,
+                "available_web_width_left_mm": 500,
+                "available_web_width_right_mm": 500,
+            },
+            "web_connection_design_shear_capacity_kn_per_mm": 0.05,
+            "web_connection_capacity_verified": True,
+        }
+    )
+    calculated_stiffener_values = calculated_transverse_stiffener["values"]
+    calculated_capacity_basis = calculated_stiffener_values["capacity_basis"]
+    record(
+        "Clause 5.11.5.2 stiffened-web shear buckling coefficient from geometry",
+        calculated_stiffener_values["shear_buckling_coefficient"],
+        0.294175,
+    )
+    record(
+        "Clause 5.11.2 nominal web shear capacity from geometry",
+        calculated_stiffener_values["nominal_web_shear_capacity_kn"],
+        220.63125,
+    )
+    record(
+        "Clause 5.14.2 effective-section buckling capacity from geometry",
+        calculated_stiffener_values["nominal_stiffener_buckling_kn"],
+        468.75,
+    )
+    record(
+        "Clause 5.15.4 effective length is the web depth d1",
+        calculated_capacity_basis["clause_5_14_2"]["effective_length_mm"],
+        1000,
+    )
     bearing_dispersion = run_webs(
         {
             "operation": "web_bearing",
@@ -188,6 +267,7 @@ def verify():
             "operation": "load_bearing_stiffener",
             "web_bearing_yield_kn": 100,
             "stiffener_area_mm2": 1000,
+            "stiffener_configuration": "pair",
             "web_yield_mpa": 250,
             "stiffener_yield_mpa": 250,
             "contact_stiffener_area_mm2": 1000,
@@ -249,6 +329,56 @@ def verify():
         end_post["values"]["minimum_end_plate_area_mm2"],
         3000,
     )
+    end_post_design = run_webs(
+        {
+            "operation": "end_post_design",
+            "end_post_required_under_5_15_2_2": True,
+            "clear_web_depth_mm": 1000,
+            "design_shear_action_kn": 180,
+            "capacity_factor": 0.9,
+            "shear_buckling_coefficient": 0.5,
+            "nominal_web_shear_yield_capacity_kn": 100,
+            "end_plate_to_load_bearing_stiffener_distance_mm": 25,
+            "end_plate_yield_mpa": 250,
+            "end_plate_area_mm2": 3000,
+            "design_bearing_force_kn": 20,
+            "load_bearing_stiffener_inputs": {
+                "web_bearing_yield_kn": 100,
+                "contact_stiffener_area_mm2": 1000,
+                "radius_of_gyration_mm": 50,
+                "both_flanges_rotation_restrained": True,
+                "available_web_width_left_mm": 200,
+                "available_web_width_right_mm": 200,
+                "stiffener_area_mm2": 2500,
+                "stiffener_configuration": "pair",
+                "web_yield_mpa": 250,
+                "stiffener_yield_mpa": 250,
+                "web_thickness_mm": 10,
+                "clear_web_depth_mm": 1000,
+                "panel_spacing_mm": 600,
+                "stiffener_outstand_mm": 80,
+                "stiffener_thickness_mm": 10,
+                "outer_edge_continuously_stiffened": False,
+                "load_bearing_stiffener_not_smaller_than_end_plate_verified": True,
+            },
+            "load_bearing_stiffener_attachment_inputs": {
+                "design_force_share_to_web_kn": 10,
+                "web_connection_design_capacity_kn": 10,
+                "tight_uniform_bearing_against_loaded_flange_verified": True,
+                "concentrated_force_directly_over_support": False,
+            },
+        }
+    )
+    record(
+        "Clause 5.15.2.2 end-post route applies Clause 5.14 resistance and attachment checks",
+        int(end_post_design["checked_conditions_satisfied"]),
+        1,
+    )
+    record(
+        "Clause 5.15.9 end-post route retains the hand-calculated end-plate area",
+        end_post_design["values"]["minimum_end_plate_area_mm2"],
+        3000,
+    )
     transverse_termination = run_webs(
         {
             "operation": "transverse_stiffener",
@@ -270,6 +400,8 @@ def verify():
             "stiffener_thickness_mm": 10,
             "stiffener_yield_mpa": 250,
             "outer_edge_continuously_stiffened": False,
+            "stiffener_layout_verified": True,
+            "longitudinal_stiffeners_present": False,
             "stiffener_top_flange_gap_mm": 40,
             "stiffener_bottom_flange_gap_mm": 40,
             "flange_termination_geometry_verified": True,
@@ -279,7 +411,64 @@ def verify():
             "force_eccentricity_mm": 50,
             "capacity_factor": 0.9,
             "external_actions_verified": True,
+            "load_bearing_stiffener_inputs": {
+                "web_bearing_yield_kn": 100,
+                "contact_stiffener_area_mm2": 1000,
+                "radius_of_gyration_mm": 50,
+                "both_flanges_rotation_restrained": True,
+                "available_web_width_left_mm": 200,
+                "available_web_width_right_mm": 0,
+            },
+            "load_bearing_stiffener_attachment_inputs": {
+                "design_force_share_to_web_kn": 5,
+                "web_connection_design_capacity_kn": 5,
+                "tight_uniform_bearing_against_loaded_flange_verified": True,
+                "concentrated_force_directly_over_support": False,
+            },
         }
+    )
+    record(
+        "Clause 5.15.2.1 applies the Clause 5.10.4 interior-panel thickness check",
+        transverse_termination["values"]["clause_5_15_2_1_web_thickness_check"]["values"][
+            "required_web_thickness_mm"
+        ],
+        1,
+    )
+    longitudinal_panel = run_webs(
+        {
+            "operation": "transverse_stiffener",
+            "clear_web_depth_mm": 200,
+            "web_panel_depth_mm": 200,
+            "web_thickness_mm": 0.8,
+            "panel_spacing_mm": 200,
+            "web_area_mm2": 2000,
+            "web_yield_mpa": 250,
+            "shear_buckling_coefficient": 0.5,
+            "stiffener_configuration": "pair",
+            "shear_action_kn": 20,
+            "nominal_web_shear_kn": 100,
+            "nominal_web_buckling_no_tension_field_kn": 100,
+            "nominal_stiffener_buckling_kn": 100,
+            "stiffener_area_mm2": 1000,
+            "stiffener_second_moment_mm4": 200000,
+            "stiffener_outstand_mm": 100,
+            "stiffener_thickness_mm": 10,
+            "stiffener_yield_mpa": 250,
+            "outer_edge_continuously_stiffened": False,
+            "stiffener_layout_verified": True,
+            "longitudinal_stiffeners_present": True,
+            "web_connection_design_shear_capacity_kn_per_mm": 0.00128,
+            "web_connection_capacity_verified": True,
+            "longitudinal_stiffener_d2_mm": 500,
+            "neutral_axis_stiffener_set_present": True,
+        }
+    )
+    record(
+        "Clause 5.15.2.1 selects Clause 5.10.5 with longitudinal stiffeners",
+        longitudinal_panel["values"]["clause_5_15_2_1_web_thickness_check"]["values"][
+            "required_web_thickness_mm"
+        ],
+        0.8,
     )
     record(
         "Clause 5.15.1 maximum flange termination gap",
@@ -291,6 +480,57 @@ def verify():
         transverse_termination["values"]["external_load_stiffness_increase_mm4"],
         138888.8888888889,
         1e-7,
+    )
+    record(
+        "Clause 5.15.8 intermediate stiffener web-connection shear per unit length",
+        longitudinal_panel["values"]["connection_design_shear_kn_per_mm"],
+        0.00128,
+    )
+    load_bearing_check = transverse_termination["values"]["clause_5_14_load_bearing_stiffener"]
+    record(
+        "Clause 5.15.7.2 parallel web force passed to Clause 5.14.1",
+        load_bearing_check["checks"][0]["action"],
+        5,
+    )
+    record(
+        "Clause 5.15.7.2 uses the 5.14.1 nominal yield resistance",
+        load_bearing_check["values"]["bearing_yield_kn"],
+        350,
+    )
+    attachment_check = transverse_termination["values"][
+        "clause_5_14_load_bearing_stiffener_attachment"
+    ]
+    record(
+        "Clause 5.15.7.2 checks Clause 5.14.4 web force transfer",
+        int(attachment_check["checks"][-1]["satisfied"]),
+        1,
+    )
+    reduced_end_panel = run_webs(
+        {
+            "operation": "end_panel_design",
+            "original_end_panel_spacing_mm": 400,
+            "reduced_end_panel_spacing_mm": 200,
+            "clear_web_depth_mm": 200,
+            "panel_depth_mm": 200,
+            "web_thickness_mm": 10,
+            "web_area_mm2": 2000,
+            "web_yield_mpa": 250,
+            "design_shear_action_kn": 50,
+            "design_moment_action_knm": 20,
+            "section_moment_capacity_knm": 100,
+            "stress_max_average_ratio": 1,
+            "end_panel_geometry_verified": True,
+        }
+    )
+    record(
+        "Clause 5.15.2.2 reduced end-panel shear buckling with alpha_d = 1",
+        reduced_end_panel["values"]["nominal_shear_buckling_capacity_kn"],
+        300,
+    )
+    record(
+        "Clause 5.15.2.2 reduced end-panel design shear capacity",
+        reduced_end_panel["values"]["design_shear_buckling_capacity_kn"],
+        270,
     )
     longitudinal_detail = run_webs(
         {
@@ -491,6 +731,67 @@ def verify():
         "9.3 bolt design shear, hand arithmetic",
         bolt["checks"]["shear"]["design_capacity_kn"],
         92.628,
+    )
+    fillet_weld = run_connections(
+        {
+            "check_type": "fillet_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "leg_1_mm": 6,
+            "leg_2_mm": 6,
+            "included_angle_deg": 90,
+            "root_gap_mm": 0,
+            "thickest_part_mm": 10,
+            "thinnest_part_mm": 6,
+            "edge_material_thickness_mm": 10,
+            "edge_built_out_verified": False,
+            "reinforces_butt_weld": False,
+            "overall_length_per_segment_mm": 100,
+            "segment_count": 1,
+            "intermittent_segment": False,
+            "clear_spacing_mm": 0,
+            "at_built_up_member_end": False,
+            "member_force_type": "other",
+            "forms_built_up_member": False,
+            "parallel_weld_count": 1,
+            "parallel_load_share_verified": False,
+            "transverse_weld_spacing_mm": 0,
+            "thin_rhs_longitudinal": False,
+            "lap_length_mm": 0,
+            "action_kn": 50,
+        }
+    )
+    fillet_throat = 6 / 2**0.5
+    record(
+        "Clause 9.6.3.4 equal-leg fillet design throat",
+        fillet_weld["intermediate"]["design_throat_mm"],
+        fillet_throat,
+    )
+    record(
+        "Clause 9.6.3.6 fillet effective area",
+        fillet_weld["intermediate"]["effective_area_mm2"],
+        fillet_throat * 100,
+    )
+    record(
+        "Clause 9.6.3.10 fillet design capacity, hand arithmetic",
+        fillet_weld["checks"]["weld_strength"]["design_capacity_kn"],
+        0.8 * 0.6 * 490 * fillet_throat * 100 / 1000,
+    )
+    built_up_end_weld = run_connections(
+        {
+            "check_type": "built_up_component_end_weld",
+            "connected_component_width_mm": 50,
+            "weld_length_per_joint_line_mm": 90,
+            "side_fillet_only": True,
+            "tapered_component": True,
+            "widest_component_width_mm": 80,
+            "taper_length_mm": 90,
+        }
+    )
+    record(
+        "Clause 9.6.3.9(a) tapered built-up component end-weld length",
+        int(built_up_end_weld["checks"]["built_up_termination"]["satisfied"]),
+        1,
     )
     bending = run_advanced_members(
         {
@@ -754,6 +1055,526 @@ def verify():
     record(
         "Clause 5.5.3 internal pressure selects interior flange",
         int(critical_flange["values"]["critical_flange_position"] == "bottom"),
+        1,
+    )
+    nonprincipal_bending = run_advanced_members(
+        {
+            "operation": "nonprincipal_bending",
+            "section_axial_capacity_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "reduced_member_moment_x_knm": 80,
+            "reduced_member_moment_y_knm": 40,
+            "axial_action_kn": 90,
+            "moment_x_knm": 45,
+            "moment_y_knm": 22.5,
+            "deflections_constrained": False,
+            "rational_analysis_verified": True,
+        }
+    )
+    record(
+        "Clause 5.7.2/8.3.4 rational-analysis section interaction",
+        nonprincipal_bending["values"]["section_interaction"],
+        1.1,
+    )
+    record(
+        "Clause 5.7.2/8.4.5 unconstrained biaxial member interaction",
+        nonprincipal_bending["values"]["member_interaction"],
+        2 * (0.625**1.4),
+    )
+    angle_shortcut = run_advanced_members(
+        {
+            "operation": "angle_bending_capacity",
+            "member_length_mm": 2100,
+            "angle_thickness_mm": 10,
+            "angle_leg_a_width_mm": 100,
+            "angle_leg_b_width_mm": 100,
+            "yield_strength_mpa": 250,
+            "beta_m": 0,
+            "moment_gradient_factor_verified": True,
+            "section_capacity_knm": 20,
+            "section_properties_verified": True,
+            "figure_8_4_6_connection_and_loading_verified": True,
+            "without_full_lateral_support_verified": True,
+        }
+    )
+    record(
+        "Clause 8.4.6 equal-leg shortcut includes l/t boundary",
+        int(angle_shortcut["values"]["equal_leg_shortcut_used"]),
+        1,
+    )
+    record(
+        "Clause 8.4.6 equal-leg shortcut uses Msx",
+        angle_shortcut["values"]["member_moment_capacity_mbx_knm"],
+        20,
+    )
+    angle_reduced = run_advanced_members(
+        {
+            "operation": "angle_bending_capacity",
+            "member_length_mm": 5250,
+            "angle_thickness_mm": 10,
+            "angle_leg_a_width_mm": 100,
+            "angle_leg_b_width_mm": 100,
+            "yield_strength_mpa": 250,
+            "beta_m": 0,
+            "moment_gradient_factor_verified": True,
+            "section_capacity_knm": 20,
+            "section_properties_verified": True,
+            "figure_8_4_6_connection_and_loading_verified": True,
+            "without_full_lateral_support_verified": True,
+            "moment_factor": 1,
+            "moment_factor_verified": True,
+        }
+    )
+    record(
+        "Clause 8.4.6 equal-leg Mo equation, hand arithmetic",
+        angle_reduced["values"]["reference_buckling_moment_mo_knm"],
+        20,
+    )
+    record(
+        "Clause 5.6.1.1 angle alpha_s, hand arithmetic",
+        angle_reduced["values"]["slenderness_reduction_alpha_s"],
+        0.6,
+    )
+    record(
+        "Clause 8.4.6 equal-leg Mbx, hand arithmetic",
+        angle_reduced["values"]["member_moment_capacity_mbx_knm"],
+        12,
+    )
+    angle_scaled = run_advanced_members(
+        {
+            "operation": "angle_bending_capacity",
+            "member_length_mm": 5000,
+            "angle_thickness_mm": 10,
+            "angle_leg_a_width_mm": 100,
+            "angle_leg_b_width_mm": 100,
+            "yield_strength_mpa": 350,
+            "beta_m": 0,
+            "moment_gradient_factor_verified": True,
+            "section_capacity_knm": 20,
+            "section_properties_verified": True,
+            "figure_8_4_6_connection_and_loading_verified": True,
+            "without_full_lateral_support_verified": True,
+            "moment_factor": 1,
+            "moment_factor_verified": True,
+        }
+    )
+    record(
+        "Clause 8.4.6 equal-leg Mo yield-strength scaling",
+        angle_scaled["values"]["reference_buckling_moment_mo_knm"],
+        15,
+    )
+    record(
+        "Clause 8.4.6 equal-leg reduced Mbx yield-strength scaling",
+        angle_scaled["values"]["member_moment_capacity_mbx_knm"],
+        10.229754097208001,
+        1e-12,
+    )
+    angle_compression = run_advanced_members(
+        {
+            "operation": "angle_compression_capacity",
+            "gross_area_mm2": 2000,
+            "net_area_mm2": 2000,
+            "effective_area_mm2": 2000,
+            "yield_strength_mpa": 250,
+            "member_length_mm": 1500,
+            "radius_about_loaded_leg_h_axis_mm": 10,
+            "section_properties_verified": True,
+            "figure_8_4_6_connection_and_loading_verified": True,
+            "loaded_leg_h_axis_orientation_verified": True,
+        }
+    )
+    record(
+        "Clause 8.4.6 angle Nch with Table 6.3.3(A) alpha_b=0.5",
+        angle_compression["values"]["nominal_member_capacity_nch_kn"],
+        136.5214318742263,
+        1e-12,
+    )
+    angle_compression_reduced_area = run_advanced_members(
+        {
+            "operation": "angle_compression_capacity",
+            "gross_area_mm2": 2000,
+            "net_area_mm2": 1800,
+            "effective_area_mm2": 1600,
+            "yield_strength_mpa": 350,
+            "member_length_mm": 5000,
+            "radius_about_loaded_leg_h_axis_mm": 15,
+            "section_properties_verified": True,
+            "figure_8_4_6_connection_and_loading_verified": True,
+            "loaded_leg_h_axis_orientation_verified": True,
+        }
+    )
+    record(
+        "Clause 8.4.6 angle Nch with Table 6.3.3(B) alpha_b=1.0",
+        angle_compression_reduced_area["values"]["nominal_member_capacity_nch_kn"],
+        29.516096338384898,
+        1e-12,
+    )
+    angle_section_bending = run_advanced_members(
+        {
+            "operation": "angle_section_bending_capacity",
+            "section_capacity_knm": 100,
+            "iy_mm4": 50_000_000,
+            "torsion_constant_mm4": 200_000,
+            "effective_length_mm": 15_000,
+            "moment_factor": 1,
+            "moment_factor_verified": True,
+            "section_properties_verified": True,
+            "angle_section_verified": True,
+            "constant_cross_section_verified": True,
+            "segment_without_full_lateral_restraint_verified": True,
+        }
+    )
+    record(
+        "Clause 5.6.1.3 angle Mo with Iw=0, hand arithmetic",
+        angle_section_bending["values"]["reference_buckling_moment_knm"],
+        83.77580409572782,
+        1e-12,
+    )
+    record(
+        "Clause 5.6.1.3 angle alpha_s, hand arithmetic",
+        angle_section_bending["values"]["slenderness_reduction_alpha_s"],
+        0.5459194274720188,
+        1e-12,
+    )
+    record(
+        "Clause 5.6.1.3 angle Mb, hand arithmetic",
+        angle_section_bending["values"]["nominal_member_moment_capacity_mb_knm"],
+        54.591942747201884,
+        1e-12,
+    )
+    angle_rational_moment = run_advanced_members(
+        {
+            "operation": "angle_eccentricity",
+            "arrangement": "same_side",
+            "compression_centroid_offset_mm": 20,
+            "tension_centroid_offset_mm": 25,
+            "leg_thickness_mm": 10,
+            "axial_action_kn": 100,
+            "moment_method": "rational_analysis",
+            "rational_analysis_moment_knm": 0.5,
+        }
+    )
+    record(
+        "Clause 8.4.6 rational-analysis moment alternative",
+        angle_rational_moment["values"]["design_moment_knm"],
+        0.5,
+    )
+    angle_eccentricity_minimum = run_advanced_members(
+        {
+            "operation": "angle_eccentricity",
+            "arrangement": "same_side",
+            "compression_centroid_offset_mm": 20,
+            "tension_centroid_offset_mm": 25,
+            "leg_thickness_mm": 10,
+            "axial_action_kn": 100,
+            "moment_method": "minimum_eccentricity",
+        }
+    )
+    record(
+        "Clause 8.4.6 eccentricity minimum-moment route",
+        angle_eccentricity_minimum["values"]["design_moment_knm"],
+        1.5,
+    )
+    back_to_back = run_advanced_members(
+        {
+            "operation": "built_up_compression",
+            "construction": "back_to_back",
+            "section_capacity_kn": 1000,
+            "member_capacity_kn": 500,
+            "modified_member_slenderness": 100,
+            "axial_action_kn": 100,
+            "integral_slenderness_perpendicular": 40,
+            "integral_slenderness_parallel": 100,
+            "component_slenderness": 30,
+            "number_of_bays": 3,
+            "similar_symmetric_components_verified": True,
+            "interconnection_design": {
+                "design_capacity_kn": 7.5 * 3.141592653589793,
+                "capacity_verified": True,
+            },
+        }
+    )
+    record(
+        "Clause 6.5.1.5 back-to-back interconnection demand",
+        back_to_back["checks"][-1]["design_demand_kn"],
+        7.5 * 3.141592653589793,
+    )
+    for arrangement, clause in [
+        ("separated_back_to_back", "7.4.3(a)(i)"),
+        ("laced", "7.4.4(b)"),
+        ("battened", "7.4.5(a)"),
+    ]:
+        slenderness = run_advanced_members(
+            {
+                "operation": "tension_component_slenderness",
+                "arrangement": arrangement,
+                "intervals_and_radii_verified": True,
+                "component_intervals": [
+                    {"unrestrained_length_mm": 3000, "minimum_radius_of_gyration_mm": 10}
+                ],
+            }
+        )
+        record(
+            f"Clause {clause} component slenderness at limit",
+            slenderness["values"]["maximum_component_slenderness"],
+            300,
+        )
+    packing = run_connections(
+        {
+            "check_type": "packing_construction",
+            "packing_thickness_mm": 5,
+            "too_thin_for_adequate_welds": False,
+            "too_thin_to_prevent_buckling": False,
+            "required_edge_weld_sizes_mm": [4, 5],
+            "provided_edge_weld_sizes_mm": [9, 10],
+            "trimmed_flush_with_member_edges": True,
+            "extends_beyond_member_edges": False,
+            "welded_to_fitted_piece": False,
+        }
+    )
+    record(
+        "Clause 9.8 packing edge-weld increase",
+        packing["checks"]["edge_weld_sizes"]["required_mm"][0],
+        9,
+    )
+    single_test_history = run_durability(
+        {
+            "check_type": "fire_single_test_history",
+            "limiting_temperature_c": 500,
+            "required_frl_min": 8,
+            "protection_thickness_mm": 25,
+            "prototype_protection_thickness_mm": 20,
+            "surface_mass_ratio_m2_per_tonne": 10,
+            "prototype_surface_mass_ratio_m2_per_tonne": 12,
+            "same_protection_system": True,
+            "same_exposure_condition": True,
+            "prototype_was_unloaded": True,
+            "stickability_demonstrated": True,
+            "temperature_history": [
+                {"time_min": 0, "steel_temperature_c": 20},
+                {"time_min": 5, "steel_temperature_c": 300},
+                {"time_min": 10, "steel_temperature_c": 600},
+            ],
+        }
+    )
+    record(
+        "Clause 12.6.3 single-test limiting temperature crossing",
+        single_test_history["results"]["attained_time_min"],
+        8.333333333333334,
+    )
+    web_protection = run_durability(
+        {
+            "check_type": "web_penetration_protection",
+            "required_thickness_above_mm": 20,
+            "required_thickness_below_mm": 25,
+            "required_thickness_whole_section_mm": 30,
+            "provided_thickness_mm": 30,
+            "beam_depth_mm": 450,
+            "protected_depth_mm": 450,
+            "left_extension_mm": 450,
+            "right_extension_mm": 450,
+        }
+    )
+    record(
+        "Clause 12.10.2 web-penetration protection extent",
+        int(web_protection["results"]["check_satisfied"]),
+        1,
+    )
+    tension_brace = run_durability(
+        {
+            "check_type": "concentric_tension_brace",
+            "bearing_wall_or_building_frame_system_verified": True,
+            "design_tension_action_kn": 85,
+            "member_design_tensile_capacity_kn": 100,
+            "connection_design_tensile_capacity_kn": 100,
+        }
+    )
+    record(
+        "Clause 13.3.6.2(a) brace and connection capacity boundaries",
+        int(tension_brace["results"]["check_satisfied"]),
+        1,
+    )
+    expected_regression_coefficients = [5, 0.4, 1.2, 0.06, 0.0008, 0.002, 0.1]
+    regression_geometries = [
+        (12, 7),
+        (15, 10),
+        (20, 15),
+        (25, 22),
+        (30, 30),
+        (18, 35),
+        (40, 12),
+        (45, 25),
+        (50, 40),
+        (60, 18),
+    ]
+    regression_test_series = []
+    for thickness, surface_mass_ratio in regression_geometries:
+        temperature_time_points = []
+        for temperature in [300, 400, 500, 600]:
+            observation = (
+                expected_regression_coefficients[0]
+                + expected_regression_coefficients[1] * thickness
+                + expected_regression_coefficients[2] * thickness / surface_mass_ratio
+                + expected_regression_coefficients[3] * temperature
+                + expected_regression_coefficients[4] * thickness * temperature
+                + expected_regression_coefficients[5] * thickness * temperature / surface_mass_ratio
+                + expected_regression_coefficients[6] * temperature / surface_mass_ratio
+            )
+            temperature_time_points.append({"temperature_c": temperature, "time_min": observation})
+        regression_test_series.append(
+            {
+                "protection_thickness_mm": thickness,
+                "surface_mass_ratio_m2_per_tonne": surface_mass_ratio,
+                "prototype_was_unloaded": False,
+                "stickability_demonstrated": False,
+                "temperature_time_points": temperature_time_points,
+            }
+        )
+    regression_fit = run_durability(
+        {
+            "check_type": "fire_protected_regression_fit",
+            "protection_material_type": "low_density_insulation",
+            "protection_dry_density_kg_m3": 450,
+            "same_protection_system_and_exposure_verified": True,
+            "exposure_sides": 4,
+            "test_series": regression_test_series,
+        }
+    )["results"]
+    for index, expected in enumerate(expected_regression_coefficients):
+        record(
+            f"Clause 12.6.2.2 fitted regression coefficient k{index}",
+            regression_fit["coefficients"][index],
+            expected,
+            1e-9,
+        )
+    record(
+        "Clause 12.6.2.2 exact-series correlation coefficient",
+        regression_fit["correlation_coefficient"],
+        1,
+        1e-12,
+    )
+    record(
+        "Clause 12.6.2.2 exact-series residual",
+        regression_fit["root_mean_square_residual_min"],
+        0,
+        1e-9,
+    )
+    record(
+        "Clause 12.6.2.2 measured test-temperature range",
+        regression_fit["test_temperature_range_c"][1]
+        - regression_fit["test_temperature_range_c"][0],
+        300,
+    )
+    record(
+        "Clause 12.6.2.3 interpolation-window convex-hull vertices",
+        len(regression_fit["interpolation_window_points"]),
+        5,
+    )
+    regression_check = run_durability(
+        {
+            "check_type": "fire_protected_regression",
+            "coefficients": regression_fit["coefficients"],
+            "temperature_c": 500,
+            "protection_thickness_mm": 25,
+            "surface_mass_ratio_m2_per_tonne": 22,
+            "required_frl_min": 60,
+            "test_count": regression_fit["test_count"],
+            "test_series_conditions_satisfied": True,
+            "test_temperature_range_c": regression_fit["test_temperature_range_c"],
+            "interpolation_window_points": regression_fit["interpolation_window_points"],
+            "application_conditions": {
+                "calibration_exposure_sides": regression_fit["exposure_sides"],
+                "member_exposure_sides": 4,
+                "same_protection_system": True,
+                "same_protection_material_verified": True,
+                "stickability_demonstrated_for_member": False,
+            },
+        }
+    )
+    record(
+        "Clause 12.6.2.3 interior test geometry accepted",
+        int(regression_check["results"]["inside_interpolation_window"]),
+        1,
+    )
+    record(
+        "Clause 12.6.2.3 measured target temperature accepted",
+        int(regression_check["results"]["within_test_temperature_range"]),
+        1,
+    )
+    record(
+        "Clause 12.6.2.3 protection-system reuse conditions accepted",
+        int(regression_check["results"]["application_conditions"]["conditions_satisfied"]),
+        1,
+    )
+    fire_group = run_durability(
+        {
+            "check_type": "fire_three_sided_group",
+            "members": [
+                {
+                    "concrete_density_kg_m3": 2000,
+                    "concrete_area_excluding_voids_mm2": 150000,
+                    "tributary_width_mm": 1000,
+                    "rib_void_condition": "open",
+                },
+                {
+                    "concrete_density_kg_m3": 2500,
+                    "concrete_area_excluding_voids_mm2": 187500,
+                    "tributary_width_mm": 1000,
+                    "rib_void_condition": "open",
+                },
+            ],
+        }
+    )["results"]
+    record(
+        "Clause 12.9(a)(i) concrete density ratio at limit",
+        fire_group["concrete_density_ratio"],
+        1.25,
+    )
+    record(
+        "Clause 12.9(a)(ii) effective thickness ratio at limit",
+        fire_group["effective_thickness_ratio"],
+        1.25,
+    )
+    record("Clause 12.9(b) consistent open rib voids", int(fire_group["group_satisfied"]), 1)
+    fire_connection = run_durability(
+        {
+            "check_type": "fire_connection_protection",
+            "framing_members": [
+                {"required_protection_thickness_mm": 25},
+                {"required_protection_thickness_mm": 40},
+                {"required_protection_thickness_mm": 35},
+            ],
+            "connection_components": [
+                {
+                    "component_id": "bolt-heads",
+                    "component_type": "bolt_head",
+                    "provided_protection_thickness_mm": 40,
+                    "protection_maintained_over_component": True,
+                },
+                {
+                    "component_id": "welds",
+                    "component_type": "weld",
+                    "provided_protection_thickness_mm": 40,
+                    "protection_maintained_over_component": True,
+                },
+                {
+                    "component_id": "splice-plates",
+                    "component_type": "splice_plate",
+                    "provided_protection_thickness_mm": 40,
+                    "protection_maintained_over_component": True,
+                },
+            ],
+        }
+    )["results"]
+    record(
+        "Clause 12.10.1 maximum framing-member protection thickness",
+        fire_connection["required_protection_thickness_mm"],
+        40,
+    )
+    record(
+        "Clause 12.10.1 protection maintained over connection components",
+        int(fire_connection["check_satisfied"]),
         1,
     )
     return {

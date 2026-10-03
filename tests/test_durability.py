@@ -179,6 +179,110 @@ def test_d10_fire_prototype_gates():
     assert not result(d)["check_satisfied"]
 
 
+def single_test_history(**changes):
+    return {
+        "check_type": "fire_single_test_history",
+        "limiting_temperature_c": 500,
+        "required_frl_min": 8.33,
+        "protection_thickness_mm": 25,
+        "prototype_protection_thickness_mm": 20,
+        "surface_mass_ratio_m2_per_tonne": 10,
+        "prototype_surface_mass_ratio_m2_per_tonne": 12,
+        "same_protection_system": True,
+        "same_exposure_condition": True,
+        "prototype_was_unloaded": False,
+        "stickability_demonstrated": False,
+        "temperature_history": [
+            {"time_min": 0, "steel_temperature_c": 20},
+            {"time_min": 5, "steel_temperature_c": 300},
+            {"time_min": 10, "steel_temperature_c": 600},
+        ],
+        **changes,
+    }
+
+
+def test_single_test_history_crossing_and_lower_bound():
+    values = result(single_test_history())
+    assert values["test_applicable"]
+    assert values["limiting_temperature_attained"]
+    assert values["attained_time_min"] == pytest.approx(8.333333333333334)
+    assert values["check_satisfied"]
+    values = result(
+        single_test_history(
+            limiting_temperature_c=700,
+            required_frl_min=10,
+        )
+    )
+    assert not values["limiting_temperature_attained"]
+    assert values["attained_time_min"] is None
+    assert values["psa_min_lower_bound"] == 10
+    assert values["check_satisfied"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"same_protection_system": False},
+        {"same_exposure_condition": False},
+        {"protection_thickness_mm": 19},
+        {"surface_mass_ratio_m2_per_tonne": 13},
+        {"prototype_was_unloaded": True, "stickability_demonstrated": False},
+    ],
+)
+def test_single_test_history_applicability_conditions(changes):
+    values = result(single_test_history(**changes))
+    assert not values["test_applicable"]
+    assert not values["check_satisfied"]
+
+
+def test_single_test_history_requires_ordered_time_series():
+    data = single_test_history()
+    data["temperature_history"][2]["time_min"] = 4
+    with pytest.raises(ValueError, match="start at zero"):
+        run_durability(data)
+
+
+def test_web_penetration_protection_greatest_thickness_and_extent():
+    data = {
+        "check_type": "web_penetration_protection",
+        "required_thickness_above_mm": 25,
+        "required_thickness_below_mm": 30,
+        "required_thickness_whole_section_mm": 27,
+        "provided_thickness_mm": 30,
+        "beam_depth_mm": 450,
+        "protected_depth_mm": 450,
+        "left_extension_mm": 450,
+        "right_extension_mm": 450,
+    }
+    values = result(data)
+    assert values["required_thickness_mm"] == 30
+    assert values["minimum_extension_each_side_mm"] == 450
+    assert values["check_satisfied"]
+    data["right_extension_mm"] = 449.999
+    assert not result(data)["check_satisfied"]
+    data.update(beam_depth_mm=250, protected_depth_mm=250, right_extension_mm=300)
+    assert result(data)["minimum_extension_each_side_mm"] == 300
+    data["provided_thickness_mm"] = 29.999
+    assert not result(data)["thickness_satisfied"]
+
+
+def test_concentric_tension_brace_member_and_connection_limits():
+    data = {
+        "check_type": "concentric_tension_brace",
+        "bearing_wall_or_building_frame_system_verified": True,
+        "design_tension_action_kn": 85,
+        "member_design_tensile_capacity_kn": 100,
+        "connection_design_tensile_capacity_kn": 100,
+    }
+    values = result(data)
+    assert values["member_action_limit_kn"] == 85
+    assert values["check_satisfied"]
+    data["design_tension_action_kn"] = 85.001
+    assert not result(data)["member_action_satisfied"]
+    data.update(design_tension_action_kn=80, connection_design_tensile_capacity_kn=99.999)
+    assert not result(data)["connection_capacity_satisfied"]
+
+
 def test_d11_protected_regression():
     # Synthetic coefficient evaluation, not a qualifying fire test calibration.
     d = {
@@ -196,6 +300,336 @@ def test_d11_protected_regression():
     d["inside_reviewed_interpolation_window"] = False
     with pytest.raises(ValueError):
         result(d)
+
+
+def _protected_regression_fit_input():
+    coefficients = [5, 0.4, 1.2, 0.06, 0.0008, 0.002, 0.1]
+    geometries = [
+        (12, 7),
+        (15, 10),
+        (20, 15),
+        (25, 22),
+        (30, 30),
+        (18, 35),
+        (40, 12),
+        (45, 25),
+        (50, 40),
+        (60, 18),
+    ]
+    test_series = []
+    for thickness, surface_mass_ratio in geometries:
+        temperature_time_points = []
+        for temperature in [300, 400, 500, 600]:
+            features = [
+                1,
+                thickness,
+                thickness / surface_mass_ratio,
+                temperature,
+                thickness * temperature,
+                thickness * temperature / surface_mass_ratio,
+                temperature / surface_mass_ratio,
+            ]
+            temperature_time_points.append(
+                {
+                    "temperature_c": temperature,
+                    "time_min": sum(c * x for c, x in zip(coefficients, features, strict=True)),
+                }
+            )
+        test_series.append(
+            {
+                "protection_thickness_mm": thickness,
+                "surface_mass_ratio_m2_per_tonne": surface_mass_ratio,
+                "prototype_was_unloaded": False,
+                "stickability_demonstrated": False,
+                "temperature_time_points": temperature_time_points,
+            }
+        )
+    return {
+        "check_type": "fire_protected_regression_fit",
+        "protection_material_type": "low_density_insulation",
+        "protection_dry_density_kg_m3": 450,
+        "same_protection_system_and_exposure_verified": True,
+        "exposure_sides": 4,
+        "test_series": test_series,
+    }, coefficients
+
+
+def test_d11a_fit_qualifying_series_and_build_interpolation_window():
+    data, expected_coefficients = _protected_regression_fit_input()
+    fitted = result(data)
+    assert fitted["coefficients"] == pytest.approx(expected_coefficients, abs=1e-10)
+    assert fitted["correlation_coefficient"] == pytest.approx(1)
+    assert fitted["root_mean_square_residual_min"] == pytest.approx(0, abs=1e-10)
+    assert fitted["test_count"] == 10
+    assert fitted["observation_count"] == 40
+    assert fitted["test_temperature_range_c"] == [300, 600]
+    assert len(fitted["interpolation_window_points"]) == 5
+    assert fitted["calibration_eligible"]
+
+
+def test_d11b_fit_rejects_rank_deficiency_and_unloaded_tests_without_stickability():
+    data, _ = _protected_regression_fit_input()
+    repeated = [dict(data["test_series"][0]) for _ in range(9)]
+    data["test_series"] = repeated
+    with pytest.raises(ValueError, match="determine all seven"):
+        result(data)
+
+    data, _ = _protected_regression_fit_input()
+    data["test_series"][0]["prototype_was_unloaded"] = True
+    with pytest.raises(ValueError, match="stickability"):
+        result(data)
+
+
+def test_d11c_fit_enforces_density_and_three_sided_group_prerequisites():
+    data, _ = _protected_regression_fit_input()
+    data["protection_dry_density_kg_m3"] = 1000
+    with pytest.raises(ValueError):
+        result(data)
+
+    data, _ = _protected_regression_fit_input()
+    del data["protection_dry_density_kg_m3"]
+    with pytest.raises(ValueError):
+        result(data)
+
+    data, _ = _protected_regression_fit_input()
+    data["exposure_sides"] = 3
+    data["three_sided_grouping_verified"] = False
+    with pytest.raises(ValueError):
+        result(data)
+
+    data["three_sided_grouping_verified"] = True
+    assert result(data)["calibration_eligible"]
+
+    data, _ = _protected_regression_fit_input()
+    data["exposure_sides"] = 3
+    data["three_sided_group_members"] = _three_sided_group_members()
+    fitted = result(data)
+    assert fitted["three_sided_group_qualification"]["group_satisfied"]
+    assert fitted["three_sided_group_qualification"]["concrete_density_ratio"] == pytest.approx(
+        1.25
+    )
+
+    data, _ = _protected_regression_fit_input()
+    data["protection_material_type"] = "intumescent_or_ablative_coating"
+    del data["protection_dry_density_kg_m3"]
+    assert result(data)["correlation_coefficient"] > 0.9
+
+
+def test_d11d_regression_uses_calculated_test_geometry_window():
+    fitted_input, _ = _protected_regression_fit_input()
+    fitted = result(fitted_input)
+    data = {
+        "check_type": "fire_protected_regression",
+        "coefficients": fitted["coefficients"],
+        "temperature_c": 500,
+        "protection_thickness_mm": 25,
+        "surface_mass_ratio_m2_per_tonne": 22,
+        "required_frl_min": 60,
+        "test_count": fitted["test_count"],
+        "test_series_conditions_satisfied": True,
+        "test_temperature_range_c": fitted["test_temperature_range_c"],
+        "interpolation_window_points": fitted["interpolation_window_points"],
+        "application_conditions": {
+            "calibration_exposure_sides": fitted["exposure_sides"],
+            "member_exposure_sides": 4,
+            "same_protection_system": True,
+            "same_protection_material_verified": True,
+            "stickability_demonstrated_for_member": False,
+        },
+    }
+    evaluated = result(data)
+    assert evaluated["inside_interpolation_window"]
+    assert evaluated["application_conditions"]["conditions_satisfied"]
+    assert len(evaluated["interpolation_window_points"]) == 5
+
+    data["protection_thickness_mm"] = 100
+    with pytest.raises(ValueError, match="interpolation inside"):
+        result(data)
+
+    data["protection_thickness_mm"] = 25
+    data["temperature_c"] = 601
+    with pytest.raises(ValueError, match="temperature range"):
+        result(data)
+
+    data["temperature_c"] = 500
+    data["inside_reviewed_interpolation_window"] = False
+    with pytest.raises(ValueError, match="conflicts"):
+        result(data)
+
+
+def test_d11f_regression_reuse_checks_exposure_system_and_stickability():
+    fitted_input, _ = _protected_regression_fit_input()
+    fitted = result(fitted_input)
+    data = {
+        "check_type": "fire_protected_regression",
+        "coefficients": fitted["coefficients"],
+        "temperature_c": 500,
+        "protection_thickness_mm": 25,
+        "surface_mass_ratio_m2_per_tonne": 22,
+        "required_frl_min": 60,
+        "test_count": fitted["test_count"],
+        "test_series_conditions_satisfied": True,
+        "test_temperature_range_c": fitted["test_temperature_range_c"],
+        "interpolation_window_points": fitted["interpolation_window_points"],
+        "application_conditions": {
+            "calibration_exposure_sides": 4,
+            "member_exposure_sides": 3,
+            "same_protection_system": True,
+            "same_protection_material_verified": True,
+            "stickability_demonstrated_for_member": True,
+            "member_three_sided_group_members": _three_sided_group_members(),
+        },
+    }
+    values = result(data)
+    assert values["application_conditions"]["member_three_sided_group_satisfied"]
+
+    data["application_conditions"]["stickability_demonstrated_for_member"] = False
+    with pytest.raises(ValueError, match="requires demonstrated stickability"):
+        result(data)
+
+    data["application_conditions"].update(
+        calibration_exposure_sides=3,
+        member_exposure_sides=4,
+        stickability_demonstrated_for_member=True,
+    )
+    del data["application_conditions"]["member_three_sided_group_members"]
+    with pytest.raises(ValueError, match="cannot qualify a four-sided"):
+        result(data)
+
+    data["application_conditions"].update(
+        calibration_exposure_sides=4,
+        member_exposure_sides=4,
+        same_protection_system=False,
+        stickability_demonstrated_for_member=False,
+    )
+    with pytest.raises(ValueError, match="another protection system"):
+        result(data)
+
+    data["application_conditions"]["stickability_demonstrated_for_member"] = True
+    assert result(data)["application_conditions"]["conditions_satisfied"]
+
+
+def test_d11e_regression_rejects_collinear_test_geometry_window():
+    data = {
+        "check_type": "fire_protected_regression",
+        "coefficients": [1, 1, 1, 1, 1, 1, 1],
+        "temperature_c": 500,
+        "protection_thickness_mm": 20,
+        "surface_mass_ratio_m2_per_tonne": 20,
+        "required_frl_min": 60,
+        "test_count": 9,
+        "test_series_conditions_satisfied": True,
+        "test_temperature_range_c": [300, 600],
+        "application_conditions": {
+            "calibration_exposure_sides": 4,
+            "member_exposure_sides": 4,
+            "same_protection_system": True,
+            "same_protection_material_verified": True,
+            "stickability_demonstrated_for_member": False,
+        },
+        "interpolation_window_points": [
+            {"protection_thickness_mm": 10, "surface_mass_ratio_m2_per_tonne": 10},
+            {"protection_thickness_mm": 20, "surface_mass_ratio_m2_per_tonne": 20},
+            {"protection_thickness_mm": 30, "surface_mass_ratio_m2_per_tonne": 30},
+        ],
+    }
+    with pytest.raises(ValueError, match="collinear"):
+        result(data)
+
+
+def _three_sided_group_members():
+    return [
+        {
+            "concrete_density_kg_m3": 2000,
+            "concrete_area_excluding_voids_mm2": 150000,
+            "tributary_width_mm": 1000,
+            "rib_void_condition": "open",
+        },
+        {
+            "concrete_density_kg_m3": 2500,
+            "concrete_area_excluding_voids_mm2": 187500,
+            "tributary_width_mm": 1000,
+            "rib_void_condition": "open",
+        },
+    ]
+
+
+def test_three_sided_group_checks_density_thickness_and_rib_void_limits():
+    members = _three_sided_group_members()
+    data = {"check_type": "fire_three_sided_group", "members": members}
+    values = result(data)
+    assert values["concrete_density_ratio"] == pytest.approx(1.25)
+    assert values["effective_thickness_ratio"] == pytest.approx(1.25)
+    assert values["effective_thicknesses_mm"] == pytest.approx([150, 187.5])
+    assert values["rib_voids_state"] == "open"
+    assert values["group_satisfied"]
+
+    members[1]["concrete_density_kg_m3"] = 2501
+    assert not result(data)["concrete_density_satisfied"]
+
+    members = _three_sided_group_members()
+    members[1]["concrete_area_excluding_voids_mm2"] = 188000
+    data["members"] = members
+    assert not result(data)["effective_thickness_satisfied"]
+
+    members = _three_sided_group_members()
+    members[1]["rib_void_condition"] = "blocked"
+    data["members"] = members
+    values = result(data)
+    assert values["rib_voids_state"] == "mixed"
+    assert not values["rib_voids_consistent"]
+    assert not values["group_satisfied"]
+
+
+def test_connection_fire_protection_uses_maximum_framing_thickness_on_every_component():
+    data = {
+        "check_type": "fire_connection_protection",
+        "framing_members": [
+            {"required_protection_thickness_mm": 25},
+            {"required_protection_thickness_mm": 40},
+            {"required_protection_thickness_mm": 35},
+        ],
+        "connection_components": [
+            {
+                "component_id": "bolts-1",
+                "component_type": "bolt_head",
+                "provided_protection_thickness_mm": 40,
+                "protection_maintained_over_component": True,
+            },
+            {
+                "component_id": "weld-1",
+                "component_type": "weld",
+                "provided_protection_thickness_mm": 40,
+                "protection_maintained_over_component": True,
+            },
+            {
+                "component_id": "splice-1",
+                "component_type": "splice_plate",
+                "provided_protection_thickness_mm": 40,
+                "protection_maintained_over_component": True,
+            },
+        ],
+    }
+    values = result(data)
+    assert values["required_protection_thickness_mm"] == 40
+    assert values["framing_member_count"] == 3
+    assert values["check_satisfied"]
+    assert all(component["component_satisfied"] for component in values["component_checks"])
+
+    data["connection_components"][2]["provided_protection_thickness_mm"] = 39.999
+    values = result(data)
+    assert not values["component_checks"][2]["thickness_satisfied"]
+    assert not values["check_satisfied"]
+
+    data["connection_components"][2]["provided_protection_thickness_mm"] = 40
+    data["connection_components"][1]["protection_maintained_over_component"] = False
+    values = result(data)
+    assert not values["component_checks"][1]["component_satisfied"]
+    assert not values["check_satisfied"]
+
+    data["connection_components"][2]["component_id"] = "weld-1"
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        result(data)
 
 
 def brittle():

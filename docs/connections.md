@@ -17,7 +17,12 @@ The source standard is not redistributed.
 | slip | 9.2.3 service shear and linear shear/tension interaction, phi=0.7 under 3.5.5. Installation tension and slip coefficient require compliant installation and surface evidence. As-rolled clean surfaces use 0.35; other surfaces require testing. Separate strength checks remain necessary. |
 | block_shear | 9.1.9(e) net rupture capped by gross shear yielding, phi=0.75, eccentricity factor 1 or 0.5. Enumerate all feasible rupture paths externally. |
 | pin | 9.4.1–3 circular solid pin shear, pin bearing with rotation factor, and bending using plastic modulus d³/6. Pin actions and plate load distribution require external analysis; ply bearing also uses bearing. |
-| fillet | 9.6.3.10 strength using externally established design throat and effective length, including 9.6.2.7(c) incomplete butt capacity. Thin RHS longitudinal SP weld factor 0.7. Geometry, minimum/maximum size, short/intermittent length reductions and weld procedure are separate prerequisites. |
+| fillet | 9.6.3.10 strength using externally established design throat and effective length, including 9.6.2.7(c) incomplete butt capacity. Thin RHS longitudinal SP weld factor 0.7. Geometry and weld-size detailing are separate prerequisites. |
+| fillet_design | 9.6.3.1–6 leg sizes, root gap, throat, minimum/maximum size, effective length and area; 9.6.3.7–8 built-up parallel/intermittent weld spacing; 9.6.3.10 weld strength. | Supply the weld-metal strength and verify weld geometry, edge build-out, root gap and load sharing. Use the resulting capacity in the attached component or stiffener check; welding procedures and production inspection remain separate. |
+| built_up_component_end_weld | 9.6.3.9(a) minimum weld length at built-up component ends, including tapered components. | Supply each connected width and taper length; the requirement applies when side fillet welds alone are used. |
+| cap_plate_weld | 9.6.3.9(b) minimum weld length per joint line at a compression-member cap/base plate. | Supply member width at the contact face and weld length on each joint line. |
+| beam_compression_member_weld | 9.6.3.9(c) weld extent between beam faces and the restraint-dependent extension around a beam-to-compression-member connection. | Supply beam depth, compression-member maximum dimension, restraint condition and measured weld extents. |
+| packing_construction | 9.8 flush trimming and edge-weld size increase for thin packing; extension beyond member edges and welding to the fitted piece for the other branch. | Supply required/provided edge-weld sizes and assess whether packing is too thin for adequate welds or to prevent buckling. |
 | complete_butt | 9.6.2.7(a) weaker-part nominal capacity multiplied by quality factor; requires qualified procedure and matching consumable attestation. |
 | plug_slot | 9.6.4.2 filled-hole shear on externally assessed faying-plane area, permitted applications under 9.6.4.3 require attestation. Circumferential fillet welds use fillet. |
 | layout | 9.5.1–4 pitch and edge limits for standard holes; supply thinnest applicable ply and edge finish. Nonstandard hole-edge reference, corrosion and non-load conditions require external assessment. |
@@ -35,8 +40,8 @@ or overlapping weld lengths, and does not include thin RHS longitudinal welds.
 The following still require engineering assessment: 9.1 connection modelling,
 minimum design actions, force transfer, restraint, prying, local hollow-section
 effects; plate/component section/member checks; out-of-plane bolt groups;
-nonstandard holes; weld preparation, root gap, enhanced penetration, compound
-weld geometry, intermittent and built-up detailing; packing construction;
+nonstandard holes; weld preparation, enhanced penetration, compound weld
+geometry and built-up-member detailing outside the listed Clause 9.6.3.9 termination checks;
 fabrication, inspection and installation Sections 14/15 and referenced standards.
 Fatigue, brittle fracture, seismic and fire applicability are separate checks.
 

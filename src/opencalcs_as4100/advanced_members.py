@@ -24,8 +24,11 @@ from .validation import (
 )
 
 
-def _schema(operation, properties):
-    return object_schema({"operation": {"const": operation}, **properties})
+def _schema(operation, properties, optional=()):
+    return object_schema(
+        {"operation": {"const": operation}, **properties},
+        required=["operation", *(key for key in properties if key not in optional)],
+    )
 
 
 def _full_lateral_restraint_schema():
@@ -202,6 +205,105 @@ def _moment_modification_factor_schema():
             "moment_diagram_verified": VERIFIED,
         },
     )
+
+
+def _angle_eccentricity_schema():
+    common = {
+        "arrangement": {"enum": ["same_side", "opposite_sides"]},
+        "compression_centroid_offset_mm": N,
+        "tension_centroid_offset_mm": N,
+        "leg_thickness_mm": P,
+        "axial_action_kn": N,
+    }
+    operation = {"operation": {"const": "angle_eccentricity"}}
+    rational_moment = {"rational_analysis_moment_knm": N}
+    return {
+        "oneOf": [
+            object_schema(
+                {
+                    **operation,
+                    **common,
+                    "moment_method": {"const": "rational_analysis"},
+                    **rational_moment,
+                }
+            ),
+            object_schema(
+                {
+                    **operation,
+                    **common,
+                    "moment_method": {"const": "minimum_eccentricity"},
+                }
+            ),
+            object_schema(
+                {
+                    **operation,
+                    **common,
+                    "moment_method": {"const": "conservative_max"},
+                    **rational_moment,
+                }
+            ),
+            # Preserve the existing input shape and conservative default.
+            object_schema({**operation, **common, **rational_moment}),
+        ]
+    }
+
+
+def _angle_section_bending_schema():
+    return _schema(
+        "angle_section_bending_capacity",
+        {
+            "section_capacity_knm": P,
+            "iy_mm4": P,
+            "torsion_constant_mm4": P,
+            "effective_length_mm": P,
+            "moment_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 2.5},
+            "moment_factor_verified": VERIFIED,
+            "section_properties_verified": VERIFIED,
+            "angle_section_verified": VERIFIED,
+            "constant_cross_section_verified": VERIFIED,
+            "segment_without_full_lateral_restraint_verified": VERIFIED,
+        },
+    )
+
+
+def _angle_compression_capacity_schema():
+    return _schema(
+        "angle_compression_capacity",
+        {
+            "gross_area_mm2": P,
+            "net_area_mm2": P,
+            "effective_area_mm2": P,
+            "yield_strength_mpa": FY,
+            "member_length_mm": P,
+            "radius_about_loaded_leg_h_axis_mm": P,
+            "section_properties_verified": VERIFIED,
+            "figure_8_4_6_connection_and_loading_verified": VERIFIED,
+            "loaded_leg_h_axis_orientation_verified": VERIFIED,
+        },
+    )
+
+
+def _angle_bending_capacity_schema():
+    common = {
+        "member_length_mm": P,
+        "angle_thickness_mm": P,
+        "angle_leg_a_width_mm": P,
+        "angle_leg_b_width_mm": P,
+        "yield_strength_mpa": FY,
+        "beta_m": BETA,
+        "moment_gradient_factor_verified": VERIFIED,
+        "section_capacity_knm": P,
+        "section_properties_verified": VERIFIED,
+        "figure_8_4_6_connection_and_loading_verified": VERIFIED,
+        "without_full_lateral_support_verified": VERIFIED,
+    }
+    base = {"operation": {"const": "angle_bending_capacity"}, **common}
+    with_moment_factor = {
+        **base,
+        "moment_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 2.5},
+        "moment_factor_verified": VERIFIED,
+    }
+    return {"oneOf": [object_schema(base), object_schema(with_moment_factor)]}
 
 
 def _varying_section_bending_schema():
@@ -398,7 +500,11 @@ SCHEMAS = {
             "component_slenderness": P,
             "number_of_bays": {"type": "integer", "minimum": 1, "maximum": 1000000},
             "similar_symmetric_components_verified": VERIFIED,
+            "interconnection_design": object_schema(
+                {"design_capacity_kn": N, "capacity_verified": VERIFIED}
+            ),
         },
+        optional=("interconnection_design",),
     ),
     "lacing": _schema(
         "lacing",
@@ -437,6 +543,24 @@ SCHEMAS = {
             "effective_end_width_mm": P,
         },
     ),
+    "tension_component_slenderness": _schema(
+        "tension_component_slenderness",
+        {
+            "arrangement": {"enum": ["separated_back_to_back", "laced", "battened"]},
+            "intervals_and_radii_verified": VERIFIED,
+            "component_intervals": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 10000,
+                "items": object_schema(
+                    {
+                        "unrestrained_length_mm": P,
+                        "minimum_radius_of_gyration_mm": P,
+                    }
+                ),
+            },
+        },
+    ),
     "pin_tension_member": _schema(
         "pin_tension_member",
         {
@@ -469,17 +593,10 @@ SCHEMAS = {
             "side_by_side_i_sections_or_channels_verified": VERIFIED,
         },
     ),
-    "angle_eccentricity": _schema(
-        "angle_eccentricity",
-        {
-            "arrangement": {"enum": ["same_side", "opposite_sides"]},
-            "compression_centroid_offset_mm": N,
-            "tension_centroid_offset_mm": N,
-            "leg_thickness_mm": P,
-            "axial_action_kn": N,
-            "rational_analysis_moment_knm": N,
-        },
-    ),
+    "angle_section_bending_capacity": _angle_section_bending_schema(),
+    "angle_compression_capacity": _angle_compression_capacity_schema(),
+    "angle_bending_capacity": _angle_bending_capacity_schema(),
+    "angle_eccentricity": _angle_eccentricity_schema(),
 }
 INPUT_SCHEMA = {"oneOf": list(SCHEMAS.values())}
 OUTPUT_SCHEMA = {
@@ -1166,11 +1283,42 @@ def run_advanced_members(inputs):
             effective_parallel = max(parallel, 1.4 * component)
             limit = min(50, 0.6 * min(effective_perpendicular, effective_parallel))
         checks = [_limit("6.4 main component", component, limit)]
+        clauses = ["6.4.1", "6.4.2", "6.4.3", "6.5"]
+        limitations = [
+            "Recalculate member capacity and lambda_n from reported effective "
+            "slenderness before design-force use.",
+            "Back-to-back path limited to similar symmetric angle/channel/tee pairs"
+            " and eligible spacing/packing.",
+            "Approximately equal bays, end fasteners, tie plates and torsional "
+            "effects need separate assessment.",
+        ]
         if d["construction"] == "back_to_back":
             checks.append(_minimum("6.5 minimum bays", d["number_of_bays"], 3))
+            if "interconnection_design" in d:
+                demand = 0.25 * transverse * component
+                capacity = d["interconnection_design"]["design_capacity_kn"]
+                checks.append(
+                    {
+                        "clause": "6.5.1.5",
+                        "design_demand_kn": demand,
+                        "verified_design_capacity_kn": capacity,
+                        "utilisation": demand / capacity if capacity > 0 else None,
+                        "satisfied": demand <= capacity,
+                    }
+                )
+                clauses.append("6.5.1.5")
+            else:
+                limitations.append(
+                    "Clause 6.5.1.5 resistance comparison is omitted until a verified "
+                    "per-interconnection design capacity is supplied."
+                )
+        elif "interconnection_design" in d:
+            raise ValueError(
+                "The Clause 6.5.1.5 interconnection check applies to back-to-back members."
+            )
         return result(
             op,
-            ["6.4.1", "6.4.2", "6.4.3", "6.5"],
+            clauses,
             {
                 "transverse_design_shear_kn": transverse,
                 "effective_slenderness_perpendicular": effective_perpendicular,
@@ -1179,14 +1327,7 @@ def run_advanced_members(inputs):
                 "back_to_back_connection_longitudinal_shear_kn": 0.25 * transverse * component,
             },
             checks,
-            [
-                "Recalculate member capacity and lambda_n from reported effective "
-                "slenderness before design-force use.",
-                "Back-to-back path limited to similar symmetric angle/channel/tee pairs"
-                " and eligible spacing/packing.",
-                "Approximately equal bays, end fasteners, tie plates and torsional "
-                "effects need separate assessment.",
-            ],
+            limitations,
         )
     if op == "lacing":
         double = d["mode"] == "double_connected"
@@ -1272,6 +1413,44 @@ def run_advanced_members(inputs):
                 "compression-force formula does not apply.",
             ],
         )
+    if op == "tension_component_slenderness":
+        clause = {
+            "separated_back_to_back": "7.4.3(a)(i)",
+            "laced": "7.4.4(b)",
+            "battened": "7.4.5(a)",
+        }[d["arrangement"]]
+        checks = []
+        slenderness_values = []
+        for index, interval in enumerate(d["component_intervals"], start=1):
+            slenderness = (
+                interval["unrestrained_length_mm"] / interval["minimum_radius_of_gyration_mm"]
+            )
+            check = _limit(clause, slenderness, 300)
+            check.update(
+                {
+                    "interval_number": index,
+                    "unrestrained_length_mm": interval["unrestrained_length_mm"],
+                    "minimum_radius_of_gyration_mm": interval["minimum_radius_of_gyration_mm"],
+                }
+            )
+            checks.append(check)
+            slenderness_values.append(slenderness)
+        return result(
+            op,
+            [clause],
+            {
+                "arrangement": d["arrangement"],
+                "maximum_component_slenderness": max(slenderness_values),
+                "interval_checks": checks,
+            },
+            checks,
+            [
+                "Supply every component interval between consecutive connections and "
+                "its verified minimum radius of gyration.",
+                "Verify the selected 7.4 arrangement and its other connection, spacing "
+                "and tie/batten requirements separately.",
+            ],
+        )
     if op == "pin_tension_member":
         required = d["required_member_net_area_mm2"]
         thickness = 0.25 * d["hole_to_edge_distance_mm"]
@@ -1346,6 +1525,155 @@ def run_advanced_members(inputs):
                 "separate design.",
             ],
         )
+    if op == "angle_section_bending_capacity":
+        ms = d["section_capacity_knm"]
+        elastic_term = pi**2 * ELASTIC_MODULUS_MPA * d["iy_mm4"] / d["effective_length_mm"] ** 2
+        mo = sqrt(elastic_term * SHEAR_MODULUS_MPA * d["torsion_constant_mm4"]) / 1e6
+        if not isfinite(mo) or mo <= 0:
+            raise ValueError(
+                "Clause 5.6.1.1 reference buckling moment must be positive and finite."
+            )
+        ratio = ms / mo
+        alpha_s = 0.6 * (sqrt(ratio**2 + 3) - ratio)
+        alpha_m = d["moment_factor"]
+        mb = min(ms, alpha_m * alpha_s * ms)
+        return result(
+            op,
+            ["5.6.1.1(a)", "5.6.1.1(1)", "5.6.1.1(2)", "5.6.1.1(3)", "5.6.1.3"],
+            {
+                "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+                "shear_modulus_mpa": SHEAR_MODULUS_MPA,
+                "reference_buckling_moment_knm": mo,
+                "slenderness_reduction_alpha_s": alpha_s,
+                "moment_factor_alpha_m": alpha_m,
+                "nominal_member_moment_capacity_mb_knm": mb,
+                "warping_constant_used_mm6": 0,
+            },
+            [],
+            [
+                "Applies to constant-cross-section angle members without full lateral "
+                "restraint. Supply gross-section Ms from Clause 5.2 and angle Iy/J values.",
+                "Clause 5.6.1.3 specifies Iw=0. The effective length must include the "
+                "applicable Clause 5.6.3 assessment.",
+                "Select alpha_m independently under Clause 5.6.1.1(1); this operation "
+                "does not validate the moment-distribution route.",
+                "This operation returns the Clause 5.6.1.3 bending capacity only. For the "
+                "special equal-leg truss-angle provisions use the separate 8.4.6 operation; "
+                "no combined action interaction is evaluated.",
+            ],
+        )
+    if op == "angle_compression_capacity":
+        ag = d["gross_area_mm2"]
+        an = d["net_area_mm2"]
+        ae = d["effective_area_mm2"]
+        if an > ag or ae > ag:
+            raise ValueError("Net and effective areas must not exceed gross area.")
+        kf = ae / ag
+        fy = d["yield_strength_mpa"]
+        ns = kf * an * fy / 1000
+        alpha_b = 0.5 if kf == 1 else 1.0
+        lambda_n = (
+            d["member_length_mm"] / d["radius_about_loaded_leg_h_axis_mm"] * sqrt(kf * fy / 250)
+        )
+        alpha_a = 2100 * (lambda_n - 13.5) / (lambda_n**2 - 15.3 * lambda_n + 2050)
+        slenderness = max(0, lambda_n + alpha_a * alpha_b)
+        eta = max(0, 0.00326 * (slenderness - 13.5))
+        q = (slenderness / 90) ** 2
+        a = 1 + q + eta
+        alpha_c = min(1, 2 / (a + sqrt(max(0, a * a - 4 * q))))
+        nch = min(ns, alpha_c * ns)
+        return result(
+            op,
+            ["6.2.1", "6.2.2", "6.3.2", "6.3.3", "Table 6.3.3(A/B)", "8.4.6"],
+            {
+                "form_factor_kf": kf,
+                "nominal_section_capacity_ns_kn": ns,
+                "effective_length_mm": d["member_length_mm"],
+                "buckling_axis": "rectangular h-axis parallel to the loaded leg",
+                "modified_member_slenderness_lambda_n": lambda_n,
+                "section_constant_alpha_b": alpha_b,
+                "alpha_a": alpha_a,
+                "imperfection_adjusted_slenderness": slenderness,
+                "eta": eta,
+                "member_reduction_alpha_c": alpha_c,
+                "nominal_member_capacity_nch_kn": nch,
+            },
+            [],
+            [
+                "Applies to the single-angle truss arrangement and loaded-leg orientation "
+                "in Figure 8.4.6; these conditions and section "
+                "properties are supplied as verified.",
+                "The effective length is set equal to the member length as required by "
+                "Clause 8.4.6. Supply the verified radius of gyration about the rectangular "
+                "h-axis parallel to the loaded leg.",
+                "The effective area must follow Clause 6.2.4. Apply the Clause 6.2.1 net-area "
+                "exception and Clause 9.1.10 fastener-hole deductions when selecting An.",
+                "For angles, Table 6.3.3(A) gives alpha_b=0.5 when kf=1; Table 6.3.3(B) "
+                "gives alpha_b=1.0 for other sections, including angles, when kf<1.",
+                "Returns nominal Nch only. No axial demand/capacity check or combined "
+                "Clause 8.4.6 interaction is evaluated for this eccentric-load case.",
+            ],
+        )
+    if op == "angle_bending_capacity":
+        if d["angle_leg_a_width_mm"] != d["angle_leg_b_width_mm"]:
+            raise ValueError("This 8.4.6 route applies only to equal-leg angles.")
+
+        member_slenderness = d["member_length_mm"] / d["angle_thickness_mm"]
+        slenderness_limit = (210 + 175 * d["beta_m"]) * (250 / d["yield_strength_mpa"])
+        use_shortcut = member_slenderness <= slenderness_limit
+        msx = d["section_capacity_knm"]
+        mo = None
+        alpha_s = None
+        alpha_m = None
+        if use_shortcut:
+            mbx = msx
+        else:
+            if "moment_factor" not in d:
+                raise ValueError(
+                    "A verified Clause 5.6.1.1 moment_factor is required when the "
+                    "equal-leg slenderness limit is not satisfied."
+                )
+            mo = (
+                (525 * d["angle_thickness_mm"] / d["member_length_mm"])
+                * (250 / d["yield_strength_mpa"])
+                * msx
+            )
+            ratio = msx / mo
+            alpha_s = 0.6 * (sqrt(ratio**2 + 3) - ratio)
+            alpha_m = d["moment_factor"]
+            mbx = min(msx, alpha_m * alpha_s * msx)
+
+        clauses = ["8.4.6", "5.2"]
+        if not use_shortcut:
+            clauses.extend(["5.6.1.1(1)", "5.6.1.1(2)"])
+        return result(
+            op,
+            clauses,
+            {
+                "member_slenderness_l_over_t": member_slenderness,
+                "equal_leg_slenderness_limit_l_over_t": slenderness_limit,
+                "equal_leg_shortcut_used": use_shortcut,
+                "section_moment_capacity_msx_knm": msx,
+                "reference_buckling_moment_mo_knm": mo,
+                "slenderness_reduction_alpha_s": alpha_s,
+                "moment_factor_alpha_m": alpha_m,
+                "member_moment_capacity_mbx_knm": mbx,
+            },
+            [],
+            [
+                "Applies only to equal-leg angles meeting the Clause 8.4.6 single-angle "
+                "truss arrangement, connection and loading conditions, without full lateral "
+                "support; these conditions and section properties are supplied as verified.",
+                "Supply gross-section Msx from Clause 5.2 and beta_m selected for the "
+                "applicable moment distribution. If the equal-leg limit is not met, supply "
+                "alpha_m independently selected under Clause 5.6.1.1(1).",
+                "Calculates the angle member bending capacity Mbx only. It does not calculate "
+                "Nch, compare a design moment with capacity, or evaluate the unresolved "
+                "8.4.6 combined interaction.",
+                "For equal-leg angles within the limit, Clause 8.4.6 permits Mbx=Msx; the "
+                "moment factor is not used on that route.",
+            ],
+        )
     # Geometry-only primitive: does not invent the ambiguous interaction printed in 8.4.6.
     if d["arrangement"] == "same_side":
         eccentricity = d["compression_centroid_offset_mm"] - d["leg_thickness_mm"] / 2
@@ -1354,20 +1682,35 @@ def run_advanced_members(inputs):
     else:
         eccentricity = d["compression_centroid_offset_mm"] + d["tension_centroid_offset_mm"]
     minimum_moment = d["axial_action_kn"] * eccentricity / 1000
+    moment_method = d.get("moment_method", "conservative_max")
+    rational_moment = d.get("rational_analysis_moment_knm")
+    if moment_method == "rational_analysis":
+        design_moment = rational_moment
+    elif moment_method == "minimum_eccentricity":
+        design_moment = minimum_moment
+    else:
+        design_moment = max(minimum_moment, rational_moment)
     return result(
         op,
         ["8.4.6"],
         {
             "eccentricity_mm": eccentricity,
             "minimum_design_moment_knm": minimum_moment,
-            "design_moment_knm": max(minimum_moment, d["rational_analysis_moment_knm"]),
+            "moment_method": moment_method,
+            "rational_analysis_moment_knm": rational_moment,
+            "design_moment_knm": design_moment,
         },
         [],
         [
-            "Only the Figure 8.4.6 eccentricity and minimum moment requirement is calculated.",
-            "Special angle interaction requires separately verified interpretation "
-            "of 8.4.6; no capacity assessment is produced.",
+            "The rational-analysis route uses the verified elastic truss moment as written "
+            "in Clause 8.4.6 and does not impose the separate N*e minimum.",
+            "The minimum_eccentricity route sets M_h* to N*e; use a larger value if required "
+            "by the design assessment.",
+            "The legacy input shape defaults to conservative_max, taking the greater of the "
+            "rational-analysis moment and N*e.",
+            "The operation calculates design moment only; the special angle interaction "
+            "still requires a separately verified interpretation.",
             "Angles must be double-bolted or welded and loading through one leg "
-            "must match the figure.",
+            "must match Figure 8.4.6.",
         ],
     )

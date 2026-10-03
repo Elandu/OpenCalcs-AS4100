@@ -22,27 +22,30 @@ Supplied capacities are nominal; strength checks apply phi=0.9.
 | `lateral_buckling_effective_length` | 5.6.3 effective length from tabulated twist-restraint, gravity-load-height and end-rotation-restraint factors | Supply the applicable end arrangement, restraint spacing/sub-segment length and section dimensions; only listed gravity-load cases are supported. Effective rotation restraint needs assessment to 5.4.3.4. |
 | `nonprincipal_bending` | 5.7 section interaction and, for unconstrained deflection, biaxial member interaction | Rational analysis supplies principal moments, restraint forces and reduced member capacities. |
 | `plastic_in_plane` | 8.4.3 member/web plastic hinge eligibility and uniaxial reduced plastic moment capacity | Compact doubly symmetric I section, actual-length Euler load, correct beta_m, plastic frame analysis/restraint provisions. |
-| `built_up_compression` | 6.4 design transverse shear; component slenderness; laced/battened effective slenderness; 6.5 connection shear and minimum bays | Assessed Ns/Nc/lambda_n, similar symmetric components; iterate Nc with calculated effective slenderness; equal bays/end connections and eligible packing/spacing. |
-| `lacing` | 6.4.2 angle/effective-length/slenderness; tie width/thickness; 7.4.4 tensile lacing limit | Double-lacing crossing connection; tie placement and connection force transfer; component slenderness; torsional assessment for opposed lacing. |
-| `batten` | 6.4.3 batten geometry/effective length/slenderness, simultaneous connection shear/moment; 7.4.5 thickness and intermediate width | End/component geometry, effective section properties, connection design; tension force distribution and two-bolt requirement. Compression connection force formulas return null for tension members. |
+| `built_up_compression` | 6.4 design transverse shear; component slenderness; laced/battened effective slenderness; 6.5 connection shear and minimum bays; optional 6.5.1.5 comparison against verified per-interconnection design capacity | Assessed Ns/Nc/lambda_n, similar symmetric components; iterate Nc with calculated effective slenderness; equal bays/end connections and eligible packing/spacing. |
+| `lacing` | 6.4.2 angle/effective-length/slenderness; tie width/thickness; 7.4.4 lacing-element limit | Double-lacing crossing connection; tie placement and connection force transfer; component slenderness under 7.4.4(b) is checked by `tension_component_slenderness`; torsional assessment for opposed lacing. |
+| `batten` | 6.4.3 batten geometry/effective length/slenderness, simultaneous connection shear/moment; 7.4.5 thickness and intermediate width | End/component geometry, effective section properties, connection design; main-component slenderness under 7.4.5(a) is checked by `tension_component_slenderness`; tension force distribution and two-bolt requirement. Compression connection force formulas return null for tension members. |
+| `tension_component_slenderness` | 7.4.3(a)(i), 7.4.4(b), or 7.4.5(a) component slenderness between consecutive connections | Supply each component interval and its verified minimum radius of gyration. Verify arrangement applicability, including end-gusset connection spacing for separated back-to-back members; this does not check other 7.4 connection and tie/batten requirements. |
 | `pin_tension_member` | 7.5 pin-hole member thickness and beyond-hole/perpendicular net area ratios | Separately assessed member net area, all potential beyond-hole directions, pin capacity under 9.4, eccentricity-free load distribution. |
 | `restraint_action` | 5.4.3.1 lateral-restraint force, 5.4.3.2 twist-restraint force, 5.4.3.3 parallel-member accumulation up to seven members, and 6.6 compression restraint envelope | For 5.4.3.1 supply the maximum critical-flange force from adjacent segments/sub-segments; for other cases supply the applicable flange or compression force. Include rational analysis, notional loads and the full load path; restraint stiffness, slip and anchorage remain assessed. |
 | `separator_diaphragm` | 5.8 minimum transverse force for separators/diaphragms and equal share per supplied device count | Verify side-by-side members act together, external force distribution, resulting shear and device capacities; separators are rejected where external vertical force transfer is required. |
-| `angle_eccentricity` | Figure 8.4.6 eccentricity and minimum Nh moment | Loading/geometry as drawn; double-bolted or welded angle. No special angle interaction capacity is claimed. |
+| `angle_eccentricity` | Figure 8.4.6 eccentricity and design end moment `M_h*` | Choose rational elastic analysis, the `N*e` minimum, or the conservative maximum. The legacy input shape retains the conservative maximum. Verify the double-bolted or welded Figure 8.4.6 arrangement and loading. |
+| `angle_bending_capacity` | 8.4.6 equal-leg angle `Mbx`, using the `l/t` shortcut or the supplied `Mo` equation with 5.6.1.1(1) moment factor and (2) slenderness reduction | Equal-leg angle only; verify the Figure 8.4.6 arrangement, no full lateral support, section capacity `Msx`, `beta_m` and (for the reduced route) `alpha_m`. Calculates capacity only; does not check demand or the unresolved combined interaction. |
+| `angle_section_bending_capacity` | 5.6.1.3 angle member moment capacity using 5.6.1.1(a), with `Iw=0` | Verify constant cross-section, angle `Iy/J`, gross section capacity `Ms`, effective length and selected `alpha_m`. Returns capacity only; the special 8.4.6 equal-leg route and combined interaction are separate. |
+| `angle_compression_capacity` | 8.4.6 `Nch` using 6.2.1–6.2.2 and 6.3.2–6.3.3, including Table 6.3.3(A/B) angle constants | Verify the Figure 8.4.6 arrangement, net/effective area, and radius about the rectangular `h`-axis parallel to the loaded leg. Effective length is set to member length. Returns nominal `Nch` only; does not perform an axial demand check or evaluate the unresolved combined interaction. |
 
-The scan's 8.4.6 interaction uses tensile terminology and `Mtx/Mry` while defining
-compressive force, `Nch` and angle orientation; a corresponding reduction definition
-is not apparent on pages 111–112. The implementation calculates only the clearly
-specified eccentricity/moment requirement and requires a separately verified
-interpretation for this special interaction. It does not invent an equation.
+The printed 8.4.6 interaction uses tensile terminology and `Mtx/Mry` while defining
+compressive force, `Nch` and angle orientation; it does not supply the relationship
+needed to resolve those terms. The implementation covers the stated eccentricity
+requirement and equal-leg `Mbx` routes, but does not invent the combined interaction.
 
 No operation performs elastic eigenvalue analysis. The external buckling load/moment
 must be checked against analytical benchmarks and account for the intended mode,
 restraints and loading. A solver eigenvalue without that assessment is insufficient.
 Rational torsional-flexural buckling and automatic built-up
 component/connection sizing remain separate requirements. Built-up tension component
-slenderness, connection distribution and required tie/batten placement remain assessed
-under 7.4, even when the lacing or batten primitive passes.
+connection-force distribution and required tie/batten placement remain assessed under
+7.4, even when a component-slenderness, lacing or batten check passes.
 
 Tests cover the published compression table and Tables 5.6.2–5.6.3 values and boundaries,
 independent buckling/moment arithmetic,

@@ -1,7 +1,7 @@
 """Connection component calculations reviewed against AS 4100:2020 Section 9."""
 
 from collections.abc import Mapping
-from math import hypot, isfinite, pi
+from math import cos, hypot, isfinite, pi, radians, sin, sqrt
 from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
@@ -84,6 +84,72 @@ FIELDS = {
         "thin_rhs_longitudinal": BOOL,
         "lap_length_mm": N,
         "action_kn": N,
+    },
+    "fillet_design": {
+        "weld_strength_mpa": P,
+        "quality": QUALITY,
+        "leg_1_mm": P,
+        "leg_2_mm": P,
+        "included_angle_deg": {"type": "number", "minimum": 5, "maximum": 175},
+        "root_gap_mm": N,
+        "thickest_part_mm": P,
+        "thinnest_part_mm": P,
+        "edge_material_thickness_mm": P,
+        "edge_built_out_verified": BOOL,
+        "reinforces_butt_weld": BOOL,
+        "overall_length_per_segment_mm": P,
+        "segment_count": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "intermittent_segment": BOOL,
+        "clear_spacing_mm": N,
+        "at_built_up_member_end": BOOL,
+        "member_force_type": {"enum": ["compression", "tension", "other"]},
+        "forms_built_up_member": BOOL,
+        "parallel_weld_count": {"type": "integer", "enum": [1, 2]},
+        "parallel_load_share_verified": BOOL,
+        "transverse_weld_spacing_mm": N,
+        "thin_rhs_longitudinal": BOOL,
+        "lap_length_mm": N,
+        "action_kn": N,
+    },
+    "built_up_component_end_weld": {
+        "connected_component_width_mm": P,
+        "weld_length_per_joint_line_mm": P,
+        "side_fillet_only": BOOL,
+        "tapered_component": BOOL,
+        "widest_component_width_mm": P,
+        "taper_length_mm": N,
+    },
+    "cap_plate_weld": {
+        "member_width_at_contact_face_mm": P,
+        "weld_length_per_joint_line_mm": P,
+    },
+    "beam_compression_member_weld": {
+        "beam_depth_mm": P,
+        "compression_member_max_dimension_mm": P,
+        "connection_restraint": {"enum": ["unrestrained", "restrained"]},
+        "weld_length_between_beam_faces_mm": P,
+        "weld_extension_above_top_mm": N,
+        "weld_extension_below_bottom_mm": N,
+    },
+    "packing_construction": {
+        "packing_thickness_mm": P,
+        "too_thin_for_adequate_welds": BOOL,
+        "too_thin_to_prevent_buckling": BOOL,
+        "required_edge_weld_sizes_mm": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": P,
+        },
+        "provided_edge_weld_sizes_mm": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": N,
+        },
+        "trimmed_flush_with_member_edges": BOOL,
+        "extends_beyond_member_edges": BOOL,
+        "welded_to_fitted_piece": BOOL,
     },
     "complete_butt": {
         "weaker_part_nominal_capacity_kn": P,
@@ -180,6 +246,24 @@ def _check(capacity, phi, action, clause, unit="kn"):
         "satisfied": action <= design,
         "clause": clause,
     }
+
+
+def _fillet_strength_check(d, throat_mm, effective_length_mm, clause="9.6.3.10"):
+    lap_m = d["lap_length_mm"] / 1000
+    lap_factor = 1 if lap_m <= 1.7 else (1.10 - 0.06 * lap_m if lap_m <= 8 else 0.62)
+    if d["thin_rhs_longitudinal"]:
+        if d["quality"] != "SP":
+            raise ValueError("Thin RHS longitudinal fillet requires SP quality.")
+        phi = 0.7
+    else:
+        phi = 0.8 if d["quality"] == "SP" else 0.6
+    nominal_capacity = (
+        0.6 * d["weld_strength_mpa"] * throat_mm * effective_length_mm * lap_factor / 1000
+    )
+    return (
+        _check(nominal_capacity, phi, d["action_kn"], clause),
+        {"lap_factor": lap_factor, "capacity_factor": phi},
+    )
 
 
 def _bolt(d):
@@ -305,24 +389,186 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "9.4.2",
         )
         c["bending"] = _check(fy * dia**3 / 6e6, 0.8, d["moment_action_knm"], "9.4.3", "knm")
+    elif k == "built_up_component_end_weld":
+        applicable = d["side_fillet_only"]
+        minimum_length = None
+        if applicable:
+            minimum_length = d["connected_component_width_mm"]
+            if d["tapered_component"]:
+                minimum_length = max(minimum_length, d["widest_component_width_mm"])
+                minimum_length = max(minimum_length, d["taper_length_mm"])
+        weld_length = d["weld_length_per_joint_line_mm"]
+        c["built_up_termination"] = {
+            "clause": "9.6.3.9(a)",
+            "applicable": applicable,
+            "minimum_length_mm": minimum_length,
+            "provided_length_per_joint_line_mm": weld_length,
+            "satisfied": not applicable or weld_length >= minimum_length,
+        }
+        intermediate = {
+            "connected_component_width_mm": d["connected_component_width_mm"],
+            "widest_component_width_mm": d["widest_component_width_mm"],
+            "taper_length_mm": d["taper_length_mm"],
+        }
+    elif k == "cap_plate_weld":
+        minimum_length = d["member_width_at_contact_face_mm"]
+        weld_length = d["weld_length_per_joint_line_mm"]
+        c["built_up_termination"] = {
+            "clause": "9.6.3.9(b)",
+            "minimum_length_per_joint_line_mm": minimum_length,
+            "provided_length_per_joint_line_mm": weld_length,
+            "satisfied": weld_length >= minimum_length,
+        }
+        intermediate = {"member_width_at_contact_face_mm": d["member_width_at_contact_face_mm"]}
+    elif k == "beam_compression_member_weld":
+        required_extension = d["compression_member_max_dimension_mm"]
+        checks = {
+            "between_beam_faces": {
+                "clause": "9.6.3.9(c)",
+                "required_mm": d["beam_depth_mm"],
+                "provided_mm": d["weld_length_between_beam_faces_mm"],
+                "satisfied": d["weld_length_between_beam_faces_mm"] >= d["beam_depth_mm"],
+            },
+            "below_beam": {
+                "clause": "9.6.3.9(c)(i)/(ii)",
+                "required_mm": required_extension,
+                "provided_mm": d["weld_extension_below_bottom_mm"],
+                "satisfied": d["weld_extension_below_bottom_mm"] >= required_extension,
+            },
+        }
+        if d["connection_restraint"] == "restrained":
+            checks["above_beam"] = {
+                "clause": "9.6.3.9(c)(ii)",
+                "required_mm": required_extension,
+                "provided_mm": d["weld_extension_above_top_mm"],
+                "satisfied": d["weld_extension_above_top_mm"] >= required_extension,
+            }
+        c["built_up_termination"] = {
+            "clause": "9.6.3.9(c)",
+            "connection_restraint": d["connection_restraint"],
+            "checks": checks,
+            "satisfied": all(check["satisfied"] for check in checks.values()),
+        }
+        intermediate = {
+            "beam_depth_mm": d["beam_depth_mm"],
+            "compression_member_max_dimension_mm": required_extension,
+        }
+    elif k == "fillet_design":
+        if d["thinnest_part_mm"] > d["thickest_part_mm"]:
+            raise ValueError("Thinnest part cannot be thicker than the thickest part.")
+        if d["parallel_weld_count"] == 2 and not d["parallel_load_share_verified"]:
+            raise ValueError("Load sharing between the two parallel welds must be verified.")
+        leg_1 = d["leg_1_mm"] - d["root_gap_mm"]
+        leg_2 = d["leg_2_mm"] - d["root_gap_mm"]
+        if min(leg_1, leg_2) <= 0:
+            raise ValueError("Root gap must leave a positive inscribed fillet triangle.")
+        thickness = d["thickest_part_mm"]
+        minimum_table_size = (
+            3 if thickness <= 7 else 4 if thickness <= 10 else 5 if thickness <= 15 else 6
+        )
+        minimum_size = (
+            0 if d["reinforces_butt_weld"] else min(minimum_table_size, d["thinnest_part_mm"])
+        )
+        edge_thickness = d["edge_material_thickness_mm"]
+        maximum_edge_size = (
+            edge_thickness
+            if edge_thickness < 6 or d["edge_built_out_verified"]
+            else edge_thickness - 1
+        )
+        size_checks = {
+            "minimum_size": {
+                "required_mm": minimum_size,
+                "provided_leg_1_mm": leg_1,
+                "provided_leg_2_mm": leg_2,
+                "satisfied": min(leg_1, leg_2) >= minimum_size,
+            },
+            "maximum_size_along_edge": {
+                "maximum_mm": maximum_edge_size,
+                "largest_provided_leg_mm": max(leg_1, leg_2),
+                "built_out_verified": d["edge_built_out_verified"],
+                "satisfied": max(leg_1, leg_2) <= maximum_edge_size,
+            },
+        }
+        theta = radians(d["included_angle_deg"])
+        opposite_side = sqrt(leg_1**2 + leg_2**2 - 2 * leg_1 * leg_2 * cos(theta))
+        geometric_throat = leg_1 * leg_2 * sin(theta) / opposite_side
+        nominal_size = max(leg_1, leg_2)
+        segment_length = d["overall_length_per_segment_mm"]
+        length_reduction_factor = min(1, segment_length / (4 * nominal_size))
+        design_throat = geometric_throat * length_reduction_factor
+        intermittent_minimum_length = max(40, 4 * nominal_size)
+        total_effective_length = segment_length * d["segment_count"] * d["parallel_weld_count"]
+        effective_area = design_throat * total_effective_length
+        length_checks = {
+            "overall_length_per_segment_mm": segment_length,
+            "segment_count_per_weld_line": d["segment_count"],
+            "parallel_weld_count": d["parallel_weld_count"],
+            "total_effective_length_mm": total_effective_length,
+            "length_based_size_reduction_factor": length_reduction_factor,
+            "design_throat_mm": design_throat,
+            "effective_area_mm2": effective_area,
+            "intermittent_minimum_length_mm": intermittent_minimum_length,
+            "satisfied": not d["intermittent_segment"]
+            or segment_length >= intermittent_minimum_length,
+        }
+        c["weld_size"] = {
+            "clause": "9.6.3.2; 9.6.3.3",
+            "checks": size_checks,
+            "satisfied": all(check["satisfied"] for check in size_checks.values()),
+        }
+        c["weld_length_and_area"] = {
+            "clause": "9.6.3.5; 9.6.3.6",
+            **length_checks,
+        }
+        clauses = ["9.6.3.1", "9.6.3.2", "9.6.3.3", "9.6.3.4", "9.6.3.5", "9.6.3.6"]
+        if d["parallel_weld_count"] == 2 and d["forms_built_up_member"]:
+            transverse_limit = (
+                min(16 * d["thinnest_part_mm"], 200)
+                if d["member_force_type"] == "tension"
+                else 32 * d["thinnest_part_mm"]
+            )
+            c["parallel_weld_spacing"] = {
+                "clause": "9.6.3.7",
+                "provided_mm": d["transverse_weld_spacing_mm"],
+                "maximum_mm": transverse_limit,
+                "satisfied": d["transverse_weld_spacing_mm"] <= transverse_limit,
+            }
+            clauses.append("9.6.3.7")
+            if d["intermittent_segment"] and d["member_force_type"] != "other":
+                clear_spacing_limit = (
+                    min(24 * d["thinnest_part_mm"], 300)
+                    if d["member_force_type"] == "tension"
+                    else min(16 * d["thinnest_part_mm"], 300)
+                )
+                c["intermittent_clear_spacing"] = {
+                    "clause": "9.6.3.8",
+                    "provided_mm": d["clear_spacing_mm"],
+                    "maximum_mm": clear_spacing_limit,
+                    "at_built_up_member_end": d["at_built_up_member_end"],
+                    "satisfied": d["at_built_up_member_end"]
+                    or d["clear_spacing_mm"] <= clear_spacing_limit,
+                }
+                clauses.append("9.6.3.8")
+        strength_check, strength_intermediate = _fillet_strength_check(
+            d, design_throat, total_effective_length
+        )
+        c["weld_strength"] = {"clause": "9.6.3.10", **strength_check}
+        clauses.append("9.6.3.10")
+        intermediate = {
+            "provided_leg_lengths_after_root_gap_mm": [leg_1, leg_2],
+            "geometric_throat_before_length_reduction_mm": geometric_throat,
+            "design_throat_mm": design_throat,
+            "total_effective_length_mm": total_effective_length,
+            "effective_area_mm2": effective_area,
+            **strength_intermediate,
+        }
     elif k in {"fillet", "complete_butt", "plug_slot"}:
         phi = 0.8 if d["quality"] == "SP" else 0.6
         if k == "fillet":
-            lap_m = d["lap_length_mm"] / 1000
-            lap_factor = 1 if lap_m <= 1.7 else (1.10 - 0.06 * lap_m if lap_m <= 8 else 0.62)
-            if d["thin_rhs_longitudinal"]:
-                if d["quality"] != "SP":
-                    raise ValueError("Thin RHS longitudinal fillet requires SP quality.")
-                phi = 0.7
-            capacity = (
-                0.6
-                * d["weld_strength_mpa"]
-                * d["throat_mm"]
-                * d["effective_length_mm"]
-                * lap_factor
-                / 1000
-            )
             clause = "9.6.3.10; 9.6.2.7(c) for incomplete butt"
+            c["weld"], intermediate = _fillet_strength_check(
+                d, d["throat_mm"], d["effective_length_mm"], clause
+            )
         elif k == "complete_butt":
             phi = 0.9 if d["quality"] == "SP" else 0.6
             capacity = d["weaker_part_nominal_capacity_kn"]
@@ -330,7 +576,55 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         else:
             capacity = 0.6 * d["weld_strength_mpa"] * d["effective_area_mm2"] / 1000
             clause = "9.6.4.2"
-        c["weld"] = _check(capacity, phi, d["action_kn"], clause)
+        if k != "fillet":
+            c["weld"] = _check(capacity, phi, d["action_kn"], clause)
+    elif k == "packing_construction":
+        if len(d["required_edge_weld_sizes_mm"]) != len(d["provided_edge_weld_sizes_mm"]):
+            raise ValueError("Provide one actual weld size for every required edge weld.")
+        flush_required = (
+            d["packing_thickness_mm"] < 6
+            or d["too_thin_for_adequate_welds"]
+            or d["too_thin_to_prevent_buckling"]
+        )
+        if flush_required:
+            required_sizes = [
+                size + d["packing_thickness_mm"] for size in d["required_edge_weld_sizes_mm"]
+            ]
+            c["trimmed_flush"] = {
+                "required": True,
+                "provided": d["trimmed_flush_with_member_edges"],
+                "satisfied": d["trimmed_flush_with_member_edges"],
+                "clause": "9.8",
+            }
+            c["edge_weld_sizes"] = {
+                "required_mm": required_sizes,
+                "provided_mm": d["provided_edge_weld_sizes_mm"],
+                "satisfied": all(
+                    provided >= required
+                    for provided, required in zip(
+                        d["provided_edge_weld_sizes_mm"], required_sizes, strict=True
+                    )
+                ),
+                "clause": "9.8",
+            }
+            intermediate = {
+                "flush_required": True,
+                "edge_weld_size_increase_mm": d["packing_thickness_mm"],
+            }
+        else:
+            c["extends_beyond_edges"] = {
+                "required": True,
+                "provided": d["extends_beyond_member_edges"],
+                "satisfied": d["extends_beyond_member_edges"],
+                "clause": "9.8",
+            }
+            c["welded_to_fitted_piece"] = {
+                "required": True,
+                "provided": d["welded_to_fitted_piece"],
+                "satisfied": d["welded_to_fitted_piece"],
+                "clause": "9.8",
+            }
+            intermediate = {"flush_required": False}
     elif k == "layout":
         dia, t = d["diameter_mm"], d["thinnest_ply_mm"]
         min_edge = {"sheared": 1.75, "machined": 1.5, "rolled": 1.25}[d["edge_type"]] * dia

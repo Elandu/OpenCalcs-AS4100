@@ -47,11 +47,16 @@ The following cannot currently be claimed as completed by these member primitive
   Unequal-flange I-section buckling under 5.6.1.2 and selected varying-section methods under
   5.6.1.1(b)(i)–(ii) are in `advanced_members`; 5.6.3 effective-length factors are available
   there for selected cases.
-- 5.7 nonprincipal bending; rational web configuration and opening resistance remain outside
-  the selected 5.10 geometry, thickness and transfer checks.
+- 5.7.1–5.7.2 require rational analysis to establish principal-axis moments and restraint
+  forces. `advanced_members.nonprincipal_bending` applies the 8.3.4 section interaction and,
+  when deflections are unconstrained, the 8.4.5 biaxial member interaction to those supplied
+  results. Rational analysis itself remains external. Rational web configuration and opening
+  resistance remain outside the selected 5.10 geometry, thickness and transfer checks.
 - Rational flange-restraint analysis in 5.11.5.2 and longitudinal-stiffener cases;
   longitudinal-stiffener/rational buckling-analysis alternatives.
-- 5.12.2 flange-only proportioning alternative. The general 5.12.3 method is implemented.
+- The 5.12.2 flange-only proportioning check is available through `shear_proportioning`;
+  5.12.3 whole-section interaction is available through `shear` and `chs_shear` for their
+  supported section forms. Other applicable forms still require separate review.
 - 5.13–5.16 bearing/stiffener design: handled separately where available, never implied
   by a passing shear check.
 - 6.3.3 torsional-flexural buckling cases requiring AS/NZS 4600; 6.3.4 varying sections;

@@ -662,23 +662,29 @@ def test_clause_5_5_selects_the_prescribed_critical_flange(
 
 
 def test_nonprincipal_rational_moments():
-    out = run_advanced_members(
-        {
-            "operation": "nonprincipal_bending",
-            "section_axial_capacity_kn": 1000,
-            "section_moment_x_knm": 100,
-            "section_moment_y_knm": 50,
-            "reduced_member_moment_x_knm": 80,
-            "reduced_member_moment_y_knm": 40,
-            "axial_action_kn": 90,
-            "moment_x_knm": 45,
-            "moment_y_knm": 22.5,
-            "deflections_constrained": True,
-            "rational_analysis_verified": True,
-        }
-    )
+    inputs = {
+        "operation": "nonprincipal_bending",
+        "section_axial_capacity_kn": 1000,
+        "section_moment_x_knm": 100,
+        "section_moment_y_knm": 50,
+        "reduced_member_moment_x_knm": 80,
+        "reduced_member_moment_y_knm": 40,
+        "axial_action_kn": 90,
+        "moment_x_knm": 45,
+        "moment_y_knm": 22.5,
+        "deflections_constrained": True,
+        "rational_analysis_verified": True,
+    }
+    out = run_advanced_members(inputs)
     assert out["values"]["section_interaction"] == pytest.approx(1.1)
     assert not out["checked_conditions_satisfied"]
+    assert [check["clause"] for check in out["checks"]] == ["8.3.4"]
+
+    inputs["deflections_constrained"] = False
+    unrestrained = run_advanced_members(inputs)
+    assert unrestrained["values"]["member_interaction"] == pytest.approx(2 * (0.625**1.4))
+    assert [check["clause"] for check in unrestrained["checks"]] == ["8.3.4", "8.4.5"]
+    assert not unrestrained["checked_conditions_satisfied"]
 
 
 def plastic(web_lambda=25, ratio=0.1):
@@ -749,6 +755,49 @@ def test_battened_slenderness_and_back_to_back_shear():
     assert out["checked_conditions_satisfied"]
     d["number_of_bays"] = 2
     assert not run_advanced_members(d)["checked_conditions_satisfied"]
+    demand = out["values"]["back_to_back_connection_longitudinal_shear_kn"]
+    d["number_of_bays"] = 3
+    d["interconnection_design"] = {
+        "design_capacity_kn": demand,
+        "capacity_verified": True,
+    }
+    checked = run_advanced_members(d)
+    assert checked["checked_conditions_satisfied"]
+    assert checked["checks"][-1]["clause"] == "6.5.1.5"
+    d["interconnection_design"]["design_capacity_kn"] = demand - 0.001
+    assert not run_advanced_members(d)["checks"][-1]["satisfied"]
+    d["construction"] = "laced"
+    with pytest.raises(ValueError, match="back-to-back"):
+        run_advanced_members(d)
+
+
+@pytest.mark.parametrize(
+    ("arrangement", "clause"),
+    [
+        ("separated_back_to_back", "7.4.3(a)(i)"),
+        ("laced", "7.4.4(b)"),
+        ("battened", "7.4.5(a)"),
+    ],
+)
+def test_tension_component_slenderness_boundaries(arrangement, clause):
+    d = {
+        "operation": "tension_component_slenderness",
+        "arrangement": arrangement,
+        "intervals_and_radii_verified": True,
+        "component_intervals": [
+            {"unrestrained_length_mm": 1500, "minimum_radius_of_gyration_mm": 5},
+            {"unrestrained_length_mm": 600, "minimum_radius_of_gyration_mm": 10},
+        ],
+    }
+    out = run_advanced_members(d)
+    assert out["values"]["maximum_component_slenderness"] == 300
+    assert out["clauses"] == [clause]
+    assert out["checked_conditions_satisfied"]
+    d["component_intervals"][0]["unrestrained_length_mm"] = 1500.001
+    assert not run_advanced_members(d)["checked_conditions_satisfied"]
+    d["intervals_and_radii_verified"] = False
+    with pytest.raises(ValueError):
+        run_advanced_members(d)
 
 
 def test_lacing_length_slenderness_and_tie_limits():
@@ -899,6 +948,193 @@ def test_angle_eccentricity_minimum_moment_only():
     d["arrangement"] = "opposite_sides"
     assert run_advanced_members(d)["values"]["minimum_design_moment_knm"] == 4.5
     assert out["full_standard_compliance"] is False
+
+
+def test_clause_8_4_6_rational_moment_alternative_has_no_ne_floor():
+    common = {
+        "operation": "angle_eccentricity",
+        "arrangement": "same_side",
+        "compression_centroid_offset_mm": 20,
+        "tension_centroid_offset_mm": 25,
+        "leg_thickness_mm": 10,
+        "axial_action_kn": 100,
+    }
+    rational = run_advanced_members(
+        {
+            **common,
+            "moment_method": "rational_analysis",
+            "rational_analysis_moment_knm": 0.5,
+        }
+    )
+    assert rational["values"]["minimum_design_moment_knm"] == 1.5
+    assert rational["values"]["design_moment_knm"] == 0.5
+
+    minimum = run_advanced_members({**common, "moment_method": "minimum_eccentricity"})
+    assert minimum["values"]["rational_analysis_moment_knm"] is None
+    assert minimum["values"]["design_moment_knm"] == 1.5
+
+    conservative = run_advanced_members(
+        {
+            **common,
+            "moment_method": "conservative_max",
+            "rational_analysis_moment_knm": 2.0,
+        }
+    )
+    assert conservative["values"]["design_moment_knm"] == 2.0
+
+
+def angle_section_bending_inputs(**updates):
+    return {
+        "operation": "angle_section_bending_capacity",
+        "section_capacity_knm": 100,
+        "iy_mm4": 50_000_000,
+        "torsion_constant_mm4": 200_000,
+        "effective_length_mm": 15_000,
+        "moment_factor": 1,
+        "moment_factor_verified": True,
+        "section_properties_verified": True,
+        "angle_section_verified": True,
+        "constant_cross_section_verified": True,
+        "segment_without_full_lateral_restraint_verified": True,
+        **updates,
+    }
+
+
+def test_clause_5_6_1_3_angle_bending_uses_iw_zero():
+    out = run_advanced_members(angle_section_bending_inputs())
+    values = out["values"]
+    assert values["warping_constant_used_mm6"] == 0
+    assert values["reference_buckling_moment_knm"] == pytest.approx(83.77580409572782)
+    assert values["slenderness_reduction_alpha_s"] == pytest.approx(0.5459194274720188)
+    assert values["nominal_member_moment_capacity_mb_knm"] == pytest.approx(54.591942747201884)
+    assert out["clauses"][-1] == "5.6.1.3"
+    assert out["checks"] == []
+
+
+def test_clause_5_6_1_3_angle_bending_caps_capacity_at_ms():
+    values = run_advanced_members(
+        angle_section_bending_inputs(section_capacity_knm=20, moment_factor=2.5)
+    )["values"]
+    assert values["nominal_member_moment_capacity_mb_knm"] == 20
+
+
+def equal_angle_compression_inputs(**updates):
+    return {
+        "operation": "angle_compression_capacity",
+        "gross_area_mm2": 2000,
+        "net_area_mm2": 2000,
+        "effective_area_mm2": 2000,
+        "yield_strength_mpa": 250,
+        "member_length_mm": 1500,
+        "radius_about_loaded_leg_h_axis_mm": 10,
+        "section_properties_verified": True,
+        "figure_8_4_6_connection_and_loading_verified": True,
+        "loaded_leg_h_axis_orientation_verified": True,
+        **updates,
+    }
+
+
+def test_clause_8_4_6_angle_nch_uses_table_a_constant_for_kf_one():
+    out = run_advanced_members(equal_angle_compression_inputs())
+    values = out["values"]
+    assert values["form_factor_kf"] == 1
+    assert values["section_constant_alpha_b"] == 0.5
+    assert values["effective_length_mm"] == 1500
+    assert values["modified_member_slenderness_lambda_n"] == pytest.approx(150)
+    assert values["nominal_section_capacity_ns_kn"] == 500
+    assert values["nominal_member_capacity_nch_kn"] == pytest.approx(136.5214318742263)
+    assert out["checks"] == []
+
+
+def test_clause_8_4_6_angle_nch_uses_table_b_other_section_constant_for_kf_below_one():
+    out = run_advanced_members(
+        equal_angle_compression_inputs(
+            net_area_mm2=1800,
+            effective_area_mm2=1600,
+            yield_strength_mpa=350,
+            member_length_mm=5000,
+            radius_about_loaded_leg_h_axis_mm=15,
+        )
+    )
+    values = out["values"]
+    assert values["form_factor_kf"] == pytest.approx(0.8)
+    assert values["section_constant_alpha_b"] == 1
+    assert values["nominal_section_capacity_ns_kn"] == pytest.approx(504)
+    assert values["nominal_member_capacity_nch_kn"] == pytest.approx(29.516096338384898)
+    assert out["checks"] == []
+
+
+def test_clause_8_4_6_angle_compression_rejects_inconsistent_areas():
+    with pytest.raises(ValueError, match="areas must not exceed"):
+        run_advanced_members(equal_angle_compression_inputs(net_area_mm2=2001))
+
+
+def equal_angle_capacity_inputs(**updates):
+    return {
+        "operation": "angle_bending_capacity",
+        "member_length_mm": 5250,
+        "angle_thickness_mm": 10,
+        "angle_leg_a_width_mm": 100,
+        "angle_leg_b_width_mm": 100,
+        "yield_strength_mpa": 250,
+        "beta_m": 0,
+        "moment_gradient_factor_verified": True,
+        "section_capacity_knm": 20,
+        "section_properties_verified": True,
+        "figure_8_4_6_connection_and_loading_verified": True,
+        "without_full_lateral_support_verified": True,
+        "moment_factor": 1,
+        "moment_factor_verified": True,
+        **updates,
+    }
+
+
+def test_clause_8_4_6_equal_leg_limit_is_inclusive_and_uses_msx():
+    inputs = equal_angle_capacity_inputs(member_length_mm=2100)
+    inputs.pop("moment_factor")
+    inputs.pop("moment_factor_verified")
+    out = run_advanced_members(inputs)
+    values = out["values"]
+    assert values["member_slenderness_l_over_t"] == 210
+    assert values["equal_leg_slenderness_limit_l_over_t"] == 210
+    assert values["equal_leg_shortcut_used"]
+    assert values["reference_buckling_moment_mo_knm"] is None
+    assert values["member_moment_capacity_mbx_knm"] == 20
+    assert out["clauses"] == ["8.4.6", "5.2"]
+
+
+def test_clause_8_4_6_other_equal_leg_route_uses_clause_5_6_reduction():
+    values = run_advanced_members(equal_angle_capacity_inputs())["values"]
+    assert not values["equal_leg_shortcut_used"]
+    assert values["reference_buckling_moment_mo_knm"] == pytest.approx(20)
+    assert values["slenderness_reduction_alpha_s"] == pytest.approx(0.6)
+    assert values["member_moment_capacity_mbx_knm"] == pytest.approx(12)
+
+
+def test_clause_8_4_6_reduced_capacity_caps_at_msx_and_scales_for_fy():
+    capped = run_advanced_members(equal_angle_capacity_inputs(moment_factor=2.5))["values"]
+    assert capped["member_moment_capacity_mbx_knm"] == 20
+
+    scaled = run_advanced_members(
+        equal_angle_capacity_inputs(
+            member_length_mm=5000,
+            yield_strength_mpa=350,
+        )
+    )["values"]
+    assert scaled["reference_buckling_moment_mo_knm"] == pytest.approx(15)
+    assert scaled["slenderness_reduction_alpha_s"] == pytest.approx(0.5114877048604001)
+    assert scaled["member_moment_capacity_mbx_knm"] == pytest.approx(10.229754097208001)
+
+
+def test_clause_8_4_6_rejects_unequal_legs_and_requires_factor_outside_limit():
+    with pytest.raises(ValueError, match="equal-leg"):
+        run_advanced_members(equal_angle_capacity_inputs(angle_leg_b_width_mm=99))
+
+    inputs = equal_angle_capacity_inputs()
+    inputs.pop("moment_factor")
+    inputs.pop("moment_factor_verified")
+    with pytest.raises(ValueError, match="moment_factor"):
+        run_advanced_members(inputs)
 
 
 def test_external_prerequisite_cannot_be_false():

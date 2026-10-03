@@ -36,11 +36,52 @@ page images are not included in this package.
 - `fire_single_test`: the applicability conditions of 12.8 and comparison
   of supplied prototype PSA with required FRL. AS 1530.4 evidence, same
   protection/exposure/support conditions and no worse restraint must be assessed.
-- `fire_protected_regression`: evaluate the seven-coefficient relation of
-  12.6.2.2 with supplied, externally fitted coefficients. Requires at least nine
-  tests, temperature above 250°C and explicit declarations that 12.6.2.3
-  conditions and the interpolation window are satisfied. This does not fit
-  coefficients, prove test adequacy, or extrapolate to a new protection product.
+- `fire_single_test_history`: 12.6.1 and 12.6.3 single-test route using the
+  representative measured steel-temperature history. Checks matching protection
+  system/exposure, protection thickness, surface-area/mass ratio and stickability
+  for an unloaded prototype; estimates the first limiting-temperature crossing
+  by linear interpolation between readings. A test that has not reached the limit
+  provides only a duration lower bound.
+- `web_penetration_protection`: 12.10.2 greatest required thickness from the
+  above-opening, below-opening and whole-section zones, full-depth coverage and
+  minimum extension each side of max(beam depth, 300 mm).
+- `concentric_tension_brace`: 13.3.6.2(a) limit of 0.85 times member design
+  tensile capacity and connection capacity for the full member design capacity.
+  System applicability and both design capacities are supplied verified inputs.
+- `fire_protected_regression_fit`: least-squares fit of the seven coefficients
+  in 12.6.2.2 from measured temperature/time observations for at least nine
+  qualifying fire tests. The fit rejects rank-deficient test data, unloaded
+  prototypes without demonstrated stickability, low-density insulation at or
+  above 1000 kg/m³, and three-sided series without declared Clause 12.9 group
+  qualification. For intumescent or ablative coatings, the calculated
+  coefficient of correlation must exceed 0.9. It reports the convex hull of the
+  measured protection-thickness/surface-area-to-mass geometries as the
+  interpolation window, measured test-temperature range, protection-material
+  category and calibration exposure.
+- `fire_three_sided_group`: Clause 12.9 limits on group variation. Computes
+  effective concrete thickness as concrete cross-sectional area excluding
+  voids divided by tributary width, compares the maximum/minimum concrete
+  density and effective thickness ratios with 1.25, and requires rib voids to
+  be consistently absent, open or blocked. A protected regression fit for a
+  three-sided series can include the same group-member data to calculate this
+  prerequisite directly.
+- `fire_connection_protection`: Clause 12.10.1 maximum protection thickness
+  across all framing members at a connection, applied over each identified
+  component. Checks that the supplied thickness is maintained over bolt heads,
+  welds, splice plates and other listed components.
+- `fire_protected_regression`: evaluate the fitted seven-coefficient relation
+  of 12.6.2.2 above 250°C. Supply `interpolation_window_points` and
+  `test_temperature_range_c` from the fit to have the operation calculate
+  whether the target geometry lies inside the convex test-data window and the
+  target temperature lies within the measured range. Include
+  `application_conditions` to check Clause 12.6.2.3 reuse: a different system
+  must use the same protection material and demonstrate stickability; a
+  four-sided calibration may be applied to a three-sided member only with
+  demonstrated stickability and a qualifying target group; a three-sided
+  calibration cannot qualify a four-sided member. The older
+  `inside_reviewed_interpolation_window` declaration remains accepted when no
+  geometry points are supplied; that path depends on an external review and
+  cannot check geometry, temperature or application conditions itself.
 - `brittle_fracture`: Table 10.4.1 steel-type/thickness temperature lookup,
   specified impact-test-temperature adjustment, outer-fibre-strain temperature
   increase and eligible post-weld heat-treatment exception (10.4.3). The
@@ -63,10 +104,20 @@ The minimum acceptable reduced fatigue factor for non-reference conditions is
 an engineering selection; a non-redundant path is limited to factor 0.70.
 
 Fire results apply to the standard fire and must be combined with the actual
-member/connection design. Protected temperature-history interpolation of
-12.6.3, regression fitting and automatic convex-window validation, three-sided
-group qualification in 12.9, connection protection and web penetration
-protection in 12.10 require separate assessed evidence. No protection material
+member/connection design. Regression fitting uses declared test-system and
+exposure checks and supplied AS 1530.4 observations. Clause 12.9 group ratios
+can be calculated from supplied densities, cross-sectional concrete areas,
+tributary widths and rib-void conditions; those source measurements and test
+reports are not authenticated. Applying a regression to another protection
+system requires the same protection material, matching fire exposure and
+demonstrated stickability. Applying a four-sided calibration to a three-sided
+member requires demonstrated stickability and a qualifying target group.
+Verify those declarations against test reports and protection-system records.
+Clause 12.10.1
+compares supplied member thicknesses against listed connection components;
+verify the component list, required protection evidence and continuity from
+drawings and installation records. Fire-test/group qualification of the
+thicknesses used for 12.10.2 still requires separate assessed evidence. No protection material
 database or proprietary test certificates are supplied. The room-temperature
 yield strength must remain in the slenderness expressions identified in 12.4.3.
 
