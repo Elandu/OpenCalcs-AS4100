@@ -123,6 +123,13 @@
       "passed": true
     },
     {
+      "name": "Clause 5.15.7.1 external-action inertia increase, hand arithmetic",
+      "actual": 138888.88888888888,
+      "expected": 138888.8888888889,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
       "name": "Clause 5.16.1 longitudinal stiffener between attached transverse stiffeners",
       "actual": 1,
       "expected": 1,

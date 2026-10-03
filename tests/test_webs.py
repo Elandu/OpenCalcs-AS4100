@@ -508,6 +508,77 @@ def test_clause_5_15_9_end_post_area_floors_nonpositive_residual_shear():
     assert r["checked_conditions_satisfied"]
 
 
+def test_clause_5_15_7_1_increases_transverse_stiffener_inertia_for_external_actions():
+    inputs = {
+        "operation": "transverse_stiffener",
+        "clear_web_depth_mm": 200,
+        "web_panel_depth_mm": 200,
+        "web_thickness_mm": 10,
+        "panel_spacing_mm": 200,
+        "web_area_mm2": 2000,
+        "web_yield_mpa": 250,
+        "shear_buckling_coefficient": 0.5,
+        "stiffener_configuration": "pair",
+        "shear_action_kn": 20,
+        "nominal_web_shear_kn": 100,
+        "nominal_web_buckling_no_tension_field_kn": 100,
+        "nominal_stiffener_buckling_kn": 100,
+        "stiffener_area_mm2": 1000,
+        "stiffener_second_moment_mm4": 350000,
+        "stiffener_outstand_mm": 100,
+        "stiffener_thickness_mm": 10,
+        "stiffener_yield_mpa": 250,
+        "outer_edge_continuously_stiffened": False,
+        "external_normal_force_kn": 10,
+        "external_moment_knm": 2,
+        "external_parallel_force_kn": 5,
+        "force_eccentricity_mm": 50,
+        "capacity_factor": 0.9,
+        "external_actions_verified": True,
+    }
+    r = run(inputs)
+    assert r["values"]["external_action_term_kn"] == 31.25
+    assert r["values"]["external_load_stiffness_increase_mm4"] == pytest.approx(138888.8888889)
+    assert r["values"]["required_second_moment_with_external_actions_mm4"] == pytest.approx(
+        288888.8888889
+    )
+    assert all(check["satisfied"] for check in r["checks"][-2:])
+
+    inputs["stiffener_second_moment_mm4"] = 288888
+    assert not run(inputs)["checks"][-2]["satisfied"]
+    inputs["stiffener_second_moment_mm4"] = 350000
+    inputs["external_actions_verified"] = False
+    assert not run(inputs)["checks"][-1]["satisfied"]
+
+
+def test_clause_5_15_7_1_requires_complete_external_action_inputs():
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(
+            {
+                "operation": "transverse_stiffener",
+                "clear_web_depth_mm": 200,
+                "web_panel_depth_mm": 200,
+                "web_thickness_mm": 10,
+                "panel_spacing_mm": 200,
+                "web_area_mm2": 2000,
+                "web_yield_mpa": 250,
+                "shear_buckling_coefficient": 0.5,
+                "stiffener_configuration": "pair",
+                "shear_action_kn": 20,
+                "nominal_web_shear_kn": 100,
+                "nominal_web_buckling_no_tension_field_kn": 100,
+                "nominal_stiffener_buckling_kn": 100,
+                "stiffener_area_mm2": 1000,
+                "stiffener_second_moment_mm4": 350000,
+                "stiffener_outstand_mm": 100,
+                "stiffener_thickness_mm": 10,
+                "stiffener_yield_mpa": 250,
+                "outer_edge_continuously_stiffened": False,
+                "external_normal_force_kn": 10,
+            }
+        )
+
+
 def test_web_bearing_rejects_zero_restrained_flanges():
     with pytest.raises(ValueError, match="restrained_flange_count"):
         run(

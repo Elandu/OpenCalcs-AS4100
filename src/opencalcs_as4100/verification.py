@@ -265,7 +265,7 @@ def verify():
             "nominal_web_buckling_no_tension_field_kn": 100,
             "nominal_stiffener_buckling_kn": 100,
             "stiffener_area_mm2": 1000,
-            "stiffener_second_moment_mm4": 200000,
+            "stiffener_second_moment_mm4": 350000,
             "stiffener_outstand_mm": 100,
             "stiffener_thickness_mm": 10,
             "stiffener_yield_mpa": 250,
@@ -273,12 +273,24 @@ def verify():
             "stiffener_top_flange_gap_mm": 40,
             "stiffener_bottom_flange_gap_mm": 40,
             "flange_termination_geometry_verified": True,
+            "external_normal_force_kn": 10,
+            "external_moment_knm": 2,
+            "external_parallel_force_kn": 5,
+            "force_eccentricity_mm": 50,
+            "capacity_factor": 0.9,
+            "external_actions_verified": True,
         }
     )
     record(
         "Clause 5.15.1 maximum flange termination gap",
         transverse_termination["values"]["maximum_flange_termination_gap_mm"],
         40,
+    )
+    record(
+        "Clause 5.15.7.1 external-action inertia increase, hand arithmetic",
+        transverse_termination["values"]["external_load_stiffness_increase_mm4"],
+        138888.8888888889,
+        1e-7,
     )
     longitudinal_detail = run_webs(
         {

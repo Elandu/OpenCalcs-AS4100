@@ -25,7 +25,11 @@ dispersion has already been established. RHS/SHS bearing dispersion is calculate
 from its Clause 5.13.3 geometry inputs.
 
 `transverse_stiffener` checks flange termination gaps under 5.15.1 when both gaps
-and verified geometry are supplied. `longitudinal_stiffener` checks the 5.16.2
+and verified geometry are supplied. When external normal forces or moments are
+supplied, it adds the 5.15.7.1 stiffness increase to the Clause 5.15.5 inertia
+minimum, using E from Clause 2.2.4 and the supplied capacity factor. Carrying a
+transverse force parallel to the web still requires the load-bearing stiffener
+check under 5.15.7.2 and 5.14. `longitudinal_stiffener` checks the 5.16.2
 minimum inertia and optionally checks 5.16.1 when continuity and transverse-stiffener
 end conditions are supplied. It passes the 5.16.1 detailing condition when continuous,
 or when it spans between and is attached to transverse web stiffeners.

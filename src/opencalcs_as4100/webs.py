@@ -3,9 +3,11 @@
 
 from math import sqrt
 
+from .standards import ELASTIC_MODULUS_MPA
 from .validation import (
     NONNEGATIVE,
     POSITIVE,
+    SIGNED,
     YIELD_STRESS,
     capacity_check,
     object_schema,
@@ -298,6 +300,12 @@ SCHEMAS = {
             "stiffener_top_flange_gap_mm": NONNEGATIVE,
             "stiffener_bottom_flange_gap_mm": NONNEGATIVE,
             "flange_termination_geometry_verified": {"type": "boolean"},
+            "external_normal_force_kn": NONNEGATIVE,
+            "external_moment_knm": SIGNED,
+            "external_parallel_force_kn": SIGNED,
+            "force_eccentricity_mm": SIGNED,
+            "capacity_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+            "external_actions_verified": {"type": "boolean"},
         },
         [
             "operation",
@@ -338,7 +346,29 @@ SCHEMAS = {
                         "flange_termination_geometry_verified",
                     ]
                 },
-            }
+            },
+            {
+                "if": {
+                    "anyOf": [
+                        {"required": ["external_normal_force_kn"]},
+                        {"required": ["external_moment_knm"]},
+                        {"required": ["external_parallel_force_kn"]},
+                        {"required": ["force_eccentricity_mm"]},
+                        {"required": ["capacity_factor"]},
+                        {"required": ["external_actions_verified"]},
+                    ]
+                },
+                "then": {
+                    "required": [
+                        "external_normal_force_kn",
+                        "external_moment_knm",
+                        "external_parallel_force_kn",
+                        "force_eccentricity_mm",
+                        "capacity_factor",
+                        "external_actions_verified",
+                    ]
+                },
+            },
         ]
     },
     "end_post_area": object_schema(
@@ -1010,15 +1040,59 @@ def run_webs(inputs):
                     },
                 ]
             )
+        limitations = [
+            "No external stiffener loads/moments; check end posts, geometry and fasteners.",
+            "Intermediate stiffeners subject to external forces or moments need 5.15.7.",
+        ]
+        if "external_normal_force_kn" in d:
+            action_term_kn = 2 * d["external_normal_force_kn"] + abs(
+                (
+                    1000 * d["external_moment_knm"]
+                    + d["external_parallel_force_kn"] * d["force_eccentricity_mm"]
+                )
+                / depth
+            )
+            increase = (
+                depth**4
+                * action_term_kn
+                * 1000
+                / (d["capacity_factor"] * ELASTIC_MODULUS_MPA * depth * t)
+            )
+            total_inertia = inertia_min + increase
+            supplied_inertia = d["stiffener_second_moment_mm4"]
+            values.update(
+                {
+                    "external_action_term_kn": action_term_kn,
+                    "external_load_stiffness_increase_mm4": increase,
+                    "required_second_moment_with_external_actions_mm4": total_inertia,
+                    "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+                    "capacity_factor": d["capacity_factor"],
+                }
+            )
+            clauses.append("5.15.7.1")
+            checks.extend(
+                [
+                    {
+                        "clause": "5.15.7.1 minimum inertia increase",
+                        "satisfied": supplied_inertia >= total_inertia,
+                    },
+                    {
+                        "clause": "5.15.7.1 external actions verified",
+                        "satisfied": d["external_actions_verified"],
+                    },
+                ]
+            )
+            limitations = [
+                "The 5.15.7.1 increase is added to the 5.15.5 minimum using E from 2.2.4.",
+                "If the stiffener carries transverse force parallel to the web, also design it "
+                "as a load-bearing stiffener under 5.15.7.2 and 5.14.",
+            ]
         return result(
             op,
             clauses,
             values,
             checks,
-            [
-                "No external stiffener loads/moments; check end posts, geometry and fasteners.",
-                "Intermediate stiffeners subject to external forces or moments need 5.15.7.",
-            ],
+            limitations,
         )
     depth, t = d["web_depth_mm"], d["web_thickness_mm"]
     if d["location"] == "neutral_axis":
