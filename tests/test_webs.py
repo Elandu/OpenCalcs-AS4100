@@ -543,3 +543,42 @@ def test_longitudinal_stiffener_minimum(location, inertia):
     }
     assert run(d)["values"]["minimum_second_moment_mm4"] == inertia
     assert run(d)["checked_conditions_satisfied"]
+
+
+def test_clause_5_16_1_continuity_or_attached_transverse_ends():
+    inputs = {
+        "operation": "longitudinal_stiffener",
+        "web_depth_mm": 200,
+        "web_thickness_mm": 10,
+        "stiffener_area_mm2": 1000,
+        "stiffener_second_moment_mm4": 3200000,
+        "location": "0.2_depth",
+        "stiffener_continuous": True,
+        "extends_between_transverse_stiffeners": False,
+        "attached_to_transverse_stiffeners": False,
+    }
+    continuous = run(inputs)
+    assert "5.16.1" in continuous["clauses"]
+    assert continuous["checks"][0]["satisfied"]
+
+    inputs["stiffener_continuous"] = False
+    inputs["extends_between_transverse_stiffeners"] = True
+    inputs["attached_to_transverse_stiffeners"] = True
+    assert run(inputs)["checks"][0]["satisfied"]
+    inputs["attached_to_transverse_stiffeners"] = False
+    assert not run(inputs)["checks"][0]["satisfied"]
+
+
+def test_clause_5_16_1_detail_inputs_must_be_complete():
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(
+            {
+                "operation": "longitudinal_stiffener",
+                "web_depth_mm": 200,
+                "web_thickness_mm": 10,
+                "stiffener_area_mm2": 1000,
+                "stiffener_second_moment_mm4": 3200000,
+                "location": "0.2_depth",
+                "stiffener_continuous": False,
+            }
+        )

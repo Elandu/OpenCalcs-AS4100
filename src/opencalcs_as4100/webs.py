@@ -363,8 +363,39 @@ SCHEMAS = {
             "stiffener_area_mm2": POSITIVE,
             "stiffener_second_moment_mm4": POSITIVE,
             "location": {"enum": ["0.2_depth", "neutral_axis"]},
-        }
-    ),
+            "stiffener_continuous": {"type": "boolean"},
+            "extends_between_transverse_stiffeners": {"type": "boolean"},
+            "attached_to_transverse_stiffeners": {"type": "boolean"},
+        },
+        [
+            "operation",
+            "web_depth_mm",
+            "web_thickness_mm",
+            "stiffener_area_mm2",
+            "stiffener_second_moment_mm4",
+            "location",
+        ],
+    )
+    | {
+        "allOf": [
+            {
+                "if": {
+                    "anyOf": [
+                        {"required": ["stiffener_continuous"]},
+                        {"required": ["extends_between_transverse_stiffeners"]},
+                        {"required": ["attached_to_transverse_stiffeners"]},
+                    ]
+                },
+                "then": {
+                    "required": [
+                        "stiffener_continuous",
+                        "extends_between_transverse_stiffeners",
+                        "attached_to_transverse_stiffeners",
+                    ]
+                },
+            }
+        ]
+    },
     "rhs_bearing_bending": object_schema(
         {
             "operation": {"const": "rhs_bearing_bending"},
@@ -995,12 +1026,32 @@ def run_webs(inputs):
     else:
         ratio = d["stiffener_area_mm2"] / (depth * t)
         minimum = 4 * depth * t**3 * (1 + 4 * ratio * (1 + ratio))
+    clauses = ["5.16.2"]
+    values = {"minimum_second_moment_mm4": minimum}
+    checks = [{"clause": "5.16.2", "satisfied": d["stiffener_second_moment_mm4"] >= minimum}]
+    limitations = ["Inertia is about the web face; assess location and geometry against 5.16.1."]
+    if "stiffener_continuous" in d:
+        detailing_ok = d["stiffener_continuous"] or (
+            d["extends_between_transverse_stiffeners"] and d["attached_to_transverse_stiffeners"]
+        )
+        clauses.insert(0, "5.16.1")
+        values.update(
+            {
+                "stiffener_continuous": d["stiffener_continuous"],
+                "extends_between_transverse_stiffeners": d["extends_between_transverse_stiffeners"],
+                "attached_to_transverse_stiffeners": d["attached_to_transverse_stiffeners"],
+            }
+        )
+        checks.insert(
+            0, {"clause": "5.16.1 continuity or attached end condition", "satisfied": detailing_ok}
+        )
+        limitations = [
+            "Verify the reported continuity and attachment geometry against the details."
+        ]
     return result(
         op,
-        ["5.16.2"],
-        {"minimum_second_moment_mm4": minimum},
-        [
-            {"clause": "5.16.2", "satisfied": d["stiffener_second_moment_mm4"] >= minimum},
-        ],
-        ["Inertia about web face; assess location and continuous attachment under 5.16.1."],
+        clauses,
+        values,
+        checks,
+        limitations,
     )

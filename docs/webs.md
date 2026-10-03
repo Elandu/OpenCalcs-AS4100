@@ -25,15 +25,18 @@ dispersion has already been established. RHS/SHS bearing dispersion is calculate
 from its Clause 5.13.3 geometry inputs.
 
 `transverse_stiffener` checks flange termination gaps under 5.15.1 when both gaps
-and verified geometry are supplied. `web_bearing`, `rhs_bearing_bending`,
-`load_bearing_stiffener`, `transverse_stiffener` and `longitudinal_stiffener` provide selected checks under
-Clauses 5.13–5.16. `load_bearing_stiffener` checks 5.14.1–5.14.3 and calculates
-the optional 5.14.5 minimum second moment of area for stiffener pairs when they provide the sole
-torsional end restraint; supply the flange centroid spacing, critical flange
-thickness, total design load between supports and pair inertia about the web
-centreline. Its torsional coefficient is limited to 0–4 as specified by the clause.
-Clause 5.14.4 flange fit and force-transfer detailing remains an assessed input.
-Their inputs and limitations remain explicit in each result.
-General shear/bending interaction, complete
-end-post and stiffener design, and all attachment/load-transfer checks still need
-engineering review.
+and verified geometry are supplied. `longitudinal_stiffener` checks the 5.16.2
+minimum inertia and optionally checks 5.16.1 when continuity and transverse-stiffener
+end conditions are supplied. It passes the 5.16.1 detailing condition when continuous,
+or when it spans between and is attached to transverse web stiffeners.
+
+`load_bearing_stiffener` checks 5.14.1–5.14.3 and calculates the optional 5.14.5
+minimum second moment of area for stiffener pairs when they provide the sole torsional
+end restraint. Supply flange centroid spacing, critical flange thickness, total design
+load between supports and pair inertia about the web centreline. The torsional factor
+is limited to 0–4 by the clause. `load_bearing_stiffener_attachment` checks 5.14.4
+fit declarations and force transfer using capacities from Clause 9.
+
+The operations cover selected provisions of Clauses 5.13–5.16. General shear/bending
+interaction, complete end-post and stiffener design, and attachment/load-transfer
+detailing still need engineering review.

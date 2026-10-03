@@ -280,6 +280,24 @@ def verify():
         transverse_termination["values"]["maximum_flange_termination_gap_mm"],
         40,
     )
+    longitudinal_detail = run_webs(
+        {
+            "operation": "longitudinal_stiffener",
+            "web_depth_mm": 200,
+            "web_thickness_mm": 10,
+            "stiffener_area_mm2": 1000,
+            "stiffener_second_moment_mm4": 3200000,
+            "location": "0.2_depth",
+            "stiffener_continuous": False,
+            "extends_between_transverse_stiffeners": True,
+            "attached_to_transverse_stiffeners": True,
+        }
+    )
+    record(
+        "Clause 5.16.1 longitudinal stiffener between attached transverse stiffeners",
+        int(longitudinal_detail["checks"][0]["satisfied"]),
+        1,
+    )
     stiffener_trigger = run_webs(
         {
             "operation": "load_bearing_stiffener_requirement",

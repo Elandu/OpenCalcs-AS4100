@@ -123,6 +123,13 @@
       "passed": true
     },
     {
+      "name": "Clause 5.16.1 longitudinal stiffener between attached transverse stiffeners",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 5.10.2 equality does not trigger load-bearing stiffeners",
       "actual": 1,
       "expected": 1,
