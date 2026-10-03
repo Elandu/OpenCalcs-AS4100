@@ -109,6 +109,20 @@
       "passed": true
     },
     {
+      "name": "Clause 5.15.9 end-plate minimum area, kN to N hand arithmetic",
+      "actual": 3000.0,
+      "expected": 3000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.15.1 maximum flange termination gap",
+      "actual": 40,
+      "expected": 40,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 5.10.2 equality does not trigger load-bearing stiffeners",
       "actual": 1,
       "expected": 1,

@@ -230,6 +230,56 @@ def verify():
         stiffener_attachment["values"]["maximum_supported_web_force_share_kn"],
         40,
     )
+    end_post = run_webs(
+        {
+            "operation": "end_post_area",
+            "end_post_required_under_5_15_2_2": True,
+            "clear_web_depth_mm": 1000,
+            "design_shear_action_kn": 180,
+            "capacity_factor": 0.9,
+            "shear_buckling_coefficient": 0.5,
+            "nominal_web_shear_yield_capacity_kn": 100,
+            "end_plate_to_load_bearing_stiffener_distance_mm": 25,
+            "end_plate_yield_mpa": 250,
+            "end_plate_area_mm2": 3000,
+        }
+    )
+    record(
+        "Clause 5.15.9 end-plate minimum area, kN to N hand arithmetic",
+        end_post["values"]["minimum_end_plate_area_mm2"],
+        3000,
+    )
+    transverse_termination = run_webs(
+        {
+            "operation": "transverse_stiffener",
+            "clear_web_depth_mm": 200,
+            "web_panel_depth_mm": 200,
+            "web_thickness_mm": 10,
+            "panel_spacing_mm": 200,
+            "web_area_mm2": 2000,
+            "web_yield_mpa": 250,
+            "shear_buckling_coefficient": 0.5,
+            "stiffener_configuration": "pair",
+            "shear_action_kn": 20,
+            "nominal_web_shear_kn": 100,
+            "nominal_web_buckling_no_tension_field_kn": 100,
+            "nominal_stiffener_buckling_kn": 100,
+            "stiffener_area_mm2": 1000,
+            "stiffener_second_moment_mm4": 200000,
+            "stiffener_outstand_mm": 100,
+            "stiffener_thickness_mm": 10,
+            "stiffener_yield_mpa": 250,
+            "outer_edge_continuously_stiffened": False,
+            "stiffener_top_flange_gap_mm": 40,
+            "stiffener_bottom_flange_gap_mm": 40,
+            "flange_termination_geometry_verified": True,
+        }
+    )
+    record(
+        "Clause 5.15.1 maximum flange termination gap",
+        transverse_termination["values"]["maximum_flange_termination_gap_mm"],
+        40,
+    )
     stiffener_trigger = run_webs(
         {
             "operation": "load_bearing_stiffener_requirement",

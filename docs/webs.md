@@ -13,6 +13,7 @@ member shear, bearing or reduced capacity at an opening.
 | `web_opening_geometry` | 5.10.7 unstiffened opening dimension ratios, spacing between adjacent openings and the multiple-opening condition | Verify opening dimensions and layout; use the greater opening dimension when adjacent openings differ. Stiffened openings, castellated members and member capacity at openings require rational analysis. |
 | `load_bearing_stiffener_requirement` | 5.10.2 load-bearing stiffener trigger when a design bearing force exceeds the design capacity of the web alone, or an end post is required | Supply the design web bearing capacity from 5.13.2 and assess the end-post trigger under 5.15.2.2. Stiffener resistance, detailing and force transfer remain separate checks. |
 | `load_bearing_stiffener_attachment` | 5.14.4 flange fit or flange-to-stiffener transfer, both-flange provision at a support, and force transfer from the stiffener to the web | Supply capacities from the applicable Clause 9 checks and verify the flange fit and connection arrangement against the details. |
+| `end_post_area` | 5.15.9 end-plate minimum area when an end post is required under 5.15.2.2 | Supply the assessed shear buckling coefficient, nominal web shear yield capacity, capacity factor, end-plate material, and end-plate-to-stiffener distance. Design the load-bearing stiffener and end-plate connections separately. |
 | `web_side_reinforcement` | 5.10.3 limit on shear allocated to side plates by plate resistance and the fastener transfer capacities to the web and flanges | Supply design capacities from the plate and connection checks. The assigned shear must already account for any asymmetry; the operation requires that assessment to be declared. |
 
 `web_bearing` calculates selected Clause 5.13.1 force dispersion for I-sections and
@@ -23,8 +24,9 @@ Figure 5.13.1.1; assessed bearing widths remain accepted for cases where the
 dispersion has already been established. RHS/SHS bearing dispersion is calculated
 from its Clause 5.13.3 geometry inputs.
 
-`web_bearing`, `rhs_bearing_bending`, `load_bearing_stiffener`,
-`transverse_stiffener` and `longitudinal_stiffener` provide selected checks under
+`transverse_stiffener` checks flange termination gaps under 5.15.1 when both gaps
+and verified geometry are supplied. `web_bearing`, `rhs_bearing_bending`,
+`load_bearing_stiffener`, `transverse_stiffener` and `longitudinal_stiffener` provide selected checks under
 Clauses 5.13–5.16. `load_bearing_stiffener` checks 5.14.1–5.14.3 and calculates
 the optional 5.14.5 minimum second moment of area for stiffener pairs when they provide the sole
 torsional end restraint; supply the flange centroid spacing, critical flange

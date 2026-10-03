@@ -429,6 +429,85 @@ def test_clause_5_14_5_inputs_are_conditional_and_complete():
         run(inputs)
 
 
+def test_clause_5_15_1_stiffener_termination_gaps_at_four_web_thicknesses():
+    inputs = {
+        "operation": "transverse_stiffener",
+        "clear_web_depth_mm": 200,
+        "web_panel_depth_mm": 200,
+        "web_thickness_mm": 10,
+        "panel_spacing_mm": 200,
+        "web_area_mm2": 2000,
+        "web_yield_mpa": 250,
+        "shear_buckling_coefficient": 0.5,
+        "stiffener_configuration": "pair",
+        "shear_action_kn": 20,
+        "nominal_web_shear_kn": 100,
+        "nominal_web_buckling_no_tension_field_kn": 100,
+        "nominal_stiffener_buckling_kn": 100,
+        "stiffener_area_mm2": 1000,
+        "stiffener_second_moment_mm4": 200000,
+        "stiffener_outstand_mm": 100,
+        "stiffener_thickness_mm": 10,
+        "stiffener_yield_mpa": 250,
+        "outer_edge_continuously_stiffened": False,
+        "stiffener_top_flange_gap_mm": 40,
+        "stiffener_bottom_flange_gap_mm": 40,
+        "flange_termination_geometry_verified": True,
+    }
+    r = run(inputs)
+    assert "5.15.1" in r["clauses"]
+    assert r["values"]["maximum_flange_termination_gap_mm"] == 40
+    assert all(check["satisfied"] for check in r["checks"][-3:])
+
+    inputs["stiffener_bottom_flange_gap_mm"] = 40.001
+    assert not run(inputs)["checks"][-2]["satisfied"]
+    inputs["stiffener_bottom_flange_gap_mm"] = 40
+    inputs["flange_termination_geometry_verified"] = False
+    assert not run(inputs)["checks"][-1]["satisfied"]
+
+
+def test_clause_5_15_9_end_post_minimum_area_with_kilonewton_conversion():
+    inputs = {
+        "operation": "end_post_area",
+        "end_post_required_under_5_15_2_2": True,
+        "clear_web_depth_mm": 1000,
+        "design_shear_action_kn": 180,
+        "capacity_factor": 0.9,
+        "shear_buckling_coefficient": 0.5,
+        "nominal_web_shear_yield_capacity_kn": 100,
+        "end_plate_to_load_bearing_stiffener_distance_mm": 25,
+        "end_plate_yield_mpa": 250,
+        "end_plate_area_mm2": 3000,
+    }
+    r = run(inputs)
+    assert r["values"]["residual_panel_shear_kn"] == 150
+    assert r["values"]["minimum_end_plate_area_mm2"] == 3000
+    assert r["checks"][0]["satisfied"]
+
+    inputs["end_plate_area_mm2"] = 2999.999
+    assert not run(inputs)["checks"][0]["satisfied"]
+
+
+def test_clause_5_15_9_end_post_area_floors_nonpositive_residual_shear():
+    r = run(
+        {
+            "operation": "end_post_area",
+            "end_post_required_under_5_15_2_2": True,
+            "clear_web_depth_mm": 1000,
+            "design_shear_action_kn": 45,
+            "capacity_factor": 0.9,
+            "shear_buckling_coefficient": 0.5,
+            "nominal_web_shear_yield_capacity_kn": 100,
+            "end_plate_to_load_bearing_stiffener_distance_mm": 25,
+            "end_plate_yield_mpa": 250,
+            "end_plate_area_mm2": 0,
+        }
+    )
+    assert r["values"]["residual_panel_shear_kn"] == 0
+    assert r["values"]["minimum_end_plate_area_mm2"] == 0
+    assert r["checked_conditions_satisfied"]
+
+
 def test_web_bearing_rejects_zero_restrained_flanges():
     with pytest.raises(ValueError, match="restrained_flange_count"):
         run(

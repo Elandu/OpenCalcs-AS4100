@@ -295,6 +295,64 @@ SCHEMAS = {
             "stiffener_thickness_mm": POSITIVE,
             "stiffener_yield_mpa": YIELD_STRESS,
             "outer_edge_continuously_stiffened": {"type": "boolean"},
+            "stiffener_top_flange_gap_mm": NONNEGATIVE,
+            "stiffener_bottom_flange_gap_mm": NONNEGATIVE,
+            "flange_termination_geometry_verified": {"type": "boolean"},
+        },
+        [
+            "operation",
+            "clear_web_depth_mm",
+            "web_panel_depth_mm",
+            "web_thickness_mm",
+            "panel_spacing_mm",
+            "web_area_mm2",
+            "web_yield_mpa",
+            "shear_buckling_coefficient",
+            "stiffener_configuration",
+            "shear_action_kn",
+            "nominal_web_shear_kn",
+            "nominal_web_buckling_no_tension_field_kn",
+            "nominal_stiffener_buckling_kn",
+            "stiffener_area_mm2",
+            "stiffener_second_moment_mm4",
+            "stiffener_outstand_mm",
+            "stiffener_thickness_mm",
+            "stiffener_yield_mpa",
+            "outer_edge_continuously_stiffened",
+        ],
+    )
+    | {
+        "allOf": [
+            {
+                "if": {
+                    "anyOf": [
+                        {"required": ["stiffener_top_flange_gap_mm"]},
+                        {"required": ["stiffener_bottom_flange_gap_mm"]},
+                        {"required": ["flange_termination_geometry_verified"]},
+                    ]
+                },
+                "then": {
+                    "required": [
+                        "stiffener_top_flange_gap_mm",
+                        "stiffener_bottom_flange_gap_mm",
+                        "flange_termination_geometry_verified",
+                    ]
+                },
+            }
+        ]
+    },
+    "end_post_area": object_schema(
+        {
+            "operation": {"const": "end_post_area"},
+            "end_post_required_under_5_15_2_2": {"const": True},
+            "clear_web_depth_mm": POSITIVE,
+            "design_shear_action_kn": NONNEGATIVE,
+            "capacity_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+            "shear_buckling_coefficient": {"type": "number", "minimum": 0, "maximum": 1},
+            "nominal_web_shear_yield_capacity_kn": POSITIVE,
+            "end_plate_to_load_bearing_stiffener_distance_mm": POSITIVE,
+            "end_plate_yield_mpa": YIELD_STRESS,
+            "end_plate_area_mm2": NONNEGATIVE,
         }
     ),
     "longitudinal_stiffener": object_schema(
@@ -828,6 +886,38 @@ def run_webs(inputs):
                 "Check fitting, fastener force transfer and torsional restraint under 5.14.4/5.",
             ],
         )
+    if op == "end_post_area":
+        residual_shear_kn = max(
+            0,
+            d["design_shear_action_kn"] / d["capacity_factor"]
+            - d["shear_buckling_coefficient"] * d["nominal_web_shear_yield_capacity_kn"],
+        )
+        required_area = (
+            d["clear_web_depth_mm"]
+            * residual_shear_kn
+            * 1000
+            / (8 * d["end_plate_to_load_bearing_stiffener_distance_mm"] * d["end_plate_yield_mpa"])
+        )
+        return result(
+            op,
+            ["5.15.9"],
+            {
+                "residual_panel_shear_kn": residual_shear_kn,
+                "minimum_end_plate_area_mm2": required_area,
+                "provided_end_plate_area_mm2": d["end_plate_area_mm2"],
+            },
+            [
+                {
+                    "clause": "5.15.9 end-plate minimum area",
+                    "satisfied": d["end_plate_area_mm2"] >= required_area,
+                }
+            ],
+            [
+                "The end post must include the load-bearing stiffener required by 5.15.2.2.",
+                "Design the load-bearing stiffener under 5.14 and verify the end-plate "
+                "connection and geometry separately.",
+            ],
+        )
     if op == "transverse_stiffener":
         depth, spacing, t = d["clear_web_depth_mm"], d["panel_spacing_mm"], d["web_thickness_mm"]
         ratio = spacing / d["web_panel_depth_mm"]
@@ -846,26 +936,58 @@ def run_webs(inputs):
         outstand_limit = 15 * d["stiffener_thickness_mm"] / sqrt(d["stiffener_yield_mpa"] / 250)
         shear_per_length = 0.0008 * t * t * d["web_yield_mpa"] / d["stiffener_outstand_mm"]
         nominal = d["nominal_stiffener_buckling_kn"] + d["nominal_web_buckling_no_tension_field_kn"]
+        clauses = ["5.15.3", "5.15.4", "5.15.5", "5.15.6", "5.15.8"]
+        values = {
+            "minimum_area_mm2": area_min,
+            "minimum_second_moment_mm4": inertia_min,
+            "outstand_limit_mm": outstand_limit,
+            "connection_design_shear_kn_per_mm": shear_per_length,
+        }
+        checks = [
+            {"clause": "5.15.3", "satisfied": d["stiffener_area_mm2"] >= area_min},
+            {"clause": "5.15.5", "satisfied": d["stiffener_second_moment_mm4"] >= inertia_min},
+            {
+                "clause": "5.15.6",
+                "satisfied": d["outer_edge_continuously_stiffened"]
+                or d["stiffener_outstand_mm"] <= outstand_limit,
+            },
+            capacity_check("5.15.4", nominal, d["shear_action_kn"]),
+        ]
+        if "stiffener_top_flange_gap_mm" in d:
+            gap_limit = 4 * t
+            values.update(
+                {
+                    "maximum_flange_termination_gap_mm": gap_limit,
+                    "top_flange_termination_gap_mm": d["stiffener_top_flange_gap_mm"],
+                    "bottom_flange_termination_gap_mm": d["stiffener_bottom_flange_gap_mm"],
+                }
+            )
+            clauses.append("5.15.1")
+            checks.extend(
+                [
+                    {
+                        "clause": "5.15.1 top-flange termination",
+                        "satisfied": d["stiffener_top_flange_gap_mm"] <= gap_limit,
+                    },
+                    {
+                        "clause": "5.15.1 bottom-flange termination",
+                        "satisfied": d["stiffener_bottom_flange_gap_mm"] <= gap_limit,
+                    },
+                    {
+                        "clause": "5.15.1 termination geometry verified",
+                        "satisfied": d["flange_termination_geometry_verified"],
+                    },
+                ]
+            )
         return result(
             op,
-            ["5.15.3", "5.15.4", "5.15.5", "5.15.6", "5.15.8"],
-            {
-                "minimum_area_mm2": area_min,
-                "minimum_second_moment_mm4": inertia_min,
-                "outstand_limit_mm": outstand_limit,
-                "connection_design_shear_kn_per_mm": shear_per_length,
-            },
+            clauses,
+            values,
+            checks,
             [
-                {"clause": "5.15.3", "satisfied": d["stiffener_area_mm2"] >= area_min},
-                {"clause": "5.15.5", "satisfied": d["stiffener_second_moment_mm4"] >= inertia_min},
-                {
-                    "clause": "5.15.6",
-                    "satisfied": d["outer_edge_continuously_stiffened"]
-                    or d["stiffener_outstand_mm"] <= outstand_limit,
-                },
-                capacity_check("5.15.4", nominal, d["shear_action_kn"]),
+                "No external stiffener loads/moments; check end posts, geometry and fasteners.",
+                "Intermediate stiffeners subject to external forces or moments need 5.15.7.",
             ],
-            ["No external stiffener loads/moments; check end posts, geometry and fasteners."],
         )
     depth, t = d["web_depth_mm"], d["web_thickness_mm"]
     if d["location"] == "neutral_axis":
