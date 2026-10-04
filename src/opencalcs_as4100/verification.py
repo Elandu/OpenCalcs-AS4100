@@ -925,6 +925,56 @@ def verify():
         int(plastic_limits["checked_conditions_satisfied"]),
         1,
     )
+    plastic_connections = run_design_actions(
+        {
+            "operation": "plastic_analysis_connections",
+            "rigid_plastic_analysis_verified": True,
+            "all_assumed_connections_listed_verified": True,
+            "all_collapse_mechanism_hinges_listed_verified": True,
+            "analysis_evidence_reference": "VERIFY-PLASTIC-ANALYSIS-01",
+            "connections": [
+                {
+                    "connection_id": "C-FULL",
+                    "strength_type": "full_strength",
+                    "connection_design_moment_capacity_knm": 100,
+                    "connected_member_design_moment_capacity_knm": 100,
+                    "connection_capacity_used_in_analysis_verified": True,
+                    "all_required_plastic_hinges_develop_verified": True,
+                    "evidence_reference": "VERIFY-CONNECTION-FULL-01",
+                },
+                {
+                    "connection_id": "C-PARTIAL",
+                    "strength_type": "partial_strength",
+                    "connection_design_moment_capacity_knm": 80,
+                    "connected_member_design_moment_capacity_knm": 100,
+                    "connection_capacity_used_in_analysis_verified": True,
+                    "all_required_plastic_hinges_develop_verified": True,
+                    "evidence_reference": "VERIFY-CONNECTION-PARTIAL-01",
+                },
+            ],
+            "plastic_hinges": [
+                {
+                    "hinge_id": "H-MEMBER",
+                    "location_type": "member",
+                    "rotation_demand_rad": 0.025,
+                    "rotation_capacity_rad": 0.025,
+                    "rotation_demand_assessment_verified": True,
+                    "rotation_capacity_assessment_verified": True,
+                    "evidence_reference": "VERIFY-HINGE-01",
+                }
+            ],
+        }
+    )
+    record(
+        "Clause 4.5.3 full-strength connection capacity boundary",
+        plastic_connections["values"]["connections"][0]["capacity_ratio"],
+        1,
+    )
+    record(
+        "Clause 4.5.3 hinge rotation capacity boundary",
+        plastic_connections["values"]["plastic_hinges"][0]["rotation_demand_to_capacity_ratio"],
+        1,
+    )
     stiffener = run_webs(
         {
             "operation": "longitudinal_stiffener",

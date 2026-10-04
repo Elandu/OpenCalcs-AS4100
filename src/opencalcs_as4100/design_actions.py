@@ -41,6 +41,28 @@ _PLASTIC_MEMBER = object_schema(
         "evidence_reference": _REFERENCE,
     }
 )
+_PLASTIC_CONNECTION = object_schema(
+    {
+        "connection_id": _REFERENCE,
+        "strength_type": {"enum": ["full_strength", "partial_strength"]},
+        "connection_design_moment_capacity_knm": POSITIVE,
+        "connected_member_design_moment_capacity_knm": POSITIVE,
+        "connection_capacity_used_in_analysis_verified": _BOOL,
+        "all_required_plastic_hinges_develop_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_PLASTIC_HINGE = object_schema(
+    {
+        "hinge_id": _REFERENCE,
+        "location_type": {"enum": ["member", "connection"]},
+        "rotation_demand_rad": NONNEGATIVE,
+        "rotation_capacity_rad": POSITIVE,
+        "rotation_demand_assessment_verified": _BOOL,
+        "rotation_capacity_assessment_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
 
 SCHEMAS = {
     "euler_buckling": object_schema(
@@ -90,6 +112,17 @@ SCHEMAS = {
             "operation": {"const": "plastic_analysis_limits"},
             "materials": {"type": "array", "minItems": 1, "items": _PLASTIC_MATERIAL},
             "members": {"type": "array", "minItems": 1, "items": _PLASTIC_MEMBER},
+        }
+    ),
+    "plastic_analysis_connections": object_schema(
+        {
+            "operation": {"const": "plastic_analysis_connections"},
+            "rigid_plastic_analysis_verified": _BOOL,
+            "all_assumed_connections_listed_verified": _BOOL,
+            "all_collapse_mechanism_hinges_listed_verified": _BOOL,
+            "analysis_evidence_reference": _REFERENCE,
+            "connections": {"type": "array", "minItems": 1, "items": _PLASTIC_CONNECTION},
+            "plastic_hinges": {"type": "array", "minItems": 1, "items": _PLASTIC_HINGE},
         }
     ),
     "notional_horizontal_load": object_schema(
@@ -360,6 +393,119 @@ def run_design_actions(inputs):
                 "connection strength and plastic-rotation capacity remain separate assessments.",
                 "No plastic frame analysis, hinge sequence or design action effects are "
                 "calculated.",
+            ],
+        )
+    if op == "plastic_analysis_connections":
+        checks = [
+            {
+                "clause": "4.5.3",
+                "condition": "rigid plastic analysis is used",
+                "satisfied": d["rigid_plastic_analysis_verified"],
+                "evidence_reference": d["analysis_evidence_reference"],
+            },
+            {
+                "clause": "4.5.3",
+                "condition": "all assumed full/partial-strength connections are listed",
+                "satisfied": d["all_assumed_connections_listed_verified"],
+                "evidence_reference": d["analysis_evidence_reference"],
+            },
+            {
+                "clause": "4.5.3(a)/(b)",
+                "condition": "all plastic hinges in the collapse mechanism are listed",
+                "satisfied": d["all_collapse_mechanism_hinges_listed_verified"],
+                "evidence_reference": d["analysis_evidence_reference"],
+            },
+        ]
+        connection_results = []
+        for connection in d["connections"]:
+            connection_capacity = connection["connection_design_moment_capacity_knm"]
+            member_capacity = connection["connected_member_design_moment_capacity_knm"]
+            capacity_ratio = connection_capacity / member_capacity
+            common_satisfied = connection["connection_capacity_used_in_analysis_verified"]
+            if connection["strength_type"] == "full_strength":
+                strength_clause = "4.5.3(a)"
+                strength_condition = "connection capacity is at least the connected member capacity"
+                strength_satisfied = connection_capacity >= member_capacity
+            else:
+                strength_clause = "4.5.3(b)"
+                strength_condition = "all plastic hinges required by the mechanism can develop"
+                strength_satisfied = connection["all_required_plastic_hinges_develop_verified"]
+            connection_checks = [
+                {
+                    "clause": strength_clause,
+                    "subject_id": connection["connection_id"],
+                    "condition": strength_condition,
+                    "connection_design_moment_capacity_knm": connection_capacity,
+                    "connected_member_design_moment_capacity_knm": member_capacity,
+                    "capacity_ratio": capacity_ratio,
+                    "satisfied": strength_satisfied,
+                    "evidence_reference": connection["evidence_reference"],
+                },
+                {
+                    "clause": "4.5.3",
+                    "subject_id": connection["connection_id"],
+                    "condition": "connection capacity is included in the analysis",
+                    "satisfied": common_satisfied,
+                    "evidence_reference": connection["evidence_reference"],
+                },
+            ]
+            checks.extend(connection_checks)
+            connection_results.append(
+                {
+                    "connection_id": connection["connection_id"],
+                    "strength_type": connection["strength_type"],
+                    "capacity_ratio": capacity_ratio,
+                    "checks_satisfied": all(check["satisfied"] for check in connection_checks),
+                }
+            )
+
+        hinge_results = []
+        for hinge in d["plastic_hinges"]:
+            assessments_verified = (
+                hinge["rotation_demand_assessment_verified"]
+                and hinge["rotation_capacity_assessment_verified"]
+            )
+            rotation_satisfied = (
+                assessments_verified
+                and hinge["rotation_capacity_rad"] >= hinge["rotation_demand_rad"]
+            )
+            hinge_check = {
+                "clause": "4.5.3(a)/(b)",
+                "subject_id": hinge["hinge_id"],
+                "location_type": hinge["location_type"],
+                "rotation_demand_rad": hinge["rotation_demand_rad"],
+                "rotation_capacity_rad": hinge["rotation_capacity_rad"],
+                "assessments_verified": assessments_verified,
+                "satisfied": rotation_satisfied,
+                "evidence_reference": hinge["evidence_reference"],
+            }
+            checks.append(hinge_check)
+            hinge_results.append(
+                {
+                    "hinge_id": hinge["hinge_id"],
+                    "rotation_demand_to_capacity_ratio": (
+                        hinge["rotation_demand_rad"] / hinge["rotation_capacity_rad"]
+                    ),
+                    "checks_satisfied": rotation_satisfied,
+                }
+            )
+
+        return result(
+            op,
+            ["4.5.3", "4.5.3(a)", "4.5.3(b)"],
+            {
+                "connections": connection_results,
+                "plastic_hinges": hinge_results,
+                "connection_and_rotation_conditions_satisfied": all(
+                    check["satisfied"] for check in checks
+                ),
+            },
+            checks,
+            limitations=[
+                "Connection capacities, the completeness of the connection/hinge lists and "
+                "rotation assessments are supplied evidence and are not authenticated here.",
+                "This does not verify global equilibrium, boundary conditions, the collapse "
+                "mechanism or the underlying plastic analysis results.",
             ],
         )
     if op == "notional_horizontal_load":

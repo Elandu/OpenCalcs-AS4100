@@ -202,6 +202,103 @@ def test_plastic_analysis_requires_complete_material_and_member_evidence():
     assert not r["values"]["members"][1]["checks_satisfied"]
 
 
+def plastic_analysis_connections(connection_changes=None, hinge_changes=None, **root_changes):
+    connection = {
+        "connection_id": "C1",
+        "strength_type": "full_strength",
+        "connection_design_moment_capacity_knm": 100,
+        "connected_member_design_moment_capacity_knm": 100,
+        "connection_capacity_used_in_analysis_verified": True,
+        "all_required_plastic_hinges_develop_verified": True,
+        "evidence_reference": "CONNECTION-REVIEW-01",
+    }
+    connection.update(connection_changes or {})
+    hinge = {
+        "hinge_id": "H1",
+        "location_type": "member",
+        "rotation_demand_rad": 0.025,
+        "rotation_capacity_rad": 0.025,
+        "rotation_demand_assessment_verified": True,
+        "rotation_capacity_assessment_verified": True,
+        "evidence_reference": "HINGE-REVIEW-01",
+    }
+    hinge.update(hinge_changes or {})
+    inputs = {
+        "operation": "plastic_analysis_connections",
+        "rigid_plastic_analysis_verified": True,
+        "all_assumed_connections_listed_verified": True,
+        "all_collapse_mechanism_hinges_listed_verified": True,
+        "analysis_evidence_reference": "PLASTIC-ANALYSIS-01",
+        "connections": [connection],
+        "plastic_hinges": [hinge],
+    }
+    inputs.update(root_changes)
+    return inputs
+
+
+def test_plastic_analysis_connection_and_hinge_capacity_boundaries():
+    r = run(plastic_analysis_connections())
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["connections"][0]["capacity_ratio"] == 1
+    assert r["values"]["plastic_hinges"][0]["rotation_demand_to_capacity_ratio"] == 1
+
+    partial = run(
+        plastic_analysis_connections(
+            {
+                "strength_type": "partial_strength",
+                "connection_design_moment_capacity_knm": 80,
+                "all_required_plastic_hinges_develop_verified": True,
+            }
+        )
+    )
+    assert partial["checked_conditions_satisfied"]
+    assert partial["values"]["connections"][0]["capacity_ratio"] == 0.8
+    assert partial["full_standard_compliance"] is False
+
+
+def test_plastic_analysis_hinge_rotation_capacity_must_be_positive():
+    inputs = plastic_analysis_connections(hinge_changes={"rotation_capacity_rad": 0})
+    with pytest.raises(ValueError, match="rotation_capacity_rad"):
+        run(inputs)
+
+
+@pytest.mark.parametrize(
+    "connection_changes,hinge_changes,root_changes,clause",
+    [
+        ({"connection_design_moment_capacity_knm": 99.999}, None, {}, "4.5.3(a)"),
+        (
+            {
+                "strength_type": "partial_strength",
+                "connection_design_moment_capacity_knm": 80,
+                "all_required_plastic_hinges_develop_verified": False,
+            },
+            None,
+            {},
+            "4.5.3(b)",
+        ),
+        ({"connection_capacity_used_in_analysis_verified": False}, None, {}, "4.5.3"),
+        (None, {"rotation_capacity_rad": 0.024999}, {}, "4.5.3(a)/(b)"),
+        (None, {"rotation_demand_assessment_verified": False}, {}, "4.5.3(a)/(b)"),
+        (None, {"rotation_capacity_assessment_verified": False}, {}, "4.5.3(a)/(b)"),
+        (None, None, {"rigid_plastic_analysis_verified": False}, "4.5.3"),
+        (None, None, {"all_assumed_connections_listed_verified": False}, "4.5.3"),
+        (None, None, {"all_collapse_mechanism_hinges_listed_verified": False}, "4.5.3(a)/(b)"),
+    ],
+)
+def test_plastic_analysis_connection_and_hinge_failures(
+    connection_changes, hinge_changes, root_changes, clause
+):
+    r = run(
+        plastic_analysis_connections(
+            connection_changes,
+            hinge_changes,
+            **root_changes,
+        )
+    )
+    assert not r["checked_conditions_satisfied"]
+    assert any(check["clause"] == clause and not check["satisfied"] for check in r["checks"])
+
+
 def test_notional_and_stability_checks():
     assert (
         run({"operation": "notional_horizontal_load", "floor_vertical_design_load_kn": 1000})[

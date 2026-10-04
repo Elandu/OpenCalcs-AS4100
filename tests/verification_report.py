@@ -102,6 +102,58 @@ def clause_4_5_2_plastic_analysis_limits():
     return {"tensile_to_yield_ratio": ratio, "checks_satisfied": True}
 
 
+def clause_4_5_3_plastic_connections():
+    result = run_design_actions(
+        {
+            "operation": "plastic_analysis_connections",
+            "rigid_plastic_analysis_verified": True,
+            "all_assumed_connections_listed_verified": True,
+            "all_collapse_mechanism_hinges_listed_verified": True,
+            "analysis_evidence_reference": "PLASTIC-ANALYSIS-4100-01",
+            "connections": [
+                {
+                    "connection_id": "C-FULL",
+                    "strength_type": "full_strength",
+                    "connection_design_moment_capacity_knm": 100,
+                    "connected_member_design_moment_capacity_knm": 100,
+                    "connection_capacity_used_in_analysis_verified": True,
+                    "all_required_plastic_hinges_develop_verified": True,
+                    "evidence_reference": "CONNECTION-FULL-01",
+                },
+                {
+                    "connection_id": "C-PARTIAL",
+                    "strength_type": "partial_strength",
+                    "connection_design_moment_capacity_knm": 80,
+                    "connected_member_design_moment_capacity_knm": 100,
+                    "connection_capacity_used_in_analysis_verified": True,
+                    "all_required_plastic_hinges_develop_verified": True,
+                    "evidence_reference": "CONNECTION-PARTIAL-01",
+                },
+            ],
+            "plastic_hinges": [
+                {
+                    "hinge_id": "H-MEMBER",
+                    "location_type": "member",
+                    "rotation_demand_rad": 0.025,
+                    "rotation_capacity_rad": 0.025,
+                    "rotation_demand_assessment_verified": True,
+                    "rotation_capacity_assessment_verified": True,
+                    "evidence_reference": "HINGE-MEMBER-01",
+                }
+            ],
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.5.3 full/partial connection boundary benchmark failed")
+    return {
+        "full_strength_capacity_ratio": result["values"]["connections"][0]["capacity_ratio"],
+        "partial_strength_capacity_ratio": result["values"]["connections"][1]["capacity_ratio"],
+        "hinge_rotation_ratio": result["values"]["plastic_hinges"][0][
+            "rotation_demand_to_capacity_ratio"
+        ],
+    }
+
+
 def incomplete_butt_weld():
     result = run_connections(
         {
@@ -1851,6 +1903,7 @@ def main():
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_4_5_2_plastic_analysis_limits": clause_4_5_2_plastic_analysis_limits,
+        "clause_4_5_3_plastic_connections": clause_4_5_3_plastic_connections,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,
         "clause_9_6_2_6_butt_weld_transition": butt_weld_transition,
         "clause_9_6_2_prequalified_butt_weld_capacity": prequalified_incomplete_butt_capacity,
