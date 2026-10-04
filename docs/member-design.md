@@ -16,6 +16,7 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 | `bending` | 5.3.2.1, 5.6.1.1 | Constant equal-flanged open section with both segment ends fully/partially restrained; reference elastic buckling moment and lateral-buckling reduction. Reports the capacity-based full-restraint route when nominal Mb reaches Ms. E=200000 MPa and G=80000 MPa. `moment_modification_factor` in `advanced_members` calculates 5.6.1.1(a)(iii) from the segment moment diagram. |
 | `shear` | 5.11.2–5.11.5, 5.12.3 | Flat unstiffened/stiffened webs, uniform/nonuniform stress reduction and whole-section shear/bending interaction. Conservative flange factor 1. Optional tension-field credit requires assessed stiffeners/end posts. |
 | `shear_with_flange_restraint` | 5.11.2–5.11.5.2, 5.12.3 | Flat-web shear and bending interaction with the calculated flange-restraint factor. The clause route requires verified absence of longitudinal web stiffeners; section geometry and web count must be supplied. |
+| `shear_with_rational_flange_restraint` | 5.11.2–5.11.5.2(c), 5.12.3 | Flat-web shear and bending interaction using externally calculated `alpha_f`. Requires a referenced, verified rational buckling analysis, no longitudinal stiffeners, transverse stiffener spacing `s/dp <= 3`, and no tension-field credit. The plugin records but does not authenticate or perform the analysis. |
 | `chs_shear` | 5.11.3–5.11.4, 5.12.3 | Circular hollow section shear-yield capacity with the specified gross/net effective-area rule and whole-section shear/bending interaction. Requires supplied gross/net area and section moment capacity. |
 | `shear_proportioning` | 5.12.2 | Flange-only bending capacity with separate web shear capacity, using the effective compression-flange area and the net-area/tensile-strength limit for the tension flange. |
 | `interaction` | 8.3.2–8.3.4, 8.4.2, 8.4.4–8.4.5 | General linear section interaction; optional Clause 8.3.2(a) compact-section major-axis reduction for tension or verified compression with `kf=1.0`, or 8.3.2(b) for verified compression with `kf<1.0` using the calculated web slenderness and Table 6.2.4 limit; Clause 8.3.3(a)/(b) minor-axis reduction for compact doubly symmetric I or RHS/SHS sections and powered Clause 8.3.4 section interaction; elastic in-plane/out-of-plane compression-tension reduction and biaxial member interaction. Section and member checks are reported separately. |
@@ -53,8 +54,8 @@ The following cannot currently be claimed as completed by these member primitive
   when deflections are unconstrained, the 8.4.5 biaxial member interaction to those supplied
   results. Rational analysis itself remains external. Rational web configuration and opening
   resistance remain outside the selected 5.10 geometry, thickness and transfer checks.
-- Rational flange-restraint analysis in 5.11.5.2 and longitudinal-stiffener cases;
-  longitudinal-stiffener/rational buckling-analysis alternatives.
+- Rational flange-restraint buckling analysis itself remains external and is not authenticated;
+  longitudinal-stiffener cases remain unsupported.
 - The 5.12.2 flange-only proportioning check is available through `shear_proportioning`;
   5.12.3 whole-section interaction is available through `shear` and `chs_shear` for their
   supported section forms. Other applicable forms still require separate review.

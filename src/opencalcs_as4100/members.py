@@ -296,6 +296,44 @@ INPUT_SCHEMA = {
             ],
         ),
         _variant(
+            "shear_with_rational_flange_restraint",
+            {
+                "yield_strength_mpa": P,
+                "web_area_mm2": P,
+                "panel_depth_mm": P,
+                "web_thickness_mm": P,
+                "stiffener_spacing_mm": P,
+                "tension_field": {"const": False},
+                "stress_max_average_ratio": _number(1),
+                "action_kn": N,
+                "moment_action_knm": N,
+                "section_moment_capacity_knm": P,
+                "alpha_f": P,
+                "rational_analysis_verified": {"const": True},
+                "rational_analysis_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                },
+                "no_longitudinal_stiffeners_verified": {"const": True},
+            },
+            [
+                "yield_strength_mpa",
+                "web_area_mm2",
+                "panel_depth_mm",
+                "web_thickness_mm",
+                "stiffener_spacing_mm",
+                "tension_field",
+                "action_kn",
+                "moment_action_knm",
+                "section_moment_capacity_knm",
+                "alpha_f",
+                "rational_analysis_verified",
+                "rational_analysis_reference",
+                "no_longitudinal_stiffeners_verified",
+            ],
+        ),
+        _variant(
             "interaction",
             {
                 "axial_mode": {"enum": ["compression", "tension"]},
@@ -736,6 +774,13 @@ def _shear(d, flange_restraint_factor=1, flange_restraint_values=None):
     ]
     if flange_restraint_values is None:
         manual.append("Flange restraint factor taken conservatively as 1 under 5.11.5.2.")
+    elif flange_restraint_values.get("flange_restraint_method") == "rational_buckling_analysis":
+        clauses.append("5.11.5.2")
+        manual.append(
+            "The rational buckling analysis, its reference and the supplied alpha_f are "
+            "recorded but not authenticated by this calculation. Verify the flat-web "
+            "configuration and absence of longitudinal stiffeners."
+        )
     else:
         clauses.append("5.11.5.2")
         manual.append(
@@ -772,6 +817,23 @@ def _shear_with_flange_restraint(d):
         "effective_flange_outstand_limits_mm": candidates,
     }
     return _shear(d, restraint_factor, details)
+
+
+def _shear_with_rational_flange_restraint(d):
+    aspect = d["stiffener_spacing_mm"] / d["panel_depth_mm"]
+    if aspect > 3:
+        raise ValueError(
+            "Rational flange-restraint analysis requires stiffener spacing/panel depth <= 3."
+        )
+    reference = d["rational_analysis_reference"].strip()
+    if not reference:
+        raise ValueError("Rational flange-restraint analysis reference must not be blank.")
+    details = {
+        "flange_restraint_method": "rational_buckling_analysis",
+        "rational_analysis_reference": reference,
+        "stiffener_spacing_to_panel_depth_ratio": aspect,
+    }
+    return _shear(d, d["alpha_f"], details)
 
 
 def _chs_shear(d):
@@ -1222,6 +1284,7 @@ def run_members(inputs: Mapping[str, Any]) -> dict[str, Any]:
         "bending": _bending,
         "shear": _shear,
         "shear_with_flange_restraint": _shear_with_flange_restraint,
+        "shear_with_rational_flange_restraint": _shear_with_rational_flange_restraint,
         "chs_shear": _chs_shear,
         "shear_proportioning": _shear_proportioning,
         "interaction": _interaction,

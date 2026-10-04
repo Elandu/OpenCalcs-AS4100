@@ -824,6 +824,39 @@ def verify():
         flange_restraint["values"]["effective_flange_outstand_mm"],
         20,
     )
+    rational_flange_restraint = run_members(
+        {
+            "operation": "shear_with_rational_flange_restraint",
+            "yield_strength_mpa": 250,
+            "web_area_mm2": 1000,
+            "panel_depth_mm": 1000,
+            "web_thickness_mm": 10,
+            "stiffener_spacing_mm": 3000,
+            "tension_field": False,
+            "action_kn": 110,
+            "moment_action_knm": 0,
+            "section_moment_capacity_knm": 100,
+            "alpha_f": 1.15,
+            "rational_analysis_verified": True,
+            "rational_analysis_reference": "INDEPENDENT-HAND-CALC",
+            "no_longitudinal_stiffeners_verified": True,
+        }
+    )
+    record(
+        "Clause 5.11.5.2(c) stiffened panel aspect ratio",
+        rational_flange_restraint["values"]["stiffener_spacing_to_panel_depth_ratio"],
+        3,
+    )
+    record(
+        "Clause 5.11.5.2(c) buckling reduction with s/dp=3",
+        rational_flange_restraint["values"]["buckling_reduction"],
+        (82 / 100) ** 2 * (1 + 0.75 / 3**2),
+    )
+    record(
+        "Clause 5.11.5.2(c) rational alpha_f shear design capacity",
+        rational_flange_restraint["checks"]["shear_bending"]["design_capacity"],
+        113.089275,
+    )
     shear_proportioning = run_members(
         {
             "operation": "shear_proportioning",

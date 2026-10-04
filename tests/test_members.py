@@ -391,6 +391,64 @@ def test_clause_5_11_5_2_requires_web_spacing_and_no_longitudinal_stiffeners():
         run_members(flange_restraint_shear(no_longitudinal_stiffeners_verified=False))
 
 
+def rational_flange_restraint_shear(**changes):
+    return {
+        "operation": "shear_with_rational_flange_restraint",
+        "yield_strength_mpa": 250,
+        "web_area_mm2": 1000,
+        "panel_depth_mm": 1000,
+        "web_thickness_mm": 10,
+        "stiffener_spacing_mm": 3000,
+        "tension_field": False,
+        "action_kn": 110,
+        "moment_action_knm": 0,
+        "section_moment_capacity_knm": 100,
+        "alpha_f": 1.15,
+        "rational_analysis_verified": True,
+        "rational_analysis_reference": "CALC-SHEAR-017",
+        "no_longitudinal_stiffeners_verified": True,
+        **changes,
+    }
+
+
+def test_clause_5_11_5_2_c_rational_flange_restraint_input_route():
+    result = run_members(rational_flange_restraint_shear())
+    values = result["values"]
+    assert values["flange_restraint_factor"] == 1.15
+    assert values["flange_restraint_method"] == "rational_buckling_analysis"
+    assert values["rational_analysis_reference"] == "CALC-SHEAR-017"
+    assert values["stiffener_spacing_to_panel_depth_ratio"] == 3
+    assert values["buckling_reduction"] == pytest.approx(0.7284333333333334)
+    assert values["tension_field_factor"] == 1
+    assert result["checks"]["shear_bending"]["design_capacity"] == pytest.approx(113.089275)
+    assert result["checks"]["shear_bending"]["satisfied"]
+    assert {"clause": "5.11.5.2"} in result["trace"]
+    assert any("not authenticated" in item for item in result["manual_requirements"])
+
+
+def test_clause_5_11_5_2_c_rational_flange_restraint_scope_is_enforced():
+    for changes in (
+        {"rational_analysis_verified": False},
+        {"rational_analysis_reference": "   "},
+        {"no_longitudinal_stiffeners_verified": False},
+        {"tension_field": True},
+        {"stiffener_spacing_mm": 3000.1},
+        {"alpha_f": 0},
+    ):
+        with pytest.raises(ValueError):
+            run_members(rational_flange_restraint_shear(**changes))
+
+    missing_evidence = rational_flange_restraint_shear()
+    del missing_evidence["rational_analysis_reference"]
+    with pytest.raises(ValueError):
+        run_members(missing_evidence)
+
+    missing_evidence = rational_flange_restraint_shear()
+    del missing_evidence["rational_analysis_verified"]
+    with pytest.raises(ValueError):
+        run_members(missing_evidence)
+
+
 def test_chs_shear_rejects_invalid_net_area():
     with pytest.raises(ValueError, match="Net area must not exceed gross area"):
         run_members(chs_shear(net_area_mm2=3001))
