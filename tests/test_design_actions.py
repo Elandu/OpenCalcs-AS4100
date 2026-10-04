@@ -90,6 +90,118 @@ def test_plastic_analysis_boundaries(factor, amp):
     assert r["checked_conditions_satisfied"] is (factor >= 5)
 
 
+def plastic_analysis_limits(**material_changes):
+    material = {
+        "material_id": "G350-PLATE",
+        "material_standard": "AS/NZS 3678",
+        "material_standard_verified": True,
+        "specified_yield_strength_mpa": 450,
+        "specified_tensile_strength_mpa": 540,
+        "yield_plateau_extension_in_yield_strains": 6,
+        "elongation_percent": 15,
+        "elongation_test_to_as1391_verified": True,
+        "strain_hardening_capability_verified": True,
+        "stress_strain_data_verified": True,
+        "evidence_reference": "MATERIAL-CERT-01",
+    }
+    material.update(material_changes)
+    member = {
+        "member_id": "M1",
+        "hot_formed": True,
+        "hot_formed_status_verified": True,
+        "section_form": "doubly_symmetric_i_section",
+        "section_form_verified": True,
+        "compact_under_clause_5_2_3": True,
+        "compactness_assessment_verified": True,
+        "impact_loading_present": False,
+        "impact_loading_assessment_verified": True,
+        "fatigue_assessment_required": False,
+        "fatigue_loading_assessment_verified": True,
+        "evidence_reference": "MEMBER-REVIEW-01",
+    }
+    return {
+        "operation": "plastic_analysis_limits",
+        "materials": [material],
+        "members": [member],
+    }
+
+
+def test_plastic_analysis_prescriptive_limit_boundaries():
+    r = run(plastic_analysis_limits())
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["prescriptive_4_5_2_conditions_satisfied"]
+    assert r["values"]["materials"][0]["tensile_to_yield_strength_ratio"] == pytest.approx(1.2)
+    assert {check["clause"] for check in r["checks"]} == {
+        "4.5.2(a)",
+        "4.5.2(b)",
+        "4.5.2(b)(i)",
+        "4.5.2(b)(ii)",
+        "4.5.2(b)(iii)",
+        "4.5.2(b)(iv)",
+        "4.5.2(c)",
+        "4.5.2(d)",
+        "4.5.2(e)",
+        "4.5.2(f)",
+    }
+    assert r["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    "changes,clause",
+    [
+        ({"specified_yield_strength_mpa": 450.001}, "4.5.2(a)"),
+        ({"yield_plateau_extension_in_yield_strains": 5.999}, "4.5.2(b)(i)"),
+        ({"specified_tensile_strength_mpa": 539.999}, "4.5.2(b)(ii)"),
+        ({"elongation_percent": 14.999}, "4.5.2(b)(iii)"),
+        ({"elongation_test_to_as1391_verified": False}, "4.5.2(b)(iii)"),
+        ({"strain_hardening_capability_verified": False}, "4.5.2(b)(iv)"),
+    ],
+)
+def test_plastic_analysis_material_limit_failures(changes, clause):
+    r = run(plastic_analysis_limits(**changes))
+    assert not r["checked_conditions_satisfied"]
+    assert not next(check for check in r["checks"] if check["clause"] == clause)["satisfied"]
+
+
+@pytest.mark.parametrize(
+    "changes,clause",
+    [
+        ({"hot_formed": False}, "4.5.2(c)"),
+        ({"hot_formed_status_verified": False}, "4.5.2(c)"),
+        ({"section_form": "other"}, "4.5.2(d)"),
+        ({"section_form_verified": False}, "4.5.2(d)"),
+        ({"compact_under_clause_5_2_3": False}, "4.5.2(e)"),
+        ({"compactness_assessment_verified": False}, "4.5.2(e)"),
+        ({"impact_loading_present": True}, "4.5.2(f)"),
+        ({"fatigue_assessment_required": True}, "4.5.2(f)"),
+        ({"impact_loading_assessment_verified": False}, "4.5.2(f)"),
+        ({"fatigue_loading_assessment_verified": False}, "4.5.2(f)"),
+    ],
+)
+def test_plastic_analysis_member_limit_failures(changes, clause):
+    inputs = plastic_analysis_limits()
+    inputs["members"][0].update(changes)
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not next(check for check in r["checks"] if check["clause"] == clause)["satisfied"]
+
+
+def test_plastic_analysis_requires_complete_material_and_member_evidence():
+    inputs = plastic_analysis_limits()
+    inputs["materials"].append(
+        {
+            **inputs["materials"][0],
+            "material_id": "G300-PLATE",
+            "specified_yield_strength_mpa": 460,
+        }
+    )
+    inputs["members"].append({**inputs["members"][0], "member_id": "M2", "hot_formed": False})
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not r["values"]["materials"][1]["checks_satisfied"]
+    assert not r["values"]["members"][1]["checks_satisfied"]
+
+
 def test_notional_and_stability_checks():
     assert (
         run({"operation": "notional_horizontal_load", "floor_vertical_design_load_kn": 1000})[

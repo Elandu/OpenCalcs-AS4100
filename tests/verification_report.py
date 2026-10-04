@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from opencalcs_as4100.advanced_members import run_advanced_members  # noqa: E402
 from opencalcs_as4100.connections import run_connections  # noqa: E402
+from opencalcs_as4100.design_actions import run_design_actions  # noqa: E402
 from opencalcs_as4100.durability import run_durability  # noqa: E402
 from opencalcs_as4100.erection import run_erection  # noqa: E402
 from opencalcs_as4100.fabrication import run_fabrication  # noqa: E402
@@ -56,6 +57,49 @@ def fatigue_welded_coped_splice():
     if result["detail_category_mpa"] != 71:
         raise AssertionError("Table 11.5.1(B) cope-hole splice should use category 71")
     return {"detail_category_mpa": result["detail_category_mpa"]}
+
+
+def clause_4_5_2_plastic_analysis_limits():
+    result = run_design_actions(
+        {
+            "operation": "plastic_analysis_limits",
+            "materials": [
+                {
+                    "material_id": "GRADE-350",
+                    "material_standard": "AS/NZS 3678",
+                    "material_standard_verified": True,
+                    "specified_yield_strength_mpa": 450,
+                    "specified_tensile_strength_mpa": 540,
+                    "yield_plateau_extension_in_yield_strains": 6,
+                    "elongation_percent": 15,
+                    "elongation_test_to_as1391_verified": True,
+                    "strain_hardening_capability_verified": True,
+                    "stress_strain_data_verified": True,
+                    "evidence_reference": "MATERIAL-TEST-4100-01",
+                }
+            ],
+            "members": [
+                {
+                    "member_id": "PLASTIC-MEMBER-01",
+                    "hot_formed": True,
+                    "hot_formed_status_verified": True,
+                    "section_form": "doubly_symmetric_i_section",
+                    "section_form_verified": True,
+                    "compact_under_clause_5_2_3": True,
+                    "compactness_assessment_verified": True,
+                    "impact_loading_present": False,
+                    "impact_loading_assessment_verified": True,
+                    "fatigue_assessment_required": False,
+                    "fatigue_loading_assessment_verified": True,
+                    "evidence_reference": "MEMBER-REVIEW-4100-01",
+                }
+            ],
+        }
+    )
+    ratio = result["values"]["materials"][0]["tensile_to_yield_strength_ratio"]
+    if not result["checked_conditions_satisfied"] or not isclose(ratio, 1.2):
+        raise AssertionError("Clause 4.5.2 prescriptive boundary benchmark failed")
+    return {"tensile_to_yield_ratio": ratio, "checks_satisfied": True}
 
 
 def incomplete_butt_weld():
@@ -1806,6 +1850,7 @@ def main():
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
+        "clause_4_5_2_plastic_analysis_limits": clause_4_5_2_plastic_analysis_limits,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,
         "clause_9_6_2_6_butt_weld_transition": butt_weld_transition,
         "clause_9_6_2_prequalified_butt_weld_capacity": prequalified_incomplete_butt_capacity,

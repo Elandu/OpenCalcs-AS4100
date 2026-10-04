@@ -879,6 +879,52 @@ def verify():
         986.9604401089358,
         1e-8,
     )
+    plastic_limits = run_design_actions(
+        {
+            "operation": "plastic_analysis_limits",
+            "materials": [
+                {
+                    "material_id": "GRADE-350",
+                    "material_standard": "AS/NZS 3678",
+                    "material_standard_verified": True,
+                    "specified_yield_strength_mpa": 450,
+                    "specified_tensile_strength_mpa": 540,
+                    "yield_plateau_extension_in_yield_strains": 6,
+                    "elongation_percent": 15,
+                    "elongation_test_to_as1391_verified": True,
+                    "strain_hardening_capability_verified": True,
+                    "stress_strain_data_verified": True,
+                    "evidence_reference": "VERIFY-MATERIAL-01",
+                }
+            ],
+            "members": [
+                {
+                    "member_id": "PLASTIC-MEMBER-01",
+                    "hot_formed": True,
+                    "hot_formed_status_verified": True,
+                    "section_form": "doubly_symmetric_i_section",
+                    "section_form_verified": True,
+                    "compact_under_clause_5_2_3": True,
+                    "compactness_assessment_verified": True,
+                    "impact_loading_present": False,
+                    "impact_loading_assessment_verified": True,
+                    "fatigue_assessment_required": False,
+                    "fatigue_loading_assessment_verified": True,
+                    "evidence_reference": "VERIFY-MEMBER-01",
+                }
+            ],
+        }
+    )
+    record(
+        "Clause 4.5.2(b)(ii) tensile-to-yield strength ratio boundary",
+        plastic_limits["values"]["materials"][0]["tensile_to_yield_strength_ratio"],
+        1.2,
+    )
+    record(
+        "Clause 4.5.2 prescriptive limits at table boundaries",
+        int(plastic_limits["checked_conditions_satisfied"]),
+        1,
+    )
     stiffener = run_webs(
         {
             "operation": "longitudinal_stiffener",

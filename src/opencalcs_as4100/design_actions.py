@@ -6,6 +6,42 @@ from math import isfinite, pi
 from .standards import ELASTIC_MODULUS_MPA
 from .validation import NONNEGATIVE, POSITIVE, SIGNED, object_schema, result, validate
 
+_BOOL = {"type": "boolean"}
+_REFERENCE = {"type": "string", "minLength": 1, "maxLength": 160}
+_YIELD_STRESS = {"type": "number", "exclusiveMinimum": 0, "maximum": 690}
+
+_PLASTIC_MATERIAL = object_schema(
+    {
+        "material_id": _REFERENCE,
+        "material_standard": {"enum": ["AS/NZS 3678", "AS/NZS 3679.1"]},
+        "material_standard_verified": _BOOL,
+        "specified_yield_strength_mpa": _YIELD_STRESS,
+        "specified_tensile_strength_mpa": POSITIVE,
+        "yield_plateau_extension_in_yield_strains": NONNEGATIVE,
+        "elongation_percent": NONNEGATIVE,
+        "elongation_test_to_as1391_verified": _BOOL,
+        "strain_hardening_capability_verified": _BOOL,
+        "stress_strain_data_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_PLASTIC_MEMBER = object_schema(
+    {
+        "member_id": _REFERENCE,
+        "hot_formed": _BOOL,
+        "hot_formed_status_verified": _BOOL,
+        "section_form": {"enum": ["doubly_symmetric_i_section", "other"]},
+        "section_form_verified": _BOOL,
+        "compact_under_clause_5_2_3": _BOOL,
+        "compactness_assessment_verified": _BOOL,
+        "impact_loading_present": _BOOL,
+        "impact_loading_assessment_verified": _BOOL,
+        "fatigue_assessment_required": _BOOL,
+        "fatigue_loading_assessment_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
+
 SCHEMAS = {
     "euler_buckling": object_schema(
         {
@@ -47,6 +83,13 @@ SCHEMAS = {
             "operation": {"const": "plastic_amplification"},
             "frame_buckling_factor": POSITIVE,
             "first_order_action": SIGNED,
+        }
+    ),
+    "plastic_analysis_limits": object_schema(
+        {
+            "operation": {"const": "plastic_analysis_limits"},
+            "materials": {"type": "array", "minItems": 1, "items": _PLASTIC_MATERIAL},
+            "members": {"type": "array", "minItems": 1, "items": _PLASTIC_MEMBER},
         }
     ),
     "notional_horizontal_load": object_schema(
@@ -158,6 +201,165 @@ def run_design_actions(inputs):
             [{"clause": "4.5.4", "satisfied": not required}],
             limitations=[
                 "Plastic analysis applicability under 4.5.2 must be separately established."
+            ],
+        )
+    if op == "plastic_analysis_limits":
+        checks = []
+        material_results = []
+        for material in d["materials"]:
+            fy = material["specified_yield_strength_mpa"]
+            fu = material["specified_tensile_strength_mpa"]
+            yield_ratio = fu / fy
+            plateau_ratio = material["yield_plateau_extension_in_yield_strains"]
+            elongation = material["elongation_percent"]
+            standard_verified = (
+                material["material_standard_verified"] and material["stress_strain_data_verified"]
+            )
+            material_checks = [
+                {
+                    "clause": "4.5.2(a)",
+                    "subject_id": material["material_id"],
+                    "minimum_specified_yield_strength_mpa": fy,
+                    "limit_mpa": 450,
+                    "evidence_verified": material["material_standard_verified"],
+                    "evidence_reference": material["evidence_reference"],
+                    "satisfied": material["material_standard_verified"] and fy <= 450,
+                },
+                {
+                    "clause": "4.5.2(b)",
+                    "subject_id": material["material_id"],
+                    "material_standard": material["material_standard"],
+                    "stress_strain_data_verified": material["stress_strain_data_verified"],
+                    "evidence_reference": material["evidence_reference"],
+                    "satisfied": standard_verified,
+                },
+                {
+                    "clause": "4.5.2(b)(i)",
+                    "subject_id": material["material_id"],
+                    "yield_plateau_extension_in_yield_strains": plateau_ratio,
+                    "minimum_ratio": 6,
+                    "evidence_verified": material["stress_strain_data_verified"],
+                    "evidence_reference": material["evidence_reference"],
+                    "satisfied": standard_verified and plateau_ratio >= 6,
+                },
+                {
+                    "clause": "4.5.2(b)(ii)",
+                    "subject_id": material["material_id"],
+                    "tensile_to_yield_strength_ratio": yield_ratio,
+                    "minimum_ratio": 1.2,
+                    "evidence_verified": material["stress_strain_data_verified"],
+                    "evidence_reference": material["evidence_reference"],
+                    "satisfied": standard_verified and yield_ratio >= 1.2,
+                },
+                {
+                    "clause": "4.5.2(b)(iii)",
+                    "subject_id": material["material_id"],
+                    "elongation_percent": elongation,
+                    "minimum_percent": 15,
+                    "as1391_test_verified": material["elongation_test_to_as1391_verified"],
+                    "evidence_reference": material["evidence_reference"],
+                    "satisfied": (
+                        standard_verified
+                        and elongation >= 15
+                        and material["elongation_test_to_as1391_verified"]
+                    ),
+                },
+                {
+                    "clause": "4.5.2(b)(iv)",
+                    "subject_id": material["material_id"],
+                    "strain_hardening_capability_verified": material[
+                        "strain_hardening_capability_verified"
+                    ],
+                    "evidence_reference": material["evidence_reference"],
+                    "satisfied": (
+                        standard_verified and material["strain_hardening_capability_verified"]
+                    ),
+                },
+            ]
+            checks.extend(material_checks)
+            material_results.append(
+                {
+                    "material_id": material["material_id"],
+                    "tensile_to_yield_strength_ratio": yield_ratio,
+                    "checks_satisfied": all(check["satisfied"] for check in material_checks),
+                }
+            )
+
+        member_results = []
+        for member in d["members"]:
+            section_verified = member["section_form_verified"]
+            compactness_verified = member["compactness_assessment_verified"]
+            loading_verified = (
+                member["impact_loading_assessment_verified"]
+                and member["fatigue_loading_assessment_verified"]
+            )
+            member_checks = [
+                {
+                    "clause": "4.5.2(c)",
+                    "subject_id": member["member_id"],
+                    "hot_formed": member["hot_formed"],
+                    "status_verified": member["hot_formed_status_verified"],
+                    "evidence_reference": member["evidence_reference"],
+                    "satisfied": member["hot_formed"] and member["hot_formed_status_verified"],
+                },
+                {
+                    "clause": "4.5.2(d)",
+                    "subject_id": member["member_id"],
+                    "section_form": member["section_form"],
+                    "status_verified": section_verified,
+                    "evidence_reference": member["evidence_reference"],
+                    "satisfied": (
+                        section_verified and member["section_form"] == "doubly_symmetric_i_section"
+                    ),
+                },
+                {
+                    "clause": "4.5.2(e)",
+                    "subject_id": member["member_id"],
+                    "compact_under_clause_5_2_3": member["compact_under_clause_5_2_3"],
+                    "assessment_verified": compactness_verified,
+                    "evidence_reference": member["evidence_reference"],
+                    "satisfied": member["compact_under_clause_5_2_3"] and compactness_verified,
+                },
+                {
+                    "clause": "4.5.2(f)",
+                    "subject_id": member["member_id"],
+                    "impact_loading_present": member["impact_loading_present"],
+                    "fatigue_assessment_required": member["fatigue_assessment_required"],
+                    "loading_assessment_verified": loading_verified,
+                    "evidence_reference": member["evidence_reference"],
+                    "satisfied": (
+                        loading_verified
+                        and not member["impact_loading_present"]
+                        and not member["fatigue_assessment_required"]
+                    ),
+                },
+            ]
+            checks.extend(member_checks)
+            member_results.append(
+                {
+                    "member_id": member["member_id"],
+                    "checks_satisfied": all(check["satisfied"] for check in member_checks),
+                }
+            )
+
+        return result(
+            op,
+            ["4.5.2(a)–(f)"],
+            {
+                "materials": material_results,
+                "members": member_results,
+                "prescriptive_4_5_2_conditions_satisfied": all(
+                    check["satisfied"] for check in checks
+                ),
+            },
+            checks,
+            limitations=[
+                "This checks the prescriptive Clause 4.5.2 route only; an alternative "
+                "ductility assessment is not evaluated.",
+                "Clause 4.5.1 equilibrium and boundary conditions and Clause 4.5.3 "
+                "connection strength and plastic-rotation capacity remain separate assessments.",
+                "No plastic frame analysis, hinge sequence or design action effects are "
+                "calculated.",
             ],
         )
     if op == "notional_horizontal_load":
