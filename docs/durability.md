@@ -14,6 +14,25 @@ page images are not included in this package.
   11.3.1(c) requirement that fillet-weld design throat exceed connected-member
   wall thickness. The member stress analysis, fatigue category, cycle spectrum,
   joint applicability and connection resistance remain separate checks.
+- `fatigue_hollow_section_detail`: detail categories for all entries (43)–(50) in
+  Table 11.5.1(D), including the 8 mm wall-thickness divisions and the 100 mm
+  non-load-carrying attachment-width limit. Supply the numbered detail and CHS/RHS
+  form. Detail conditions, stress direction and weld quality need verified drawing
+  or fabrication references; detail (43) also requires the continuous automatic
+  weld/no-stop-start condition and detail (48) the non-load-carrying condition.
+  This lookup reports a normal-stress detail category only. It does not verify the
+  physical detail or replace the separate fatigue strength and service-spectrum checks.
+- `fatigue_group1_detail`: Table 11.5.1(A) details (1)–(7), including the
+  8.8/TF gross-section versus other-bolting net-section stress basis and required
+  edge preparation/eccentricity evidence. Supply verified fabrication and stress-
+  direction references. For one-sided coverplates, the eccentricity effect must be
+  included in the separately calculated stress range.
+- `fatigue_bolt_detail`: Table 11.5.1(C) details (41) and (42). Detail (41) is
+  limited to 8.8/TB shear bolts and identifies the minor-diameter stress area; a
+  referenced slip assessment records whether bolt shear needs fatigue assessment.
+  Detail (42) identifies the tensile-stress area for bolts or rods in tension and
+  requires a referenced assessment that includes prying effects. Bolt force ranges
+  and stress ranges are not calculated by this category lookup.
 - `fatigue_constant`: normal stress S–N slopes 3/5 and shear slope 5
   (11.6), explicit thickness correction (11.1.6), capacity factor (11.1.5),
   stress limits (11.1.3), exemption below the normal constant-amplitude limit

@@ -49,6 +49,44 @@ def hollow_truss_range(**changes):
     }
 
 
+def hollow_fatigue_detail(detail, form, **changes):
+    return {
+        "check_type": "fatigue_hollow_section_detail",
+        "detail_number": detail,
+        "hollow_section_form": form,
+        "detail_conditions_verified": True,
+        "stress_direction_verified": True,
+        "weld_quality_verified": True,
+        "detail_evidence_reference": "DRAWING-4100-01",
+        "stress_direction_evidence_reference": "STRESS-REVIEW-4100-01",
+        **changes,
+    }
+
+
+def group1_fatigue_detail(detail, **changes):
+    return {
+        "check_type": "fatigue_group1_detail",
+        "detail_number": detail,
+        "detail_conditions_verified": True,
+        "stress_direction_verified": True,
+        "detail_evidence_reference": "FABRICATION-4100-01",
+        "stress_direction_evidence_reference": "STRESS-REVIEW-4100-01",
+        **changes,
+    }
+
+
+def bolt_fatigue_detail(detail, **changes):
+    return {
+        "check_type": "fatigue_bolt_detail",
+        "detail_number": detail,
+        "detail_conditions_verified": True,
+        "stress_direction_verified": True,
+        "detail_evidence_reference": "BOLT-DETAIL-4100-01",
+        "stress_direction_evidence_reference": "STRESS-REVIEW-4100-01",
+        **changes,
+    }
+
+
 @pytest.mark.parametrize(
     "section_form,joint_type,configuration,factors",
     [
@@ -157,6 +195,189 @@ def test_d06_fatigue_phi_and_stress_domains():
     d.update(maximum_stress_magnitude_mpa=351)
     with pytest.raises(ValueError):
         result(d)
+
+
+@pytest.mark.parametrize(
+    "detail,form,thickness,expected",
+    [
+        (44, "CHS", 8, 90),
+        (44, "CHS", 7.999, 71),
+        (45, "RHS", 8, 71),
+        (45, "RHS", 7.999, 56),
+        (46, "CHS", 8, 56),
+        (46, "CHS", 7.999, 50),
+        (47, "RHS", 8, 50),
+        (47, "RHS", 7.999, 41),
+        (49, "CHS", 8, 45),
+        (49, "CHS", 7.999, 40),
+        (50, "RHS", 8, 40),
+        (50, "RHS", 7.999, 36),
+    ],
+)
+def test_durability_table_11_5_1_d_thickness_classification(detail, form, thickness, expected):
+    data = hollow_fatigue_detail(detail, form, wall_thickness_mm=thickness)
+    assert result(data)["detail_category_mpa"] == expected
+
+
+def test_durability_table_11_5_1_d_automatic_weld_and_attachment_classification():
+    automatic = hollow_fatigue_detail(43, "CHS", no_stop_starts_verified=True)
+    assert result(automatic)["detail_category_mpa"] == 140
+
+    attachment = hollow_fatigue_detail(
+        48,
+        "RHS",
+        section_width_parallel_to_stress_mm=100,
+        non_load_carrying_verified=True,
+    )
+    assert result(attachment)["detail_category_mpa"] == 71
+
+
+def test_durability_table_11_5_1_d_rejects_unmet_or_unsupported_conditions():
+    with pytest.raises(ValueError, match="without stop-starts"):
+        result(hollow_fatigue_detail(43, "RHS"))
+    with pytest.raises(ValueError, match="non-load-carrying"):
+        result(hollow_fatigue_detail(48, "CHS", section_width_parallel_to_stress_mm=100))
+    with pytest.raises(ValueError, match="at most 100 mm"):
+        result(
+            hollow_fatigue_detail(
+                48,
+                "CHS",
+                section_width_parallel_to_stress_mm=100.001,
+                non_load_carrying_verified=True,
+            )
+        )
+    with pytest.raises(ValueError, match="applies to CHS only"):
+        result(hollow_fatigue_detail(44, "RHS", wall_thickness_mm=8))
+    with pytest.raises(ValueError, match="requires wall thickness"):
+        result(hollow_fatigue_detail(50, "RHS"))
+    with pytest.raises(ValueError, match="evidence reference is required"):
+        result(
+            hollow_fatigue_detail(
+                43,
+                "CHS",
+                no_stop_starts_verified=True,
+                detail_evidence_reference=" ",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "detail,expected,conditions",
+    [
+        (1, 160, {"surface_and_rolling_flaws_removed_verified": True}),
+        (2, 160, {"surface_and_rolling_flaws_removed_verified": True}),
+        (3, 160, {"surface_and_rolling_flaws_removed_verified": True}),
+        (4, 140, {"bolting_category": "8.8/TF", "one_sided_coverplate_connection": False}),
+        (5, 140, {"bolting_category": "other", "one_sided_coverplate_connection": False}),
+        (
+            6,
+            140,
+            {
+                "no_draglines_verified": True,
+                "hardened_edge_material_removed_verified": True,
+                "edge_discontinuities_removed_in_stress_direction_verified": True,
+            },
+        ),
+        (
+            7,
+            125,
+            {
+                "machine_or_manual_gas_cut_verified": True,
+                "edge_discontinuities_removed_in_stress_direction_verified": True,
+            },
+        ),
+    ],
+)
+def test_durability_table_11_5_1_a_classification(detail, expected, conditions):
+    assert result(group1_fatigue_detail(detail, **conditions))["detail_category_mpa"] == expected
+
+
+def test_durability_table_11_5_1_a_bolt_section_area_and_coverplate_eccentricity():
+    gross = result(
+        group1_fatigue_detail(
+            4,
+            bolting_category="8.8/TF",
+            one_sided_coverplate_connection=False,
+        )
+    )
+    assert gross["stress_area_basis"] == "gross_section"
+    net = result(
+        group1_fatigue_detail(
+            5,
+            bolting_category="other",
+            one_sided_coverplate_connection=True,
+            eccentricity_effect_assessed=True,
+        )
+    )
+    assert net["stress_area_basis"] == "net_section"
+
+
+def test_durability_table_11_5_1_a_requires_edge_and_eccentricity_conditions():
+    with pytest.raises(ValueError, match="sharp-edge"):
+        result(group1_fatigue_detail(1))
+    with pytest.raises(ValueError, match="one-sided coverplate"):
+        result(group1_fatigue_detail(4, bolting_category="8.8/TF"))
+    with pytest.raises(ValueError, match="eccentricity"):
+        result(
+            group1_fatigue_detail(
+                5,
+                bolting_category="other",
+                one_sided_coverplate_connection=True,
+            )
+        )
+
+
+def test_durability_table_11_5_1_c_bolt_category_stress_area_and_slip_note():
+    in_slip = result(
+        bolt_fatigue_detail(
+            41,
+            bolting_category="8.8/TB",
+            joint_slip_assessment_verified=True,
+            joint_shear_causes_slip=True,
+            joint_slip_evidence_reference="SLIP-REVIEW-4100-01",
+        )
+    )
+    assert in_slip["detail_category_mpa"] == 100
+    assert in_slip["stress_type"] == "shear"
+    assert in_slip["stress_area_basis"] == "minor_diameter_area"
+    assert in_slip["fatigue_assessment_required"]
+
+    no_slip = result(
+        bolt_fatigue_detail(
+            41,
+            bolting_category="8.8/TB",
+            joint_slip_assessment_verified=True,
+            joint_shear_causes_slip=False,
+            joint_slip_evidence_reference="SLIP-REVIEW-4100-01",
+        )
+    )
+    assert not no_slip["fatigue_assessment_required"]
+
+    tension = result(
+        bolt_fatigue_detail(
+            42,
+            prying_effects_assessed=True,
+            prying_assessment_reference="PRYING-REVIEW-4100-01",
+        )
+    )
+    assert tension["detail_category_mpa"] == 36
+    assert tension["stress_type"] == "normal"
+    assert tension["stress_area_basis"] == "tensile_stress_area"
+
+
+def test_durability_table_11_5_1_c_rejects_wrong_bolt_category_or_missing_prying_review():
+    with pytest.raises(ValueError, match="8.8/TB bolting"):
+        result(
+            bolt_fatigue_detail(
+                41,
+                bolting_category="other",
+                joint_slip_assessment_verified=True,
+                joint_shear_causes_slip=True,
+                joint_slip_evidence_reference="SLIP-REVIEW-4100-01",
+            )
+        )
+    with pytest.raises(ValueError, match="prying effects"):
+        result(bolt_fatigue_detail(42))
 
 
 def test_d07_exemption_strict_boundary():

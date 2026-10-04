@@ -350,6 +350,79 @@ INPUT_SCHEMA = {
             ],
         ),
         _operation(
+            "fatigue_group1_detail",
+            {
+                "detail_number": {"type": "integer", "enum": [1, 2, 3, 4, 5, 6, 7]},
+                "surface_and_rolling_flaws_removed_verified": {"const": True},
+                "bolting_category": {"enum": ["8.8/TF", "other"]},
+                "one_sided_coverplate_connection": _BOOL,
+                "eccentricity_effect_assessed": {"const": True},
+                "no_draglines_verified": {"const": True},
+                "hardened_edge_material_removed_verified": {"const": True},
+                "machine_or_manual_gas_cut_verified": {"const": True},
+                "edge_discontinuities_removed_in_stress_direction_verified": {"const": True},
+                "detail_conditions_verified": {"const": True},
+                "stress_direction_verified": {"const": True},
+                "detail_evidence_reference": {"type": "string", "minLength": 1},
+                "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+            },
+            required=[
+                "detail_number",
+                "detail_conditions_verified",
+                "stress_direction_verified",
+                "detail_evidence_reference",
+                "stress_direction_evidence_reference",
+            ],
+        ),
+        _operation(
+            "fatigue_bolt_detail",
+            {
+                "detail_number": {"type": "integer", "enum": [41, 42]},
+                "bolting_category": {"enum": ["8.8/TB", "other"]},
+                "joint_slip_assessment_verified": {"const": True},
+                "joint_shear_causes_slip": _BOOL,
+                "prying_effects_assessed": {"const": True},
+                "detail_conditions_verified": {"const": True},
+                "stress_direction_verified": {"const": True},
+                "detail_evidence_reference": {"type": "string", "minLength": 1},
+                "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+                "joint_slip_evidence_reference": {"type": "string", "minLength": 1},
+                "prying_assessment_reference": {"type": "string", "minLength": 1},
+            },
+            required=[
+                "detail_number",
+                "detail_conditions_verified",
+                "stress_direction_verified",
+                "detail_evidence_reference",
+                "stress_direction_evidence_reference",
+            ],
+        ),
+        _operation(
+            "fatigue_hollow_section_detail",
+            {
+                "detail_number": {"type": "integer", "enum": [43, 44, 45, 46, 47, 48, 49, 50]},
+                "hollow_section_form": {"enum": ["CHS", "RHS"]},
+                "wall_thickness_mm": _POS,
+                "section_width_parallel_to_stress_mm": _POS,
+                "detail_conditions_verified": {"const": True},
+                "stress_direction_verified": {"const": True},
+                "weld_quality_verified": {"const": True},
+                "no_stop_starts_verified": {"const": True},
+                "non_load_carrying_verified": {"const": True},
+                "detail_evidence_reference": {"type": "string", "minLength": 1},
+                "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+            },
+            required=[
+                "detail_number",
+                "hollow_section_form",
+                "detail_conditions_verified",
+                "stress_direction_verified",
+                "weld_quality_verified",
+                "detail_evidence_reference",
+                "stress_direction_evidence_reference",
+            ],
+        ),
+        _operation(
             "fire_material",
             {
                 "temperature_c": _number(0, 905, True),
@@ -730,6 +803,53 @@ _RESULT_SCHEMAS = {
                 ],
             },
         }
+    ),
+    "fatigue_hollow_section_detail": _result_schema(
+        {
+            "detail_number": {"type": "integer", "minimum": 43, "maximum": 50},
+            "hollow_section_form": {"enum": ["CHS", "RHS"]},
+            "detail_category_mpa": _POS,
+            "stress_type": {"const": "normal"},
+            "detail_evidence_reference": {"type": "string", "minLength": 1},
+            "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+            "wall_thickness_mm": _POS,
+            "section_width_parallel_to_stress_mm": _POS,
+        },
+        ["wall_thickness_mm", "section_width_parallel_to_stress_mm"],
+    ),
+    "fatigue_group1_detail": _result_schema(
+        {
+            "detail_number": {"type": "integer", "minimum": 1, "maximum": 7},
+            "detail_category_mpa": _POS,
+            "stress_type": {"const": "normal"},
+            "stress_area_basis": {
+                "enum": ["base_material_section", "gross_section", "net_section"]
+            },
+            "detail_evidence_reference": {"type": "string", "minLength": 1},
+            "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+            "bolting_category": {"enum": ["8.8/TF", "other"]},
+            "one_sided_coverplate_connection": _BOOL,
+            "eccentricity_effect_assessed": _BOOL,
+        },
+        [
+            "bolting_category",
+            "one_sided_coverplate_connection",
+            "eccentricity_effect_assessed",
+        ],
+    ),
+    "fatigue_bolt_detail": _result_schema(
+        {
+            "detail_number": {"type": "integer", "enum": [41, 42]},
+            "detail_category_mpa": _POS,
+            "stress_type": {"enum": ["normal", "shear"]},
+            "stress_area_basis": {"enum": ["minor_diameter_area", "tensile_stress_area"]},
+            "fatigue_assessment_required": _BOOL,
+            "detail_evidence_reference": {"type": "string", "minLength": 1},
+            "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+            "joint_slip_evidence_reference": {"type": "string", "minLength": 1},
+            "prying_assessment_reference": {"type": "string", "minLength": 1},
+        },
+        ["joint_slip_evidence_reference", "prying_assessment_reference"],
     ),
     "fire_material": _result_schema(
         {
@@ -1288,6 +1408,201 @@ def _hollow_section_truss_stress_range(d):
         ["11.3.1"],
         warnings,
     )
+
+
+def _fatigue_hollow_section_detail(d):
+    detail = d["detail_number"]
+    form = d["hollow_section_form"]
+    if not d["detail_evidence_reference"].strip():
+        raise ValueError("A drawing or fabrication evidence reference is required.")
+    if not d["stress_direction_evidence_reference"].strip():
+        raise ValueError("A stress-direction assessment reference is required.")
+
+    circular_only = {44, 46, 49}
+    rectangular_only = {45, 47, 50}
+    if detail in circular_only and form != "CHS":
+        raise ValueError(f"Table 11.5.1(D) detail {detail} applies to CHS only.")
+    if detail in rectangular_only and form != "RHS":
+        raise ValueError(f"Table 11.5.1(D) detail {detail} applies to RHS only.")
+
+    result = {
+        "detail_number": detail,
+        "hollow_section_form": form,
+        "stress_type": "normal",
+        "detail_evidence_reference": d["detail_evidence_reference"].strip(),
+        "stress_direction_evidence_reference": d["stress_direction_evidence_reference"].strip(),
+    }
+    if detail == 43:
+        if d.get("no_stop_starts_verified") is not True:
+            raise ValueError(
+                "Detail 43 requires verification of a continuous automatic longitudinal weld "
+                "without stop-starts, or an as-manufactured condition."
+            )
+        category = 140
+    elif detail == 48:
+        width = d.get("section_width_parallel_to_stress_mm")
+        if width is None:
+            raise ValueError("Detail 48 requires section width parallel to the stress direction.")
+        if width > 100:
+            raise ValueError("Detail 48 applies only when the section width is at most 100 mm.")
+        if d.get("non_load_carrying_verified") is not True:
+            raise ValueError(
+                "Detail 48 requires verification that the welded attachment is non-load-carrying."
+            )
+        category = 71
+        result["section_width_parallel_to_stress_mm"] = width
+    else:
+        thickness = d.get("wall_thickness_mm")
+        if thickness is None:
+            raise ValueError(f"Table 11.5.1(D) detail {detail} requires wall thickness.")
+        if detail == 44:
+            category = 90 if thickness >= 8 else 71
+        elif detail == 45:
+            category = 71 if thickness >= 8 else 56
+        elif detail == 46:
+            category = 56 if thickness >= 8 else 50
+        elif detail == 47:
+            category = 50 if thickness >= 8 else 41
+        elif detail == 49:
+            category = 45 if thickness >= 8 else 40
+        else:  # detail 50
+            category = 40 if thickness >= 8 else 36
+        result["wall_thickness_mm"] = thickness
+
+    result["detail_category_mpa"] = category
+    warnings = [
+        "The selected table detail, geometry, stress direction and weld quality rely on the "
+        "supplied assessment references; they are not authenticated by this calculation."
+    ]
+    return result, ["11.5.1", "Table 11.5.1(D)"], warnings
+
+
+def _fatigue_group1_detail(d):
+    detail = d["detail_number"]
+    detail_reference = d["detail_evidence_reference"].strip()
+    direction_reference = d["stress_direction_evidence_reference"].strip()
+    if not detail_reference or not direction_reference:
+        raise ValueError("Non-welded detail evidence and stress-direction references are required.")
+
+    category = 160 if detail in {1, 2, 3} else 140 if detail in {4, 5, 6} else 125
+    area_basis = "base_material_section"
+    result = {
+        "detail_number": detail,
+        "detail_category_mpa": category,
+        "stress_type": "normal",
+        "stress_area_basis": area_basis,
+        "detail_evidence_reference": detail_reference,
+        "stress_direction_evidence_reference": direction_reference,
+    }
+    if detail in {1, 2, 3} and d.get("surface_and_rolling_flaws_removed_verified") is not True:
+        raise ValueError(
+            "Details 1-3 require sharp-edge, surface-flaw and rolling-flaw removal "
+            "in the stress direction."
+        )
+    if detail in {4, 5}:
+        bolting = d.get("bolting_category")
+        if bolting is None:
+            raise ValueError("Details 4-5 require the bolting category.")
+        one_sided = d.get("one_sided_coverplate_connection")
+        if one_sided is None:
+            raise ValueError("Details 4-5 require the one-sided coverplate condition.")
+        if one_sided and d.get("eccentricity_effect_assessed") is not True:
+            raise ValueError(
+                "One-sided coverplate eccentricity must be included in the stress assessment."
+            )
+        area_basis = "gross_section" if bolting == "8.8/TF" else "net_section"
+        result.update(
+            bolting_category=bolting,
+            one_sided_coverplate_connection=one_sided,
+            eccentricity_effect_assessed=bool(d.get("eccentricity_effect_assessed", False)),
+            stress_area_basis=area_basis,
+        )
+    if detail == 6:
+        required = ("no_draglines_verified", "hardened_edge_material_removed_verified")
+        if any(d.get(field) is not True for field in required):
+            raise ValueError(
+                "Detail 6 requires no draglines and removal of hardened edge material "
+                "and discontinuities."
+            )
+        if d.get("edge_discontinuities_removed_in_stress_direction_verified") is not True:
+            raise ValueError(
+                "Detail 6 edge discontinuities must be removed in the stress direction."
+            )
+    if detail == 7:
+        if d.get("machine_or_manual_gas_cut_verified") is not True:
+            raise ValueError("Detail 7 requires the machine- or manual-gas-cut condition.")
+        if d.get("edge_discontinuities_removed_in_stress_direction_verified") is not True:
+            raise ValueError(
+                "Detail 7 corners and edge discontinuities must be removed in the stress direction."
+            )
+
+    warnings = [
+        "The selected table detail and preparation depend on caller-supplied fabrication evidence; "
+        "the reference is not authenticated by this calculation."
+    ]
+    if detail in {4, 5} and result["one_sided_coverplate_connection"]:
+        warnings.append(
+            "Include the verified one-sided coverplate eccentricity effect in the stress range."
+        )
+    return result, ["11.5.1", "Table 11.5.1(A)"], warnings
+
+
+def _fatigue_bolt_detail(d):
+    detail = d["detail_number"]
+    detail_reference = d["detail_evidence_reference"].strip()
+    direction_reference = d["stress_direction_evidence_reference"].strip()
+    if not detail_reference or not direction_reference:
+        raise ValueError("Bolt-detail and stress-direction evidence references are required.")
+
+    result = {
+        "detail_number": detail,
+        "detail_evidence_reference": detail_reference,
+        "stress_direction_evidence_reference": direction_reference,
+        "fatigue_assessment_required": True,
+    }
+    if detail == 41:
+        if d.get("bolting_category") != "8.8/TB":
+            raise ValueError("Detail 41 applies to 8.8/TB bolting category only.")
+        slip_reference = d.get("joint_slip_evidence_reference", "").strip()
+        if d.get("joint_slip_assessment_verified") is not True or not slip_reference:
+            raise ValueError("Detail 41 requires a referenced joint-slip assessment.")
+        if "joint_shear_causes_slip" not in d:
+            raise ValueError("Detail 41 requires the assessed joint-slip outcome.")
+        result.update(
+            detail_category_mpa=100,
+            stress_type="shear",
+            stress_area_basis="minor_diameter_area",
+            fatigue_assessment_required=d["joint_shear_causes_slip"],
+            joint_slip_evidence_reference=slip_reference,
+        )
+    else:
+        prying_reference = d.get("prying_assessment_reference", "").strip()
+        if d.get("prying_effects_assessed") is not True or not prying_reference:
+            raise ValueError(
+                "Detail 42 requires a referenced assessment of bolt-force range and prying effects."
+            )
+        result.update(
+            detail_category_mpa=36,
+            stress_type="normal",
+            stress_area_basis="tensile_stress_area",
+            prying_assessment_reference=prying_reference,
+        )
+    warnings = [
+        "Calculate the bolt stress range on the reported area basis and pass it to "
+        "the fatigue strength check; "
+        "connection force distribution is not calculated here."
+    ]
+    if detail == 41:
+        warnings.append(
+            "When joint shear is insufficient to cause slip, the bolt shear need not "
+            "be considered for fatigue."
+        )
+    else:
+        warnings.append(
+            "The bolt-force range depends on connection geometry; account for prying "
+            "effects using an assessed method."
+        )
+    return result, ["11.5.1", "Table 11.5.1(C)"], warnings
 
 
 _TEMPERATURES = {
@@ -1849,7 +2164,13 @@ def _run_durability(inputs):
         raise ValueError("All numerical inputs must be finite.")
     op = d["check_type"]
     warnings = []
-    if op == "hollow_section_truss_stress_range":
+    if op == "fatigue_group1_detail":
+        result, clauses, warnings = _fatigue_group1_detail(d)
+    elif op == "fatigue_bolt_detail":
+        result, clauses, warnings = _fatigue_bolt_detail(d)
+    elif op == "fatigue_hollow_section_detail":
+        result, clauses, warnings = _fatigue_hollow_section_detail(d)
+    elif op == "hollow_section_truss_stress_range":
         result, clauses, warnings = _hollow_section_truss_stress_range(d)
     elif op in {"fatigue_constant", "fatigue_variable"}:
         result, clauses, warnings = _fatigue(d)

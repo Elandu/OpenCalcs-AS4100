@@ -64,6 +64,156 @@ def verify():
         1,
     )
 
+    group1_evidence = {
+        "detail_conditions_verified": True,
+        "stress_direction_verified": True,
+        "detail_evidence_reference": "VERIFY-FABRICATION-01",
+        "stress_direction_evidence_reference": "VERIFY-STRESS-01",
+    }
+    rolled_detail = run_durability(
+        {
+            "check_type": "fatigue_group1_detail",
+            "detail_number": 1,
+            "surface_and_rolling_flaws_removed_verified": True,
+            **group1_evidence,
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(A) rolled and extruded products detail category",
+        rolled_detail["detail_category_mpa"],
+        160,
+    )
+    bolted_detail = run_durability(
+        {
+            "check_type": "fatigue_group1_detail",
+            "detail_number": 4,
+            "bolting_category": "8.8/TF",
+            "one_sided_coverplate_connection": False,
+            **group1_evidence,
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(A) 8.8/TF bolted connection stress area",
+        int(bolted_detail["stress_area_basis"] == "gross_section"),
+        1,
+    )
+    gas_cut_detail = run_durability(
+        {
+            "check_type": "fatigue_group1_detail",
+            "detail_number": 7,
+            "machine_or_manual_gas_cut_verified": True,
+            "edge_discontinuities_removed_in_stress_direction_verified": True,
+            **group1_evidence,
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(A) gas-cut edge detail category",
+        gas_cut_detail["detail_category_mpa"],
+        125,
+    )
+
+    bolt_slip_detail = run_durability(
+        {
+            "check_type": "fatigue_bolt_detail",
+            "detail_number": 41,
+            "bolting_category": "8.8/TB",
+            "joint_slip_assessment_verified": True,
+            "joint_shear_causes_slip": True,
+            "joint_slip_evidence_reference": "VERIFY-SLIP-01",
+            "detail_conditions_verified": True,
+            "stress_direction_verified": True,
+            "detail_evidence_reference": "VERIFY-BOLT-01",
+            "stress_direction_evidence_reference": "VERIFY-STRESS-01",
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(C) 8.8/TB shear-bolt category",
+        bolt_slip_detail["detail_category_mpa"],
+        100,
+    )
+    bolt_tension_detail = run_durability(
+        {
+            "check_type": "fatigue_bolt_detail",
+            "detail_number": 42,
+            "prying_effects_assessed": True,
+            "prying_assessment_reference": "VERIFY-PRYING-01",
+            "detail_conditions_verified": True,
+            "stress_direction_verified": True,
+            "detail_evidence_reference": "VERIFY-BOLT-01",
+            "stress_direction_evidence_reference": "VERIFY-STRESS-01",
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(C) tension-bolt category",
+        bolt_tension_detail["detail_category_mpa"],
+        36,
+    )
+
+    detail_evidence = {
+        "detail_conditions_verified": True,
+        "stress_direction_verified": True,
+        "weld_quality_verified": True,
+        "detail_evidence_reference": "VERIFY-DRAWING-01",
+        "stress_direction_evidence_reference": "VERIFY-STRESS-01",
+    }
+    automatic_weld = run_durability(
+        {
+            "check_type": "fatigue_hollow_section_detail",
+            "detail_number": 43,
+            "hollow_section_form": "CHS",
+            "no_stop_starts_verified": True,
+            **detail_evidence,
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(D) continuous automatic longitudinal weld category",
+        automatic_weld["detail_category_mpa"],
+        140,
+    )
+    circular_butt = run_durability(
+        {
+            "check_type": "fatigue_hollow_section_detail",
+            "detail_number": 44,
+            "hollow_section_form": "CHS",
+            "wall_thickness_mm": 8,
+            **detail_evidence,
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(D) CHS butt-weld thickness boundary at 8 mm",
+        circular_butt["detail_category_mpa"],
+        90,
+    )
+    rectangular_fillet = run_durability(
+        {
+            "check_type": "fatigue_hollow_section_detail",
+            "detail_number": 50,
+            "hollow_section_form": "RHS",
+            "wall_thickness_mm": 7.999,
+            **detail_evidence,
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(D) RHS intermediate-plate fillet weld below 8 mm",
+        rectangular_fillet["detail_category_mpa"],
+        36,
+    )
+    attachment = run_durability(
+        {
+            "check_type": "fatigue_hollow_section_detail",
+            "detail_number": 48,
+            "hollow_section_form": "RHS",
+            "section_width_parallel_to_stress_mm": 100,
+            "non_load_carrying_verified": True,
+            **detail_evidence,
+        }
+    )["results"]
+    record(
+        "Table 11.5.1(D) non-load-carrying attachment width limit",
+        attachment["detail_category_mpa"],
+        71,
+    )
+
     axial = run_analysis(
         {
             "gross_area_mm2": 2000,
