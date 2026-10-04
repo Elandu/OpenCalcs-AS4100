@@ -1094,6 +1094,97 @@ def test_tension_back_to_back_connection_layout_routes():
         run_advanced_members(separated)
 
 
+def tension_built_up_interconnection(**changes):
+    data = {
+        "operation": "tension_built_up_interconnection",
+        "connection_arrangement": "separated",
+        "parallel_connection_planes": 2,
+        "connection_plane_count_verified": True,
+        "all_interconnections_assessed_verified": True,
+        "interconnections": [
+            {
+                "local_design_transverse_shear_kn": 40,
+                "transverse_shear_verified": True,
+                "component_length_between_connections_mm": 600,
+                "minimum_radius_of_gyration_mm": 20,
+                "geometry_verified": True,
+                "design_capacity_by_plane_kn": [150, 149.99],
+                "capacity_verified": True,
+            },
+            {
+                "local_design_transverse_shear_kn": 32,
+                "transverse_shear_verified": True,
+                "component_length_between_connections_mm": 500,
+                "minimum_radius_of_gyration_mm": 25,
+                "geometry_verified": True,
+                "design_capacity_by_plane_kn": [100, 100],
+                "capacity_verified": True,
+            },
+        ],
+    }
+    data.update(changes)
+    return data
+
+
+def test_tension_built_up_interconnection_demand_and_plane_capacity():
+    out = run_advanced_members(tension_built_up_interconnection())
+    values = out["values"]
+    assert out["clauses"] == ["7.4.2", "7.4.3(a)(ii)", "6.5.1.5"]
+    assert values["interconnections"][0]["component_slenderness"] == pytest.approx(30)
+    assert values["interconnections"][0]["local_design_transverse_shear_kn"] == pytest.approx(40)
+    assert values["interconnections"][0]["total_design_longitudinal_shear_kn"] == pytest.approx(300)
+    assert values["interconnections"][0]["design_shear_per_plane_kn"] == pytest.approx(150)
+    assert values["interconnections"][1]["local_design_transverse_shear_kn"] == pytest.approx(32)
+    assert values["interconnections"][1]["design_shear_per_plane_kn"] == pytest.approx(80)
+    assert out["checks"][0]["satisfied"]
+    assert not out["checks"][1]["satisfied"]
+    assert all(check["satisfied"] for check in out["checks"][2:])
+    assert not out["checked_conditions_satisfied"]
+
+
+def test_tension_built_up_interconnection_in_contact_clause_and_exact_capacity():
+    data = tension_built_up_interconnection(
+        connection_arrangement="in_contact",
+        interconnections=[
+            {
+                "local_design_transverse_shear_kn": 40,
+                "transverse_shear_verified": True,
+                "component_length_between_connections_mm": 600,
+                "minimum_radius_of_gyration_mm": 20,
+                "geometry_verified": True,
+                "design_capacity_by_plane_kn": [150, 150],
+                "capacity_verified": True,
+            }
+        ],
+    )
+    out = run_advanced_members(data)
+    assert out["clauses"] == ["7.4.2", "7.4.3(b)", "6.5.2.5"]
+    assert out["checks"][0]["design_demand_kn"] == pytest.approx(150)
+    assert out["checked_conditions_satisfied"]
+
+
+def test_tension_built_up_interconnection_rejects_missing_plane_capacity():
+    data = tension_built_up_interconnection(
+        interconnections=[
+            {
+                "local_design_transverse_shear_kn": 40,
+                "transverse_shear_verified": True,
+                "component_length_between_connections_mm": 600,
+                "minimum_radius_of_gyration_mm": 20,
+                "geometry_verified": True,
+                "design_capacity_by_plane_kn": [150],
+                "capacity_verified": True,
+            }
+        ]
+    )
+    with pytest.raises(ValueError, match="one verified design capacity"):
+        run_advanced_members(data)
+    data = tension_built_up_interconnection()
+    data["all_interconnections_assessed_verified"] = False
+    with pytest.raises(ValueError, match="all_interconnections_assessed_verified"):
+        run_advanced_members(data)
+
+
 def pin_member(**changes):
     d = {
         "operation": "pin_tension_member",

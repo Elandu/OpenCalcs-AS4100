@@ -631,6 +631,40 @@ SCHEMAS = {
             "equivalent_end_welds_verified",
         ),
     ),
+    "tension_built_up_interconnection": _schema(
+        "tension_built_up_interconnection",
+        {
+            "connection_arrangement": {"enum": ["separated", "in_contact"]},
+            "parallel_connection_planes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+            },
+            "connection_plane_count_verified": VERIFIED,
+            "all_interconnections_assessed_verified": VERIFIED,
+            "interconnections": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "local_design_transverse_shear_kn": N,
+                        "transverse_shear_verified": VERIFIED,
+                        "component_length_between_connections_mm": P,
+                        "minimum_radius_of_gyration_mm": P,
+                        "geometry_verified": VERIFIED,
+                        "design_capacity_by_plane_kn": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "items": P,
+                        },
+                        "capacity_verified": VERIFIED,
+                    }
+                ),
+            },
+        },
+    ),
     "tension_component_slenderness": _schema(
         "tension_component_slenderness",
         {
@@ -1629,8 +1663,8 @@ def run_advanced_members(inputs):
         manual = [
             "Verify this is a two-component, discontinuously connected back-to-back member "
             "made from flats, angles, channels or tees.",
-            "The 6.5.1.5 or 6.5.2.5 interconnection design-force/capacity check and "
-            "Clause 7.4.2 internal-action assessment remain separate.",
+            "Use tension_built_up_interconnection for the 6.5.1.5 or 6.5.2.5 "
+            "capacity comparison after deriving local actions under Clause 7.4.2.",
         ]
         if separated:
             manual.append(
@@ -1649,6 +1683,73 @@ def run_advanced_members(inputs):
             },
             checks,
             manual,
+        )
+    if op == "tension_built_up_interconnection":
+        planes = d["parallel_connection_planes"]
+        interconnections = d["interconnections"]
+        if len(interconnections) * planes > 10000:
+            raise ValueError("At most 10000 interconnection-plane checks are supported per call.")
+        connection_clause = "6.5.1.5" if d["connection_arrangement"] == "separated" else "6.5.2.5"
+        tension_clause = (
+            "7.4.3(a)(ii)" if d["connection_arrangement"] == "separated" else "7.4.3(b)"
+        )
+        checks = []
+        interconnection_results = []
+        for index, interconnection in enumerate(interconnections, start=1):
+            capacities = interconnection["design_capacity_by_plane_kn"]
+            if len(capacities) != planes:
+                raise ValueError(
+                    f"Interconnection {index} must have one verified design capacity "
+                    "for each parallel connection plane."
+                )
+            slenderness = (
+                interconnection["component_length_between_connections_mm"]
+                / interconnection["minimum_radius_of_gyration_mm"]
+            )
+            local_shear = interconnection["local_design_transverse_shear_kn"]
+            total_demand = 0.25 * local_shear * slenderness
+            plane_demand = total_demand / planes
+            interconnection_results.append(
+                {
+                    "interconnection_index": index,
+                    "local_design_transverse_shear_kn": local_shear,
+                    "component_slenderness": slenderness,
+                    "total_design_longitudinal_shear_kn": total_demand,
+                    "design_shear_per_plane_kn": plane_demand,
+                }
+            )
+            for plane_index, capacity in enumerate(capacities, start=1):
+                checks.append(
+                    {
+                        "clause": connection_clause,
+                        "interconnection_index": index,
+                        "parallel_plane_index": plane_index,
+                        "component_slenderness": slenderness,
+                        "design_demand_kn": plane_demand,
+                        "verified_design_capacity_kn": capacity,
+                        "utilisation": plane_demand / capacity,
+                        "satisfied": plane_demand <= capacity,
+                    }
+                )
+        return result(
+            op,
+            ["7.4.2", tension_clause, connection_clause],
+            {
+                "connection_arrangement": d["connection_arrangement"],
+                "parallel_connection_planes": planes,
+                "interconnections": interconnection_results,
+            },
+            checks,
+            [
+                "Derive each interconnection's local transverse shear from verified external "
+                "design actions under Clause 7.4.2; the compression-member transverse-shear "
+                "envelope in Clause 6.4.1 is not applied here.",
+                "Use tension_built_up_connection_layout separately for the connection "
+                "geometry in Clause 6.5.1.4 or 6.5.2.4.",
+                "Supply design capacity for each interconnection in every parallel plane; "
+                "the capacities and their Clause 9 fastener/weld checks remain externally "
+                "verified. Other connection moments and load paths require assessment.",
+            ],
         )
     if op == "batten":
         end = d["type"] == "end"

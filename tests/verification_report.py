@@ -585,6 +585,43 @@ def clause_7_5_pin_member_design():
     }
 
 
+def clause_7_4_2_tension_interconnection():
+    result = run_advanced_members(
+        {
+            "operation": "tension_built_up_interconnection",
+            "connection_arrangement": "separated",
+            "parallel_connection_planes": 2,
+            "connection_plane_count_verified": True,
+            "all_interconnections_assessed_verified": True,
+            "interconnections": [
+                {
+                    "local_design_transverse_shear_kn": 40,
+                    "transverse_shear_verified": True,
+                    "component_length_between_connections_mm": 600,
+                    "minimum_radius_of_gyration_mm": 20,
+                    "geometry_verified": True,
+                    "design_capacity_by_plane_kn": [150, 150],
+                    "capacity_verified": True,
+                }
+            ],
+        }
+    )
+    values = result["values"]["interconnections"][0]
+    expect_close(values["component_slenderness"], 30)
+    expect_close(values["total_design_longitudinal_shear_kn"], 300)
+    expect_close(values["local_design_transverse_shear_kn"], 40)
+    expect_close(values["design_shear_per_plane_kn"], 150)
+    if result["clauses"] != ["7.4.2", "7.4.3(a)(ii)", "6.5.1.5"]:
+        raise AssertionError("Tension-member interconnection clause route was misreported")
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Tension-member interconnection capacity boundary failed")
+    return {
+        "component_slenderness": values["component_slenderness"],
+        "local_design_transverse_shear_kn": values["local_design_transverse_shear_kn"],
+        "design_shear_per_plane_kn": values["design_shear_per_plane_kn"],
+    }
+
+
 def clause_7_4_component_slenderness():
     clauses = {
         "separated_back_to_back": "7.4.3(a)(i)",
@@ -838,6 +875,7 @@ def main():
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
         "clause_7_3_2_table_factor_lookup": clause_7_3_2_table_factor_lookup,
         "clause_7_1_7_2_7_5_pin_member_design": clause_7_5_pin_member_design,
+        "clause_7_4_2_6_5_tension_interconnection": clause_7_4_2_tension_interconnection,
         "clause_7_4_component_slenderness": clause_7_4_component_slenderness,
         "clause_7_4_4_tension_lacing_tie_thickness": clause_7_4_4_tension_lacing_tie_thickness,
         "clause_7_4_5_tension_batten_geometry": clause_7_4_5_tension_batten_geometry,
