@@ -973,6 +973,64 @@ def verify():
         by_group["fitted-bolts"]["assigned_actions"]["moment_z_knm"],
         10,
     )
+    bolt_group_oop = run_connections(
+        {
+            "check_type": "bolt_group_out_of_plane",
+            "ultimate_strength_mpa": 830,
+            "minor_area_mm2": 225,
+            "shank_area_mm2": 314,
+            "tensile_area_mm2": 245,
+            "threaded_planes": 1,
+            "plain_planes": 0,
+            "grade": "8.8",
+            "lap_length_mm": 0,
+            "filler_thickness_mm": 0,
+            "bolt_actions": [
+                {
+                    "bolt_id": "B1",
+                    "position_mm": [50, 0],
+                    "shear_x_kn": 20,
+                    "shear_y_kn": 0,
+                    "tension_action_kn": 80,
+                    "prying_tension_kn": 5,
+                    "prying_force_assessment_verified": True,
+                },
+                {
+                    "bolt_id": "B2",
+                    "position_mm": [-50, 0],
+                    "shear_x_kn": 20,
+                    "shear_y_kn": 0,
+                    "tension_action_kn": 20,
+                    "prying_tension_kn": 0,
+                    "prying_force_assessment_verified": True,
+                },
+            ],
+            "group_force_x_kn": 40,
+            "group_force_y_kn": 0,
+            "group_tension_kn": 100,
+            "group_moment_x_knm": 0,
+            "group_moment_y_knm": -3,
+            "group_moment_z_knm": 0,
+            "positions_share_action_reference_verified": True,
+            "bolt_action_distribution_assessed_under_clause_9_1_3": True,
+            "connection_element_deformation_capacity_and_stability_verified": True,
+        }
+    )
+    record(
+        "Clause 9.3.2 bolt-group action equilibrium, hand arithmetic",
+        int(bolt_group_oop["checks"]["action_distribution_equilibrium"]["satisfied"]),
+        1,
+    )
+    record(
+        "Clause 9.3.2 eccentric bolt tension moment, hand arithmetic",
+        bolt_group_oop["intermediate"]["actions_resolved_from_bolts"]["moment_y_knm"],
+        -3,
+    )
+    record(
+        "Clauses 9.1.8 and 9.2.2.2 bolt tension including prying",
+        bolt_group_oop["checks"]["bolts"][0]["total_bolt_tension_action_kn"],
+        85,
+    )
     beam_connection_shear = run_connections(
         {
             "check_type": "minimum_beam_shear_action",

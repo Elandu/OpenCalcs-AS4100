@@ -407,6 +407,58 @@ FIELDS["bolt_group"] = {
     "force_y_kn": SIGNED,
     "moment_z_knm": SIGNED,
 }
+FIELDS["bolt_group_out_of_plane"] = {
+    **{
+        field: FIELDS["bolt"][field]
+        for field in (
+            "ultimate_strength_mpa",
+            "minor_area_mm2",
+            "shank_area_mm2",
+            "tensile_area_mm2",
+            "threaded_planes",
+            "plain_planes",
+            "grade",
+            "lap_length_mm",
+            "filler_thickness_mm",
+        )
+    },
+    "bolt_actions": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 100,
+        "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "bolt_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                "position_mm": POINT,
+                "shear_x_kn": SIGNED,
+                "shear_y_kn": SIGNED,
+                "tension_action_kn": N,
+                "prying_tension_kn": N,
+                "prying_force_assessment_verified": {"const": True},
+            },
+            "required": [
+                "bolt_id",
+                "position_mm",
+                "shear_x_kn",
+                "shear_y_kn",
+                "tension_action_kn",
+                "prying_tension_kn",
+                "prying_force_assessment_verified",
+            ],
+        },
+    },
+    "group_force_x_kn": SIGNED,
+    "group_force_y_kn": SIGNED,
+    "group_tension_kn": N,
+    "group_moment_x_knm": SIGNED,
+    "group_moment_y_knm": SIGNED,
+    "group_moment_z_knm": SIGNED,
+    "positions_share_action_reference_verified": {"const": True},
+    "bolt_action_distribution_assessed_under_clause_9_1_3": {"const": True},
+    "connection_element_deformation_capacity_and_stability_verified": {"const": True},
+}
 FIELDS["weld_group"] = {
     "weld_strength_mpa": P,
     "throat_mm": P,
@@ -982,6 +1034,97 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             )
         c["clause_9_1_7_action_assignment"] = {"satisfied": True, "clause": "9.1.7"}
         intermediate = {"load_case_assignments": assignments}
+    elif k == "bolt_group_out_of_plane":
+        v, n, bolt_properties = _bolt(d)
+        bolt_actions = d["bolt_actions"]
+        bolt_ids = [item["bolt_id"] for item in bolt_actions]
+        positions = [tuple(item["position_mm"]) for item in bolt_actions]
+        if len(set(bolt_ids)) != len(bolt_ids):
+            raise ValueError("Bolt IDs must be unique.")
+        if len(set(positions)) != len(positions):
+            raise ValueError("Bolt positions must be distinct.")
+        resultant = {
+            "force_x_kn": sum(item["shear_x_kn"] for item in bolt_actions),
+            "force_y_kn": sum(item["shear_y_kn"] for item in bolt_actions),
+            "tension_kn": sum(item["tension_action_kn"] for item in bolt_actions),
+            "moment_x_knm": sum(
+                item["position_mm"][1] * item["tension_action_kn"] / 1000 for item in bolt_actions
+            ),
+            "moment_y_knm": sum(
+                -item["position_mm"][0] * item["tension_action_kn"] / 1000 for item in bolt_actions
+            ),
+            "moment_z_knm": sum(
+                (
+                    item["position_mm"][0] * item["shear_y_kn"]
+                    - item["position_mm"][1] * item["shear_x_kn"]
+                )
+                / 1000
+                for item in bolt_actions
+            ),
+        }
+        design_actions = {
+            "force_x_kn": d["group_force_x_kn"],
+            "force_y_kn": d["group_force_y_kn"],
+            "tension_kn": d["group_tension_kn"],
+            "moment_x_knm": d["group_moment_x_knm"],
+            "moment_y_knm": d["group_moment_y_knm"],
+            "moment_z_knm": d["group_moment_z_knm"],
+        }
+        equilibrium = {}
+        for action, calculated in resultant.items():
+            required = design_actions[action]
+            tolerance = 1e-6 * max(1.0, abs(required))
+            equilibrium[action] = {
+                "calculated": calculated,
+                "required": required,
+                "residual": calculated - required,
+                "absolute_tolerance": tolerance,
+                "satisfied": abs(calculated - required) <= tolerance,
+                "clause": "9.1.3(a); 9.3.2; 9.3.3",
+            }
+        c["action_distribution_equilibrium"] = {
+            "satisfied": all(item["satisfied"] for item in equilibrium.values()),
+            "components": equilibrium,
+            "clause": "9.1.3(a); 9.3.2; 9.3.3",
+        }
+        per_bolt = []
+        for item in bolt_actions:
+            shear = hypot(item["shear_x_kn"], item["shear_y_kn"])
+            total_tension = item["tension_action_kn"] + item["prying_tension_kn"]
+            shear_check = _check(v, 0.8, shear, "9.2.2.1")
+            tension_clause = "9.2.2.2"
+            if item["prying_tension_kn"]:
+                tension_clause = "9.1.8; 9.2.2.2"
+            tension_check = _check(n, 0.8, total_tension, tension_clause)
+            interaction = (shear / (0.8 * v)) ** 2 + (total_tension / (0.8 * n)) ** 2
+            per_bolt.append(
+                {
+                    "bolt_id": item["bolt_id"],
+                    "shear_action_kn": shear,
+                    "member_tension_action_kn": item["tension_action_kn"],
+                    "prying_tension_action_kn": item["prying_tension_kn"],
+                    "total_bolt_tension_action_kn": total_tension,
+                    "shear": shear_check,
+                    "tension": tension_check,
+                    "interaction": {
+                        "utilisation": interaction,
+                        "satisfied": interaction <= 1,
+                        "clause": "9.2.2.3",
+                    },
+                }
+            )
+        c["bolts"] = per_bolt
+        intermediate = {
+            "clause": "9.3.2; 9.3.3",
+            "capacity_factor": 0.8,
+            "nominal_shear_capacity_kn": v,
+            "nominal_tension_capacity_kn": n,
+            "bolt_properties": bolt_properties,
+            "design_actions_resolved_to_bolt_group": design_actions,
+            "actions_resolved_from_bolts": resultant,
+            "bolt_actions": per_bolt,
+            "force_distribution_source": "externally assessed under Clause 9.1.3",
+        }
     elif k in {"bolt", "bolt_group"}:
         v, n, intermediate = _bolt(d)
         tension_action = d["tension_action_kn"]
@@ -1372,6 +1515,14 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "are allocated to the aggregate weld group under the declared installation sequence. "
             "Verify the sequence and design resistance, interaction and detailing of every "
             "connection component separately."
+        )
+    elif k == "bolt_group_out_of_plane":
+        scope = (
+            "Clauses 9.3.2 and 9.3.3 check only the supplied per-bolt force distribution, "
+            "resultant equilibrium, bolt shear/tension interaction and externally assessed "
+            "prying. Determine bolt actions under Clause 9.1.3 and verify connection-element "
+            "deformation, stability, and each ply's Clause 9.2.2.4 bearing resistance separately."
+            " Compression/contact reactions are outside this bolt-only operation."
         )
     elif k == "bolt":
         scope = (
