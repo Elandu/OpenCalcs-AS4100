@@ -22,7 +22,7 @@ Alternatively, `filler_thickness_mm` must already be that governing maximum.
 
 The implementation was visually reviewed against the licensed AS 4100:2020
 Section 9, printed pages 112–138, including Clause 9.1.4 on page 114, Table 3.4
-on page 34, and Clause 3.5.5 on page 35.
+on page 34, Clause 3.5.5 on page 35, and Appendix J on printed pages 203–206.
 The source standard is not redistributed.
 
 | check_type | Calculation and prerequisites |
@@ -41,6 +41,7 @@ The source standard is not redistributed.
 | bolt | 9.1.8 externally assessed prying tension is added to member tension; the supplied prying assessment must use a recognized method supported by experimental evidence. 9.2.2.1–3 shear, tension, squared interaction; lap length, grade 10.9 threaded-plane ductility and filler reduction under 9.2.2.5. Supply minor area (not tensile area) for threaded shear and certified bolt strength/areas. Filler thickness >=20 mm is unsupported. Zero lap length means a non-lap connection. |
 | bearing | 9.2.2.4 ply bearing and edge tear-out. Effective edge distance is clear hole-edge distance towards the loaded edge or adjacent hole plus half bolt diameter. Each ply and action direction needs its own check. |
 | slip | 9.2.3.1 service shear and 9.2.3.3 linear shear/tension interaction, phi=0.7 under 3.5.5. Clause 9.2.3.2 reports whether 0.35 is based on verified clean as-rolled surfaces or a supplied slip factor has test evidence; Appendix J testing is a recognized evidence route. It also records whether the friction bolt category plus surface-treatment and paint-masking requirements appear on drawings. Missing or false evidence fails this separate check. Installation tension and separate strength checks remain engineering inputs. |
+| slip_factor_test | Appendix J.1–J.5: calculates the design slip factor from two bolt positions per specimen, using the measured bolt tension from a load-cell calibration curve or Equation J.1; checks Table 15.2.2.2 minimum bolt tension and the Equation J.1 80%–100% proof-load range. Requires at least three specimens; four is rejected because Appendix J does not state its k value. Five or more uses k=0.90. Specimen, assembly, calibration-batch, bolt-geometry, instrumentation, loading and slip-identification records are explicit verified prerequisites. |
 | block_shear | 9.1.9(e) net rupture capped by gross shear yielding, phi=0.75, eccentricity factor 1 or 0.5. Enumerate all feasible rupture paths externally. |
 | pin | 9.4.1–3 circular solid pin shear, pin bearing with rotation factor, and bending using plastic modulus d³/6. Pin actions and plate load distribution require external analysis; ply bearing also uses bearing. |
 | fillet | 9.6.3.10 strength using externally established design throat and effective length, including 9.6.2.7(c) incomplete butt capacity. Thin RHS longitudinal SP weld factor 0.7. Geometry and weld-size detailing are separate prerequisites. |
@@ -85,3 +86,11 @@ and fire applicability are separate checks.
 Verification includes independent arithmetic benchmarks, table boundaries,
 service and strength capacity factors, signed vector group equilibrium, exact
 square weld line inertia, invalid/nonfinite inputs and degenerate geometry.
+
+`slip_factor_test` retains every bolt-position estimate and reports the sample
+standard deviation across all 2n estimates, together with the declared
+prerequisites and evidence references. The test procedure and evidence
+declarations are not authenticated: confirm the test specimen, instrumentation,
+load-cell calibration from at least three bolts in the tested batch or measured
+bolt geometry, loading protocol and reported slip loads against the laboratory
+record before using the resulting factor.

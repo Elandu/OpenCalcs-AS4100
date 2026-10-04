@@ -69,6 +69,50 @@ def combined_connection(**changes):
     }
 
 
+def appendix_j_slip_test(estimates=(0.35, 0.36, 0.40, 0.41, 0.45, 0.46)):
+    specimens = []
+    for i in range(0, len(estimates), 2):
+        specimens.append(
+            {
+                "specimen_id": f"S{i // 2 + 1}",
+                "bolts": [
+                    {
+                        "bolt_id": f"B{j + 1}",
+                        "slip_load_kn": 200 * estimates[j],
+                        "bolt_extension_mm": 0.1,
+                        "calibrated_bolt_tension_kn": 100,
+                    }
+                    for j in (i, i + 1)
+                ],
+            }
+        )
+    return {
+        "check_type": "slip_factor_test",
+        "nominal_bolt_diameter_mm": 16,
+        "bolt_grade": "8.8",
+        "bolt_tension_method": "calibration_curve",
+        "symmetrical_double_cover_butt_specimen_verified": True,
+        "inner_plates_equal_thickness_verified": True,
+        "bolts_clear_of_bearing_in_loading_direction_verified": True,
+        "specimen_bolt_tensioning_matches_field_verified": True,
+        "initial_snug_condition_finger_tight_verified": True,
+        "extension_measurement_immediately_before_test_verified": True,
+        "extension_instrument_resolution_mm": 0.003,
+        "instrumentation_layout_per_appendix_j_verified": True,
+        "instrumentation_deformation_reduction_per_appendix_j_verified": True,
+        "tensile_loading_only_verified": True,
+        "loading_rate_increment_and_creep_requirements_verified": True,
+        "slip_load_identification_per_appendix_j_verified": True,
+        "appendix_j_test_report_reference": "LAB-SLIP-001",
+        "calibration_test_bolt_count": 3,
+        "calibration_curve_reference": "CAL-CURVE-001",
+        "calibration_test_bolts_from_test_batch_verified": True,
+        "calibration_grip_and_measurement_method_match_verified": True,
+        "calibration_curve_based_on_mean_result_verified": True,
+        "specimens": specimens,
+    }
+
+
 def bolt_group_out_of_plane(**changes):
     return {
         "check_type": "bolt_group_out_of_plane",
@@ -864,9 +908,7 @@ def test_clause_9_2_3_2_requires_surface_or_test_evidence_and_drawing_record():
         "tension_action_kn": 0,
         "friction_bolt_category_and_surface_treatment_masking_drawings_verified": True,
     }
-    as_rolled = run_connections(
-        {**base, "clean_as_rolled_contact_surfaces_verified": True}
-    )
+    as_rolled = run_connections({**base, "clean_as_rolled_contact_surfaces_verified": True})
     assert as_rolled["checks"]["surface_requirements"]["slip_factor_basis"] == "clean_as_rolled"
     assert as_rolled["checks"]["surface_requirements"]["satisfied"]
 
@@ -888,6 +930,116 @@ def test_clause_9_2_3_2_requires_surface_or_test_evidence_and_drawing_record():
         }
     )
     assert not missing_drawing_record["checks"]["surface_requirements"]["satisfied"]
+
+
+def test_appendix_j_three_specimen_factor_uses_sample_deviation_and_minimum_fallback():
+    result = run_connections(appendix_j_slip_test())
+    factor = result["checks"]["slip_factor"]
+    expected_deviation = (0.01015 / 5) ** 0.5
+    expected_unadjusted = 0.85 * (0.405 - 1.64 * expected_deviation)
+    assert factor["mean_of_individual_estimates"] == pytest.approx(0.405)
+    assert factor["sample_standard_deviation"] == pytest.approx(expected_deviation)
+    assert factor["unadjusted_factor"] == pytest.approx(expected_unadjusted)
+    assert factor["lowest_individual_estimate"] == pytest.approx(0.35)
+    assert factor["minimum_estimate_fallback_applied"]
+    assert factor["slip_factor_for_design"] == pytest.approx(0.35)
+    assert factor["individual_estimate_count"] == 6
+    assert factor["clause"] == "Appendix J.5"
+    assert result["intermediate"]["appendix_j_prerequisites"][
+        "instrumentation_layout_per_appendix_j_verified"
+    ]
+    assert (
+        result["intermediate"]["bolt_tension_method_evidence"]["calibration_test_bolt_count"] == 3
+    )
+
+
+def test_appendix_j_five_specimen_factor_uses_k_point_nine_without_fallback():
+    result = run_connections(appendix_j_slip_test((0.1, *([0.5] * 9))))
+    factor = result["checks"]["slip_factor"]
+    expected_deviation = (0.144 / 9) ** 0.5
+    expected_unadjusted = 0.9 * (0.46 - 1.64 * expected_deviation)
+    assert factor["specimen_count"] == 5
+    assert factor["k"] == pytest.approx(0.9)
+    assert factor["mean_of_individual_estimates"] == pytest.approx(0.46)
+    assert factor["sample_standard_deviation"] == pytest.approx(expected_deviation)
+    assert factor["unadjusted_factor"] == pytest.approx(expected_unadjusted)
+    assert factor["unadjusted_factor"] > 0.1
+    assert not factor["minimum_estimate_fallback_applied"]
+    assert factor["slip_factor_for_design"] == pytest.approx(expected_unadjusted)
+
+
+def test_appendix_j_equation_j1_calculates_bolt_tension_and_enforces_proof_range():
+    inputs = appendix_j_slip_test()
+    inputs.update(
+        {
+            "bolt_tension_method": "equation_j1",
+            "specified_bolt_proof_load_kn": 120,
+            "proof_load_reference": "BOLT-SPEC-001",
+            "bolt_proof_load_specification_verified": True,
+            "bolt_geometry_source_reference": "BOLT-GEOMETRY-001",
+            "bolt_geometry_matches_tested_assembly_verified": True,
+        }
+    )
+    for specimen in inputs["specimens"]:
+        for bolt_input in specimen["bolts"]:
+            bolt_input.pop("calibrated_bolt_tension_kn")
+            bolt_input.update(
+                {
+                    "bolt_extension_mm": 0.14,
+                    "unthreaded_grip_length_mm": 20,
+                    "unthreaded_shank_area_mm2": 201,
+                    "threaded_grip_length_mm": 20,
+                    "nut_thickness_mm": 16,
+                    "tensile_stress_area_mm2": 157,
+                    "slip_load_kn": 70,
+                }
+            )
+    for field in (
+        "calibration_test_bolt_count",
+        "calibration_curve_reference",
+        "calibration_test_bolts_from_test_batch_verified",
+        "calibration_grip_and_measurement_method_match_verified",
+        "calibration_curve_based_on_mean_result_verified",
+    ):
+        inputs.pop(field)
+    result = run_connections(inputs)
+    expected_tension = 28 / (20 / 201 + 28 / 157)
+    position = result["intermediate"]["specimens"][0]["bolts"][0]
+    assert position["bolt_tension_kn"] == pytest.approx(expected_tension)
+    assert position["minimum_bolt_tension_kn"] == 95
+    assert result["intermediate"]["standard_deviation_divisor"] == 5
+    assert result["intermediate"]["bolt_tension_method_evidence"][
+        "bolt_geometry_matches_tested_assembly_verified"
+    ]
+    for proof_load in (100, 130):
+        inputs["specified_bolt_proof_load_kn"] = proof_load
+        with pytest.raises(ValueError, match="80% to 100%"):
+            run_connections(inputs)
+
+
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        ({"specimens": appendix_j_slip_test().get("specimens", [])[:2]}, "too short"),
+        ({"extension_instrument_resolution_mm": 0.004}, "maximum"),
+        ({"symmetrical_double_cover_butt_specimen_verified": False}, "True"),
+    ],
+)
+def test_appendix_j_rejects_incomplete_or_noncompliant_prerequisites(changes, message):
+    with pytest.raises(ValueError, match=message):
+        run_connections({**appendix_j_slip_test(), **changes})
+
+
+def test_appendix_j_rejects_four_specimens_without_a_defined_k_value():
+    with pytest.raises(ValueError, match="no k value for four specimens"):
+        run_connections(appendix_j_slip_test((0.35,) * 8))
+
+
+def test_appendix_j_rejects_bolts_below_table_minimum_tension():
+    inputs = appendix_j_slip_test()
+    inputs["specimens"][0]["bolts"][0]["calibrated_bolt_tension_kn"] = 94.9
+    with pytest.raises(ValueError, match="Table 15.2.2.2 minimum tension"):
+        run_connections(inputs)
 
 
 def test_block_shear_hand_benchmark():

@@ -42,6 +42,16 @@ masking requirements are recorded on drawings. Appendix J is a recognized test
 route. The contact-surface assessment, test evidence and drawing records are not
 authenticated by the calculation.
 
+`connection_design.slip_factor_test` now calculates the Appendix J.5 design
+factor from two bolt-position estimates per specimen, including the sample
+standard deviation and the permitted lowest-estimate fallback. It supports the
+Appendix J.1.2 load-cell calibration-curve route and Equation J.1 extension
+route, checks the Table 15.2.2.2 minimum bolt tension, and requires explicit
+evidence for the prescribed specimen, assembly, instrumentation and test
+procedure. Appendix J states `k` for three specimens and five or more; four is
+rejected. Test records and declarations are not authenticated, and complete
+surface classification and connection design remain outside this calculation.
+
 Additional bounded routes in this release include `advanced_members` checks for
 7.4.3(a)(i), 7.4.4(b) and 7.4.5(a) component slenderness, plus the optional
 6.5.1.5 back-to-back compression interconnection resistance comparison;

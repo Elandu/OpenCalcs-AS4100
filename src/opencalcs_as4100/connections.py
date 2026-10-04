@@ -1,7 +1,7 @@
 """Connection component calculations reviewed against AS 4100:2020 Section 9."""
 
 from collections.abc import Mapping
-from math import cos, hypot, isclose, isfinite, pi, radians, sin, sqrt
+from math import cos, fsum, hypot, isclose, isfinite, pi, radians, sin, sqrt
 from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
@@ -27,6 +27,7 @@ N = _number()
 SIGNED = {"type": "number"}
 QUALITY = {"enum": ["SP", "GP"]}
 BOOL = {"type": "boolean"}
+TEXT_REFERENCE = {"type": "string", "minLength": 1, "maxLength": 200}
 POINT = {"type": "array", "minItems": 2, "maxItems": 2, "items": SIGNED}
 VECTOR3 = {"type": "array", "minItems": 3, "maxItems": 3, "items": SIGNED}
 CONNECTION_ACTIONS = {
@@ -90,6 +91,72 @@ FIELDS = {
         "clean_as_rolled_contact_surfaces_verified": BOOL,
         "slip_factor_test_evidence_verified": BOOL,
         "friction_bolt_category_and_surface_treatment_masking_drawings_verified": BOOL,
+    },
+    "slip_factor_test": {
+        "nominal_bolt_diameter_mm": {"enum": [16, 20, 24, 30, 36]},
+        "bolt_grade": {"enum": ["8.8", "10.9"]},
+        "bolt_tension_method": {"enum": ["calibration_curve", "equation_j1"]},
+        "symmetrical_double_cover_butt_specimen_verified": {"const": True},
+        "inner_plates_equal_thickness_verified": {"const": True},
+        "bolts_clear_of_bearing_in_loading_direction_verified": {"const": True},
+        "specimen_bolt_tensioning_matches_field_verified": {"const": True},
+        "initial_snug_condition_finger_tight_verified": {"const": True},
+        "extension_measurement_immediately_before_test_verified": {"const": True},
+        "extension_instrument_resolution_mm": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 0.003,
+        },
+        "instrumentation_layout_per_appendix_j_verified": {"const": True},
+        "instrumentation_deformation_reduction_per_appendix_j_verified": {"const": True},
+        "tensile_loading_only_verified": {"const": True},
+        "loading_rate_increment_and_creep_requirements_verified": {"const": True},
+        "slip_load_identification_per_appendix_j_verified": {"const": True},
+        "appendix_j_test_report_reference": TEXT_REFERENCE,
+        "calibration_test_bolt_count": {"type": "integer", "minimum": 3, "maximum": 1000},
+        "calibration_curve_reference": TEXT_REFERENCE,
+        "calibration_test_bolts_from_test_batch_verified": {"const": True},
+        "calibration_grip_and_measurement_method_match_verified": {"const": True},
+        "calibration_curve_based_on_mean_result_verified": {"const": True},
+        "specified_bolt_proof_load_kn": P,
+        "proof_load_reference": TEXT_REFERENCE,
+        "bolt_proof_load_specification_verified": {"const": True},
+        "bolt_geometry_source_reference": TEXT_REFERENCE,
+        "bolt_geometry_matches_tested_assembly_verified": {"const": True},
+        "specimens": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["specimen_id", "bolts"],
+                "properties": {
+                    "specimen_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "bolts": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["bolt_id", "slip_load_kn", "bolt_extension_mm"],
+                            "properties": {
+                                "bolt_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                                "slip_load_kn": P,
+                                "bolt_extension_mm": P,
+                                "calibrated_bolt_tension_kn": P,
+                                "unthreaded_grip_length_mm": N,
+                                "unthreaded_shank_area_mm2": P,
+                                "threaded_grip_length_mm": N,
+                                "nut_thickness_mm": P,
+                                "tensile_stress_area_mm2": P,
+                            },
+                        },
+                    },
+                },
+            },
+        },
     },
     "block_shear": {
         "yield_strength_mpa": P,
@@ -552,12 +619,25 @@ SLIP_SURFACE_OPTIONAL_FIELDS = (
     "slip_factor_test_evidence_verified",
     "friction_bolt_category_and_surface_treatment_masking_drawings_verified",
 )
+SLIP_FACTOR_TEST_OPTIONAL_FIELDS = (
+    "calibration_test_bolt_count",
+    "calibration_curve_reference",
+    "calibration_test_bolts_from_test_batch_verified",
+    "calibration_grip_and_measurement_method_match_verified",
+    "calibration_curve_based_on_mean_result_verified",
+    "specified_bolt_proof_load_kn",
+    "proof_load_reference",
+    "bolt_proof_load_specification_verified",
+    "bolt_geometry_source_reference",
+    "bolt_geometry_matches_tested_assembly_verified",
+)
 OPTIONAL_FIELDS = {
     "bolt": FILLER_PLATE_OPTIONAL_FIELDS,
     "bolt_group": FILLER_PLATE_OPTIONAL_FIELDS,
     "bolt_group_out_of_plane": FILLER_PLATE_OPTIONAL_FIELDS,
     "bolt_group_elastic_3d": FILLER_PLATE_OPTIONAL_FIELDS,
     "slip": SLIP_SURFACE_OPTIONAL_FIELDS,
+    "slip_factor_test": SLIP_FACTOR_TEST_OPTIONAL_FIELDS,
     "minimum_beam_shear_action": (
         "reaction_shear_direction_unit_vector",
         "reaction_shear_eccentricity_vector_mm",
@@ -601,6 +681,9 @@ INPUT_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "oneOf": [_schema(k, v, optional=OPTIONAL_FIELDS.get(k, ())) for k, v in FIELDS.items()],
 }
+INPUT_SCHEMAS_BY_CHECK_TYPE = {
+    schema["properties"]["check_type"]["const"]: schema for schema in INPUT_SCHEMA["oneOf"]
+}
 OUTPUT_SCHEMA = {
     "type": "object",
     "required": ["standard", "check_type", "checks", "scope"],
@@ -621,6 +704,181 @@ def _finite(value):
     if isinstance(value, list):
         return all(_finite(v) for v in value)
     return not isinstance(value, (int, float)) or isinstance(value, bool) or isfinite(value)
+
+
+def _appendix_j_slip_factor(d):
+    """Calculate the Appendix J.5 factor from a compliant three- or five-plus series."""
+    from .erection import MINIMUM_BOLT_TENSION_KN
+
+    specimens = d["specimens"]
+    specimen_count = len(specimens)
+    if specimen_count == 4:
+        raise ValueError(
+            "Appendix J.5 gives no k value for four specimens; use three or at least five."
+        )
+
+    method = d["bolt_tension_method"]
+    calibration_fields = {
+        "calibration_test_bolt_count",
+        "calibration_curve_reference",
+        "calibration_test_bolts_from_test_batch_verified",
+        "calibration_grip_and_measurement_method_match_verified",
+        "calibration_curve_based_on_mean_result_verified",
+    }
+    proof_fields = {
+        "specified_bolt_proof_load_kn",
+        "proof_load_reference",
+        "bolt_proof_load_specification_verified",
+        "bolt_geometry_source_reference",
+        "bolt_geometry_matches_tested_assembly_verified",
+    }
+    if method == "calibration_curve":
+        required_fields, forbidden_fields = calibration_fields, proof_fields
+    else:
+        required_fields, forbidden_fields = proof_fields, calibration_fields
+    missing_fields = required_fields - d.keys()
+    if missing_fields:
+        raise ValueError(f"{method} requires: {', '.join(sorted(missing_fields))}.")
+    unexpected_fields = forbidden_fields & d.keys()
+    if unexpected_fields:
+        raise ValueError(f"{method} does not accept: {', '.join(sorted(unexpected_fields))}.")
+
+    if method == "calibration_curve":
+        bolt_only_required = {"calibrated_bolt_tension_kn"}
+        bolt_only_forbidden = {
+            "unthreaded_grip_length_mm",
+            "unthreaded_shank_area_mm2",
+            "threaded_grip_length_mm",
+            "nut_thickness_mm",
+            "tensile_stress_area_mm2",
+        }
+    else:
+        bolt_only_required = {
+            "unthreaded_grip_length_mm",
+            "unthreaded_shank_area_mm2",
+            "threaded_grip_length_mm",
+            "nut_thickness_mm",
+            "tensile_stress_area_mm2",
+        }
+        bolt_only_forbidden = {"calibrated_bolt_tension_kn"}
+
+    table_key = (d["nominal_bolt_diameter_mm"], d["bolt_grade"])
+    minimum_tension_kn = MINIMUM_BOLT_TENSION_KN[table_key]
+    proof_load_kn = d.get("specified_bolt_proof_load_kn")
+    estimates = []
+    specimen_results = []
+    specimen_ids = [specimen["specimen_id"] for specimen in specimens]
+    if len(set(specimen_ids)) != specimen_count:
+        raise ValueError("Appendix J specimen IDs must be unique.")
+
+    for specimen in specimens:
+        bolt_ids = [bolt["bolt_id"] for bolt in specimen["bolts"]]
+        if len(set(bolt_ids)) != 2:
+            raise ValueError("The two bolt IDs within each specimen must be distinct.")
+        positions = []
+        for bolt in specimen["bolts"]:
+            missing_bolt_fields = bolt_only_required - bolt.keys()
+            if missing_bolt_fields:
+                raise ValueError(
+                    f"{method} bolt data require: {', '.join(sorted(missing_bolt_fields))}."
+                )
+            unexpected_bolt_fields = bolt_only_forbidden & bolt.keys()
+            if unexpected_bolt_fields:
+                raise ValueError(
+                    f"{method} bolt data do not accept: "
+                    f"{', '.join(sorted(unexpected_bolt_fields))}."
+                )
+
+            if method == "calibration_curve":
+                tension_kn = bolt["calibrated_bolt_tension_kn"]
+            else:
+                compliance_mm_per_mm2 = (
+                    bolt["unthreaded_grip_length_mm"] / bolt["unthreaded_shank_area_mm2"]
+                    + (bolt["threaded_grip_length_mm"] + bolt["nut_thickness_mm"] / 2)
+                    / bolt["tensile_stress_area_mm2"]
+                )
+                if compliance_mm_per_mm2 <= 0 or not isfinite(compliance_mm_per_mm2):
+                    raise ValueError("Equation J.1 bolt extension compliance must be positive.")
+                tension_kn = 200_000 * bolt["bolt_extension_mm"] * 1e-3 / compliance_mm_per_mm2
+                lower_proof_limit_kn = 0.8 * proof_load_kn
+                if not lower_proof_limit_kn <= tension_kn <= proof_load_kn:
+                    raise ValueError(
+                        "Equation J.1 bolt tension must be 80% to 100% of specified proof load."
+                    )
+            if tension_kn < minimum_tension_kn:
+                raise ValueError(
+                    "Every Appendix J test bolt must reach the Table 15.2.2.2 minimum "
+                    f"tension of {minimum_tension_kn:g} kN."
+                )
+
+            slip_factor = 0.5 * bolt["slip_load_kn"] / tension_kn
+            estimates.append(slip_factor)
+            positions.append(
+                {
+                    "bolt_id": bolt["bolt_id"],
+                    "slip_load_kn": bolt["slip_load_kn"],
+                    "bolt_extension_mm": bolt["bolt_extension_mm"],
+                    "bolt_tension_kn": tension_kn,
+                    "minimum_bolt_tension_kn": minimum_tension_kn,
+                    "individual_slip_factor_estimate": slip_factor,
+                }
+            )
+        specimen_results.append({"specimen_id": specimen["specimen_id"], "bolts": positions})
+
+    estimate_count = 2 * specimen_count
+    mean_factor = fsum(estimates) / estimate_count
+    standard_deviation = sqrt(
+        fsum((estimate - mean_factor) ** 2 for estimate in estimates) / (estimate_count - 1)
+    )
+    k = 0.85 if specimen_count == 3 else 0.90
+    unadjusted_factor = k * (mean_factor - 1.64 * standard_deviation)
+    minimum_estimate = min(estimates)
+    fallback_applied = unadjusted_factor < minimum_estimate
+    design_factor = minimum_estimate if fallback_applied else unadjusted_factor
+    prerequisite_fields = (
+        "symmetrical_double_cover_butt_specimen_verified",
+        "inner_plates_equal_thickness_verified",
+        "bolts_clear_of_bearing_in_loading_direction_verified",
+        "specimen_bolt_tensioning_matches_field_verified",
+        "initial_snug_condition_finger_tight_verified",
+        "extension_measurement_immediately_before_test_verified",
+        "extension_instrument_resolution_mm",
+        "instrumentation_layout_per_appendix_j_verified",
+        "instrumentation_deformation_reduction_per_appendix_j_verified",
+        "tensile_loading_only_verified",
+        "loading_rate_increment_and_creep_requirements_verified",
+        "slip_load_identification_per_appendix_j_verified",
+    )
+    return (
+        {
+            "slip_factor": {
+                "slip_factor_for_design": design_factor,
+                "unadjusted_factor": unadjusted_factor,
+                "mean_of_individual_estimates": mean_factor,
+                "sample_standard_deviation": standard_deviation,
+                "lowest_individual_estimate": minimum_estimate,
+                "minimum_estimate_fallback_applied": fallback_applied,
+                "individual_estimate_count": estimate_count,
+                "specimen_count": specimen_count,
+                "k": k,
+                "clause": "Appendix J.5",
+            }
+        },
+        {
+            "bolt_tension_method": method,
+            "nominal_bolt_diameter_mm": d["nominal_bolt_diameter_mm"],
+            "bolt_grade": d["bolt_grade"],
+            "table_15_2_2_2_minimum_bolt_tension_kn": minimum_tension_kn,
+            "appendix_j_test_report_reference": d["appendix_j_test_report_reference"],
+            "appendix_j_prerequisites": {field: d[field] for field in prerequisite_fields},
+            "bolt_tension_method_evidence": {field: d[field] for field in sorted(required_fields)},
+            "calibration_curve_reference": d.get("calibration_curve_reference"),
+            "proof_load_reference": d.get("proof_load_reference"),
+            "individual_slip_factor_estimates": estimates,
+            "specimens": specimen_results,
+            "standard_deviation_divisor": estimate_count - 1,
+        },
+    )
 
 
 def _check(capacity, phi, action, clause, unit="kn"):
@@ -686,12 +944,16 @@ def _bolt(d):
         / 1000
     )
     tension = d["tensile_area_mm2"] * d["ultimate_strength_mpa"] / 1000
-    return shear, tension, {
-        "lap_factor": kr,
-        "ductility_factor": krd,
-        "filler_factor": kf,
-        "filler_thickness_used_mm": filler,
-    }
+    return (
+        shear,
+        tension,
+        {
+            "lap_factor": kr,
+            "ductility_factor": krd,
+            "filler_factor": kf,
+            "filler_thickness_used_mm": filler,
+        },
+    )
 
 
 def _effective_filler_thickness_mm(d):
@@ -721,9 +983,7 @@ def _filler_plate_detailing_check(d):
             "Clause 9.2.2.5 filler extension and force-transfer bolting must be verified "
             "when a filler plate is present."
         )
-    extension_verified, transfer_verified = (
-        d[field] for field in FILLER_PLATE_ASSESSMENT_FIELDS
-    )
+    extension_verified, transfer_verified = (d[field] for field in FILLER_PLATE_ASSESSMENT_FIELDS)
     return {
         "clause": "9.2.2.5",
         "applicable": True,
@@ -866,7 +1126,13 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
     d = dict(inputs)
     validate_standard_strengths(d)
     try:
-        Draft202012Validator(INPUT_SCHEMA).validate(d)
+        check_type = d.get("check_type")
+        schema = (
+            INPUT_SCHEMAS_BY_CHECK_TYPE["slip_factor_test"]
+            if check_type == "slip_factor_test"
+            else INPUT_SCHEMA
+        )
+        Draft202012Validator(schema).validate(d)
     except ValidationError as exc:
         raise ValueError(exc.message) from exc
     if not _finite(d):
@@ -877,7 +1143,9 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         excluded_absent = d["excluded_connection_arrangement_absent_verified"]
         if not excluded_absent:
             raise ValueError("Clause 9.1.4 excludes lacing, sag-rod, purlin and girt connections.")
-    if k == "minimum_beam_shear_action":
+    if k == "slip_factor_test":
+        c, intermediate = _appendix_j_slip_factor(d)
+    elif k == "minimum_beam_shear_action":
         actual = d["actual_design_shear_kn"]
         member_capacity = d["member_design_shear_capacity_kn"]
         fractional_minimum = 0.15 * member_capacity
@@ -1783,7 +2051,15 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         c["net_area"] = {"satisfied": True, "clause": "9.1.10"}
     else:
         c, intermediate = _weld_group(d)
-    if k in MINIMUM_ACTION_CHECKS:
+    if k == "slip_factor_test":
+        scope = (
+            "Appendix J.1–J.5 slip-factor calculation from two bolt-position results per "
+            "specimen, including the Table 15.2.2.2 minimum bolt tension and, where selected, "
+            "Equation J.1. The declared specimen, calibration, instrumentation and test-procedure "
+            "evidence is not authenticated; laboratory compliance and surface classification "
+            "remain subject to engineering review."
+        )
+    elif k in MINIMUM_ACTION_CHECKS:
         scope = (
             "Clause 9.1.4 required action effects only; check that the connection is not "
             "lacing or to a sag rod, purlin or girt. For a compression splice between lateral "

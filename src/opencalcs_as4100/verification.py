@@ -1253,6 +1253,121 @@ def verify():
         bolt_prying["intermediate"]["total_bolt_tension_action_kn"],
         30,
     )
+    appendix_j_prerequisites = {
+        "check_type": "slip_factor_test",
+        "nominal_bolt_diameter_mm": 16,
+        "bolt_grade": "8.8",
+        "symmetrical_double_cover_butt_specimen_verified": True,
+        "inner_plates_equal_thickness_verified": True,
+        "bolts_clear_of_bearing_in_loading_direction_verified": True,
+        "specimen_bolt_tensioning_matches_field_verified": True,
+        "initial_snug_condition_finger_tight_verified": True,
+        "extension_measurement_immediately_before_test_verified": True,
+        "extension_instrument_resolution_mm": 0.003,
+        "instrumentation_layout_per_appendix_j_verified": True,
+        "instrumentation_deformation_reduction_per_appendix_j_verified": True,
+        "tensile_loading_only_verified": True,
+        "loading_rate_increment_and_creep_requirements_verified": True,
+        "slip_load_identification_per_appendix_j_verified": True,
+        "appendix_j_test_report_reference": "VERIFY-APPENDIX-J",
+    }
+
+    def appendix_j_specimens(estimates, tension_kn=100):
+        return [
+            {
+                "specimen_id": f"S{i // 2 + 1}",
+                "bolts": [
+                    {
+                        "bolt_id": f"B{j % 2 + 1}",
+                        "slip_load_kn": 2 * tension_kn * estimates[j],
+                        "bolt_extension_mm": 0.1,
+                        "calibrated_bolt_tension_kn": tension_kn,
+                    }
+                    for j in (i, i + 1)
+                ],
+            }
+            for i in range(0, len(estimates), 2)
+        ]
+
+    appendix_j_three = run_connections(
+        {
+            **appendix_j_prerequisites,
+            "bolt_tension_method": "calibration_curve",
+            "calibration_test_bolt_count": 3,
+            "calibration_curve_reference": "VERIFY-CAL-CURVE",
+            "calibration_test_bolts_from_test_batch_verified": True,
+            "calibration_grip_and_measurement_method_match_verified": True,
+            "calibration_curve_based_on_mean_result_verified": True,
+            "specimens": appendix_j_specimens([0.35, 0.36, 0.40, 0.41, 0.45, 0.46]),
+        }
+    )
+    record(
+        "Appendix J.5 three-specimen arithmetic mean",
+        appendix_j_three["checks"]["slip_factor"]["mean_of_individual_estimates"],
+        0.405,
+    )
+    record(
+        "Appendix J.5 three-specimen sample standard deviation",
+        appendix_j_three["checks"]["slip_factor"]["sample_standard_deviation"],
+        0.04505552130427524,
+    )
+    record(
+        "Appendix J.5 lowest-estimate fallback",
+        appendix_j_three["checks"]["slip_factor"]["slip_factor_for_design"],
+        0.35,
+    )
+    appendix_j_five = run_connections(
+        {
+            **appendix_j_prerequisites,
+            "bolt_tension_method": "calibration_curve",
+            "calibration_test_bolt_count": 3,
+            "calibration_curve_reference": "VERIFY-CAL-CURVE",
+            "calibration_test_bolts_from_test_batch_verified": True,
+            "calibration_grip_and_measurement_method_match_verified": True,
+            "calibration_curve_based_on_mean_result_verified": True,
+            "specimens": appendix_j_specimens([0.1, *([0.5] * 9)]),
+        }
+    )
+    record(
+        "Appendix J.5 five-specimen k=0.90 factor without fallback",
+        appendix_j_five["checks"]["slip_factor"]["slip_factor_for_design"],
+        0.22729912694365897,
+    )
+    appendix_j_equation = run_connections(
+        {
+            **appendix_j_prerequisites,
+            "bolt_tension_method": "equation_j1",
+            "specified_bolt_proof_load_kn": 120,
+            "proof_load_reference": "VERIFY-BOLT-PROOF",
+            "bolt_proof_load_specification_verified": True,
+            "bolt_geometry_source_reference": "VERIFY-BOLT-GEOMETRY",
+            "bolt_geometry_matches_tested_assembly_verified": True,
+            "specimens": [
+                {
+                    "specimen_id": f"S{i}",
+                    "bolts": [
+                        {
+                            "bolt_id": f"B{j}",
+                            "slip_load_kn": 70,
+                            "bolt_extension_mm": 0.14,
+                            "unthreaded_grip_length_mm": 20,
+                            "unthreaded_shank_area_mm2": 201,
+                            "threaded_grip_length_mm": 20,
+                            "nut_thickness_mm": 16,
+                            "tensile_stress_area_mm2": 157,
+                        }
+                        for j in (1, 2)
+                    ],
+                }
+                for i in (1, 2, 3)
+            ],
+        }
+    )
+    record(
+        "Equation J.1 bolt tension, independently evaluated geometry",
+        appendix_j_equation["intermediate"]["specimens"][0]["bolts"][0]["bolt_tension_kn"],
+        100.77509124087591,
+    )
     joint_eccentricity = run_connections(
         {
             "check_type": "joint_eccentricity_action",
