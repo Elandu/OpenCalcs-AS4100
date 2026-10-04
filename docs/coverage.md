@@ -29,6 +29,12 @@ for every Section, but does not independently validate that evidence.
 | 16 — Modification of existing structures | `testing`: `existing_structure_modification_review` gates 16.1 general application of other AS 4100 provisions, AS/NZS 5131 compliance for applicable site modifications during erection and existing-structure modification/repair, and 16.2 base-metal type determination before strengthening/repair/welding documents are prepared; `existing_material_audit` records supplementary material evidence. | Assess the existing structure, verify material identity and condition, provide AS/NZS 5131 records and reanalyse the modified structure. The gate does not authenticate evidence, provide material-test acceptance criteria or issue an existing-structure certificate. |
 | 17 — Load testing | `testing`: 17.1.1–17.2 test scope, applicability and proof/prototype definitions; selected 17.3 test load/calibration/restraint/loading-rate/distribution and deformation records; 17.4.2–17.4.3 proof load/dwell/strength damage review and serviceability acceptance; 17.5.1 specimen material/fabrication/specification/erection declarations, 17.5.2 Table 17.5.2 factors, 17.5.3 acceptance and 17.5.4 production similarity; and 17.6 report-content declarations. | Plan and run physical tests, establish representative loading/restraints and test purpose, select project serviceability limits, inspect damage and authenticate reports. No physical test execution, reliability-based reduced factor or test certificate. |
 
+Clause 9.2.2.5 bolt checks apply the stated shear reduction above 6 mm and below
+20 mm filler thickness. For any nonzero filler, the bolt operations also require
+verified extension beyond the connection and verified transfer bolting through
+the combined section. Those two detailing conditions remain externally assessed;
+the calculation does not derive their geometry or bolt-group capacity.
+
 Additional bounded routes in this release include `advanced_members` checks for
 7.4.3(a)(i), 7.4.4(b) and 7.4.5(a) component slenderness, plus the optional
 6.5.1.5 back-to-back compression interconnection resistance comparison;

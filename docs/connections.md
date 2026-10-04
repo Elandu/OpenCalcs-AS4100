@@ -9,6 +9,14 @@ externally assessed prying tension separately and adds it to bolt tension; other
 connection actions must already include applicable eccentricity and prying.
 These are component calculations, not a complete connection compliance certificate.
 
+For any nonzero filler thickness, bolt and bolt-group checks require external
+verification that the filler extends beyond the connection and that its bolts
+transfer the member force through the combined section. Both conditions appear
+as Clause 9.2.2.5 checks in the result; an unverified input is rejected and a
+verified false input fails the check. The operation does not calculate the
+extension geometry or the transfer-bolt capacity. The shear-capacity reduction
+is applied only above 6 mm; thicknesses of 20 mm or more are unsupported.
+
 The implementation was visually reviewed against the licensed AS 4100:2020
 Section 9, printed pages 112–138, including Clause 9.1.4 on page 114, Table 3.4
 on page 34, and Clause 3.5.5 on page 35.

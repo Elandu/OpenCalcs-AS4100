@@ -60,6 +60,8 @@ FIELDS = {
         "grade": {"enum": ["4.6", "8.8", "10.9"]},
         "lap_length_mm": N,
         "filler_thickness_mm": {"type": "number", "minimum": 0, "exclusiveMaximum": 20},
+        "filler_plate_extends_beyond_connection_verified": BOOL,
+        "filler_plate_force_transfer_through_combined_section_verified": BOOL,
         "shear_action_kn": N,
         "tension_action_kn": N,
         "prying_tension_kn": N,
@@ -423,6 +425,8 @@ FIELDS["bolt_group_out_of_plane"] = {
             "grade",
             "lap_length_mm",
             "filler_thickness_mm",
+            "filler_plate_extends_beyond_connection_verified",
+            "filler_plate_force_transfer_through_combined_section_verified",
         )
     },
     "bolt_actions": {
@@ -475,6 +479,8 @@ FIELDS["bolt_group_elastic_3d"] = {
             "grade",
             "lap_length_mm",
             "filler_thickness_mm",
+            "filler_plate_extends_beyond_connection_verified",
+            "filler_plate_force_transfer_through_combined_section_verified",
         )
     },
     "bolt_layout": {
@@ -521,7 +527,15 @@ FIELDS["weld_group"] = {
     **{f"force_{a}_kn": SIGNED for a in "xyz"},
     **{f"moment_{a}_knm": SIGNED for a in "xyz"},
 }
+FILLER_PLATE_ASSESSMENT_FIELDS = (
+    "filler_plate_extends_beyond_connection_verified",
+    "filler_plate_force_transfer_through_combined_section_verified",
+)
 OPTIONAL_FIELDS = {
+    "bolt": FILLER_PLATE_ASSESSMENT_FIELDS,
+    "bolt_group": FILLER_PLATE_ASSESSMENT_FIELDS,
+    "bolt_group_out_of_plane": FILLER_PLATE_ASSESSMENT_FIELDS,
+    "bolt_group_elastic_3d": FILLER_PLATE_ASSESSMENT_FIELDS,
     "minimum_beam_shear_action": (
         "reaction_shear_direction_unit_vector",
         "reaction_shear_eccentricity_vector_mm",
@@ -549,7 +563,18 @@ OPTIONAL_FIELDS = {
         "connection_design_moment_capacity_knm",
     ),
 }
-MINIMUM_ACTION_CHECKS = frozenset(OPTIONAL_FIELDS)
+MINIMUM_ACTION_CHECKS = frozenset(
+    {
+        "minimum_beam_shear_action",
+        "minimum_rigid_connection_action",
+        "minimum_member_end_action",
+        "minimum_axial_splice_action",
+        "minimum_combined_splice_actions",
+        "minimum_compression_splice_between_supports",
+        "minimum_flexural_splice_action",
+        "shear_only_splice_eccentric_action",
+    }
+)
 INPUT_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "oneOf": [_schema(k, v, optional=OPTIONAL_FIELDS.get(k, ())) for k, v in FIELDS.items()],
@@ -640,6 +665,30 @@ def _bolt(d):
     )
     tension = d["tensile_area_mm2"] * d["ultimate_strength_mpa"] / 1000
     return shear, tension, {"lap_factor": kr, "ductility_factor": krd, "filler_factor": kf}
+
+
+def _filler_plate_detailing_check(d):
+    if d["filler_thickness_mm"] == 0:
+        return None
+    if any(field not in d for field in FILLER_PLATE_ASSESSMENT_FIELDS):
+        raise ValueError(
+            "Clause 9.2.2.5 filler extension and force-transfer bolting must be verified "
+            "when a filler plate is present."
+        )
+    extension_verified, transfer_verified = (
+        d[field] for field in FILLER_PLATE_ASSESSMENT_FIELDS
+    )
+    return {
+        "clause": "9.2.2.5",
+        "applicable": True,
+        "extension_beyond_connection_verified": extension_verified,
+        "bolting_transfers_member_force_through_combined_section_verified": transfer_verified,
+        "satisfied": extension_verified and transfer_verified,
+        "assessment_basis": (
+            "User-verified detailing; extension geometry and transfer-bolt capacity are "
+            "not calculated by this operation."
+        ),
+    }
 
 
 def _assess_out_of_plane_bolt_group(d, bolt_actions, design_actions, force_distribution_source):
@@ -1218,6 +1267,9 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             design_actions,
             "Externally assessed under Clause 9.1.3.",
         )
+        filler_check = _filler_plate_detailing_check(d)
+        if filler_check is not None:
+            c["filler_plate_detailing"] = filler_check
     elif k == "bolt_group_elastic_3d":
         layout = d["bolt_layout"]
         bolt_ids = [item["bolt_id"] for item in layout]
@@ -1282,6 +1334,9 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "Calculated by a rigid-plate, equal-bolt-stiffness elastic method; project assumptions "
             "and experimental basis are attested.",
         )
+        filler_check = _filler_plate_detailing_check(d)
+        if filler_check is not None:
+            c["filler_plate_detailing"] = filler_check
         intermediate.update(
             {
                 "distribution_method": "rigid_plate_equal_stiffness_linear_elastic",
@@ -1339,6 +1394,9 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             c[prefix + "tension"] = _check(n, 0.8, na, tension_clause)
             u = (va / (0.8 * v)) ** 2 + (na / (0.8 * n)) ** 2
             c[prefix + "interaction"] = {"utilisation": u, "satisfied": u <= 1, "clause": "9.2.2.3"}
+        filler_check = _filler_plate_detailing_check(d)
+        if filler_check is not None:
+            c["filler_plate_detailing"] = filler_check
     elif k == "bearing":
         a = 3.2 * d["diameter_mm"] * d["ply_thickness_mm"] * d["ultimate_strength_mpa"] / 1000
         b = (

@@ -730,13 +730,69 @@ def test_lap_boundaries(length, expected):
 
 
 def test_grade_filler_and_plain_planes():
-    r = run_connections(bolt(grade="10.9", filler_thickness_mm=10))
+    r = run_connections(
+        bolt(
+            grade="10.9",
+            filler_thickness_mm=10,
+            filler_plate_extends_beyond_connection_verified=True,
+            filler_plate_force_transfer_through_combined_section_verified=True,
+        )
+    )
     assert r["checks"]["shear"]["design_capacity_kn"] == pytest.approx(92.628 * 0.83 * 0.9384)
+    assert r["checks"]["filler_plate_detailing"]["satisfied"]
     r = run_connections(bolt(grade="10.9", threaded_planes=0, plain_planes=2))
     assert r["intermediate"]["ductility_factor"] == 1
     assert r["checks"]["shear"]["design_capacity_kn"] == pytest.approx(
         0.8 * 0.62 * 830 * 628 / 1000
     )
+
+
+def test_filler_plate_clause_9_2_2_5_requires_and_reports_detailing_assessment():
+    with pytest.raises(
+        ValueError, match="filler extension and force-transfer bolting must be verified"
+    ):
+        run_connections(bolt(filler_thickness_mm=10))
+
+    result = run_connections(
+        bolt(
+            filler_thickness_mm=10,
+            filler_plate_extends_beyond_connection_verified=True,
+            filler_plate_force_transfer_through_combined_section_verified=False,
+        )
+    )
+    detail = result["checks"]["filler_plate_detailing"]
+    assert detail["clause"] == "9.2.2.5"
+    assert detail["extension_beyond_connection_verified"]
+    assert not detail["bolting_transfers_member_force_through_combined_section_verified"]
+    assert not detail["satisfied"]
+    assert result["intermediate"]["filler_factor"] == pytest.approx(1 - 0.0154 * 4)
+
+    six_mm = run_connections(
+        bolt(
+            filler_thickness_mm=6,
+            filler_plate_extends_beyond_connection_verified=True,
+            filler_plate_force_transfer_through_combined_section_verified=True,
+        )
+    )
+    assert six_mm["intermediate"]["filler_factor"] == 1
+    assert six_mm["checks"]["filler_plate_detailing"]["satisfied"]
+
+
+@pytest.mark.parametrize("check", [bolt_group_out_of_plane, bolt_group_elastic_3d])
+def test_filler_plate_detailing_is_required_for_bolt_group_checks(check):
+    with pytest.raises(
+        ValueError, match="filler extension and force-transfer bolting must be verified"
+    ):
+        run_connections(check(filler_thickness_mm=10))
+
+    result = run_connections(
+        check(
+            filler_thickness_mm=10,
+            filler_plate_extends_beyond_connection_verified=True,
+            filler_plate_force_transfer_through_combined_section_verified=True,
+        )
+    )
+    assert result["checks"]["filler_plate_detailing"]["satisfied"]
 
 
 def test_bearing_edge_governs():
