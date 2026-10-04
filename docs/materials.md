@@ -48,7 +48,26 @@ class and thickness requirements for AS/NZS 3678 plate. For plate thicker than
 Appendix M assessment, identify its reference and mark it verified. For plate
 16 mm or thinner, the `ZEd` input may be omitted because the thickness exemption
 applies.
-The plugin does not derive `ZEd` or interpret Appendix M's weld-layout diagrams.
+
+Operation `appendix_m_through_thickness_design` calculates the Table M.2 terms
+`Za` through `Ze`, sums them to `ZEd`, and applies the same Clause 2.2.5 material
+class check. Supply the effective weld depth `S` shown in Figure M.2, the Table
+M.2(b) weld-form/sequence case, the plate thickness, remote restraint and
+preheating category. The `verified_applicable` compression basis applies the
+Table M.2 footnote's 50% reduction to `Zc` only; assess whether the material is
+stressed in through-thickness compression due to predominantly static loads.
+
+The operation does not infer `S` from a drawing or decide which diagrammed
+Table M.2(b) case applies. Verify the effective depth, weld form and sequence,
+restraint, preheating and compression-reduction classifications from project
+evidence before selecting them. The supported `table_m2_b_case` values map to
+`Zb` as follows: `t_cruciform_or_corner_diagram_group` = -25;
+`corner_joint_diagram_group_1` = -10; `single_run_or_low_strength_fillet` = -5;
+`multi_run_fillet` = 0;
+`penetration_weld_with_shrinkage_reducing_sequence` = 3;
+`penetration_weld_without_shrinkage_reducing_sequence` = 5; and
+`corner_joint_diagram_group_2` = 8. Match the joint geometry and sequence to the
+figures and descriptions in Table M.2(b). Appendix M is informative guidance.
 
 For material thicker than 16 mm, a `ZEd` value of 10 or less requires no Z
 quality class. Otherwise, the required class is Z15 for `ZEd` 11–20, Z25 for
@@ -57,10 +76,11 @@ a verified material-certificate reference when a class is required. A stronger
 class satisfies a lower threshold. For material 16 mm or thinner, Clause 2.2.5
 does not require Z-quality steel, regardless of the supplied `ZEd`.
 
-Certificate and Appendix M references are recorded but not authenticated. A
-passing result covers only this comparison. Clause 3.8 still requires assessment
-of joint geometry, through-thickness stresses, restraint, welding and detailing;
-the calculation does not establish that lamellar tearing has been avoided.
+Certificate references and Table M.2 classifications are recorded but not
+authenticated. A passing result covers only the calculated table terms and the
+Clause 2.2.5 class comparison. Clause 3.8 still requires assessment of joint
+geometry, through-thickness stresses, restraint, welding and detailing; the
+calculation does not establish that lamellar tearing has been avoided.
 
 Table-value regressions exercise product/form/grade combinations and thickness
 breakpoints. This is a strength lookup, not material certification.

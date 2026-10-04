@@ -14,6 +14,15 @@ from .standards import (
 from .validation import object_schema, validate_standard_strengths
 
 _P = {"type": "number", "exclusiveMinimum": 0, "maximum": 10000}
+_APPENDIX_M_ZB = {
+    "t_cruciform_or_corner_diagram_group": -25,
+    "corner_joint_diagram_group_1": -10,
+    "single_run_or_low_strength_fillet": -5,
+    "multi_run_fillet": 0,
+    "penetration_weld_with_shrinkage_reducing_sequence": 3,
+    "penetration_weld_without_shrinkage_reducing_sequence": 5,
+    "corner_joint_diagram_group_2": 8,
+}
 TABLED_STRENGTH_SCHEMA = object_schema(
     {
         "operation": {"const": "tabulated_strength"},
@@ -50,7 +59,7 @@ THROUGH_THICKNESS_SCHEMA = object_schema(
         "product_standard": {"const": "AS/NZS 3678"},
         "material_thickness_mm": _P,
         "required_design_z_value": {
-            "type": ["integer", "null"],
+            "type": ["number", "null"],
             "minimum": -32,
             "maximum": 43,
         },
@@ -68,6 +77,26 @@ THROUGH_THICKNESS_SCHEMA = object_schema(
         "material_certificate_verified",
         "material_certificate_reference",
     ],
+)
+APPENDIX_M_THROUGH_THICKNESS_SCHEMA = object_schema(
+    {
+        "operation": {"const": "appendix_m_through_thickness_design"},
+        "product_standard": {"const": "AS/NZS 3678"},
+        "material_thickness_mm": _P,
+        "effective_weld_depth_mm": _P,
+        "table_m2_b_case": {"enum": list(_APPENDIX_M_ZB)},
+        "remote_restraint": {"enum": ["low", "medium", "high"]},
+        "preheating_condition": {"enum": ["without_preheating", "at_least_100_c"]},
+        "compression_reduction_basis": {"enum": ["not_applicable", "verified_applicable"]},
+        "effective_weld_depth_assessment_verified": {"const": True},
+        "table_m2_weld_form_case_verified": {"const": True},
+        "remote_restraint_classification_verified": {"const": True},
+        "preheating_condition_verified": {"const": True},
+        "compression_reduction_applicability_verified": {"const": True},
+        "available_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
+        "material_certificate_verified": {"type": "boolean"},
+        "material_certificate_reference": {"type": ["string", "null"], "maxLength": 2000},
+    }
 )
 TABLED_STRENGTH_OUTPUT_SCHEMA = {
     "type": "object",
@@ -131,7 +160,7 @@ _THROUGH_THICKNESS_CHECK = {
     ],
     "properties": {
         "clause": {"const": "2.2.5"},
-        "required_design_z_value": {"type": ["integer", "null"]},
+        "required_design_z_value": {"type": ["number", "null"]},
         "exemption_applies": {"type": "boolean"},
         "required_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
         "available_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
@@ -175,7 +204,7 @@ THROUGH_THICKNESS_OUTPUT_SCHEMA = {
             "properties": {
                 "product_standard": {"const": "AS/NZS 3678"},
                 "material_thickness_mm": {"type": "number", "exclusiveMinimum": 0},
-                "required_design_z_value": {"type": ["integer", "null"]},
+                "required_design_z_value": {"type": ["number", "null"]},
                 "appendix_m_assessment_verified": {"type": "boolean"},
                 "appendix_m_assessment_reference": {"type": ["string", "null"]},
                 "available_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
@@ -183,6 +212,92 @@ THROUGH_THICKNESS_OUTPUT_SCHEMA = {
                 "material_certificate_reference": {"type": ["string", "null"]},
                 "required_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
                 "required_reduction_of_area_percent": {"type": ["number", "null"]},
+            },
+            "additionalProperties": False,
+        },
+        "checks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": _THROUGH_THICKNESS_CHECK,
+        },
+        "checked_conditions_satisfied": {"type": "boolean"},
+        "full_standard_compliance": {"const": False},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+APPENDIX_M_THROUGH_THICKNESS_OUTPUT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "standard",
+        "operation",
+        "clauses",
+        "values",
+        "checks",
+        "checked_conditions_satisfied",
+        "full_standard_compliance",
+        "warnings",
+    ],
+    "properties": {
+        "standard": {"const": "AS 4100:2020"},
+        "operation": {"const": "appendix_m_through_thickness_design"},
+        "clauses": {"const": ["2.2.5", "3.8", "Appendix M.2", "Table M.2"]},
+        "values": {
+            "type": "object",
+            "required": [
+                "product_standard",
+                "material_thickness_mm",
+                "effective_weld_depth_mm",
+                "table_m2_b_case",
+                "remote_restraint",
+                "preheating_condition",
+                "compression_reduction_basis",
+                "z_a",
+                "z_b",
+                "z_c_before_reduction",
+                "z_c_after_reduction",
+                "z_c_reduction_factor",
+                "z_d",
+                "z_e",
+                "required_design_z_value",
+                "effective_weld_depth_assessment_verified",
+                "table_m2_weld_form_case_verified",
+                "remote_restraint_classification_verified",
+                "preheating_condition_verified",
+                "compression_reduction_applicability_verified",
+                "available_z_quality_class",
+                "required_z_quality_class",
+                "required_reduction_of_area_percent",
+                "material_certificate_verified",
+                "material_certificate_reference",
+            ],
+            "properties": {
+                "product_standard": {"const": "AS/NZS 3678"},
+                "material_thickness_mm": {"type": "number", "exclusiveMinimum": 0},
+                "effective_weld_depth_mm": {"type": "number", "exclusiveMinimum": 0},
+                "table_m2_b_case": {"enum": list(_APPENDIX_M_ZB)},
+                "remote_restraint": {"enum": ["low", "medium", "high"]},
+                "preheating_condition": {"enum": ["without_preheating", "at_least_100_c"]},
+                "compression_reduction_basis": {"enum": ["not_applicable", "verified_applicable"]},
+                "z_a": {"type": "number"},
+                "z_b": {"type": "number"},
+                "z_c_before_reduction": {"type": "number"},
+                "z_c_after_reduction": {"type": "number"},
+                "z_c_reduction_factor": {"enum": [0.5, 1.0]},
+                "z_d": {"type": "number"},
+                "z_e": {"type": "number"},
+                "required_design_z_value": {"type": "number", "minimum": -32, "maximum": 43},
+                "effective_weld_depth_assessment_verified": {"const": True},
+                "table_m2_weld_form_case_verified": {"const": True},
+                "remote_restraint_classification_verified": {"const": True},
+                "preheating_condition_verified": {"const": True},
+                "compression_reduction_applicability_verified": {"const": True},
+                "available_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
+                "required_z_quality_class": {"enum": [None, "Z15", "Z25", "Z35"]},
+                "required_reduction_of_area_percent": {"type": ["number", "null"]},
+                "material_certificate_verified": {"type": "boolean"},
+                "material_certificate_reference": {"type": ["string", "null"]},
             },
             "additionalProperties": False,
         },
@@ -225,6 +340,7 @@ INPUT_SCHEMA = {
         TABLED_STRENGTH_SCHEMA,
         DESIGN_PROPERTIES_SCHEMA,
         THROUGH_THICKNESS_SCHEMA,
+        APPENDIX_M_THROUGH_THICKNESS_SCHEMA,
         _UNIDENTIFIED_NO_TEST_SCHEMA,
         _UNIDENTIFIED_TESTED_SCHEMA,
     ]
@@ -291,6 +407,7 @@ OUTPUT_SCHEMA = {
         TABLED_STRENGTH_OUTPUT_SCHEMA,
         DESIGN_PROPERTIES_OUTPUT_SCHEMA,
         THROUGH_THICKNESS_OUTPUT_SCHEMA,
+        APPENDIX_M_THROUGH_THICKNESS_OUTPUT_SCHEMA,
         UNIDENTIFIED_STEEL_OUTPUT_SCHEMA,
     ]
 }
@@ -414,6 +531,8 @@ def run_materials(inputs: Mapping) -> dict:
         return _design_properties()
     if data["operation"] == "through_thickness_deformation":
         return _through_thickness_deformation(data)
+    if data["operation"] == "appendix_m_through_thickness_design":
+        return _appendix_m_through_thickness_design(data)
     if data["operation"] == "unidentified_steel":
         return _unidentified_steel(data)
 
@@ -596,6 +715,112 @@ def _through_thickness_deformation(data: Mapping) -> dict:
             "Assessment references and material certificates are recorded but not authenticated.",
             "Clause 3.8 joint detailing, through-thickness stress and weld-size requirements "
             "still require engineering assessment.",
+        ],
+    }
+    Draft202012Validator(OUTPUT_SCHEMA).validate(result)
+    return result
+
+
+def _appendix_m_through_thickness_design(data: Mapping) -> dict:
+    """Calculate selected Table M.2 terms and apply the Clause 2.2.5 class check."""
+    depth = data["effective_weld_depth_mm"]
+    thickness = data["material_thickness_mm"]
+    z_a = (
+        0
+        if depth <= 7
+        else 3
+        if depth <= 10
+        else 6
+        if depth <= 20
+        else 9
+        if depth <= 30
+        else 12
+        if depth <= 40
+        else 15
+    )
+    z_b = _APPENDIX_M_ZB[data["table_m2_b_case"]]
+    z_c = (
+        2
+        if thickness <= 10
+        else 4
+        if thickness <= 20
+        else 6
+        if thickness <= 30
+        else 8
+        if thickness <= 40
+        else 10
+        if thickness <= 50
+        else 12
+        if thickness <= 60
+        else 15
+    )
+    z_c_factor = 0.5 if data["compression_reduction_basis"] == "verified_applicable" else 1.0
+    z_c_adjusted = z_c * z_c_factor
+    z_d = {"low": 0, "medium": 3, "high": 5}[data["remote_restraint"]]
+    z_e = {"without_preheating": 0, "at_least_100_c": -8}[data["preheating_condition"]]
+    z_ed = z_a + z_b + z_c_adjusted + z_d + z_e
+    quality_result = _through_thickness_deformation(
+        {
+            "product_standard": data["product_standard"],
+            "material_thickness_mm": thickness,
+            "required_design_z_value": z_ed,
+            "appendix_m_assessment_verified": True,
+            "appendix_m_assessment_reference": "Calculated from AS 4100:2020 Table M.2",
+            "available_z_quality_class": data["available_z_quality_class"],
+            "material_certificate_verified": data["material_certificate_verified"],
+            "material_certificate_reference": data["material_certificate_reference"],
+        }
+    )
+    quality_values = quality_result["values"]
+    values = {
+        "product_standard": data["product_standard"],
+        "material_thickness_mm": thickness,
+        "effective_weld_depth_mm": depth,
+        "table_m2_b_case": data["table_m2_b_case"],
+        "remote_restraint": data["remote_restraint"],
+        "preheating_condition": data["preheating_condition"],
+        "compression_reduction_basis": data["compression_reduction_basis"],
+        "z_a": z_a,
+        "z_b": z_b,
+        "z_c_before_reduction": z_c,
+        "z_c_after_reduction": z_c_adjusted,
+        "z_c_reduction_factor": z_c_factor,
+        "z_d": z_d,
+        "z_e": z_e,
+        "required_design_z_value": z_ed,
+        "effective_weld_depth_assessment_verified": data[
+            "effective_weld_depth_assessment_verified"
+        ],
+        "table_m2_weld_form_case_verified": data["table_m2_weld_form_case_verified"],
+        "remote_restraint_classification_verified": data[
+            "remote_restraint_classification_verified"
+        ],
+        "preheating_condition_verified": data["preheating_condition_verified"],
+        "compression_reduction_applicability_verified": data[
+            "compression_reduction_applicability_verified"
+        ],
+        "available_z_quality_class": data["available_z_quality_class"],
+        "required_z_quality_class": quality_values["required_z_quality_class"],
+        "required_reduction_of_area_percent": quality_values["required_reduction_of_area_percent"],
+        "material_certificate_verified": data["material_certificate_verified"],
+        "material_certificate_reference": data["material_certificate_reference"],
+    }
+    result = {
+        "standard": "AS 4100:2020",
+        "operation": "appendix_m_through_thickness_design",
+        "clauses": ["2.2.5", "3.8", "Appendix M.2", "Table M.2"],
+        "values": values,
+        "checks": quality_result["checks"],
+        "checked_conditions_satisfied": quality_result["checked_conditions_satisfied"],
+        "full_standard_compliance": False,
+        "warnings": [
+            "Appendix M is informative guidance; this operation calculates the listed Table M.2 "
+            "terms from the supplied effective depth and verified classifications.",
+            "The effective depth, weld-form/sequence case, restraint, preheat and compression "
+            "reduction assessments are declarations and are not authenticated.",
+            "Clause 3.8 joint geometry, through-thickness stress, welding, fabrication and "
+            "inspection still require project engineering assessment.",
+            "Material certificate evidence is recorded but not authenticated.",
         ],
     }
     Draft202012Validator(OUTPUT_SCHEMA).validate(result)

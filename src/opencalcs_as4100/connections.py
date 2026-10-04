@@ -344,6 +344,28 @@ FIELDS = {
         "qualified_matching_consumable": {"const": True},
         "action_kn": N,
     },
+    "incomplete_butt_design": {
+        "weld_strength_mpa": P,
+        "quality": QUALITY,
+        "preparation_type": {"enum": ["single_v", "double_v"]},
+        "preparation_depth_mm": P,
+        "double_v_preparation_depths_mm": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": P,
+        },
+        "preparation_angle_deg": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 180,
+        },
+        "continuous_full_size_weld_length_mm": P,
+        "thin_rhs_longitudinal": BOOL,
+        "non_prequalified_v_preparation_verified": {"const": True},
+        "welding_procedure_and_consumable_basis_verified": {"const": True},
+        "action_kn": N,
+    },
     "plug_slot": {
         "weld_strength_mpa": P,
         "effective_area_mm2": P,
@@ -724,6 +746,7 @@ OPTIONAL_FIELDS = {
     "bolt_group_elastic_3d": FILLER_PLATE_OPTIONAL_FIELDS,
     "slip": SLIP_SURFACE_OPTIONAL_FIELDS,
     "slip_factor_test": SLIP_FACTOR_TEST_OPTIONAL_FIELDS,
+    "incomplete_butt_design": ("preparation_depth_mm", "double_v_preparation_depths_mm"),
     "minimum_beam_shear_action": (
         "reaction_shear_direction_unit_vector",
         "reaction_shear_eccentricity_vector_mm",
@@ -2316,6 +2339,52 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "effective_area_mm2": effective_area,
             **strength_intermediate,
         }
+    elif k == "incomplete_butt_design":
+        has_single_v_depth = "preparation_depth_mm" in d
+        has_double_v_depths = "double_v_preparation_depths_mm" in d
+        if d["preparation_type"] == "single_v":
+            if not has_single_v_depth or has_double_v_depths:
+                raise ValueError("Single-V preparation requires only preparation_depth_mm.")
+            preparation_depth = d["preparation_depth_mm"]
+        else:
+            if has_single_v_depth or not has_double_v_depths:
+                raise ValueError("Double-V preparation requires only two double-V depth values.")
+            preparation_depth = sum(d["double_v_preparation_depths_mm"])
+        throat_reduction_per_side = 3 if d["preparation_angle_deg"] <= 60 else 0
+        throat_reduction = throat_reduction_per_side * (
+            2 if d["preparation_type"] == "double_v" else 1
+        )
+        throat = preparation_depth - throat_reduction
+        if throat <= 0:
+            raise ValueError("Preparation geometry must produce a positive design throat.")
+        length = d["continuous_full_size_weld_length_mm"]
+        weld_data = {
+            "weld_strength_mpa": d["weld_strength_mpa"],
+            "quality": d["quality"],
+            "thin_rhs_longitudinal": d["thin_rhs_longitudinal"],
+            "lap_length_mm": 0,
+            "action_kn": d["action_kn"],
+        }
+        throat_clause = (
+            "9.6.2.3(b)(ii)(A)" if d["preparation_angle_deg"] <= 60 else "9.6.2.3(b)(ii)(B)"
+        )
+        clause = f"{throat_clause}; 9.6.2.4; 9.6.2.5; 9.6.2.7(c); 9.6.3.10"
+        strength_check, strength_intermediate = _fillet_strength_check(
+            weld_data, throat, length, clause
+        )
+        c["weld_strength"] = {"clause": clause, **strength_check}
+        intermediate = {
+            "preparation_type": f"non_prequalified_{d['preparation_type']}",
+            "preparation_depth_mm": d.get("preparation_depth_mm"),
+            "double_v_preparation_depths_mm": d.get("double_v_preparation_depths_mm"),
+            "combined_preparation_depth_mm": preparation_depth,
+            "preparation_angle_deg": d["preparation_angle_deg"],
+            "total_throat_reduction_mm": throat_reduction,
+            "design_throat_mm": throat,
+            "effective_length_mm": length,
+            "effective_area_mm2": throat * length,
+            **strength_intermediate,
+        }
     elif k in {"fillet", "complete_butt", "plug_slot"}:
         phi = 0.8 if d["quality"] == "SP" else 0.6
         if k == "fillet":
@@ -2419,6 +2488,17 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "Equation J.1. The declared specimen, calibration, instrumentation and test-procedure "
             "evidence is not authenticated; laboratory compliance and surface classification "
             "remain subject to engineering review."
+        )
+    elif k == "incomplete_butt_design":
+        scope = (
+            "Clause 9.6.2.3(b)(ii)(A)–(B) throat formulas for non-prequalified single-V and "
+            "double-V welds on either side of the 60-degree preparation-angle threshold; effective "
+            "length and area under 9.6.2.4–5; strength "
+            "under 9.6.2.7(c)/9.6.3.10. The supplied preparation classification, dimensions, "
+            "welding procedure, consumable strength, quality and any thin-RHS condition require "
+            "project evidence. Prequalified preparations, other preparation forms, macro-test "
+            "throat increases, fatigue quality, inspection and complete connection "
+            "design are outside this operation."
         )
     elif k in MINIMUM_ACTION_CHECKS:
         scope = (

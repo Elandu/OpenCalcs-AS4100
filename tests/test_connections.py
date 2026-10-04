@@ -1593,6 +1593,108 @@ def test_complete_butt(quality, expected):
     assert r["checks"]["weld"]["design_capacity_kn"] == expected
 
 
+def incomplete_butt_design(**changes):
+    inputs = {
+        "check_type": "incomplete_butt_design",
+        "weld_strength_mpa": 490,
+        "quality": "SP",
+        "preparation_type": "single_v",
+        "preparation_depth_mm": 12,
+        "preparation_angle_deg": 60,
+        "continuous_full_size_weld_length_mm": 200,
+        "thin_rhs_longitudinal": False,
+        "non_prequalified_v_preparation_verified": True,
+        "welding_procedure_and_consumable_basis_verified": True,
+        "action_kn": 423.36,
+    }
+    inputs.update(changes)
+    if inputs.get("preparation_depth_mm") is None:
+        inputs.pop("preparation_depth_mm")
+    return run_connections(inputs)
+
+
+def test_incomplete_butt_design_hand_benchmark():
+    result = incomplete_butt_design()
+    weld = result["checks"]["weld_strength"]
+    intermediate = result["intermediate"]
+    assert intermediate["preparation_type"] == "non_prequalified_single_v"
+    assert intermediate["total_throat_reduction_mm"] == 3
+    assert intermediate["design_throat_mm"] == pytest.approx(9)
+    assert intermediate["effective_length_mm"] == 200
+    assert intermediate["effective_area_mm2"] == pytest.approx(1800)
+    assert weld["nominal_capacity_kn"] == pytest.approx(529.2)
+    assert weld["capacity_factor"] == 0.8
+    assert weld["design_capacity_kn"] == pytest.approx(423.36)
+    assert weld["utilisation"] == pytest.approx(1)
+    assert weld["satisfied"]
+    assert "9.6.2.3(b)(ii)(A)" in weld["clause"]
+    assert "9.6.2.7(c)" in weld["clause"]
+    assert not incomplete_butt_design(action_kn=423.3601)["checks"]["weld_strength"]["satisfied"]
+
+
+def test_incomplete_butt_design_rejects_unsupported_geometry_and_evidence():
+    with pytest.raises(ValueError):
+        incomplete_butt_design(preparation_depth_mm=3)
+    with pytest.raises(ValueError):
+        incomplete_butt_design(non_prequalified_v_preparation_verified=False)
+    with pytest.raises(ValueError):
+        incomplete_butt_design(welding_procedure_and_consumable_basis_verified=False)
+    with pytest.raises(ValueError, match="Single-V preparation"):
+        incomplete_butt_design(double_v_preparation_depths_mm=[8, 7])
+    with pytest.raises(ValueError, match="Double-V preparation"):
+        incomplete_butt_design(preparation_type="double_v")
+    with pytest.raises(ValueError):
+        incomplete_butt_design(preparation_angle_deg=180.001)
+
+
+def test_incomplete_butt_design_single_v_greater_than_60_degrees_uses_full_depth():
+    result = incomplete_butt_design(preparation_angle_deg=60.001)
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+    assert intermediate["design_throat_mm"] == 12
+    assert intermediate["total_throat_reduction_mm"] == 0
+    assert intermediate["effective_area_mm2"] == 2400
+    assert weld["design_capacity_kn"] == pytest.approx(564.48)
+    assert "9.6.2.3(b)(ii)(B)" in weld["clause"]
+
+
+@pytest.mark.parametrize(
+    "angle,expected_throat,expected_capacity",
+    [(60, 9, 423.36), (60.001, 15, 705.6)],
+)
+def test_incomplete_butt_design_double_v_throat_at_angle_boundary(
+    angle, expected_throat, expected_capacity
+):
+    result = incomplete_butt_design(
+        preparation_type="double_v",
+        preparation_depth_mm=None,
+        double_v_preparation_depths_mm=[8, 7],
+        preparation_angle_deg=angle,
+        action_kn=400,
+    )
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+    assert intermediate["preparation_depth_mm"] is None
+    assert intermediate["combined_preparation_depth_mm"] == 15
+    assert intermediate["design_throat_mm"] == expected_throat
+    assert intermediate["effective_area_mm2"] == expected_throat * 200
+    assert weld["design_capacity_kn"] == pytest.approx(expected_capacity)
+    assert weld["satisfied"]
+    expected_clause = "(A)" if angle == 60 else "(B)"
+    assert f"9.6.2.3(b)(ii){expected_clause}" in weld["clause"]
+
+
+def test_incomplete_butt_design_applies_thin_rhs_quality_factor_route():
+    result = incomplete_butt_design(thin_rhs_longitudinal=True, action_kn=300)
+    weld = result["checks"]["weld_strength"]
+    assert weld["capacity_factor"] == 0.7
+    assert weld["design_capacity_kn"] == pytest.approx(370.44)
+    assert weld["satisfied"]
+
+    with pytest.raises(ValueError, match="SP quality"):
+        incomplete_butt_design(quality="GP", thin_rhs_longitudinal=True)
+
+
 def test_plug_slot():
     r = run_connections(
         {

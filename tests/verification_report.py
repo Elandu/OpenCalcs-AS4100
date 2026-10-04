@@ -33,6 +33,38 @@ def fillet(length):
     )["checks"]["weld"]["design_capacity_kn"]
 
 
+def incomplete_butt_weld():
+    result = run_connections(
+        {
+            "check_type": "incomplete_butt_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "preparation_type": "single_v",
+            "preparation_depth_mm": 12,
+            "preparation_angle_deg": 60,
+            "continuous_full_size_weld_length_mm": 200,
+            "thin_rhs_longitudinal": False,
+            "non_prequalified_v_preparation_verified": True,
+            "welding_procedure_and_consumable_basis_verified": True,
+            "action_kn": 423.36,
+        }
+    )
+    intermediate = result["intermediate"]
+    strength = result["checks"]["weld_strength"]
+    expected = {
+        "design_throat_mm": 9,
+        "effective_area_mm2": 1800,
+        "nominal_capacity_kn": 529.2,
+        "design_capacity_kn": 423.36,
+    }
+    for name, value in expected.items():
+        observed = strength[name] if name.endswith("capacity_kn") else intermediate[name]
+        expect_close(observed, value)
+    if not strength["satisfied"]:
+        raise AssertionError("Clause 9.6.2 incomplete butt weld benchmark failed")
+    return expected
+
+
 def stiffener(**changes):
     return {
         "operation": "load_bearing_stiffener",
@@ -189,6 +221,37 @@ def clause_2_2_5_z_quality():
     if insufficient["checked_conditions_satisfied"]:
         raise AssertionError("Clause 2.2.5 accepted an insufficient Z-quality class")
     return {"required_class_at_zed_21": check["required_z_quality_class"], "Z15_rejected": True}
+
+
+def appendix_m_table_m2_z_quality():
+    result = run_materials(
+        {
+            "operation": "appendix_m_through_thickness_design",
+            "product_standard": "AS/NZS 3678",
+            "material_thickness_mm": 45,
+            "effective_weld_depth_mm": 25,
+            "table_m2_b_case": "multi_run_fillet",
+            "remote_restraint": "high",
+            "preheating_condition": "without_preheating",
+            "compression_reduction_basis": "not_applicable",
+            "effective_weld_depth_assessment_verified": True,
+            "table_m2_weld_form_case_verified": True,
+            "remote_restraint_classification_verified": True,
+            "preheating_condition_verified": True,
+            "compression_reduction_applicability_verified": True,
+            "available_z_quality_class": "Z25",
+            "material_certificate_verified": True,
+            "material_certificate_reference": "MILL-CERT-M2-01",
+        }
+    )
+    values = result["values"]
+    terms = {"z_a": 9, "z_b": 0, "z_c_after_reduction": 10, "z_d": 5, "z_e": 0}
+    for name, expected in terms.items():
+        expect_close(values[name], expected)
+    expect_close(values["required_design_z_value"], 24)
+    if values["required_z_quality_class"] != "Z25" or not result["checked_conditions_satisfied"]:
+        raise AssertionError("Appendix M.2 ZEd=24 did not pass the supplied Z25 material class")
+    return {**terms, "required_design_z_value": 24, "required_z_quality_class": "Z25"}
 
 
 def clause_14_3_2_hole_sizes_and_use():
@@ -1451,12 +1514,14 @@ def main():
         "fillet_lap_1700_mm": lambda: expect_close(fillet(1700), 98.784),
         "fillet_lap_8000_mm": lambda: expect_close(fillet(8000), 61.24608),
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),
+        "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "mixed_stiffener_contact_and_outstand": mixed_stiffener,
         "zero_restrained_flanges": zero_restrained_flanges,
         "yield_above_690_mpa": over_scope_yield,
         "clause_2_2_3_unidentified_steel_limits": unidentified_steel_limits,
         "clause_2_2_4_standard_properties": clause_2_2_4_properties,
         "clause_2_2_5_through_thickness_quality": clause_2_2_5_z_quality,
+        "appendix_m_table_m2_z_quality": appendix_m_table_m2_z_quality,
         "clause_14_3_2_hole_sizes_and_use": clause_14_3_2_hole_sizes_and_use,
         "clause_14_fabrication_procedure_and_tolerances": (
             clause_14_fabrication_procedure_and_tolerances

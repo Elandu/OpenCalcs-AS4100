@@ -147,6 +147,159 @@ def through_thickness(**overrides):
     return run_materials(inputs)
 
 
+def appendix_m_through_thickness(**overrides):
+    inputs = {
+        "operation": "appendix_m_through_thickness_design",
+        "product_standard": "AS/NZS 3678",
+        "material_thickness_mm": 45,
+        "effective_weld_depth_mm": 25,
+        "table_m2_b_case": "multi_run_fillet",
+        "remote_restraint": "high",
+        "preheating_condition": "without_preheating",
+        "compression_reduction_basis": "not_applicable",
+        "effective_weld_depth_assessment_verified": True,
+        "table_m2_weld_form_case_verified": True,
+        "remote_restraint_classification_verified": True,
+        "preheating_condition_verified": True,
+        "compression_reduction_applicability_verified": True,
+        "available_z_quality_class": "Z25",
+        "material_certificate_verified": True,
+        "material_certificate_reference": "MILL-CERT-4100-01",
+    }
+    inputs.update(overrides)
+    return run_materials(inputs)
+
+
+def test_appendix_m_table_m2_hand_benchmark_feeds_clause_2_2_5():
+    result = appendix_m_through_thickness()
+    values = result["values"]
+    assert result["clauses"] == ["2.2.5", "3.8", "Appendix M.2", "Table M.2"]
+    assert [values[name] for name in ("z_a", "z_b", "z_c_after_reduction", "z_d", "z_e")] == [
+        9,
+        0,
+        10,
+        5,
+        0,
+    ]
+    assert values["required_design_z_value"] == 24
+    assert values["required_z_quality_class"] == "Z25"
+    assert values["required_reduction_of_area_percent"] == 25
+    assert result["checks"][0]["clause"] == "2.2.5"
+    assert result["checked_conditions_satisfied"]
+    assert result["full_standard_compliance"] is False
+
+    insufficient = appendix_m_through_thickness(available_z_quality_class="Z15")
+    assert not insufficient["checks"][0]["class_sufficient"]
+    assert not insufficient["checked_conditions_satisfied"]
+
+
+@pytest.mark.parametrize(
+    "depth,expected",
+    [
+        (7, 0),
+        (7.001, 3),
+        (10, 3),
+        (10.001, 6),
+        (20, 6),
+        (20.001, 9),
+        (30, 9),
+        (30.001, 12),
+        (40, 12),
+        (40.001, 15),
+        (60, 15),
+    ],
+)
+def test_appendix_m_weld_depth_table_boundaries(depth, expected):
+    values = appendix_m_through_thickness(
+        effective_weld_depth_mm=depth,
+        material_thickness_mm=10,
+        remote_restraint="low",
+    )["values"]
+    assert values["z_a"] == expected
+
+
+@pytest.mark.parametrize(
+    "thickness,expected",
+    [
+        (10, 2),
+        (10.001, 4),
+        (20, 4),
+        (20.001, 6),
+        (30, 6),
+        (30.001, 8),
+        (40, 8),
+        (40.001, 10),
+        (50, 10),
+        (50.001, 12),
+        (60, 12),
+        (60.001, 15),
+        (100, 15),
+    ],
+)
+def test_appendix_m_thickness_table_boundaries(thickness, expected):
+    values = appendix_m_through_thickness(
+        material_thickness_mm=thickness,
+        effective_weld_depth_mm=7,
+        remote_restraint="low",
+    )["values"]
+    assert values["z_c_before_reduction"] == expected
+
+
+@pytest.mark.parametrize(
+    "case,expected",
+    [
+        ("t_cruciform_or_corner_diagram_group", -25),
+        ("corner_joint_diagram_group_1", -10),
+        ("single_run_or_low_strength_fillet", -5),
+        ("multi_run_fillet", 0),
+        ("penetration_weld_with_shrinkage_reducing_sequence", 3),
+        ("penetration_weld_without_shrinkage_reducing_sequence", 5),
+        ("corner_joint_diagram_group_2", 8),
+    ],
+)
+def test_appendix_m_weld_form_and_sequence_table_cases(case, expected):
+    values = appendix_m_through_thickness(
+        table_m2_b_case=case,
+        material_thickness_mm=10,
+        effective_weld_depth_mm=7,
+        remote_restraint="low",
+    )["values"]
+    assert values["z_b"] == expected
+
+
+def test_appendix_m_restraint_preheat_and_compression_reduction():
+    restrained = appendix_m_through_thickness(remote_restraint="medium")
+    assert restrained["values"]["z_d"] == 3
+    preheated = appendix_m_through_thickness(preheating_condition="at_least_100_c")
+    assert preheated["values"]["z_e"] == -8
+    reduced = appendix_m_through_thickness(compression_reduction_basis="verified_applicable")
+    assert reduced["values"]["z_c_before_reduction"] == 10
+    assert reduced["values"]["z_c_after_reduction"] == 5
+    assert reduced["values"]["required_design_z_value"] == 19
+    assert reduced["values"]["required_z_quality_class"] == "Z15"
+
+    reduced_top_thickness = appendix_m_through_thickness(
+        material_thickness_mm=70,
+        compression_reduction_basis="verified_applicable",
+    )
+    assert reduced_top_thickness["values"]["z_c_after_reduction"] == 7.5
+    assert reduced_top_thickness["values"]["required_design_z_value"] == 21.5
+    assert reduced_top_thickness["values"]["required_z_quality_class"] == "Z25"
+
+
+def test_appendix_m_requires_verified_table_classifications():
+    with pytest.raises(ValueError):
+        appendix_m_through_thickness(effective_weld_depth_assessment_verified=False)
+    with pytest.raises(ValueError):
+        appendix_m_through_thickness(table_m2_weld_form_case_verified=False)
+    with pytest.raises(ValueError):
+        appendix_m_through_thickness(remote_restraint_classification_verified=False)
+    with pytest.raises(ValueError):
+        appendix_m_through_thickness(preheating_condition_verified=False)
+    with pytest.raises(ValueError):
+        appendix_m_through_thickness(compression_reduction_applicability_verified=False)
+
+
 @pytest.mark.parametrize(
     "z_ed,required_class,reduction_area,available_class",
     [

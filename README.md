@@ -8,7 +8,7 @@ an engineering assessment supported by evidence.
 
 | Calculation ID suffix | Scope |
 | --- | --- |
-| `materials` | Table 2.1 strength lookups; Clauses 2.2.3, 2.2.4 and 2.2.5 material checks, including assessed through-thickness Z demand versus Z-quality class. |
+| `materials` | Table 2.1 strength lookups; Clauses 2.2.3 and 2.2.4, Clause 2.2.5 Z-quality comparison, and Appendix M.2 Table M.2 `ZEd` calculation linked to the Clause 2.2.5 class check. |
 | `section_analysis` | Axial tension and compression section capacities (7.2, 6.2.1). |
 | `member_design` | Plate slenderness, 5.2.6 net/gross section modulus selection for fastener holes, compression, selected bending, flat-web and CHS shear, selected flange-restraint enhancement and Clause 5.12.2 proportioning, combined actions and tension distribution. |
 | `advanced_members` | Selected full-restraint length limits, critical-section/flange checks, variable/built-up member, buckling-analysis, plastic, restraint, separator/diaphragm, lacing, batten and pin/angle geometry checks. |
