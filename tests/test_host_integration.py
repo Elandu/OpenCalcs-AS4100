@@ -736,3 +736,29 @@ def test_extended_family_successful_http_execution(suffix, inputs):
             assert response.json()["values"]["effective_modulus_mm3"] == pytest.approx(
                 100000 * (115 / 120) ** 2
             )
+
+
+def test_hollow_section_truss_stress_range_http_execution():
+    with TestClient(create_app(authenticator=AllowAllAuthenticator())) as client:
+        response = client.post(
+            "/api/v1/calculations/structural.as4100.durability/run",
+            json={
+                "inputs": {
+                    "check_type": "hollow_section_truss_stress_range",
+                    "hollow_section_form": "RHS",
+                    "joint_type": "gap",
+                    "joint_configuration": "N",
+                    "member_role": "vertical",
+                    "unadjusted_stress_range_mpa": 50,
+                    "fillet_weld_used": True,
+                    "fillet_weld_throat_mm": 6,
+                    "connected_member_wall_thickness_mm": 5,
+                    "clause_11_3_1_applicability_verified": True,
+                    "member_stress_range_source_verified": True,
+                }
+            },
+        )
+    assert response.status_code == 200, response.text
+    assert response.json()["results"]["stress_range_factor"] == 2.2
+    assert response.json()["results"]["adjusted_stress_range_mpa"] == pytest.approx(110)
+    assert response.json()["results"]["fillet_weld_throat_check"]["satisfied"]

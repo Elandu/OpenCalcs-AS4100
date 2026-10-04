@@ -32,6 +32,69 @@ def result(d):
     return output["results"]
 
 
+def hollow_truss_range(**changes):
+    return {
+        "check_type": "hollow_section_truss_stress_range",
+        "hollow_section_form": "CHS",
+        "joint_type": "gap",
+        "joint_configuration": "K",
+        "member_role": "diagonal",
+        "unadjusted_stress_range_mpa": 100,
+        "fillet_weld_used": True,
+        "fillet_weld_throat_mm": 6,
+        "connected_member_wall_thickness_mm": 5,
+        "clause_11_3_1_applicability_verified": True,
+        "member_stress_range_source_verified": True,
+        **changes,
+    }
+
+
+@pytest.mark.parametrize(
+    "section_form,joint_type,configuration,factors",
+    [
+        ("CHS", "gap", "K", [1.5, 1.0, 1.3]),
+        ("CHS", "gap", "N", [1.5, 1.8, 1.4]),
+        ("CHS", "overlap", "K", [1.5, 1.0, 1.2]),
+        ("CHS", "overlap", "N", [1.5, 1.65, 1.25]),
+        ("RHS", "gap", "K", [1.5, 1.0, 1.5]),
+        ("RHS", "gap", "N", [1.5, 2.2, 1.6]),
+        ("RHS", "overlap", "K", [1.5, 1.0, 1.3]),
+        ("RHS", "overlap", "N", [1.5, 2.0, 1.4]),
+    ],
+)
+def test_clause_11_3_1_hollow_section_truss_table_factors(
+    section_form, joint_type, configuration, factors
+):
+    roles = ["chord", "vertical", "diagonal"]
+    for role, factor in zip(roles, factors, strict=True):
+        values = result(
+            hollow_truss_range(
+                hollow_section_form=section_form,
+                joint_type=joint_type,
+                joint_configuration=configuration,
+                member_role=role,
+                unadjusted_stress_range_mpa=50,
+            )
+        )
+        assert values["stress_range_factor"] == factor
+        assert values["adjusted_stress_range_mpa"] == pytest.approx(50 * factor)
+
+
+def test_clause_11_3_1_filleted_joint_throat_must_exceed_wall_thickness():
+    inputs = hollow_truss_range(fillet_weld_throat_mm=5)
+    values = result(inputs)
+    assert not values["fillet_weld_throat_check"]["satisfied"]
+    assert result(hollow_truss_range(fillet_weld_throat_mm=5.01))["fillet_weld_throat_check"][
+        "satisfied"
+    ]
+    no_fillet = result(hollow_truss_range(fillet_weld_used=False))
+    assert no_fillet["fillet_weld_throat_check"] is None
+    missing_weld_dimensions = hollow_truss_range()
+    missing_weld_dimensions.pop("fillet_weld_throat_mm")
+    with pytest.raises(ValueError, match="design throat"):
+        result(missing_weld_dimensions)
+
+
 def test_d01_reference_normal_and_shear():
     for stress in ["normal", "shear"]:
         r = result(fatigue(stress=stress))

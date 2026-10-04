@@ -8,6 +8,12 @@ page images are not included in this package.
 
 ## Supported numerical checks
 
+- `hollow_section_truss_stress_range`: Table 11.3.1(A)/(B) factors for gap/overlap
+  CHS and RHS K/N joints, selected by chord/vertical/diagonal member role.
+  Multiplies a supplied unadjusted member stress range and checks the Clause
+  11.3.1(c) requirement that fillet-weld design throat exceed connected-member
+  wall thickness. The member stress analysis, fatigue category, cycle spectrum,
+  joint applicability and connection resistance remain separate checks.
 - `fatigue_constant`: normal stress S–N slopes 3/5 and shear slope 5
   (11.6), explicit thickness correction (11.1.6), capacity factor (11.1.5),
   stress limits (11.1.3), exemption below the normal constant-amplitude limit

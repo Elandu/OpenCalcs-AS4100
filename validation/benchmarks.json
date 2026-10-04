@@ -4,6 +4,27 @@
   "passed": true,
   "cases": [
     {
+      "name": "Table 11.3.1(B) RHS gap N-joint vertical stress-range factor",
+      "actual": 2.2,
+      "expected": 2.2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 11.3.1 adjusted stress range, hand arithmetic",
+      "actual": 110.00000000000001,
+      "expected": 110,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 11.3.1(c) fillet throat exceeds connected wall",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "7.2 axial tension, hand arithmetic",
       "actual": 367.20000000000005,
       "expected": 367.2,

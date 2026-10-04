@@ -302,6 +302,31 @@ INPUT_SCHEMA = {
             },
         ),
         _operation(
+            "hollow_section_truss_stress_range",
+            {
+                "hollow_section_form": {"enum": ["CHS", "RHS"]},
+                "joint_type": {"enum": ["gap", "overlap"]},
+                "joint_configuration": {"enum": ["K", "N"]},
+                "member_role": {"enum": ["chord", "vertical", "diagonal"]},
+                "unadjusted_stress_range_mpa": _number(),
+                "fillet_weld_used": _BOOL,
+                "fillet_weld_throat_mm": _POS,
+                "connected_member_wall_thickness_mm": _POS,
+                "clause_11_3_1_applicability_verified": {"const": True},
+                "member_stress_range_source_verified": {"const": True},
+            },
+            required=[
+                "hollow_section_form",
+                "joint_type",
+                "joint_configuration",
+                "member_role",
+                "unadjusted_stress_range_mpa",
+                "fillet_weld_used",
+                "clause_11_3_1_applicability_verified",
+                "member_stress_range_source_verified",
+            ],
+        ),
+        _operation(
             "fire_material",
             {
                 "temperature_c": _number(0, 905, True),
@@ -517,6 +542,27 @@ _RESULT_SCHEMAS = {
         ["corrected_constant_amplitude_limit_mpa"],
     ),
     "fatigue_exemption": _result_schema({"assessment_exempt": _BOOL}),
+    "hollow_section_truss_stress_range": _result_schema(
+        {
+            "stress_range_factor": _POS,
+            "unadjusted_stress_range_mpa": _NUM,
+            "adjusted_stress_range_mpa": _NUM,
+            "fillet_weld_throat_check": {
+                "type": ["object", "null"],
+                "additionalProperties": False,
+                "properties": {
+                    "design_throat_mm": _POS,
+                    "connected_member_wall_thickness_mm": _POS,
+                    "satisfied": _BOOL,
+                },
+                "required": [
+                    "design_throat_mm",
+                    "connected_member_wall_thickness_mm",
+                    "satisfied",
+                ],
+            },
+        }
+    ),
     "fire_material": _result_schema(
         {
             key: _NUM
@@ -864,6 +910,64 @@ def _fatigue(d):
             check_satisfied=(damage <= 1 or exempt) and punched_ok,
         )
     return base, ["11.1.3", "11.1.5", "11.1.6", "11.6", "11.7", "11.8", "11.9"], warnings
+
+
+_HOLLOW_TRUSS_STRESS_RANGE_FACTORS = {
+    "CHS": {
+        "gap": {
+            "K": {"chord": 1.5, "vertical": 1.0, "diagonal": 1.3},
+            "N": {"chord": 1.5, "vertical": 1.8, "diagonal": 1.4},
+        },
+        "overlap": {
+            "K": {"chord": 1.5, "vertical": 1.0, "diagonal": 1.2},
+            "N": {"chord": 1.5, "vertical": 1.65, "diagonal": 1.25},
+        },
+    },
+    "RHS": {
+        "gap": {
+            "K": {"chord": 1.5, "vertical": 1.0, "diagonal": 1.5},
+            "N": {"chord": 1.5, "vertical": 2.2, "diagonal": 1.6},
+        },
+        "overlap": {
+            "K": {"chord": 1.5, "vertical": 1.0, "diagonal": 1.3},
+            "N": {"chord": 1.5, "vertical": 2.0, "diagonal": 1.4},
+        },
+    },
+}
+
+
+def _hollow_section_truss_stress_range(d):
+    factor = _HOLLOW_TRUSS_STRESS_RANGE_FACTORS[d["hollow_section_form"]][d["joint_type"]][
+        d["joint_configuration"]
+    ][d["member_role"]]
+    weld_check = None
+    if d["fillet_weld_used"]:
+        if "fillet_weld_throat_mm" not in d or "connected_member_wall_thickness_mm" not in d:
+            raise ValueError(
+                "Fillet-welded hollow-section joints require design throat and connected wall "
+                "thickness inputs under Clause 11.3.1(c)."
+            )
+        weld_check = {
+            "design_throat_mm": d["fillet_weld_throat_mm"],
+            "connected_member_wall_thickness_mm": d["connected_member_wall_thickness_mm"],
+            "satisfied": d["fillet_weld_throat_mm"] > d["connected_member_wall_thickness_mm"],
+        }
+    warnings = [
+        "Supply the unadjusted member stress range from a verified analysis. This operation does "
+        "not calculate stress range, fatigue detail category, cycles or fatigue life.",
+        "Applicability, joint configuration and member role declarations require engineering "
+        "evidence; separate connection resistance and fatigue checks remain necessary.",
+    ]
+    return (
+        {
+            "stress_range_factor": factor,
+            "unadjusted_stress_range_mpa": d["unadjusted_stress_range_mpa"],
+            "adjusted_stress_range_mpa": factor * d["unadjusted_stress_range_mpa"],
+            "fillet_weld_throat_check": weld_check,
+        },
+        ["11.3.1"],
+        warnings,
+    )
 
 
 _TEMPERATURES = {
@@ -1286,7 +1390,9 @@ def _run_durability(inputs):
         raise ValueError("All numerical inputs must be finite.")
     op = d["check_type"]
     warnings = []
-    if op in {"fatigue_constant", "fatigue_variable"}:
+    if op == "hollow_section_truss_stress_range":
+        result, clauses, warnings = _hollow_section_truss_stress_range(d)
+    elif op in {"fatigue_constant", "fatigue_variable"}:
         result, clauses, warnings = _fatigue(d)
     elif op == "fatigue_exemption":
         phi = _phi(d)

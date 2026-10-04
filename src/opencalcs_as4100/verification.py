@@ -30,6 +30,37 @@ def verify():
             }
         )
 
+    truss_stress_range = run_durability(
+        {
+            "check_type": "hollow_section_truss_stress_range",
+            "hollow_section_form": "RHS",
+            "joint_type": "gap",
+            "joint_configuration": "N",
+            "member_role": "vertical",
+            "unadjusted_stress_range_mpa": 50,
+            "fillet_weld_used": True,
+            "fillet_weld_throat_mm": 6,
+            "connected_member_wall_thickness_mm": 5,
+            "clause_11_3_1_applicability_verified": True,
+            "member_stress_range_source_verified": True,
+        }
+    )["results"]
+    record(
+        "Table 11.3.1(B) RHS gap N-joint vertical stress-range factor",
+        truss_stress_range["stress_range_factor"],
+        2.2,
+    )
+    record(
+        "Clause 11.3.1 adjusted stress range, hand arithmetic",
+        truss_stress_range["adjusted_stress_range_mpa"],
+        110,
+    )
+    record(
+        "Clause 11.3.1(c) fillet throat exceeds connected wall",
+        int(truss_stress_range["fillet_weld_throat_check"]["satisfied"]),
+        1,
+    )
+
     axial = run_analysis(
         {
             "gross_area_mm2": 2000,
