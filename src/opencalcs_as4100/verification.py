@@ -136,6 +136,121 @@ def verify():
         slender_gradient["values"]["effective_modulus_mm3"],
         100000 * (115 / 120) ** 2,
     )
+    top_flange_holes = run_connections(
+        {
+            "check_type": "hole_deduction",
+            "gross_area_mm2": 1000,
+            "thickness_mm": 10,
+            "straight_hole_width_sum_mm": 20,
+            "zigzag_hole_width_sum_mm": 0,
+            "stagger_pairs": [],
+        }
+    )
+    net_i_section = run_members(
+        {
+            "operation": "section_moduli",
+            "method": "net_section",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 400,
+            "gross_area_mm2": 4800,
+            "gross_web_area_mm2": 2800,
+            "gross_flange_areas_mm2": [1000, 1000],
+            "net_flange_areas_mm2": [top_flange_holes["intermediate"]["net_area_mm2"], 1000],
+            "gross_elastic_modulus_mm3": 402400,
+            "gross_plastic_modulus_mm3": 486000,
+            "net_i_section_geometry": {
+                "overall_depth_mm": 300,
+                "flange_thickness_mm": 10,
+                "web_thickness_mm": 10,
+                "bending_axis": "major",
+                "symmetric_sharp_corner_i_section_verified": True,
+                "flange_only_holes_verified": True,
+                "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
+            },
+        }
+    )
+    net_properties = net_i_section["values"]["net_section_properties"]
+    record(
+        "Clause 9.1.10 single-hole flange net area",
+        top_flange_holes["intermediate"]["net_area_mm2"],
+        800,
+    )
+    record(
+        "Clause 5.2.6(b) net I-section centroid from top",
+        net_properties["centroid_from_top_mm"],
+        156.30434782608697,
+        1e-9,
+    )
+    record(
+        "Clause 5.2.6(b) net I-section plastic neutral axis in web",
+        net_properties["plastic_neutral_axis_from_top_mm"],
+        160,
+    )
+    record(
+        "Clause 5.2.6(b) net I-section second moment",
+        net_properties["second_moment_of_area_mm4"],
+        55970507.24637682,
+        1e-6,
+    )
+    record(
+        "Clause 5.2.6(b) top elastic modulus",
+        net_properties["elastic_modulus_top_mm3"],
+        358086.6944830784,
+        1e-7,
+    )
+    record(
+        "Clause 5.2.6(b) bottom elastic modulus",
+        net_properties["elastic_modulus_bottom_mm3"],
+        389507.3121533032,
+        1e-7,
+    )
+    record("Clause 5.2.6(b) net plastic modulus", net_properties["plastic_modulus_mm3"], 456000)
+    record(
+        "Clause 5.2.6(b) selects the lower extreme-fibre elastic modulus",
+        net_i_section["values"]["elastic_modulus_mm3"],
+        358086.6944830784,
+        1e-7,
+    )
+    plastic_axis_in_flange = run_members(
+        {
+            "operation": "section_moduli",
+            "method": "net_section",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 400,
+            "gross_area_mm2": 2560,
+            "gross_web_area_mm2": 560,
+            "gross_flange_areas_mm2": [1000, 1000],
+            "net_flange_areas_mm2": [1000, 100],
+            "gross_elastic_modulus_mm3": 304835.55555555556,
+            "gross_plastic_modulus_mm3": 329200,
+            "net_i_section_geometry": {
+                "overall_depth_mm": 300,
+                "flange_thickness_mm": 10,
+                "web_thickness_mm": 2,
+                "bending_axis": "major",
+                "symmetric_sharp_corner_i_section_verified": True,
+                "flange_only_holes_verified": True,
+                "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
+            },
+        }
+    )["values"]["net_section_properties"]
+    record(
+        "Clause 5.2.6(b) plastic neutral axis within top flange",
+        plastic_axis_in_flange["plastic_neutral_axis_from_top_mm"],
+        8.3,
+    )
+    record(
+        "Clause 5.2.6(b) flange-axis net plastic modulus, hand integration",
+        plastic_axis_in_flange["plastic_modulus_mm3"],
+        111611,
+    )
+    record(
+        "Clause 5.2.6(b) flange-axis lower elastic modulus",
+        plastic_axis_in_flange["elastic_modulus_bottom_mm3"],
+        72332.02459376372,
+        1e-7,
+    )
+
     compact_interaction = run_members(
         {
             "operation": "interaction",

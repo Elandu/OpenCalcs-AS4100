@@ -5,7 +5,7 @@ Each operation is a calculation primitive, not a declaration of whole-member com
 """
 
 from collections.abc import Mapping
-from math import isclose, isfinite, pi, sqrt
+from math import fsum, isclose, isfinite, pi, sqrt
 from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
@@ -121,6 +121,28 @@ INPUT_SCHEMA = {
                 "gross_plastic_modulus_mm3": P,
                 "net_elastic_modulus_mm3": P,
                 "net_plastic_modulus_mm3": P,
+                "net_i_section_geometry": {
+                    "type": "object",
+                    "properties": {
+                        "overall_depth_mm": P,
+                        "flange_thickness_mm": P,
+                        "web_thickness_mm": P,
+                        "bending_axis": {"const": "major"},
+                        "symmetric_sharp_corner_i_section_verified": {"const": True},
+                        "flange_only_holes_verified": {"const": True},
+                        "net_flange_areas_deducted_under_clause_9_1_10_verified": {"const": True},
+                    },
+                    "required": [
+                        "overall_depth_mm",
+                        "flange_thickness_mm",
+                        "web_thickness_mm",
+                        "bending_axis",
+                        "symmetric_sharp_corner_i_section_verified",
+                        "flange_only_holes_verified",
+                        "net_flange_areas_deducted_under_clause_9_1_10_verified",
+                    ],
+                    "additionalProperties": False,
+                },
             },
             [
                 "method",
@@ -549,6 +571,67 @@ def _plate(d):
     )
 
 
+def _rectangular_i_section_properties(depth, flange_thickness, web_thickness, flange_areas):
+    web_depth = depth - 2 * flange_thickness
+    if web_depth <= 0:
+        raise ValueError("Overall depth must exceed twice the flange thickness.")
+    if any(area <= 0 for area in flange_areas):
+        raise ValueError("I-section flange areas must both be positive.")
+
+    widths = [area / flange_thickness for area in flange_areas]
+    rectangles = [
+        (widths[0], 0.0, flange_thickness),
+        (web_thickness, flange_thickness, depth - flange_thickness),
+        (widths[1], depth - flange_thickness, depth),
+    ]
+    areas = [width * (y1 - y0) for width, y0, y1 in rectangles]
+    centroids = [(y0 + y1) / 2 for _, y0, y1 in rectangles]
+    total_area = fsum(areas)
+    centroid = fsum(area * y for area, y in zip(areas, centroids, strict=True)) / total_area
+    second_moment = fsum(
+        width * (y1 - y0) ** 3 / 12 + area * (y - centroid) ** 2
+        for (width, y0, y1), area, y in zip(rectangles, areas, centroids, strict=True)
+    )
+
+    target_area = total_area / 2
+    accumulated_area = 0.0
+    plastic_axis = None
+    for width, y0, y1 in rectangles:
+        area = width * (y1 - y0)
+        if accumulated_area + area >= target_area:
+            plastic_axis = y0 + (target_area - accumulated_area) / width
+            break
+        accumulated_area += area
+    if plastic_axis is None:
+        raise ValueError("Could not locate the net-section plastic neutral axis.")
+    plastic_moments = []
+    for width, y0, y1 in rectangles:
+        top_end = min(y1, plastic_axis)
+        if top_end > y0:
+            plastic_moments.append(
+                width * (plastic_axis * (top_end - y0) - (top_end**2 - y0**2) / 2)
+            )
+        bottom_start = max(y0, plastic_axis)
+        if y1 > bottom_start:
+            plastic_moments.append(
+                width * ((y1**2 - bottom_start**2) / 2 - plastic_axis * (y1 - bottom_start))
+            )
+    plastic_modulus = fsum(plastic_moments)
+    elastic_modulus_top = second_moment / centroid
+    elastic_modulus_bottom = second_moment / (depth - centroid)
+    return {
+        "net_area_mm2": total_area,
+        "centroid_from_top_mm": centroid,
+        "second_moment_of_area_mm4": second_moment,
+        "plastic_neutral_axis_from_top_mm": plastic_axis,
+        "elastic_modulus_top_mm3": elastic_modulus_top,
+        "elastic_modulus_bottom_mm3": elastic_modulus_bottom,
+        "governing_elastic_modulus_mm3": min(elastic_modulus_top, elastic_modulus_bottom),
+        "governing_fibre": "top" if elastic_modulus_top <= elastic_modulus_bottom else "bottom",
+        "plastic_modulus_mm3": plastic_modulus,
+    }
+
+
 def _section_moduli(d):
     gross_flanges = d["gross_flange_areas_mm2"]
     net_flanges = d["net_flange_areas_mm2"]
@@ -576,10 +659,56 @@ def _section_moduli(d):
         if net / gross < minimum_net_flange_ratio
     ]
     gross_permitted = not excessive_flange_indices
+    geometry = d.get("net_i_section_geometry")
+    net_properties = None
+    if geometry is not None:
+        if len(gross_flanges) != 2 or len(net_flanges) != 2:
+            raise ValueError("Net I-section geometry requires top and bottom flange areas only.")
+        if not isclose(gross_flanges[0], gross_flanges[1], rel_tol=1e-9, abs_tol=1e-6):
+            raise ValueError("Net I-section geometry requires equal gross flange areas.")
+        depth = geometry["overall_depth_mm"]
+        flange_thickness = geometry["flange_thickness_mm"]
+        web_thickness = geometry["web_thickness_mm"]
+        web_depth = depth - 2 * flange_thickness
+        if web_depth <= 0:
+            raise ValueError("Overall depth must exceed twice the flange thickness.")
+        gross_flange_width = gross_flanges[0] / flange_thickness
+        if web_thickness > gross_flange_width:
+            raise ValueError("Web thickness must not exceed the gross flange width.")
+        expected_web_area = web_thickness * web_depth
+        if not isclose(d["gross_web_area_mm2"], expected_web_area, rel_tol=1e-9, abs_tol=1e-6):
+            raise ValueError("Gross web area is inconsistent with the supplied I-section geometry.")
+        if any(area <= 0 for area in net_flanges):
+            raise ValueError("Net I-section flange areas must both be positive.")
+        gross_properties = _rectangular_i_section_properties(
+            depth, flange_thickness, web_thickness, gross_flanges
+        )
+        if not isclose(
+            d["gross_elastic_modulus_mm3"],
+            gross_properties["elastic_modulus_top_mm3"],
+            rel_tol=1e-6,
+            abs_tol=1e-6,
+        ) or not isclose(
+            d["gross_plastic_modulus_mm3"],
+            gross_properties["plastic_modulus_mm3"],
+            rel_tol=1e-6,
+            abs_tol=1e-6,
+        ):
+            raise ValueError(
+                "Gross section moduli are inconsistent with the supplied I-section geometry."
+            )
+        net_properties = _rectangular_i_section_properties(
+            depth, flange_thickness, web_thickness, net_flanges
+        )
+        if not isclose(net_properties["net_area_mm2"], net_area, rel_tol=1e-9, abs_tol=1e-6):
+            raise ValueError("Net flange areas are inconsistent with the supplied section areas.")
+
     has_net_elastic_modulus = "net_elastic_modulus_mm3" in d
     has_net_plastic_modulus = "net_plastic_modulus_mm3" in d
     if has_net_elastic_modulus != has_net_plastic_modulus:
         raise ValueError("Supply both net elastic and plastic section moduli, or neither.")
+    if geometry is not None and has_net_elastic_modulus:
+        raise ValueError("Supply net I-section geometry or net moduli, not both.")
 
     if gross_permitted:
         selected_method = "gross_section"
@@ -590,32 +719,40 @@ def _section_moduli(d):
         elastic_modulus = d["gross_elastic_modulus_mm3"] * area_ratio
         plastic_modulus = d["gross_plastic_modulus_mm3"] * area_ratio
     else:
-        if not has_net_elastic_modulus:
+        if geometry is not None:
+            selected_method = "net_section"
+            elastic_modulus = net_properties["governing_elastic_modulus_mm3"]
+            plastic_modulus = net_properties["plastic_modulus_mm3"]
+        elif not has_net_elastic_modulus:
             raise ValueError(
                 "Net-section method requires both net_elastic_modulus_mm3 and "
                 "net_plastic_modulus_mm3."
             )
-        selected_method = "net_section"
-        elastic_modulus = d["net_elastic_modulus_mm3"]
-        plastic_modulus = d["net_plastic_modulus_mm3"]
+        else:
+            selected_method = "net_section"
+            elastic_modulus = d["net_elastic_modulus_mm3"]
+            plastic_modulus = d["net_plastic_modulus_mm3"]
 
     if d["gross_plastic_modulus_mm3"] < d["gross_elastic_modulus_mm3"]:
         raise ValueError("Gross plastic modulus must not be below gross elastic modulus.")
     if plastic_modulus < elastic_modulus:
         raise ValueError("Selected plastic modulus must not be below elastic modulus.")
 
+    values = {
+        "gross_area_mm2": gross_area,
+        "net_area_mm2": net_area,
+        "net_to_gross_area_ratio": area_ratio,
+        "flange_area_reductions_pct": reductions,
+        "permitted_flange_area_reduction_pct": reduction_limit,
+        "gross_section_moduli_permitted": gross_permitted,
+        "selected_method": selected_method,
+        "elastic_modulus_mm3": elastic_modulus,
+        "plastic_modulus_mm3": plastic_modulus,
+    }
+    if net_properties is not None:
+        values["net_section_properties"] = net_properties
     return (
-        {
-            "gross_area_mm2": gross_area,
-            "net_area_mm2": net_area,
-            "net_to_gross_area_ratio": area_ratio,
-            "flange_area_reductions_pct": reductions,
-            "permitted_flange_area_reduction_pct": reduction_limit,
-            "gross_section_moduli_permitted": gross_permitted,
-            "selected_method": selected_method,
-            "elastic_modulus_mm3": elastic_modulus,
-            "plastic_modulus_mm3": plastic_modulus,
-        },
+        values,
         {
             "flange_hole_limit": {
                 "limit_reduction_pct": reduction_limit,
@@ -623,15 +760,26 @@ def _section_moduli(d):
                 "gross_section_moduli_permitted": gross_permitted,
             }
         },
-        ["5.2.6"],
+        ["5.2.6", "9.1.10"],
         [
             "Apply fastener-hole deductions in accordance with Clause 9.1.10.",
             "The area-ratio method assumes the supplied flange and gross-web areas make up "
             "the gross section.",
             "Feed the selected elastic and plastic moduli into the applicable "
             "Clause 5.2.2–5.2.5 check.",
-            "For the net-section method, net moduli must be independently established "
-            "for the actual geometry.",
+            *(
+                [
+                    "Derived net properties apply only to the verified sharp-corner symmetric "
+                    "I-section geometry with major-axis bending and flange-only holes. Confirm "
+                    "the net flange areas and Clause 9.1.10 deductions against the connection "
+                    "geometry; the input attestations are not independently authenticated."
+                ]
+                if geometry is not None
+                else [
+                    "For the net-section method, net moduli must be independently established "
+                    "for the actual geometry."
+                ]
+            ),
         ],
     )
 

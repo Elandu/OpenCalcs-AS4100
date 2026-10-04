@@ -2,6 +2,7 @@
 
 import pytest
 
+from opencalcs_as4100.connections import run_connections
 from opencalcs_as4100.members import run_members
 
 
@@ -146,6 +147,32 @@ def section_moduli(method="area_ratio", **changes):
     return run_members(data)
 
 
+def net_i_section_input(**changes):
+    data = {
+        "operation": "section_moduli",
+        "method": "net_section",
+        "yield_strength_mpa": 300,
+        "ultimate_strength_mpa": 400,
+        "gross_area_mm2": 4800,
+        "gross_web_area_mm2": 2800,
+        "gross_flange_areas_mm2": [1000, 1000],
+        "net_flange_areas_mm2": [800, 1000],
+        "gross_elastic_modulus_mm3": 402400,
+        "gross_plastic_modulus_mm3": 486000,
+        "net_i_section_geometry": {
+            "overall_depth_mm": 300,
+            "flange_thickness_mm": 10,
+            "web_thickness_mm": 10,
+            "bending_axis": "major",
+            "symmetric_sharp_corner_i_section_verified": True,
+            "flange_only_holes_verified": True,
+            "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
+        },
+    }
+    data.update(changes)
+    return data
+
+
 def test_hole_modulus_gross_section_is_permitted_below_and_at_limit():
     below = section_moduli(net_flange_areas_mm2=[900, 1000])["values"]
     assert below["gross_section_moduli_permitted"] is True
@@ -181,6 +208,98 @@ def test_hole_modulus_net_section_method_uses_supplied_net_moduli():
     assert values["selected_method"] == "net_section"
     assert values["elastic_modulus_mm3"] == 91000
     assert values["plastic_modulus_mm3"] == 113000
+
+
+def test_hole_modulus_net_section_derives_sharp_corner_i_section_properties():
+    values = run_members(net_i_section_input())["values"]
+
+    assert values["selected_method"] == "net_section"
+    assert values["net_area_mm2"] == 4600
+    assert values["elastic_modulus_mm3"] == pytest.approx(358086.6944830784)
+    assert values["plastic_modulus_mm3"] == pytest.approx(456000)
+    assert values["net_section_properties"]["centroid_from_top_mm"] == pytest.approx(
+        156.30434782608697
+    )
+    assert values["net_section_properties"]["plastic_neutral_axis_from_top_mm"] == pytest.approx(
+        160
+    )
+    assert values["net_section_properties"]["second_moment_of_area_mm4"] == pytest.approx(
+        55970507.24637682
+    )
+    assert values["net_section_properties"]["elastic_modulus_top_mm3"] == pytest.approx(
+        358086.6944830784
+    )
+    assert values["net_section_properties"]["elastic_modulus_bottom_mm3"] == pytest.approx(
+        389507.3121533032
+    )
+    assert values["net_section_properties"]["governing_fibre"] == "top"
+    assert values["net_section_properties"]["governing_elastic_modulus_mm3"] == pytest.approx(
+        358086.6944830784
+    )
+
+
+def test_hole_modulus_net_i_section_uses_clause_9_1_10_and_governing_fibre():
+    deduction = run_connections(
+        {
+            "check_type": "hole_deduction",
+            "gross_area_mm2": 1000,
+            "thickness_mm": 10,
+            "straight_hole_width_sum_mm": 20,
+            "zigzag_hole_width_sum_mm": 0,
+            "stagger_pairs": [],
+        }
+    )
+    net_flange_areas = [deduction["intermediate"]["net_area_mm2"], 1000]
+    geometry = net_i_section_input(
+        net_flange_areas_mm2=net_flange_areas,
+    )
+    values = run_members(geometry)["values"]
+
+    assert deduction["intermediate"]["deduction_mm2"] == 200
+    assert values["net_area_mm2"] == 4600
+    assert values["net_section_properties"]["governing_fibre"] == "top"
+    assert values["elastic_modulus_mm3"] == pytest.approx(358086.6944830784)
+
+
+def test_hole_modulus_net_i_section_rejects_inconsistent_geometry():
+    data = net_i_section_input(gross_area_mm2=3800, gross_web_area_mm2=1800)
+    with pytest.raises(ValueError, match="Gross web area is inconsistent"):
+        run_members(data)
+
+
+def test_hole_modulus_net_i_section_rejects_web_wider_than_gross_flange():
+    data = net_i_section_input(gross_area_mm2=32800, gross_web_area_mm2=30800)
+    data["net_i_section_geometry"]["web_thickness_mm"] = 110
+    with pytest.raises(ValueError, match="Web thickness must not exceed"):
+        run_members(data)
+
+
+def test_hole_modulus_net_i_section_locates_plastic_axis_inside_flange():
+    data = net_i_section_input(
+        gross_area_mm2=2560,
+        gross_web_area_mm2=560,
+        net_flange_areas_mm2=[1000, 100],
+        gross_elastic_modulus_mm3=304835.55555555556,
+        gross_plastic_modulus_mm3=329200,
+    )
+    data["net_i_section_geometry"].update(
+        web_thickness_mm=2,
+    )
+    values = run_members(data)["values"]
+
+    assert values["net_area_mm2"] == 1660
+    assert values["net_section_properties"]["plastic_neutral_axis_from_top_mm"] == pytest.approx(
+        8.3
+    )
+    assert values["net_section_properties"]["plastic_modulus_mm3"] == pytest.approx(111611)
+    assert values["elastic_modulus_mm3"] == pytest.approx(72332.02459376372)
+
+
+def test_hole_modulus_net_i_section_is_limited_to_major_axis_bending():
+    data = net_i_section_input()
+    data["net_i_section_geometry"]["bending_axis"] = "minor"
+    with pytest.raises(ValueError):
+        run_members(data)
 
 
 def test_hole_modulus_rejects_inconsistent_areas_and_moduli():

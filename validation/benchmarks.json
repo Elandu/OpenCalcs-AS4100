@@ -67,6 +67,83 @@
       "passed": true
     },
     {
+      "name": "Clause 9.1.10 single-hole flange net area",
+      "actual": 800,
+      "expected": 800,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net I-section centroid from top",
+      "actual": 156.30434782608697,
+      "expected": 156.30434782608697,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net I-section plastic neutral axis in web",
+      "actual": 160.0,
+      "expected": 160,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net I-section second moment",
+      "actual": 55970507.24637681,
+      "expected": 55970507.24637682,
+      "absolute_tolerance": 1e-06,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) top elastic modulus",
+      "actual": 358086.6944830783,
+      "expected": 358086.6944830784,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) bottom elastic modulus",
+      "actual": 389507.3121533031,
+      "expected": 389507.3121533032,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net plastic modulus",
+      "actual": 456000.0,
+      "expected": 456000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) selects the lower extreme-fibre elastic modulus",
+      "actual": 358086.6944830783,
+      "expected": 358086.6944830784,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) plastic neutral axis within top flange",
+      "actual": 8.3,
+      "expected": 8.3,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) flange-axis net plastic modulus, hand integration",
+      "actual": 111611.0,
+      "expected": 111611,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) flange-axis lower elastic modulus",
+      "actual": 72332.02459376372,
+      "expected": 72332.02459376372,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
       "name": "Clause 8.3.3(a) compact I-section minor-axis capacity, hand arithmetic",
       "actual": 44.625,
       "expected": 44.625,
@@ -155,6 +232,20 @@
       "actual": 0.48549963124694845,
       "expected": 0.485,
       "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 AS 4100 flexural-torsional reduction",
+      "actual": 340.0,
+      "expected": 340,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 AS 4100 factored capacity",
+      "actual": 306.0,
+      "expected": 306,
+      "absolute_tolerance": 1e-09,
       "passed": true
     },
     {
@@ -392,6 +483,27 @@
       "name": "Clause 5.11.5.2 effective flange outstand",
       "actual": 20,
       "expected": 20,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.5.2(c) stiffened panel aspect ratio",
+      "actual": 3.0,
+      "expected": 3,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.5.2(c) buckling reduction with s/dp=3",
+      "actual": 0.7284333333333332,
+      "expected": 0.7284333333333332,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.5.2(c) rational alpha_f shear design capacity",
+      "actual": 113.08927499999997,
+      "expected": 113.089275,
       "absolute_tolerance": 1e-09,
       "passed": true
     },
