@@ -329,6 +329,123 @@ def test_web_penetration_protection_greatest_thickness_and_extent():
     assert not result(data)["thickness_satisfied"]
 
 
+def test_limited_ductile_brace_connections_match_full_member_capacity():
+    data = {
+        "check_type": "concentric_brace_yielding_connection",
+        "limited_ductility_concentric_braced_frame_verified": True,
+        "all_applicable_brace_connections_listed_verified": True,
+        "brace_connections": [
+            {
+                "connection_id": "BR-1",
+                "member_design_capacity_kn": 200,
+                "connection_design_capacity_kn": 200,
+            }
+        ],
+    }
+    values = result(data)
+    assert values["connection_checks"][0]["required_connection_capacity_kn"] == 200
+    assert values["check_satisfied"]
+    data["brace_connections"][0]["connection_design_capacity_kn"] = 199.999
+    assert not result(data)["check_satisfied"]
+
+
+def seismic_plastic_region_fabrication_data():
+    return {
+        "check_type": "seismic_plastic_region_fabrication",
+        "moderately_ductile_plastic_regions_verified": True,
+        "all_plastic_region_edges_and_holes_listed_verified": True,
+        "sheared_edges": [
+            {
+                "edge_id": "E-1",
+                "sheared_oversize_and_machined_to_remove_all_sheared_surface": True,
+            }
+        ],
+        "gas_cut_edges": [{"edge_id": "E-2", "surface_roughness_um": 12}],
+        "fastener_holes": [
+            {"hole_id": "H-1", "hole_making_method": "drilled"},
+            {
+                "hole_id": "H-2",
+                "hole_making_method": "undersize_punched_then_reamed_or_drilled",
+            },
+        ],
+    }
+
+
+def test_seismic_checks_require_complete_input_schedule_attestations():
+    limited_brace = {
+        "check_type": "concentric_brace_yielding_connection",
+        "limited_ductility_concentric_braced_frame_verified": True,
+        "all_applicable_brace_connections_listed_verified": True,
+        "brace_connections": [
+            {
+                "connection_id": "BR-1",
+                "member_design_capacity_kn": 200,
+                "connection_design_capacity_kn": 200,
+            }
+        ],
+    }
+    intermediate_frame = {
+        "check_type": "intermediate_moment_frame_stiffeners",
+        "intermediate_moment_frame_applicability_verified": True,
+        "all_applicable_web_stiffeners_listed_verified": True,
+        "web_stiffeners": [],
+    }
+    cases = [
+        (limited_brace, "all_applicable_brace_connections_listed_verified"),
+        (intermediate_frame, "all_applicable_web_stiffeners_listed_verified"),
+        (
+            seismic_plastic_region_fabrication_data(),
+            "all_plastic_region_edges_and_holes_listed_verified",
+        ),
+        (
+            concentric_brace_connection_detailing_data(),
+            "all_concentric_braced_frame_welds_and_stiffeners_listed_verified",
+        ),
+    ]
+    for data, attestation in cases:
+        del data[attestation]
+        with pytest.raises(ValueError):
+            result(data)
+
+
+def test_seismic_plastic_region_fabrication_accepts_clause_boundaries():
+    values = result(seismic_plastic_region_fabrication_data())
+    assert values["gas_cut_edge_checks"][0]["maximum_surface_roughness_um"] == 12
+    assert values["check_satisfied"]
+
+
+@pytest.mark.parametrize(
+    ("collection", "update"),
+    [
+        ("sheared_edges", {"sheared_oversize_and_machined_to_remove_all_sheared_surface": False}),
+        ("gas_cut_edges", {"surface_roughness_um": 12.001}),
+        ("fastener_holes", {"hole_making_method": "punched_full_size"}),
+    ],
+)
+def test_seismic_plastic_region_fabrication_rejects_noncompliant_records(collection, update):
+    data = seismic_plastic_region_fabrication_data()
+    data[collection][0].update(update)
+    assert not result(data)["check_satisfied"]
+
+
+def test_intermediate_moment_frame_stiffeners_check_both_clause_conditions():
+    data = {
+        "check_type": "intermediate_moment_frame_stiffeners",
+        "intermediate_moment_frame_applicability_verified": True,
+        "all_applicable_web_stiffeners_listed_verified": True,
+        "web_stiffeners": [
+            {
+                "stiffener_id": "ST-1",
+                "extends_full_depth_between_flanges": True,
+                "butt_welded_to_both_flanges": True,
+            }
+        ],
+    }
+    assert result(data)["check_satisfied"]
+    data["web_stiffeners"][0]["butt_welded_to_both_flanges"] = False
+    assert not result(data)["check_satisfied"]
+
+
 def test_concentric_tension_brace_member_and_connection_limits():
     data = {
         "check_type": "concentric_tension_brace",
@@ -344,6 +461,110 @@ def test_concentric_tension_brace_member_and_connection_limits():
     assert not result(data)["member_action_satisfied"]
     data.update(design_tension_action_kn=80, connection_design_tensile_capacity_kn=99.999)
     assert not result(data)["connection_capacity_satisfied"]
+
+
+def concentric_brace_connection_detailing_data():
+    return {
+        "check_type": "concentric_brace_connection_detailing",
+        "bearing_wall_or_building_frame_system_verified": True,
+        "all_concentric_braced_frame_welds_and_stiffeners_listed_verified": True,
+        "web_stiffeners": [
+            {
+                "stiffener_id": "ST-1",
+                "extends_full_depth_between_flanges": True,
+                "butt_welded_to_both_flanges": True,
+            }
+        ],
+        "weld_groups": [
+            {
+                "weld_group_id": "BW-T-1",
+                "weld_population": "butt_in_tension",
+                "weld_category": "SP",
+                "visual_scanning_percent": 100,
+                "visual_examination_percent": 100,
+                "magnetic_particle_or_dye_penetrant_percent": 100,
+                "ultrasonics_or_radiography_percent": 10,
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("population", "requirements"),
+    [
+        ("butt_in_tension", (100, 100, 100, 10)),
+        ("butt_not_in_tension", (100, 50, 10, 2)),
+        ("other_welds", (100, 20, 5, 2)),
+    ],
+)
+def test_concentric_brace_detailing_table_minima_at_exact_limits(population, requirements):
+    data = concentric_brace_connection_detailing_data()
+    group = data["weld_groups"][0]
+    group["weld_population"] = population
+    (
+        group["visual_scanning_percent"],
+        group["visual_examination_percent"],
+        group["magnetic_particle_or_dye_penetrant_percent"],
+        group["ultrasonics_or_radiography_percent"],
+    ) = requirements
+    values = result(data)
+    check = values["weld_group_checks"][0]
+    assert values["check_satisfied"]
+    assert check["required_visual_scanning_percent"] == requirements[0]
+    assert check["required_visual_examination_percent"] == requirements[1]
+    assert check["required_magnetic_particle_or_dye_penetrant_percent"] == requirements[2]
+    assert check["required_ultrasonics_or_radiography_percent"] == requirements[3]
+
+
+@pytest.mark.parametrize(
+    ("population", "field", "minimum"),
+    [
+        ("butt_in_tension", "visual_scanning_percent", 100),
+        ("butt_in_tension", "visual_examination_percent", 100),
+        ("butt_in_tension", "magnetic_particle_or_dye_penetrant_percent", 100),
+        ("butt_in_tension", "ultrasonics_or_radiography_percent", 10),
+        ("butt_not_in_tension", "visual_scanning_percent", 100),
+        ("butt_not_in_tension", "visual_examination_percent", 50),
+        ("butt_not_in_tension", "magnetic_particle_or_dye_penetrant_percent", 10),
+        ("butt_not_in_tension", "ultrasonics_or_radiography_percent", 2),
+        ("other_welds", "visual_scanning_percent", 100),
+        ("other_welds", "visual_examination_percent", 20),
+        ("other_welds", "magnetic_particle_or_dye_penetrant_percent", 5),
+        ("other_welds", "ultrasonics_or_radiography_percent", 2),
+    ],
+)
+def test_concentric_brace_detailing_rejects_each_short_inspection(population, field, minimum):
+    data = concentric_brace_connection_detailing_data()
+    group = data["weld_groups"][0]
+    group["weld_population"] = population
+    group[field] = minimum - 0.001
+    values = result(data)
+    assert not values["check_satisfied"]
+    assert not values["weld_group_checks"][0][field.replace("_percent", "_satisfied")]
+
+
+@pytest.mark.parametrize(
+    "condition",
+    ["extends_full_depth_between_flanges", "butt_welded_to_both_flanges"],
+)
+def test_concentric_brace_detailing_rejects_noncompliant_stiffener(condition):
+    data = concentric_brace_connection_detailing_data()
+    data["web_stiffeners"][0][condition] = False
+    assert not result(data)["check_satisfied"]
+
+
+def test_concentric_brace_detailing_rejects_non_sp_weld_category():
+    data = concentric_brace_connection_detailing_data()
+    data["weld_groups"][0]["weld_category"] = "GP"
+    values = result(data)
+    assert not values["all_welds_special_purpose_satisfied"]
+    assert not values["check_satisfied"]
+
+
+def test_concentric_brace_detailing_allows_no_applicable_web_stiffeners():
+    data = concentric_brace_connection_detailing_data()
+    data["web_stiffeners"] = []
+    assert result(data)["stiffeners_satisfied"]
 
 
 def test_d11_protected_regression():

@@ -51,9 +51,26 @@ page images are not included in this package.
 - `web_penetration_protection`: 12.10.2 greatest required thickness from the
   above-opening, below-opening and whole-section zones, full-depth coverage and
   minimum extension each side of max(beam depth, 300 mm).
+- `concentric_brace_yielding_connection`: Clause 13.3.5(b) comparison of each
+  supplied connection capacity with the full design capacity of its diagonal brace
+  member expected to yield. Verify the limited-ductility system, yielding-brace
+  selection and compatible governing action capacities.
 - `concentric_tension_brace`: 13.3.6.2(a) limit of 0.85 times member design
   tensile capacity and connection capacity for the full member design capacity.
   System applicability and both design capacities are supplied verified inputs.
+- `intermediate_moment_frame_stiffeners`: Clause 13.3.6.3(b) full-depth web-
+  stiffener fit and butt welding to both flanges. Verify frame applicability and
+  every relevant beam-to-column stiffener against drawings and inspection records.
+- `seismic_plastic_region_fabrication`: Clause 13.3.6.4(a) sheared-edge treatment
+  and gas-cut roughness (12 μm maximum), plus 13.3.6.4(b) fastener-hole making
+  method. Confirm moderate-ductility applicability and that all plastic-deformation
+  regions and fabrication records are included.
+- `concentric_brace_connection_detailing`: checks reported beam-to-column web
+  stiffeners against 13.3.6.2(b), and each weld group's SP category plus Table
+  13.3.6.2 inspection percentages under 13.3.6.2(c). Welds must be grouped as
+  butt welds in tension, other butt welds, or all other welds. Supply coverage
+  percentages from inspection records; completeness, weld classification and
+  AS/NZS 1554.1 compliance remain externally verified.
 - `fire_protected_regression_fit`: least-squares fit of the seven coefficients
   in 12.6.2.2 from measured temperature/time observations for at least nine
   qualifying fire tests. The fit rejects rank-deficient test data, unloaded

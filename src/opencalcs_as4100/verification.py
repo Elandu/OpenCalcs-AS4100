@@ -2316,6 +2316,80 @@ def verify():
         int(web_protection["results"]["check_satisfied"]),
         1,
     )
+    limited_ductile_brace = run_durability(
+        {
+            "check_type": "concentric_brace_yielding_connection",
+            "limited_ductility_concentric_braced_frame_verified": True,
+            "all_applicable_brace_connections_listed_verified": True,
+            "brace_connections": [
+                {
+                    "connection_id": "BR-1",
+                    "member_design_capacity_kn": 200,
+                    "connection_design_capacity_kn": 200,
+                }
+            ],
+        }
+    )["results"]
+    record(
+        "Clause 13.3.5(b) brace connection full member design capacity",
+        limited_ductile_brace["connection_checks"][0]["required_connection_capacity_kn"],
+        200,
+    )
+    record(
+        "Clause 13.3.5(b) brace connection at full member capacity",
+        int(limited_ductile_brace["check_satisfied"]),
+        1,
+    )
+    intermediate_stiffeners = run_durability(
+        {
+            "check_type": "intermediate_moment_frame_stiffeners",
+            "intermediate_moment_frame_applicability_verified": True,
+            "all_applicable_web_stiffeners_listed_verified": True,
+            "web_stiffeners": [
+                {
+                    "stiffener_id": "ST-1",
+                    "extends_full_depth_between_flanges": True,
+                    "butt_welded_to_both_flanges": True,
+                }
+            ],
+        }
+    )["results"]
+    record(
+        "Clause 13.3.6.3(b) intermediate-frame stiffener details",
+        int(intermediate_stiffeners["check_satisfied"]),
+        1,
+    )
+    plastic_region_fabrication = run_durability(
+        {
+            "check_type": "seismic_plastic_region_fabrication",
+            "moderately_ductile_plastic_regions_verified": True,
+            "all_plastic_region_edges_and_holes_listed_verified": True,
+            "sheared_edges": [
+                {
+                    "edge_id": "E-1",
+                    "sheared_oversize_and_machined_to_remove_all_sheared_surface": True,
+                }
+            ],
+            "gas_cut_edges": [{"edge_id": "E-2", "surface_roughness_um": 12}],
+            "fastener_holes": [
+                {"hole_id": "H-1", "hole_making_method": "drilled"},
+                {
+                    "hole_id": "H-2",
+                    "hole_making_method": "undersize_punched_then_reamed_or_drilled",
+                },
+            ],
+        }
+    )["results"]
+    record(
+        "Clause 13.3.6.4(a) maximum gas-cut edge roughness",
+        plastic_region_fabrication["gas_cut_edge_checks"][0]["maximum_surface_roughness_um"],
+        12,
+    )
+    record(
+        "Clause 13.3.6.4(a)-(b) acceptable plastic-region fabrication methods",
+        int(plastic_region_fabrication["check_satisfied"]),
+        1,
+    )
     tension_brace = run_durability(
         {
             "check_type": "concentric_tension_brace",
@@ -2328,6 +2402,76 @@ def verify():
     record(
         "Clause 13.3.6.2(a) brace and connection capacity boundaries",
         int(tension_brace["results"]["check_satisfied"]),
+        1,
+    )
+    seismic_detailing = run_durability(
+        {
+            "check_type": "concentric_brace_connection_detailing",
+            "bearing_wall_or_building_frame_system_verified": True,
+            "all_concentric_braced_frame_welds_and_stiffeners_listed_verified": True,
+            "web_stiffeners": [
+                {
+                    "stiffener_id": "ST-1",
+                    "extends_full_depth_between_flanges": True,
+                    "butt_welded_to_both_flanges": True,
+                }
+            ],
+            "weld_groups": [
+                {
+                    "weld_group_id": "BW-T-1",
+                    "weld_population": "butt_in_tension",
+                    "weld_category": "SP",
+                    "visual_scanning_percent": 100,
+                    "visual_examination_percent": 100,
+                    "magnetic_particle_or_dye_penetrant_percent": 100,
+                    "ultrasonics_or_radiography_percent": 10,
+                },
+                {
+                    "weld_group_id": "BW-N-1",
+                    "weld_population": "butt_not_in_tension",
+                    "weld_category": "SP",
+                    "visual_scanning_percent": 100,
+                    "visual_examination_percent": 50,
+                    "magnetic_particle_or_dye_penetrant_percent": 10,
+                    "ultrasonics_or_radiography_percent": 2,
+                },
+                {
+                    "weld_group_id": "OW-1",
+                    "weld_population": "other_welds",
+                    "weld_category": "SP",
+                    "visual_scanning_percent": 100,
+                    "visual_examination_percent": 20,
+                    "magnetic_particle_or_dye_penetrant_percent": 5,
+                    "ultrasonics_or_radiography_percent": 2,
+                },
+            ],
+        }
+    )["results"]
+    record(
+        "Clause 13.3.6.2(b) full-depth butt-welded stiffener condition",
+        int(seismic_detailing["stiffeners_satisfied"]),
+        1,
+    )
+    record(
+        "Table 13.3.6.2 tension butt weld ultrasonics/radiography percentage",
+        seismic_detailing["weld_group_checks"][0]["required_ultrasonics_or_radiography_percent"],
+        10,
+    )
+    record(
+        "Table 13.3.6.2 non-tension butt weld visual examination percentage",
+        seismic_detailing["weld_group_checks"][1]["required_visual_examination_percent"],
+        50,
+    )
+    record(
+        "Table 13.3.6.2 other welds magnetic particle/dye penetrant percentage",
+        seismic_detailing["weld_group_checks"][2][
+            "required_magnetic_particle_or_dye_penetrant_percent"
+        ],
+        5,
+    )
+    record(
+        "Clause 13.3.6.2(c) SP category and NDE coverage limits",
+        int(seismic_detailing["check_satisfied"]),
         1,
     )
     expected_regression_coefficients = [5, 0.4, 1.2, 0.06, 0.0008, 0.002, 0.1]

@@ -832,6 +832,78 @@ def clause_12_10_2_web_protection():
     }
 
 
+def clause_13_3_5_brace_connection():
+    values = run_durability(
+        {
+            "check_type": "concentric_brace_yielding_connection",
+            "limited_ductility_concentric_braced_frame_verified": True,
+            "all_applicable_brace_connections_listed_verified": True,
+            "brace_connections": [
+                {
+                    "connection_id": "BR-1",
+                    "member_design_capacity_kn": 200,
+                    "connection_design_capacity_kn": 200,
+                }
+            ],
+        }
+    )["results"]
+    if not values["check_satisfied"]:
+        raise AssertionError("Clause 13.3.5(b) full member-capacity limit failed")
+    return {"required_connection_capacity_kn": 200, "check_satisfied": True}
+
+
+def clause_13_3_6_3_frame_stiffeners():
+    values = run_durability(
+        {
+            "check_type": "intermediate_moment_frame_stiffeners",
+            "intermediate_moment_frame_applicability_verified": True,
+            "all_applicable_web_stiffeners_listed_verified": True,
+            "web_stiffeners": [
+                {
+                    "stiffener_id": "ST-1",
+                    "extends_full_depth_between_flanges": True,
+                    "butt_welded_to_both_flanges": True,
+                }
+            ],
+        }
+    )["results"]
+    if not values["check_satisfied"]:
+        raise AssertionError("Clause 13.3.6.3(b) stiffener boundary failed")
+    return {"stiffeners_satisfied": values["stiffeners_satisfied"]}
+
+
+def clause_13_3_6_4_plastic_fabrication():
+    values = run_durability(
+        {
+            "check_type": "seismic_plastic_region_fabrication",
+            "moderately_ductile_plastic_regions_verified": True,
+            "all_plastic_region_edges_and_holes_listed_verified": True,
+            "sheared_edges": [
+                {
+                    "edge_id": "E-1",
+                    "sheared_oversize_and_machined_to_remove_all_sheared_surface": True,
+                }
+            ],
+            "gas_cut_edges": [{"edge_id": "E-2", "surface_roughness_um": 12}],
+            "fastener_holes": [
+                {"hole_id": "H-1", "hole_making_method": "drilled"},
+                {
+                    "hole_id": "H-2",
+                    "hole_making_method": "undersize_punched_then_reamed_or_drilled",
+                },
+            ],
+        }
+    )["results"]
+    if not values["check_satisfied"]:
+        raise AssertionError("Clause 13.3.6.4 fabrication limits failed")
+    return {
+        "gas_cut_maximum_roughness_um": values["gas_cut_edge_checks"][0][
+            "maximum_surface_roughness_um"
+        ],
+        "check_satisfied": True,
+    }
+
+
 def clause_13_3_6_2_tension_brace():
     values = run_durability(
         {
@@ -848,6 +920,68 @@ def clause_13_3_6_2_tension_brace():
         "member_design_force_limit_kn": values["member_action_limit_kn"],
         "connection_capacity_kn": values["connection_design_tensile_capacity_kn"],
     }
+
+
+def clause_13_3_6_2_connection_detailing():
+    data = {
+        "check_type": "concentric_brace_connection_detailing",
+        "bearing_wall_or_building_frame_system_verified": True,
+        "all_concentric_braced_frame_welds_and_stiffeners_listed_verified": True,
+        "web_stiffeners": [
+            {
+                "stiffener_id": "ST-1",
+                "extends_full_depth_between_flanges": True,
+                "butt_welded_to_both_flanges": True,
+            }
+        ],
+        "weld_groups": [
+            {
+                "weld_group_id": "BW-T-1",
+                "weld_population": "butt_in_tension",
+                "weld_category": "SP",
+                "visual_scanning_percent": 100,
+                "visual_examination_percent": 100,
+                "magnetic_particle_or_dye_penetrant_percent": 100,
+                "ultrasonics_or_radiography_percent": 10,
+            },
+            {
+                "weld_group_id": "BW-N-1",
+                "weld_population": "butt_not_in_tension",
+                "weld_category": "SP",
+                "visual_scanning_percent": 100,
+                "visual_examination_percent": 50,
+                "magnetic_particle_or_dye_penetrant_percent": 10,
+                "ultrasonics_or_radiography_percent": 2,
+            },
+            {
+                "weld_group_id": "OW-1",
+                "weld_population": "other_welds",
+                "weld_category": "SP",
+                "visual_scanning_percent": 100,
+                "visual_examination_percent": 20,
+                "magnetic_particle_or_dye_penetrant_percent": 5,
+                "ultrasonics_or_radiography_percent": 2,
+            },
+        ],
+    }
+    values = run_durability(data)["results"]
+    requirements = [
+        [100, 100, 100, 10],
+        [100, 50, 10, 2],
+        [100, 20, 5, 2],
+    ]
+    observed = [
+        [
+            group["required_visual_scanning_percent"],
+            group["required_visual_examination_percent"],
+            group["required_magnetic_particle_or_dye_penetrant_percent"],
+            group["required_ultrasonics_or_radiography_percent"],
+        ]
+        for group in values["weld_group_checks"]
+    ]
+    if observed != requirements or not values["check_satisfied"]:
+        raise AssertionError("Clause 13.3.6.2(b)/(c) geometry or NDE table boundaries failed")
+    return {"required_inspection_percentages": observed, "check_satisfied": True}
 
 
 def main():
@@ -884,7 +1018,11 @@ def main():
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
         "clause_12_10_2_web_protection": clause_12_10_2_web_protection,
+        "clause_13_3_5_brace_connection": clause_13_3_5_brace_connection,
         "clause_13_3_6_2_tension_brace": clause_13_3_6_2_tension_brace,
+        "clause_13_3_6_3_frame_stiffeners": clause_13_3_6_3_frame_stiffeners,
+        "clause_13_3_6_4_plastic_fabrication": clause_13_3_6_4_plastic_fabrication,
+        "clause_13_3_6_2_connection_detailing": clause_13_3_6_2_connection_detailing,
     }
     results = []
     for name, check in cases.items():

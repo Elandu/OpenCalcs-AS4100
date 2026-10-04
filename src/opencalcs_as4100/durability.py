@@ -266,6 +266,29 @@ def _fire_protected_regression_fit_operation():
     return schema
 
 
+_WELD_NDE_REQUIREMENTS = {
+    "butt_in_tension": (100, 100, 100, 10),
+    "butt_not_in_tension": (100, 50, 10, 2),
+    "other_welds": (100, 20, 5, 2),
+}
+_WEB_STIFFENERS_INPUT = {
+    "type": "array",
+    "maxItems": 10000,
+    "items": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "stiffener_id": {"type": "string", "minLength": 1, "maxLength": 100},
+            "extends_full_depth_between_flanges": _BOOL,
+            "butt_welded_to_both_flanges": _BOOL,
+        },
+        "required": [
+            "stiffener_id",
+            "extends_full_depth_between_flanges",
+            "butt_welded_to_both_flanges",
+        ],
+    },
+}
 _STEEL_TYPES = ["1", "2", "2S", "3", "4", "5", "5S", "6", "7A", "7B", "7C", "8C", "8Q", "9Q", "10Q"]
 _SEISMIC = {
     "special_moment": (4, 0.67),
@@ -483,6 +506,132 @@ INPUT_SCHEMA = {
                 "design_storey_deflection_mm": _number(),
             },
         ),
+        _operation(
+            "concentric_brace_yielding_connection",
+            {
+                "limited_ductility_concentric_braced_frame_verified": {"const": True},
+                "all_applicable_brace_connections_listed_verified": {"const": True},
+                "brace_connections": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "connection_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                            "member_design_capacity_kn": _POS,
+                            "connection_design_capacity_kn": _POS,
+                        },
+                        "required": [
+                            "connection_id",
+                            "member_design_capacity_kn",
+                            "connection_design_capacity_kn",
+                        ],
+                    },
+                },
+            },
+        ),
+        _operation(
+            "intermediate_moment_frame_stiffeners",
+            {
+                "intermediate_moment_frame_applicability_verified": {"const": True},
+                "all_applicable_web_stiffeners_listed_verified": {"const": True},
+                "web_stiffeners": _WEB_STIFFENERS_INPUT,
+            },
+        ),
+        _operation(
+            "seismic_plastic_region_fabrication",
+            {
+                "moderately_ductile_plastic_regions_verified": {"const": True},
+                "all_plastic_region_edges_and_holes_listed_verified": {"const": True},
+                "sheared_edges": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "edge_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                            "sheared_oversize_and_machined_to_remove_all_sheared_surface": _BOOL,
+                        },
+                        "required": [
+                            "edge_id",
+                            "sheared_oversize_and_machined_to_remove_all_sheared_surface",
+                        ],
+                    },
+                },
+                "gas_cut_edges": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "edge_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                            "surface_roughness_um": _number(),
+                        },
+                        "required": ["edge_id", "surface_roughness_um"],
+                    },
+                },
+                "fastener_holes": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "hole_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                            "hole_making_method": {
+                                "enum": [
+                                    "drilled",
+                                    "undersize_punched_then_reamed_or_drilled",
+                                    "punched_full_size",
+                                ]
+                            },
+                        },
+                        "required": ["hole_id", "hole_making_method"],
+                    },
+                },
+            },
+        ),
+        _operation(
+            "concentric_brace_connection_detailing",
+            {
+                "bearing_wall_or_building_frame_system_verified": {"const": True},
+                "all_concentric_braced_frame_welds_and_stiffeners_listed_verified": {"const": True},
+                "web_stiffeners": _WEB_STIFFENERS_INPUT,
+                "weld_groups": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 10000,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "weld_group_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                            "weld_population": {
+                                "enum": ["butt_in_tension", "butt_not_in_tension", "other_welds"]
+                            },
+                            "weld_category": {"enum": ["SP", "GP", "other"]},
+                            "visual_scanning_percent": _number(0, 100),
+                            "visual_examination_percent": _number(0, 100),
+                            "magnetic_particle_or_dye_penetrant_percent": _number(0, 100),
+                            "ultrasonics_or_radiography_percent": _number(0, 100),
+                        },
+                        "required": [
+                            "weld_group_id",
+                            "weld_population",
+                            "weld_category",
+                            "visual_scanning_percent",
+                            "visual_examination_percent",
+                            "magnetic_particle_or_dye_penetrant_percent",
+                            "ultrasonics_or_radiography_percent",
+                        ],
+                    },
+                },
+            },
+        ),
     ],
 }
 OUTPUT_SCHEMA = {
@@ -510,6 +659,25 @@ def _result_schema(properties, optional=()):
 
 
 _NUM = {"type": "number", "minimum": 0}
+_WEB_STIFFENER_CHECKS_RESULT = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "stiffener_id": {"type": "string"},
+            "extends_full_depth_between_flanges": _BOOL,
+            "butt_welded_to_both_flanges": _BOOL,
+            "check_satisfied": _BOOL,
+        },
+        "required": [
+            "stiffener_id",
+            "extends_full_depth_between_flanges",
+            "butt_welded_to_both_flanges",
+            "check_satisfied",
+        ],
+    },
+}
 _FATIGUE_RESULTS = {
     key: _NUM
     for key in [
@@ -804,6 +972,158 @@ _RESULT_SCHEMAS = {
             "minimum_panel_movement_mm": _NUM,
             "yield_limit_satisfied": {"type": ["boolean", "null"]},
             "manual_review_required": _BOOL,
+        }
+    ),
+    "concentric_brace_yielding_connection": _result_schema(
+        {
+            "connection_checks": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "connection_id": {"type": "string"},
+                        "member_design_capacity_kn": _POS,
+                        "connection_design_capacity_kn": _POS,
+                        "required_connection_capacity_kn": _POS,
+                        "capacity_satisfied": _BOOL,
+                    },
+                    "required": [
+                        "connection_id",
+                        "member_design_capacity_kn",
+                        "connection_design_capacity_kn",
+                        "required_connection_capacity_kn",
+                        "capacity_satisfied",
+                    ],
+                },
+            },
+            "check_satisfied": _BOOL,
+        }
+    ),
+    "intermediate_moment_frame_stiffeners": _result_schema(
+        {
+            "stiffener_checks": _WEB_STIFFENER_CHECKS_RESULT,
+            "stiffeners_satisfied": _BOOL,
+            "check_satisfied": _BOOL,
+        }
+    ),
+    "seismic_plastic_region_fabrication": _result_schema(
+        {
+            "sheared_edge_checks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "edge_id": {"type": "string"},
+                        "sheared_oversize_and_machined_to_remove_all_sheared_surface": _BOOL,
+                        "check_satisfied": _BOOL,
+                    },
+                    "required": [
+                        "edge_id",
+                        "sheared_oversize_and_machined_to_remove_all_sheared_surface",
+                        "check_satisfied",
+                    ],
+                },
+            },
+            "gas_cut_edge_checks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "edge_id": {"type": "string"},
+                        "surface_roughness_um": _NUM,
+                        "maximum_surface_roughness_um": _NUM,
+                        "check_satisfied": _BOOL,
+                    },
+                    "required": [
+                        "edge_id",
+                        "surface_roughness_um",
+                        "maximum_surface_roughness_um",
+                        "check_satisfied",
+                    ],
+                },
+            },
+            "fastener_hole_checks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "hole_id": {"type": "string"},
+                        "hole_making_method": {
+                            "enum": [
+                                "drilled",
+                                "undersize_punched_then_reamed_or_drilled",
+                                "punched_full_size",
+                            ]
+                        },
+                        "check_satisfied": _BOOL,
+                    },
+                    "required": ["hole_id", "hole_making_method", "check_satisfied"],
+                },
+            },
+            "sheared_edges_satisfied": _BOOL,
+            "gas_cut_edges_satisfied": _BOOL,
+            "fastener_holes_satisfied": _BOOL,
+            "check_satisfied": _BOOL,
+        }
+    ),
+    "concentric_brace_connection_detailing": _result_schema(
+        {
+            "stiffener_checks": _WEB_STIFFENER_CHECKS_RESULT,
+            "weld_group_checks": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "weld_group_id": {"type": "string"},
+                        "weld_population": {"enum": list(_WELD_NDE_REQUIREMENTS)},
+                        "weld_category": {"enum": ["SP", "GP", "other"]},
+                        "weld_category_satisfied": _BOOL,
+                        "required_visual_scanning_percent": _NUM,
+                        "visual_scanning_percent": _NUM,
+                        "visual_scanning_satisfied": _BOOL,
+                        "required_visual_examination_percent": _NUM,
+                        "visual_examination_percent": _NUM,
+                        "visual_examination_satisfied": _BOOL,
+                        "required_magnetic_particle_or_dye_penetrant_percent": _NUM,
+                        "magnetic_particle_or_dye_penetrant_percent": _NUM,
+                        "magnetic_particle_or_dye_penetrant_satisfied": _BOOL,
+                        "required_ultrasonics_or_radiography_percent": _NUM,
+                        "ultrasonics_or_radiography_percent": _NUM,
+                        "ultrasonics_or_radiography_satisfied": _BOOL,
+                        "check_satisfied": _BOOL,
+                    },
+                    "required": [
+                        "weld_group_id",
+                        "weld_population",
+                        "weld_category",
+                        "weld_category_satisfied",
+                        "required_visual_scanning_percent",
+                        "visual_scanning_percent",
+                        "visual_scanning_satisfied",
+                        "required_visual_examination_percent",
+                        "visual_examination_percent",
+                        "visual_examination_satisfied",
+                        "required_magnetic_particle_or_dye_penetrant_percent",
+                        "magnetic_particle_or_dye_penetrant_percent",
+                        "magnetic_particle_or_dye_penetrant_satisfied",
+                        "required_ultrasonics_or_radiography_percent",
+                        "ultrasonics_or_radiography_percent",
+                        "ultrasonics_or_radiography_satisfied",
+                        "check_satisfied",
+                    ],
+                },
+            },
+            "stiffeners_satisfied": _BOOL,
+            "welds_satisfied": _BOOL,
+            "all_welds_special_purpose_satisfied": _BOOL,
+            "check_satisfied": _BOOL,
         }
     ),
 }
@@ -1347,6 +1667,145 @@ def _fit_fire_protected_regression(d):
     return result
 
 
+def _web_stiffener_checks(stiffeners):
+    return [
+        {
+            "stiffener_id": stiffener["stiffener_id"],
+            "extends_full_depth_between_flanges": stiffener["extends_full_depth_between_flanges"],
+            "butt_welded_to_both_flanges": stiffener["butt_welded_to_both_flanges"],
+            "check_satisfied": (
+                stiffener["extends_full_depth_between_flanges"]
+                and stiffener["butt_welded_to_both_flanges"]
+            ),
+        }
+        for stiffener in stiffeners
+    ]
+
+
+def _seismic_plastic_region_fabrication(d):
+    sheared_edge_checks = [
+        {
+            "edge_id": edge["edge_id"],
+            "sheared_oversize_and_machined_to_remove_all_sheared_surface": edge[
+                "sheared_oversize_and_machined_to_remove_all_sheared_surface"
+            ],
+            "check_satisfied": edge["sheared_oversize_and_machined_to_remove_all_sheared_surface"],
+        }
+        for edge in d["sheared_edges"]
+    ]
+    gas_cut_edge_checks = [
+        {
+            "edge_id": edge["edge_id"],
+            "surface_roughness_um": edge["surface_roughness_um"],
+            "maximum_surface_roughness_um": 12,
+            "check_satisfied": edge["surface_roughness_um"] <= 12,
+        }
+        for edge in d["gas_cut_edges"]
+    ]
+    fastener_hole_checks = [
+        {
+            "hole_id": hole["hole_id"],
+            "hole_making_method": hole["hole_making_method"],
+            "check_satisfied": hole["hole_making_method"] != "punched_full_size",
+        }
+        for hole in d["fastener_holes"]
+    ]
+    sheared_ok = all(item["check_satisfied"] for item in sheared_edge_checks)
+    gas_cut_ok = all(item["check_satisfied"] for item in gas_cut_edge_checks)
+    holes_ok = all(item["check_satisfied"] for item in fastener_hole_checks)
+    return {
+        "sheared_edge_checks": sheared_edge_checks,
+        "gas_cut_edge_checks": gas_cut_edge_checks,
+        "fastener_hole_checks": fastener_hole_checks,
+        "sheared_edges_satisfied": sheared_ok,
+        "gas_cut_edges_satisfied": gas_cut_ok,
+        "fastener_holes_satisfied": holes_ok,
+        "check_satisfied": sheared_ok and gas_cut_ok and holes_ok,
+    }
+
+
+def _intermediate_moment_frame_stiffeners(d):
+    checks = _web_stiffener_checks(d["web_stiffeners"])
+    satisfied = all(item["check_satisfied"] for item in checks)
+    return {
+        "stiffener_checks": checks,
+        "stiffeners_satisfied": satisfied,
+        "check_satisfied": satisfied,
+    }
+
+
+def _concentric_brace_yielding_connections(d):
+    checks = [
+        {
+            "connection_id": connection["connection_id"],
+            "member_design_capacity_kn": connection["member_design_capacity_kn"],
+            "connection_design_capacity_kn": connection["connection_design_capacity_kn"],
+            "required_connection_capacity_kn": connection["member_design_capacity_kn"],
+            "capacity_satisfied": (
+                connection["connection_design_capacity_kn"]
+                >= connection["member_design_capacity_kn"]
+            ),
+        }
+        for connection in d["brace_connections"]
+    ]
+    return {
+        "connection_checks": checks,
+        "check_satisfied": all(item["capacity_satisfied"] for item in checks),
+    }
+
+
+def _concentric_brace_connection_detailing(d):
+    stiffener_checks = _web_stiffener_checks(d["web_stiffeners"])
+    weld_group_checks = []
+    for weld in d["weld_groups"]:
+        required = _WELD_NDE_REQUIREMENTS[weld["weld_population"]]
+        actual = (
+            weld["visual_scanning_percent"],
+            weld["visual_examination_percent"],
+            weld["magnetic_particle_or_dye_penetrant_percent"],
+            weld["ultrasonics_or_radiography_percent"],
+        )
+        coverage_satisfied = tuple(
+            measured >= minimum for measured, minimum in zip(actual, required, strict=True)
+        )
+        category_satisfied = weld["weld_category"] == "SP"
+        group_check = category_satisfied and all(coverage_satisfied)
+        weld_group_checks.append(
+            {
+                "weld_group_id": weld["weld_group_id"],
+                "weld_population": weld["weld_population"],
+                "weld_category": weld["weld_category"],
+                "weld_category_satisfied": category_satisfied,
+                "required_visual_scanning_percent": required[0],
+                "visual_scanning_percent": actual[0],
+                "visual_scanning_satisfied": coverage_satisfied[0],
+                "required_visual_examination_percent": required[1],
+                "visual_examination_percent": actual[1],
+                "visual_examination_satisfied": coverage_satisfied[1],
+                "required_magnetic_particle_or_dye_penetrant_percent": required[2],
+                "magnetic_particle_or_dye_penetrant_percent": actual[2],
+                "magnetic_particle_or_dye_penetrant_satisfied": coverage_satisfied[2],
+                "required_ultrasonics_or_radiography_percent": required[3],
+                "ultrasonics_or_radiography_percent": actual[3],
+                "ultrasonics_or_radiography_satisfied": coverage_satisfied[3],
+                "check_satisfied": group_check,
+            }
+        )
+    stiffeners_satisfied = all(item["check_satisfied"] for item in stiffener_checks)
+    welds_satisfied = all(item["check_satisfied"] for item in weld_group_checks)
+    all_welds_special_purpose_satisfied = all(
+        item["weld_category_satisfied"] for item in weld_group_checks
+    )
+    return {
+        "stiffener_checks": stiffener_checks,
+        "weld_group_checks": weld_group_checks,
+        "stiffeners_satisfied": stiffeners_satisfied,
+        "welds_satisfied": welds_satisfied,
+        "all_welds_special_purpose_satisfied": all_welds_special_purpose_satisfied,
+        "check_satisfied": stiffeners_satisfied and welds_satisfied,
+    }
+
+
 def _brittle(d):
     index = next(
         (i for i, bound in enumerate([6, 12, 20, 32, 70]) if d["thickness_mm"] <= bound), 5
@@ -1568,6 +2027,44 @@ def _run_durability(inputs):
         warnings = [
             "Applies only to concentric braced frames in bearing-wall or building-frame "
             "systems; verify member and connection capacities and seismic applicability."
+        ]
+    elif op == "concentric_brace_yielding_connection":
+        result = _concentric_brace_yielding_connections(d)
+        clauses = ["13.3.5(b)"]
+        warnings = [
+            "Identify every diagonal brace connection expected to yield and verify its "
+            "design capacity against the full member design capacity for the governing action.",
+            "Confirm limited-ductility concentric-brace applicability and supplied "
+            "member/connection capacities.",
+        ]
+    elif op == "intermediate_moment_frame_stiffeners":
+        result = _intermediate_moment_frame_stiffeners(d)
+        clauses = ["13.3.6.3(b)"]
+        warnings = [
+            "List every beam-to-column web stiffener and verify full-depth fit and butt welds "
+            "to both flanges against drawings and inspection records.",
+            "Confirm intermediate moment-resisting frame applicability.",
+        ]
+    elif op == "seismic_plastic_region_fabrication":
+        result = _seismic_plastic_region_fabrication(d)
+        clauses = ["13.3.6.4(a)", "13.3.6.4(b)"]
+        warnings = [
+            "For moderately ductile frames, list every applicable edge and fastener hole within "
+            "each plastic-deformation region; drawing and fabrication-record completeness "
+            "is not authenticated.",
+            "Verify gas-cut roughness using the specified Centre Line Average method and check "
+            "machining/punching details against inspection records.",
+        ]
+    elif op == "concentric_brace_connection_detailing":
+        result = _concentric_brace_connection_detailing(d)
+        clauses = ["13.3.6.2(b)", "13.3.6.2(c)", "Table 13.3.6.2"]
+        warnings = [
+            "Verify every applicable beam-to-column web stiffener is listed and check its "
+            "full-depth fit and butt welds to both flanges against drawings and inspection "
+            "records.",
+            "Verify weld-group classification, special-purpose weld category and reported "
+            "NDE coverage from complete AS/NZS 1554.1 records; "
+            "those records are not authenticated.",
         ]
     elif op == "fire_protected_regression_fit":
         result = _fit_fire_protected_regression(d)
