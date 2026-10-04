@@ -2912,6 +2912,21 @@ def verify():
         functional_tolerance["values"]["functional_tolerance_class_applied"],
         1,
     )
+    fabricated_acceptance = run_fabrication(
+        {
+            "check_type": "fabricated_item_acceptance",
+            "clause_14_2_material_requirements_satisfied": False,
+            "clause_14_3_fabrication_requirements_satisfied": True,
+            "clause_14_4_tolerances_satisfied": True,
+            "structural_adequacy_and_intended_use_unimpaired_demonstrated": False,
+            "section_17_testing_passed": True,
+        }
+    )
+    record(
+        "Clause 14.1 Section 17 test alternative acceptance route",
+        int(fabricated_acceptance["values"]["fabricated_item_may_be_accepted"]),
+        1,
+    )
     table_15_2_2_2 = {
         (16, "8.8"): 95,
         (16, "10.9"): 130,

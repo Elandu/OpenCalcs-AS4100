@@ -1,10 +1,18 @@
 # Fabrication hole checks
 
 The `structural.as4100.fabrication` family implements selected checks from AS
-4100:2020 Clauses 14.2.2, 14.3.1–14.3.3 and 14.4. Its operations evaluate one
-declared fabrication basis, hole, bolt assembly or tolerance per call. Dimensional inputs are millimetres.
-These operations do not determine whether a hole or connection arrangement is
-appropriate for the design.
+4100:2020 Clauses 14.1, 14.2.2, 14.3.1–14.3.3 and 14.4. Its operations evaluate one
+declared fabrication basis, hole, bolt assembly, tolerance or acceptance route
+per call. Dimensional inputs are millimetres. These operations do not determine
+whether a hole or connection arrangement is appropriate for the design.
+
+The `fabricated_item_acceptance` operation applies the Clause 14.1 routes. A
+fabricated item may be accepted when the declared material, fabrication and
+tolerance requirements are all satisfied, or when a declared demonstration
+shows that structural adequacy and intended use are unimpaired, or a declared
+Section 17 test has passed. If none of these routes applies, the result marks
+rejection as required. It records the supplied conditions and does not make an
+acceptance decision.
 
 Set `hole_type` to one of `standard`, `base_plate_anchor`, `oversize`,
 `short_slot` or `long_slot`:

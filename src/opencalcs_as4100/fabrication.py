@@ -154,6 +154,17 @@ _TOLERANCE["allOf"] = [
     },
 ]
 
+_FABRICATED_ITEM_ACCEPTANCE = object_schema(
+    {
+        "check_type": {"const": "fabricated_item_acceptance"},
+        "clause_14_2_material_requirements_satisfied": _BOOL,
+        "clause_14_3_fabrication_requirements_satisfied": _BOOL,
+        "clause_14_4_tolerances_satisfied": _BOOL,
+        "structural_adequacy_and_intended_use_unimpaired_demonstrated": _BOOL,
+        "section_17_testing_passed": _BOOL,
+    }
+)
+
 
 def _plate_washer_schema():
     return object_schema(
@@ -241,6 +252,7 @@ INPUT_SCHEMA = {
         _BOLT_ASSEMBLY,
         _FABRICATION_BASIS,
         _TOLERANCE,
+        _FABRICATED_ITEM_ACCEPTANCE,
         _hole_schema("standard", {"hole_diameter_mm": POSITIVE}),
         _hole_schema(
             "base_plate_anchor",
@@ -540,6 +552,45 @@ def _run_geometric_tolerance(d):
     )
 
 
+def _run_item_acceptance(d):
+    materials_ok = d["clause_14_2_material_requirements_satisfied"]
+    fabrication_ok = d["clause_14_3_fabrication_requirements_satisfied"]
+    tolerances_ok = d["clause_14_4_tolerances_satisfied"]
+    adequacy = d["structural_adequacy_and_intended_use_unimpaired_demonstrated"]
+    testing = d["section_17_testing_passed"]
+    all_requirements_ok = materials_ok and fabrication_ok and tolerances_ok
+    alternative_route = adequacy or testing
+    may_be_accepted = all_requirements_ok or alternative_route
+    return result(
+        "fabricated_item_acceptance",
+        ["14.1", "14.2", "14.3", "14.4"],
+        {
+            "clause_14_2_material_requirements_satisfied": materials_ok,
+            "clause_14_3_fabrication_requirements_satisfied": fabrication_ok,
+            "clause_14_4_tolerances_satisfied": tolerances_ok,
+            "all_standard_requirements_satisfied": all_requirements_ok,
+            "alternative_acceptance_route_used": not all_requirements_ok and alternative_route,
+            "fabricated_item_may_be_accepted": may_be_accepted,
+            "rejection_required": not may_be_accepted,
+        },
+        [
+            {
+                "clause": "14.1",
+                "check": "standard_conformity_or_alternative_acceptance_route",
+                "satisfied": may_be_accepted,
+                "structural_adequacy_route_available": adequacy,
+                "section_17_test_route_available": testing,
+            }
+        ],
+        limitations=[
+            "Acceptance routes depend on project evidence and an engineer's decision; "
+            "this check does not accept or reject the fabricated item.",
+            "Clause 14.2, 14.3 and 14.4 conformance and Section 17 test results are "
+            "supplied evidence declarations.",
+        ],
+    )
+
+
 def _washer_check(name, side, required, minimum_clearance, minimum_thickness=0, clause="14.3.2"):
     washer = side["washer"]
     if not required:
@@ -585,6 +636,8 @@ def run_fabrication(inputs):
         return _run_fabrication_basis(d)
     if d["check_type"] == "geometric_tolerance":
         return _run_geometric_tolerance(d)
+    if d["check_type"] == "fabricated_item_acceptance":
+        return _run_item_acceptance(d)
     bolt = d["bolt_diameter_mm"]
     hole_type = d["hole_type"]
     checks = []

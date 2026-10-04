@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.0",
+  "package_version": "0.7.1",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1545,6 +1545,13 @@
     },
     {
       "name": "Clause 14.4.1 unspecified functional class defaults to Class 1",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.1 Section 17 test alternative acceptance route",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

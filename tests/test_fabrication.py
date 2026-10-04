@@ -419,3 +419,31 @@ def test_tolerance_measurement_stage_and_coating_exclusion_are_required():
     assert not run_fabrication(d)["checked_conditions_satisfied"]
     d = tolerance(coating_thickness_excluded_from_measurement_verified=False)
     assert not run_fabrication(d)["checked_conditions_satisfied"]
+
+
+@pytest.mark.parametrize(
+    ("material_ok", "fabrication_ok", "tolerance_ok", "adequacy", "testing", "accepted"),
+    [
+        (True, True, True, False, False, True),
+        (False, True, True, True, False, True),
+        (True, False, False, False, True, True),
+        (False, True, True, False, False, False),
+    ],
+)
+def test_clause_14_1_fabricated_item_acceptance_routes(
+    material_ok, fabrication_ok, tolerance_ok, adequacy, testing, accepted
+):
+    output = run_fabrication(
+        {
+            "check_type": "fabricated_item_acceptance",
+            "clause_14_2_material_requirements_satisfied": material_ok,
+            "clause_14_3_fabrication_requirements_satisfied": fabrication_ok,
+            "clause_14_4_tolerances_satisfied": tolerance_ok,
+            "structural_adequacy_and_intended_use_unimpaired_demonstrated": adequacy,
+            "section_17_testing_passed": testing,
+        }
+    )
+    assert output["clauses"] == ["14.1", "14.2", "14.3", "14.4"]
+    assert output["values"]["fabricated_item_may_be_accepted"] is accepted
+    assert output["values"]["rejection_required"] is (not accepted)
+    assert output["checked_conditions_satisfied"] is accepted

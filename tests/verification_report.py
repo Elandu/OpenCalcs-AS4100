@@ -351,10 +351,23 @@ def clause_14_fabrication_procedure_and_tolerances():
     )
     if not tolerance_result["checked_conditions_satisfied"]:
         raise AssertionError("Clause 14.4.2 revised-capacity route was rejected")
+    acceptance = run_fabrication(
+        {
+            "check_type": "fabricated_item_acceptance",
+            "clause_14_2_material_requirements_satisfied": False,
+            "clause_14_3_fabrication_requirements_satisfied": True,
+            "clause_14_4_tolerances_satisfied": True,
+            "structural_adequacy_and_intended_use_unimpaired_demonstrated": False,
+            "section_17_testing_passed": True,
+        }
+    )
+    if not acceptance["values"]["fabricated_item_may_be_accepted"]:
+        raise AssertionError("Clause 14.1 Section 17 acceptance route failed")
     return {
         "unidentified_steel_clause_2_2_3_route_passed": True,
         "bolt_assembly_thread_and_slope_checks_passed": True,
         "essential_tolerance_revised_design_route_passed": True,
+        "clause_14_1_section_17_acceptance_route_passed": True,
     }
 
 
