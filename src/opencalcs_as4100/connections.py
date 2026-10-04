@@ -97,8 +97,47 @@ FIELDS = {
         "bolt_grade": {"enum": ["8.8", "10.9"]},
         "bolt_tension_method": {"enum": ["calibration_curve", "equation_j1"]},
         "symmetrical_double_cover_butt_specimen_verified": {"const": True},
-        "inner_plates_equal_thickness_verified": {"const": True},
         "bolts_clear_of_bearing_in_loading_direction_verified": {"const": True},
+        "friction_surface_condition_matches_field_verified": {"const": True},
+        "machining_oil_contamination_absent_if_used_verified": {"const": True},
+        "specimen_geometry": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "bolt_centre_spacing_mm",
+                "left_bolt_to_test_section_end_mm",
+                "right_bolt_to_test_section_end_mm",
+                "upper_bolt_edge_distance_mm",
+                "lower_bolt_edge_distance_mm",
+                "inner_plate_thicknesses_mm",
+                "cover_plate_thicknesses_mm",
+                "cover_plate_hole_diameter_mm",
+                "inner_plate_hole_diameter_mm",
+                "butt_gap_mm",
+            ],
+            "properties": {
+                "bolt_centre_spacing_mm": P,
+                "left_bolt_to_test_section_end_mm": P,
+                "right_bolt_to_test_section_end_mm": P,
+                "upper_bolt_edge_distance_mm": P,
+                "lower_bolt_edge_distance_mm": P,
+                "inner_plate_thicknesses_mm": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": P,
+                },
+                "cover_plate_thicknesses_mm": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": P,
+                },
+                "cover_plate_hole_diameter_mm": P,
+                "inner_plate_hole_diameter_mm": P,
+                "butt_gap_mm": P,
+            },
+        },
         "specimen_bolt_tensioning_matches_field_verified": {"const": True},
         "initial_snug_condition_finger_tight_verified": {"const": True},
         "extension_measurement_immediately_before_test_verified": {"const": True},
@@ -717,6 +756,96 @@ def _appendix_j_slip_factor(d):
             "Appendix J.5 gives no k value for four specimens; use three or at least five."
         )
 
+    bolt_diameter = d["nominal_bolt_diameter_mm"]
+    geometry = d["specimen_geometry"]
+    if not isclose(
+        geometry["left_bolt_to_test_section_end_mm"],
+        geometry["right_bolt_to_test_section_end_mm"],
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        raise ValueError("Appendix J Figure J.1 requires a symmetric bolt layout about the butt.")
+    if not isclose(
+        geometry["upper_bolt_edge_distance_mm"],
+        geometry["lower_bolt_edge_distance_mm"],
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        raise ValueError("Appendix J Figure J.1 requires equal bolt edge distances.")
+    if not isclose(
+        geometry["inner_plate_thicknesses_mm"][0],
+        geometry["inner_plate_thicknesses_mm"][1],
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        raise ValueError("Appendix J.1.1 requires equal inner-plate thicknesses.")
+    if not isclose(
+        geometry["cover_plate_thicknesses_mm"][0],
+        geometry["cover_plate_thicknesses_mm"][1],
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        raise ValueError("Appendix J Figure J.1 requires equal cover-plate thicknesses.")
+
+    test_section_length_mm = (
+        geometry["left_bolt_to_test_section_end_mm"]
+        + geometry["bolt_centre_spacing_mm"]
+        + geometry["right_bolt_to_test_section_end_mm"]
+    )
+    specimen_width_mm = (
+        geometry["upper_bolt_edge_distance_mm"] + geometry["lower_bolt_edge_distance_mm"]
+    )
+    minimum_dimensions = {
+        "bolt_centre_spacing_mm": 6 * bolt_diameter,
+        "left_bolt_to_test_section_end_mm": 2 * bolt_diameter,
+        "right_bolt_to_test_section_end_mm": 2 * bolt_diameter,
+        "upper_bolt_edge_distance_mm": 3 * bolt_diameter,
+        "lower_bolt_edge_distance_mm": 3 * bolt_diameter,
+    }
+    for name, minimum in minimum_dimensions.items():
+        if geometry[name] < minimum:
+            raise ValueError(
+                f"Appendix J Figure J.1 requires {name} to be at least {minimum:g} mm."
+            )
+    if test_section_length_mm < 10 * bolt_diameter:
+        raise ValueError("Appendix J Figure J.1 requires a 10 df minimum test-section length.")
+    if specimen_width_mm < 6 * bolt_diameter:
+        raise ValueError("Appendix J Figure J.1 requires a 6 df minimum specimen width.")
+    minimum_inner_plate_thickness_mm = bolt_diameter + 5
+    if any(
+        thickness < minimum_inner_plate_thickness_mm
+        for thickness in geometry["inner_plate_thicknesses_mm"]
+    ):
+        raise ValueError(
+            "Appendix J Figure J.1 requires inner-plate thickness of at least df + 5 mm."
+        )
+    minimum_cover_plate_thickness_mm = bolt_diameter / 2 + 2
+    if any(
+        thickness < minimum_cover_plate_thickness_mm
+        for thickness in geometry["cover_plate_thicknesses_mm"]
+    ):
+        raise ValueError(
+            "Appendix J Figure J.1 requires cover-plate thickness of at least df/2 + 2 mm."
+        )
+    required_cover_hole_diameter_mm = bolt_diameter + 2
+    if not isclose(
+        geometry["cover_plate_hole_diameter_mm"],
+        required_cover_hole_diameter_mm,
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        raise ValueError("Appendix J Figure J.1 cover-plate hole diameter must be df + 2 mm.")
+    required_inner_hole_diameter_mm = bolt_diameter + 3
+    if not isclose(
+        geometry["inner_plate_hole_diameter_mm"],
+        required_inner_hole_diameter_mm,
+        rel_tol=0.0,
+        abs_tol=1e-9,
+    ):
+        raise ValueError("Appendix J Figure J.1 inner-plate hole diameter must be df + 3 mm.")
+    if not isclose(geometry["butt_gap_mm"], 8, rel_tol=0.0, abs_tol=1e-9):
+        raise ValueError("Appendix J Figure J.1 specifies an 8 mm butt gap.")
+
     method = d["bolt_tension_method"]
     calibration_fields = {
         "calibration_test_bolt_count",
@@ -837,8 +966,9 @@ def _appendix_j_slip_factor(d):
     design_factor = minimum_estimate if fallback_applied else unadjusted_factor
     prerequisite_fields = (
         "symmetrical_double_cover_butt_specimen_verified",
-        "inner_plates_equal_thickness_verified",
         "bolts_clear_of_bearing_in_loading_direction_verified",
+        "friction_surface_condition_matches_field_verified",
+        "machining_oil_contamination_absent_if_used_verified",
         "specimen_bolt_tensioning_matches_field_verified",
         "initial_snug_condition_finger_tight_verified",
         "extension_measurement_immediately_before_test_verified",
@@ -862,13 +992,30 @@ def _appendix_j_slip_factor(d):
                 "specimen_count": specimen_count,
                 "k": k,
                 "clause": "Appendix J.5",
-            }
+            },
+            "specimen_geometry": {
+                "satisfied": True,
+                "test_section_length_mm": test_section_length_mm,
+                "minimum_test_section_length_mm": 10 * bolt_diameter,
+                "specimen_width_mm": specimen_width_mm,
+                "minimum_specimen_width_mm": 6 * bolt_diameter,
+                "minimum_bolt_centre_spacing_mm": 6 * bolt_diameter,
+                "minimum_bolt_end_distance_mm": 2 * bolt_diameter,
+                "minimum_bolt_edge_distance_mm": 3 * bolt_diameter,
+                "minimum_inner_plate_thickness_mm": minimum_inner_plate_thickness_mm,
+                "minimum_cover_plate_thickness_mm": minimum_cover_plate_thickness_mm,
+                "required_cover_plate_hole_diameter_mm": required_cover_hole_diameter_mm,
+                "required_inner_plate_hole_diameter_mm": required_inner_hole_diameter_mm,
+                "required_butt_gap_mm": 8,
+                "clause": "Appendix J Figure J.1",
+            },
         },
         {
             "bolt_tension_method": method,
             "nominal_bolt_diameter_mm": d["nominal_bolt_diameter_mm"],
             "bolt_grade": d["bolt_grade"],
             "table_15_2_2_2_minimum_bolt_tension_kn": minimum_tension_kn,
+            "specimen_geometry": geometry,
             "appendix_j_test_report_reference": d["appendix_j_test_report_reference"],
             "appendix_j_prerequisites": {field: d[field] for field in prerequisite_fields},
             "bolt_tension_method_evidence": {field: d[field] for field in sorted(required_fields)},

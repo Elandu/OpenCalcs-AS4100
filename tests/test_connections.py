@@ -92,8 +92,21 @@ def appendix_j_slip_test(estimates=(0.35, 0.36, 0.40, 0.41, 0.45, 0.46)):
         "bolt_grade": "8.8",
         "bolt_tension_method": "calibration_curve",
         "symmetrical_double_cover_butt_specimen_verified": True,
-        "inner_plates_equal_thickness_verified": True,
         "bolts_clear_of_bearing_in_loading_direction_verified": True,
+        "specimen_geometry": {
+            "bolt_centre_spacing_mm": 96,
+            "left_bolt_to_test_section_end_mm": 32,
+            "right_bolt_to_test_section_end_mm": 32,
+            "upper_bolt_edge_distance_mm": 48,
+            "lower_bolt_edge_distance_mm": 48,
+            "inner_plate_thicknesses_mm": [21, 21],
+            "cover_plate_thicknesses_mm": [10, 10],
+            "cover_plate_hole_diameter_mm": 18,
+            "inner_plate_hole_diameter_mm": 19,
+            "butt_gap_mm": 8,
+        },
+        "friction_surface_condition_matches_field_verified": True,
+        "machining_oil_contamination_absent_if_used_verified": True,
         "specimen_bolt_tensioning_matches_field_verified": True,
         "initial_snug_condition_finger_tight_verified": True,
         "extension_measurement_immediately_before_test_verified": True,
@@ -951,6 +964,8 @@ def test_appendix_j_three_specimen_factor_uses_sample_deviation_and_minimum_fall
     assert (
         result["intermediate"]["bolt_tension_method_evidence"]["calibration_test_bolt_count"] == 3
     )
+    assert result["checks"]["specimen_geometry"]["minimum_test_section_length_mm"] == 160
+    assert result["checks"]["specimen_geometry"]["specimen_width_mm"] == 96
 
 
 def test_appendix_j_five_specimen_factor_uses_k_point_nine_without_fallback():
@@ -1033,6 +1048,39 @@ def test_appendix_j_rejects_incomplete_or_noncompliant_prerequisites(changes, me
 def test_appendix_j_rejects_four_specimens_without_a_defined_k_value():
     with pytest.raises(ValueError, match="no k value for four specimens"):
         run_connections(appendix_j_slip_test((0.35,) * 8))
+
+
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        ({"bolt_centre_spacing_mm": 95.9}, "bolt_centre_spacing_mm"),
+        (
+            {
+                "left_bolt_to_test_section_end_mm": 31.9,
+                "right_bolt_to_test_section_end_mm": 31.9,
+            },
+            "left_bolt_to_test_section_end_mm",
+        ),
+        (
+            {"upper_bolt_edge_distance_mm": 47.9, "lower_bolt_edge_distance_mm": 47.9},
+            "upper_bolt_edge_distance_mm",
+        ),
+        ({"inner_plate_thicknesses_mm": [20.9, 20.9]}, "df \\+ 5"),
+        ({"inner_plate_thicknesses_mm": [21, 22]}, "equal inner-plate"),
+        ({"cover_plate_thicknesses_mm": [9.9, 9.9]}, "df/2 \\+ 2"),
+        ({"cover_plate_thicknesses_mm": [10, 11]}, "equal cover-plate"),
+        ({"cover_plate_hole_diameter_mm": 17}, "df \\+ 2"),
+        ({"inner_plate_hole_diameter_mm": 18}, "df \\+ 3"),
+        ({"butt_gap_mm": 7.9}, "8 mm butt gap"),
+        ({"right_bolt_to_test_section_end_mm": 33}, "symmetric bolt layout"),
+        ({"lower_bolt_edge_distance_mm": 49}, "equal bolt edge distances"),
+    ],
+)
+def test_appendix_j_enforces_figure_j1_specimen_geometry(changes, message):
+    inputs = appendix_j_slip_test()
+    inputs["specimen_geometry"].update(changes)
+    with pytest.raises(ValueError, match=message):
+        run_connections(inputs)
 
 
 def test_appendix_j_rejects_bolts_below_table_minimum_tension():

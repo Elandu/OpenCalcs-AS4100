@@ -1258,8 +1258,21 @@ def verify():
         "nominal_bolt_diameter_mm": 16,
         "bolt_grade": "8.8",
         "symmetrical_double_cover_butt_specimen_verified": True,
-        "inner_plates_equal_thickness_verified": True,
         "bolts_clear_of_bearing_in_loading_direction_verified": True,
+        "specimen_geometry": {
+            "bolt_centre_spacing_mm": 96,
+            "left_bolt_to_test_section_end_mm": 32,
+            "right_bolt_to_test_section_end_mm": 32,
+            "upper_bolt_edge_distance_mm": 48,
+            "lower_bolt_edge_distance_mm": 48,
+            "inner_plate_thicknesses_mm": [21, 21],
+            "cover_plate_thicknesses_mm": [10, 10],
+            "cover_plate_hole_diameter_mm": 18,
+            "inner_plate_hole_diameter_mm": 19,
+            "butt_gap_mm": 8,
+        },
+        "friction_surface_condition_matches_field_verified": True,
+        "machining_oil_contamination_absent_if_used_verified": True,
         "specimen_bolt_tensioning_matches_field_verified": True,
         "initial_snug_condition_finger_tight_verified": True,
         "extension_measurement_immediately_before_test_verified": True,
@@ -1315,6 +1328,16 @@ def verify():
         "Appendix J.5 lowest-estimate fallback",
         appendix_j_three["checks"]["slip_factor"]["slip_factor_for_design"],
         0.35,
+    )
+    record(
+        "Appendix J Figure J.1 M16 specimen test-section length",
+        appendix_j_three["checks"]["specimen_geometry"]["test_section_length_mm"],
+        160,
+    )
+    record(
+        "Appendix J Figure J.1 M16 specimen width",
+        appendix_j_three["checks"]["specimen_geometry"]["specimen_width_mm"],
+        96,
     )
     appendix_j_five = run_connections(
         {
