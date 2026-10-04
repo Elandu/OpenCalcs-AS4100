@@ -15,7 +15,10 @@ transfer the member force through the combined section. Both conditions appear
 as Clause 9.2.2.5 checks in the result; an unverified input is rejected and a
 verified false input fails the check. The operation does not calculate the
 extension geometry or the transfer-bolt capacity. The shear-capacity reduction
-is applied only above 6 mm; thicknesses of 20 mm or more are unsupported.
+is applied only above 6 mm; thicknesses of 20 mm or more are unsupported. Use
+`filler_thickness_by_shear_plane_mm` to provide the total filler thickness on
+each shear plane, including paint film; the operation selects the maximum.
+Alternatively, `filler_thickness_mm` must already be that governing maximum.
 
 The implementation was visually reviewed against the licensed AS 4100:2020
 Section 9, printed pages 112–138, including Clause 9.1.4 on page 114, Table 3.4
@@ -37,7 +40,7 @@ The source standard is not redistributed.
 | minimum_combined_splice_actions | 9.1.4(b)(vii) axial tension or compression plus bending; calculates the applicable axial minimum and flexural minimum simultaneously. For compression splices between effective lateral supports, also applies the Clause 4.4 amplified moment from 9.1.4(b)(v). The non-full-contact compression route requires evidence that the splice parts are held in line. |
 | bolt | 9.1.8 externally assessed prying tension is added to member tension; the supplied prying assessment must use a recognized method supported by experimental evidence. 9.2.2.1–3 shear, tension, squared interaction; lap length, grade 10.9 threaded-plane ductility and filler reduction under 9.2.2.5. Supply minor area (not tensile area) for threaded shear and certified bolt strength/areas. Filler thickness >=20 mm is unsupported. Zero lap length means a non-lap connection. |
 | bearing | 9.2.2.4 ply bearing and edge tear-out. Effective edge distance is clear hole-edge distance towards the loaded edge or adjacent hole plus half bolt diameter. Each ply and action direction needs its own check. |
-| slip | 9.2.3 service shear and linear shear/tension interaction, phi=0.7 under 3.5.5. Installation tension and slip coefficient require compliant installation and surface evidence. As-rolled clean surfaces use 0.35; other surfaces require testing. Separate strength checks remain necessary. |
+| slip | 9.2.3.1 service shear and 9.2.3.3 linear shear/tension interaction, phi=0.7 under 3.5.5. Clause 9.2.3.2 reports whether 0.35 is based on verified clean as-rolled surfaces or a supplied slip factor has test evidence; Appendix J testing is a recognized evidence route. It also records whether the friction bolt category plus surface-treatment and paint-masking requirements appear on drawings. Missing or false evidence fails this separate check. Installation tension and separate strength checks remain engineering inputs. |
 | block_shear | 9.1.9(e) net rupture capped by gross shear yielding, phi=0.75, eccentricity factor 1 or 0.5. Enumerate all feasible rupture paths externally. |
 | pin | 9.4.1–3 circular solid pin shear, pin bearing with rotation factor, and bending using plastic modulus d³/6. Pin actions and plate load distribution require external analysis; ply bearing also uses bearing. |
 | fillet | 9.6.3.10 strength using externally established design throat and effective length, including 9.6.2.7(c) incomplete butt capacity. Thin RHS longitudinal SP weld factor 0.7. Geometry and weld-size detailing are separate prerequisites. |

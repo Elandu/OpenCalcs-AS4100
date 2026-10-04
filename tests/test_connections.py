@@ -778,6 +778,29 @@ def test_filler_plate_clause_9_2_2_5_requires_and_reports_detailing_assessment()
     assert six_mm["checks"]["filler_plate_detailing"]["satisfied"]
 
 
+def test_clause_9_2_2_5_uses_maximum_filler_thickness_across_shear_planes():
+    data = bolt(
+        filler_thickness_by_shear_plane_mm=[8, 12, 10],
+        filler_plate_extends_beyond_connection_verified=True,
+        filler_plate_force_transfer_through_combined_section_verified=True,
+    )
+    data.pop("filler_thickness_mm")
+    result = run_connections(data)
+
+    assert result["intermediate"]["filler_thickness_used_mm"] == 12
+    assert result["intermediate"]["filler_factor"] == pytest.approx(1 - 0.0154 * (12 - 6))
+    assert result["checks"]["filler_plate_detailing"]["governing_filler_thickness_mm"] == 12
+
+    inconsistent = bolt(
+        filler_thickness_mm=11,
+        filler_thickness_by_shear_plane_mm=[8, 12, 10],
+        filler_plate_extends_beyond_connection_verified=True,
+        filler_plate_force_transfer_through_combined_section_verified=True,
+    )
+    with pytest.raises(ValueError, match="must equal the maximum thickness"):
+        run_connections(inconsistent)
+
+
 @pytest.mark.parametrize("check", [bolt_group_out_of_plane, bolt_group_elastic_3d])
 def test_filler_plate_detailing_is_required_for_bolt_group_checks(check):
     with pytest.raises(
@@ -827,6 +850,44 @@ def test_slip_service_phi_and_interaction(hole, capacity):
     )
     assert r["checks"]["slip"]["design_capacity_kn"] == pytest.approx(capacity)
     assert r["checks"]["interaction"]["utilisation"] == pytest.approx(1)
+    assert not r["checks"]["surface_requirements"]["satisfied"]
+
+
+def test_clause_9_2_3_2_requires_surface_or_test_evidence_and_drawing_record():
+    base = {
+        "check_type": "slip",
+        "slip_factor": 0.35,
+        "interfaces": 1,
+        "installation_tension_kn": 200,
+        "hole_type": "standard",
+        "shear_action_kn": 0,
+        "tension_action_kn": 0,
+        "friction_bolt_category_and_surface_treatment_masking_drawings_verified": True,
+    }
+    as_rolled = run_connections(
+        {**base, "clean_as_rolled_contact_surfaces_verified": True}
+    )
+    assert as_rolled["checks"]["surface_requirements"]["slip_factor_basis"] == "clean_as_rolled"
+    assert as_rolled["checks"]["surface_requirements"]["satisfied"]
+
+    tested_surface = run_connections(
+        {
+            **base,
+            "slip_factor": 0.42,
+            "slip_factor_test_evidence_verified": True,
+        }
+    )
+    assert tested_surface["checks"]["surface_requirements"]["slip_factor_basis"] == "test_evidence"
+    assert tested_surface["checks"]["surface_requirements"]["satisfied"]
+
+    missing_drawing_record = run_connections(
+        {
+            **base,
+            "clean_as_rolled_contact_surfaces_verified": True,
+            "friction_bolt_category_and_surface_treatment_masking_drawings_verified": False,
+        }
+    )
+    assert not missing_drawing_record["checks"]["surface_requirements"]["satisfied"]
 
 
 def test_block_shear_hand_benchmark():
@@ -1277,6 +1338,7 @@ def test_weld_group_pure_shear_and_bending():
         {"ultimate_strength_mpa": float("nan")},
         {"lap_length_mm": float("inf")},
         {"filler_thickness_mm": 20},
+        {"filler_thickness_by_shear_plane_mm": [20]},
         {"threaded_planes": 0, "plain_planes": 0},
         {"threaded_planes": True},
         {"unknown": 1},

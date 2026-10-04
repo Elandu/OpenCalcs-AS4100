@@ -30,10 +30,17 @@ for every Section, but does not independently validate that evidence.
 | 17 — Load testing | `testing`: 17.1.1–17.2 test scope, applicability and proof/prototype definitions; selected 17.3 test load/calibration/restraint/loading-rate/distribution and deformation records; 17.4.2–17.4.3 proof load/dwell/strength damage review and serviceability acceptance; 17.5.1 specimen material/fabrication/specification/erection declarations, 17.5.2 Table 17.5.2 factors, 17.5.3 acceptance and 17.5.4 production similarity; and 17.6 report-content declarations. | Plan and run physical tests, establish representative loading/restraints and test purpose, select project serviceability limits, inspect damage and authenticate reports. No physical test execution, reliability-based reduced factor or test certificate. |
 
 Clause 9.2.2.5 bolt checks apply the stated shear reduction above 6 mm and below
-20 mm filler thickness. For any nonzero filler, the bolt operations also require
+20 mm filler thickness, using the maximum total filler thickness on any shear
+plane where multiple filler plates are present. For any nonzero filler, the bolt operations also require
 verified extension beyond the connection and verified transfer bolting through
 the combined section. Those two detailing conditions remain externally assessed;
 the calculation does not derive their geometry or bolt-group capacity.
+
+Clause 9.2.3.2 slip checks now report the external evidence basis for the supplied
+slip factor and whether the friction-bolt category, surface treatment and paint
+masking requirements are recorded on drawings. Appendix J is a recognized test
+route. The contact-surface assessment, test evidence and drawing records are not
+authenticated by the calculation.
 
 Additional bounded routes in this release include `advanced_members` checks for
 7.4.3(a)(i), 7.4.4(b) and 7.4.5(a) component slenderness, plus the optional

@@ -60,6 +60,12 @@ FIELDS = {
         "grade": {"enum": ["4.6", "8.8", "10.9"]},
         "lap_length_mm": N,
         "filler_thickness_mm": {"type": "number", "minimum": 0, "exclusiveMaximum": 20},
+        "filler_thickness_by_shear_plane_mm": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {"type": "number", "minimum": 0, "exclusiveMaximum": 20},
+        },
         "filler_plate_extends_beyond_connection_verified": BOOL,
         "filler_plate_force_transfer_through_combined_section_verified": BOOL,
         "shear_action_kn": N,
@@ -81,6 +87,9 @@ FIELDS = {
         "hole_type": {"enum": ["standard", "short_slot", "oversize", "long_slot"]},
         "shear_action_kn": N,
         "tension_action_kn": N,
+        "clean_as_rolled_contact_surfaces_verified": BOOL,
+        "slip_factor_test_evidence_verified": BOOL,
+        "friction_bolt_category_and_surface_treatment_masking_drawings_verified": BOOL,
     },
     "block_shear": {
         "yield_strength_mpa": P,
@@ -425,6 +434,7 @@ FIELDS["bolt_group_out_of_plane"] = {
             "grade",
             "lap_length_mm",
             "filler_thickness_mm",
+            "filler_thickness_by_shear_plane_mm",
             "filler_plate_extends_beyond_connection_verified",
             "filler_plate_force_transfer_through_combined_section_verified",
         )
@@ -479,6 +489,7 @@ FIELDS["bolt_group_elastic_3d"] = {
             "grade",
             "lap_length_mm",
             "filler_thickness_mm",
+            "filler_thickness_by_shear_plane_mm",
             "filler_plate_extends_beyond_connection_verified",
             "filler_plate_force_transfer_through_combined_section_verified",
         )
@@ -531,11 +542,22 @@ FILLER_PLATE_ASSESSMENT_FIELDS = (
     "filler_plate_extends_beyond_connection_verified",
     "filler_plate_force_transfer_through_combined_section_verified",
 )
+FILLER_PLATE_OPTIONAL_FIELDS = (
+    "filler_thickness_mm",
+    "filler_thickness_by_shear_plane_mm",
+    *FILLER_PLATE_ASSESSMENT_FIELDS,
+)
+SLIP_SURFACE_OPTIONAL_FIELDS = (
+    "clean_as_rolled_contact_surfaces_verified",
+    "slip_factor_test_evidence_verified",
+    "friction_bolt_category_and_surface_treatment_masking_drawings_verified",
+)
 OPTIONAL_FIELDS = {
-    "bolt": FILLER_PLATE_ASSESSMENT_FIELDS,
-    "bolt_group": FILLER_PLATE_ASSESSMENT_FIELDS,
-    "bolt_group_out_of_plane": FILLER_PLATE_ASSESSMENT_FIELDS,
-    "bolt_group_elastic_3d": FILLER_PLATE_ASSESSMENT_FIELDS,
+    "bolt": FILLER_PLATE_OPTIONAL_FIELDS,
+    "bolt_group": FILLER_PLATE_OPTIONAL_FIELDS,
+    "bolt_group_out_of_plane": FILLER_PLATE_OPTIONAL_FIELDS,
+    "bolt_group_elastic_3d": FILLER_PLATE_OPTIONAL_FIELDS,
+    "slip": SLIP_SURFACE_OPTIONAL_FIELDS,
     "minimum_beam_shear_action": (
         "reaction_shear_direction_unit_vector",
         "reaction_shear_eccentricity_vector_mm",
@@ -652,7 +674,7 @@ def _bolt(d):
     length = d["lap_length_mm"]
     kr = 1 if length < 300 else (1.075 - length / 4000 if length <= 1300 else 0.75)
     krd = 0.83 if d["grade"] == "10.9" and nn else 1
-    filler = d["filler_thickness_mm"]
+    filler = _effective_filler_thickness_mm(d)
     kf = 1 - 0.0154 * (filler - 6) if filler > 6 else 1
     shear = (
         0.62
@@ -664,11 +686,35 @@ def _bolt(d):
         / 1000
     )
     tension = d["tensile_area_mm2"] * d["ultimate_strength_mpa"] / 1000
-    return shear, tension, {"lap_factor": kr, "ductility_factor": krd, "filler_factor": kf}
+    return shear, tension, {
+        "lap_factor": kr,
+        "ductility_factor": krd,
+        "filler_factor": kf,
+        "filler_thickness_used_mm": filler,
+    }
+
+
+def _effective_filler_thickness_mm(d):
+    thickness = d.get("filler_thickness_mm")
+    plane_thicknesses = d.get("filler_thickness_by_shear_plane_mm")
+    if thickness is None and plane_thicknesses is None:
+        raise ValueError("Provide the filler thickness or its thickness on each shear plane.")
+    if plane_thicknesses is None:
+        return thickness
+    governing_thickness = max(plane_thicknesses)
+    if thickness is not None and not isclose(
+        thickness, governing_thickness, rel_tol=0.0, abs_tol=1e-9
+    ):
+        raise ValueError(
+            "filler_thickness_mm must equal the maximum thickness in "
+            "filler_thickness_by_shear_plane_mm."
+        )
+    return governing_thickness
 
 
 def _filler_plate_detailing_check(d):
-    if d["filler_thickness_mm"] == 0:
+    filler_thickness = _effective_filler_thickness_mm(d)
+    if filler_thickness == 0:
         return None
     if any(field not in d for field in FILLER_PLATE_ASSESSMENT_FIELDS):
         raise ValueError(
@@ -681,6 +727,7 @@ def _filler_plate_detailing_check(d):
     return {
         "clause": "9.2.2.5",
         "applicable": True,
+        "governing_filler_thickness_mm": filler_thickness,
         "extension_beyond_connection_verified": extension_verified,
         "bolting_transfers_member_force_through_combined_section_verified": transfer_verified,
         "satisfied": extension_verified and transfer_verified,
@@ -688,6 +735,30 @@ def _filler_plate_detailing_check(d):
             "User-verified detailing; extension geometry and transfer-bolt capacity are "
             "not calculated by this operation."
         ),
+    }
+
+
+def _slip_surface_requirements_check(d):
+    clean_as_rolled = d.get("clean_as_rolled_contact_surfaces_verified", False)
+    test_evidence = d.get("slip_factor_test_evidence_verified", False)
+    drawings_verified = d.get(
+        "friction_bolt_category_and_surface_treatment_masking_drawings_verified", False
+    )
+    standard_factor = isclose(d["slip_factor"], 0.35, rel_tol=0.0, abs_tol=1e-12)
+    if standard_factor and clean_as_rolled:
+        factor_basis = "clean_as_rolled"
+    elif test_evidence:
+        factor_basis = "test_evidence"
+    else:
+        factor_basis = "unverified"
+    return {
+        "clause": "9.2.3.2",
+        "slip_factor_basis": factor_basis,
+        "clean_as_rolled_factor_route_available": standard_factor,
+        "clean_as_rolled_contact_surfaces_verified": clean_as_rolled,
+        "slip_factor_test_evidence_verified": test_evidence,
+        "friction_bolt_category_and_surface_treatment_masking_drawings_verified": drawings_verified,
+        "satisfied": factor_basis != "unverified" and drawings_verified,
     }
 
 
@@ -1415,6 +1486,7 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         )
         c["slip"] = _check(v, 0.7, d["shear_action_kn"], "9.2.3.1; 3.5.5")
         c["interaction"] = {"utilisation": u, "satisfied": u <= 1, "clause": "9.2.3.3"}
+        c["surface_requirements"] = _slip_surface_requirements_check(d)
         intermediate = {"hole_factor": kh}
     elif k == "block_shear":
         if d["net_shear_area_mm2"] > d["gross_shear_area_mm2"]:
