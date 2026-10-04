@@ -44,6 +44,7 @@ The source standard is not redistributed.
 | hole_deduction | 9.1.10 governing straight/zigzag deduction. Supply maximum straight width sum and each candidate zigzag path separately; each stagger pair is [pitch, gauge]. Includes actual gross hole width, countersink where relevant. Enumerate all paths externally. |
 | bolt_group | 9.3.1 rigid-group elastic superposition of centroidal signed Fx, Fy and Mz. Checks each bolt; identical bolts, in-plane actions only. Component actions must be zero. Separate ply bearing and detailing remain necessary. |
 | bolt_group_out_of_plane | 9.3.2–3 checks user-supplied per-bolt Fx/Fy/tension actions, their six-resultant equilibrium under 9.1.3(a), and each bolt's shear, tension, prying addition and combined interaction. Bolt tension acts along z; positions are (x,y) about the verified common action origin and moments follow right-handed `r × F`. Load distribution and component stability require verified analysis inputs. Check compression/contact actions and ply bearing separately. |
+| bolt_group_elastic_3d | 9.1.3(a), 9.3.2–3 resolves a planar bolt group's six centroidal resultants with rigid-plate, equal-bolt-stiffness linear elastic distribution, then checks equilibrium and each bolt's shear, tension, prying addition and interaction. Requires a non-collinear layout, verified method/experimental basis, and nonnegative calculated bolt tension. Compression/contact and slack-bolt redistribution, ply bearing and complete connection-component checks remain separate. |
 | weld_group | 9.7.1–3 constant-throat straight-line fillet group, signed Fx/Fy/Fz and Mx/My/Mz at centroid. Exact line integrals including product inertia; vector resultant checked at every endpoint. Forces and moments are in a right-handed xyz system; weld lies in xy plane. |
 
 Weld lap reduction is calculated from the supplied lap length in millimetres.
@@ -55,9 +56,9 @@ or overlapping weld lengths, and does not include thin RHS longitudinal welds.
 
 The following still require engineering assessment: share fractions and installation
 sequence under 9.1.7; special fatigue-angle detail assessment under 9.1.5; actual design
-actions and classification evidence, force transfer, restraint and Clause 9.1.3 load
-distribution method for out-of-plane bolt groups; local hollow-section effects; plate/component
-section/member checks;
+actions and classification evidence, force transfer, restraint and alternative Clause 9.1.3
+distribution methods when the rigid-plate/equal-stiffness case is inapplicable; compression/contact
+and slack-bolt redistribution; local hollow-section effects; plate/component section/member checks;
 nonstandard holes; weld preparation, enhanced penetration, compound weld
 geometry and built-up-member detailing outside the listed Clause 9.6.3.9 termination checks;
 fabrication, inspection and installation Sections 14/15 and referenced standards.

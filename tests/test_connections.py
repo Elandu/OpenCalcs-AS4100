@@ -114,6 +114,58 @@ def bolt_group_out_of_plane(**changes):
     }
 
 
+def bolt_group_elastic_3d(**changes):
+    return {
+        "check_type": "bolt_group_elastic_3d",
+        "ultimate_strength_mpa": 830,
+        "minor_area_mm2": 225,
+        "shank_area_mm2": 314,
+        "tensile_area_mm2": 245,
+        "threaded_planes": 1,
+        "plain_planes": 0,
+        "grade": "8.8",
+        "lap_length_mm": 0,
+        "filler_thickness_mm": 0,
+        "bolt_layout": [
+            {
+                "bolt_id": "B1",
+                "position_mm": [50, 25],
+                "prying_tension_kn": 1,
+                "prying_force_assessment_verified": True,
+            },
+            {
+                "bolt_id": "B2",
+                "position_mm": [50, -25],
+                "prying_tension_kn": 0,
+                "prying_force_assessment_verified": True,
+            },
+            {
+                "bolt_id": "B3",
+                "position_mm": [-50, 25],
+                "prying_tension_kn": 0,
+                "prying_force_assessment_verified": True,
+            },
+            {
+                "bolt_id": "B4",
+                "position_mm": [-50, -25],
+                "prying_tension_kn": 2,
+                "prying_force_assessment_verified": True,
+            },
+        ],
+        "group_force_x_kn": 40,
+        "group_force_y_kn": 20,
+        "group_tension_kn": 120,
+        "group_moment_x_knm": 2,
+        "group_moment_y_knm": 1,
+        "group_moment_z_knm": 3,
+        "group_actions_at_centroid_verified": True,
+        "rigid_plates_and_equal_bolt_stiffness_verified": True,
+        "elastic_method_experimental_basis_verified": True,
+        "connection_element_deformation_capacity_and_stability_verified": True,
+        **changes,
+    }
+
+
 @pytest.mark.parametrize(
     "actual_shear,member_capacity,expected_minimum,expected_action",
     [
@@ -1065,6 +1117,62 @@ def test_bolt_group_vector_superposition_and_equilibrium():
     assert sum(
         x * fy - y * fx for (x, y), (fx, fy) in zip(points, forces, strict=True)
     ) == pytest.approx(2000)
+
+
+def test_clause_9_1_3_and_9_3_2_3_rigid_plate_bolt_group_distribution():
+    result = run_connections(bolt_group_elastic_3d())
+    assert result["checks"]["action_distribution_equilibrium"]["satisfied"]
+    assert result["intermediate"]["distribution_method"] == (
+        "rigid_plate_equal_stiffness_linear_elastic"
+    )
+    actions = result["intermediate"]["distributed_bolt_actions"]
+    assert [
+        [action["shear_x_kn"], action["shear_y_kn"], action["tension_action_kn"]]
+        for action in actions
+    ] == [[4, 17, 45], [16, 17, 5], [4, -7, 55], [16, -7, 15]]
+    assert result["checks"]["bolts"][0]["total_bolt_tension_action_kn"] == 46
+    assert result["intermediate"]["actions_resolved_from_bolts"] == pytest.approx(
+        {
+            "force_x_kn": 40,
+            "force_y_kn": 20,
+            "tension_kn": 120,
+            "moment_x_knm": 2,
+            "moment_y_knm": 1,
+            "moment_z_knm": 3,
+        }
+    )
+
+
+def test_elastic_3d_bolt_group_rejects_compression_and_singular_layouts():
+    with pytest.raises(ValueError, match="bolt compression"):
+        run_connections(bolt_group_elastic_3d(group_tension_kn=10, group_moment_x_knm=2))
+    collinear = [
+        {**item, "position_mm": [index * 50, 0]}
+        for index, item in enumerate(bolt_group_elastic_3d()["bolt_layout"])
+    ]
+    with pytest.raises(ValueError, match="non-collinear"):
+        run_connections(bolt_group_elastic_3d(bolt_layout=collinear))
+    with pytest.raises(ValueError, match="not valid under any of the given schemas"):
+        run_connections(bolt_group_elastic_3d(elastic_method_experimental_basis_verified=False))
+
+
+def test_elastic_3d_bolt_actions_are_invariant_to_layout_origin_translation():
+    base = run_connections(bolt_group_elastic_3d())
+    translated_layout = [
+        {
+            **item,
+            "position_mm": [item["position_mm"][0] + 800, item["position_mm"][1] - 350],
+        }
+        for item in bolt_group_elastic_3d()["bolt_layout"]
+    ]
+    translated = run_connections(bolt_group_elastic_3d(bolt_layout=translated_layout))
+    base_actions = base["intermediate"]["distributed_bolt_actions"]
+    translated_actions = translated["intermediate"]["distributed_bolt_actions"]
+    assert translated["intermediate"]["centroid_mm"] == [800, -350]
+    for first, second in zip(base_actions, translated_actions, strict=True):
+        assert [first[key] for key in ("shear_x_kn", "shear_y_kn", "tension_action_kn")] == [
+            second[key] for key in ("shear_x_kn", "shear_y_kn", "tension_action_kn")
+        ]
 
 
 def weld_group(**changes):

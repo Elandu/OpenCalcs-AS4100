@@ -480,6 +480,34 @@
       "passed": true
     },
     {
+      "name": "Clause 9.1.3 rigid-plate elastic bolt B1 x-shear, hand arithmetic",
+      "actual": 4.0,
+      "expected": 4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.3 biaxial elastic bolt B1 tension, hand arithmetic",
+      "actual": 45.0,
+      "expected": 45,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.3 and 9.3.2\u20133 elastic bolt-group six-resultant equilibrium",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clauses 9.1.8 and 9.2.2.2 elastic bolt-group tension plus prying",
+      "actual": 46.0,
+      "expected": 46,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 9.1.4(b)(ii) simple-beam minimum shear, 0.15 branch",
       "actual": 30.0,
       "expected": 30,
