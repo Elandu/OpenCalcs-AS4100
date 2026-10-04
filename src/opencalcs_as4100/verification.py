@@ -11,6 +11,7 @@ from .analysis import run_analysis
 from .connections import run_connections
 from .design_actions import run_design_actions
 from .durability import run_durability
+from .fabrication import run_fabrication
 from .materials import run_materials
 from .members import run_members
 from .webs import buckling_alpha, run_webs
@@ -2654,6 +2655,154 @@ def verify():
     record(
         "Clause 12.10.1 protection maintained over connection components",
         int(fire_connection["check_satisfied"]),
+        1,
+    )
+    standard_hole = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "standard",
+            "bolt_diameter_mm": 24,
+            "hole_diameter_mm": 26,
+        }
+    )
+    record(
+        "Clause 14.3.2 standard hole at 24 mm bolt boundary",
+        standard_hole["values"]["maximum_hole_diameter_mm"],
+        26,
+    )
+    base_plate_hole = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "base_plate_anchor",
+            "bolt_diameter_mm": 14,
+            "hole_diameter_mm": 20,
+            "special_nut_washer": {
+                "type": "plate",
+                "thickness_mm": 4,
+                "minimum_edge_clearance_mm": 10,
+                "coverage_geometry_verified": True,
+                "product_verified": True,
+                "material_as_nzs_3678_verified": True,
+            },
+        }
+    )
+    record(
+        "Clause 14.3.2 base-plate anchor-hole maximum diameter",
+        base_plate_hole["values"]["maximum_hole_diameter_mm"],
+        20,
+    )
+    record(
+        "Clause 14.3.2 base-plate special washer minimum thickness",
+        int(base_plate_hole["checks"][1]["satisfied"]),
+        1,
+    )
+    oversize_hole = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "oversize",
+            "bolt_diameter_mm": 20,
+            "hole_diameter_mm": 28,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": False,
+            "head_side": {"bears_on_holed_ply": False, "washer": None},
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    record(
+        "Clause 14.3.2 oversize-hole diameter max(1.25d, d+8)",
+        oversize_hole["values"]["maximum_hole_diameter_mm"],
+        28,
+    )
+    governing_oversize_hole = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "oversize",
+            "bolt_diameter_mm": 40,
+            "hole_diameter_mm": 50,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": False,
+            "head_side": {"bears_on_holed_ply": False, "washer": None},
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    record(
+        "Clause 14.3.2 oversize-hole factor limit 1.25d",
+        governing_oversize_hole["values"]["maximum_hole_diameter_mm"],
+        1.25 * 40,
+    )
+    short_slot = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "short_slot",
+            "bolt_diameter_mm": 20,
+            "hole_width_mm": 22,
+            "hole_length_mm": 30,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": True,
+            "head_side": {"bears_on_holed_ply": False, "washer": None},
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    record(
+        "Clause 14.3.2 short-slot length max(1.33d, d+10)",
+        short_slot["values"]["maximum_hole_length_mm"],
+        30,
+    )
+    governing_short_slot = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "short_slot",
+            "bolt_diameter_mm": 40,
+            "hole_width_mm": 43,
+            "hole_length_mm": 53.2,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": False,
+            "head_side": {"bears_on_holed_ply": False, "washer": None},
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    record(
+        "Clause 14.3.2 short-slot factor limit 1.33d",
+        governing_short_slot["values"]["maximum_hole_length_mm"],
+        1.33 * 40,
+    )
+    long_slot = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "long_slot",
+            "bolt_diameter_mm": 20,
+            "hole_width_mm": 22,
+            "hole_length_mm": 50,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": True,
+            "alternate_plies_verified": True,
+            "head_side": {
+                "bears_on_holed_ply": True,
+                "washer": {
+                    "type": "plate",
+                    "thickness_mm": 8,
+                    "minimum_edge_clearance_mm": 11,
+                    "coverage_geometry_verified": True,
+                    "product_verified": True,
+                    "material_as_nzs_3678_verified": True,
+                },
+            },
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    record(
+        "Clause 14.3.2 long-slot total length 2.5d",
+        long_slot["values"]["maximum_hole_length_mm"],
+        50,
+    )
+    record(
+        "Clause 14.3.2 long-slot washer minimum thickness and alternate plies",
+        int(long_slot["checked_conditions_satisfied"]),
         1,
     )
     return {

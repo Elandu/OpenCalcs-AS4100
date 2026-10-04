@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from opencalcs_as4100.advanced_members import run_advanced_members  # noqa: E402
 from opencalcs_as4100.connections import run_connections  # noqa: E402
 from opencalcs_as4100.durability import run_durability  # noqa: E402
+from opencalcs_as4100.fabrication import run_fabrication  # noqa: E402
 from opencalcs_as4100.materials import run_materials  # noqa: E402
 from opencalcs_as4100.members import run_members  # noqa: E402
 from opencalcs_as4100.webs import run_webs  # noqa: E402
@@ -186,6 +187,108 @@ def clause_2_2_5_z_quality():
     if insufficient["checked_conditions_satisfied"]:
         raise AssertionError("Clause 2.2.5 accepted an insufficient Z-quality class")
     return {"required_class_at_zed_21": check["required_z_quality_class"], "Z15_rejected": True}
+
+
+def clause_14_3_2_hole_sizes_and_use():
+    standard = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "standard",
+            "bolt_diameter_mm": 24,
+            "hole_diameter_mm": 26,
+        }
+    )
+    expect_close(standard["values"]["maximum_hole_diameter_mm"], 24 + 2)
+    if not standard["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 14.3.2 rejected the 24 mm standard-hole boundary")
+
+    oversize = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "oversize",
+            "bolt_diameter_mm": 20,
+            "hole_diameter_mm": 28,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": False,
+            "head_side": {"bears_on_holed_ply": False, "washer": None},
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    expect_close(oversize["values"]["maximum_hole_diameter_mm"], max(1.25 * 20, 20 + 8))
+    beyond = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "oversize",
+            "bolt_diameter_mm": 20,
+            "hole_diameter_mm": 28.001,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": False,
+            "head_side": {"bears_on_holed_ply": False, "washer": None},
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    if (
+        oversize["checked_conditions_satisfied"] is not True
+        or beyond["checked_conditions_satisfied"]
+    ):
+        raise AssertionError("Clause 14.3.2 oversize-hole upper boundary failed")
+
+    short_slot = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "short_slot",
+            "bolt_diameter_mm": 20,
+            "hole_width_mm": 22,
+            "hole_length_mm": 30,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": True,
+            "head_side": {"bears_on_holed_ply": False, "washer": None},
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    expect_close(short_slot["values"]["maximum_hole_length_mm"], max(1.33 * 20, 20 + 10))
+    if not short_slot["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 14.3.2 rejected the short-slot boundary")
+
+    long_slot = run_fabrication(
+        {
+            "check_type": "bolt_hole",
+            "hole_type": "long_slot",
+            "bolt_diameter_mm": 20,
+            "hole_width_mm": 22,
+            "hole_length_mm": 50,
+            "not_base_plate_anchor_hole_verified": True,
+            "connection_type": "friction_type",
+            "subject_to_shear": True,
+            "alternate_plies_verified": True,
+            "head_side": {
+                "bears_on_holed_ply": True,
+                "washer": {
+                    "type": "plate",
+                    "thickness_mm": 8,
+                    "minimum_edge_clearance_mm": 11,
+                    "coverage_geometry_verified": True,
+                    "product_verified": True,
+                    "material_as_nzs_3678_verified": True,
+                },
+            },
+            "nut_side": {"bears_on_holed_ply": False, "washer": None},
+        }
+    )
+    expect_close(long_slot["values"]["maximum_hole_length_mm"], 2.5 * 20)
+    if not long_slot["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 14.3.2 long-slot conditions failed")
+    return {
+        "standard_24_mm_boundary": 26,
+        "oversize_maximum_mm": 28,
+        "oversize_over_limit_rejected": True,
+        "short_slot_maximum_length_mm": 30,
+        "long_slot_maximum_length_mm": 50,
+        "long_slot_alternate_plies_and_washer_pass": True,
+    }
 
 
 def clause_5_2_6_hole_moduli():
@@ -995,6 +1098,7 @@ def main():
         "clause_2_2_3_unidentified_steel_limits": unidentified_steel_limits,
         "clause_2_2_4_standard_properties": clause_2_2_4_properties,
         "clause_2_2_5_through_thickness_quality": clause_2_2_5_z_quality,
+        "clause_14_3_2_hole_sizes_and_use": clause_14_3_2_hole_sizes_and_use,
         "clause_5_2_5_internal_gradient_effective_modulus": clause_5_2_5_internal_gradient,
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,
         "clause_5_3_2_4_unequal_flange_restraint_boundary": (clause_5_3_2_4_lateral_restraint),

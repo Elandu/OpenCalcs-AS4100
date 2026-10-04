@@ -19,7 +19,9 @@ REQUIREMENTS = {
     "fatigue": "11: detail classification, reference conditions and stress spectrum",
     "fire": "12: FRL, fire tests/protection, grouping and connections",
     "earthquake": "13: system, category, external standards and ductility detailing",
-    "fabrication": "14: drawings, tolerances, weld procedure and inspection records",
+    "fabrication": (
+        "14: drawings, hole geometry/use, tolerances, weld procedure and inspection records"
+    ),
     "erection": "15: temporary stability, bolt/weld installation and inspection records",
     "modification": "16: material identification, condition, repairs and structural reanalysis",
     "testing": "17: load-test planning, specimen representation, acceptance and reporting",
@@ -47,6 +49,7 @@ _TASK = object_schema(
                 "durability",
                 "design_actions",
                 "webs",
+                "fabrication",
                 "testing",
             ]
         },
@@ -87,6 +90,7 @@ def run_review(inputs):
         "durability": ("durability", "run_durability"),
         "design_actions": ("design_actions", "run_design_actions"),
         "webs": ("webs", "run_webs"),
+        "fabrication": ("fabrication", "run_fabrication"),
         "testing": ("testing", "run_testing"),
     }
 

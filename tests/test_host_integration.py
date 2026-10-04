@@ -143,6 +143,7 @@ def test_all_calculation_families_discovered_with_schemas():
         "durability",
         "design_actions",
         "webs",
+        "fabrication",
         "testing",
         "design_review",
     ],
@@ -654,6 +655,15 @@ def test_family_http_validation(suffix):
                 "minimum_depth_mm": 300,
                 "critical_depth_mm": 400,
                 "critical_section_values_verified": True,
+            },
+        ),
+        (
+            "fabrication",
+            {
+                "check_type": "bolt_hole",
+                "hole_type": "standard",
+                "bolt_diameter_mm": 24,
+                "hole_diameter_mm": 26,
             },
         ),
     ],

@@ -80,3 +80,17 @@ def test_duplicate_evidence_rejected(schedule):
     schedule["engineering_evidence"] = [e, e]
     with pytest.raises(ValueError):
         run_review(schedule)
+
+
+def test_clause_14_3_2_fabrication_task_runs_in_review(schedule):
+    schedule["tasks"][0]["family"] = "fabrication"
+    schedule["tasks"][0]["inputs"] = {
+        "check_type": "bolt_hole",
+        "hole_type": "standard",
+        "bolt_diameter_mm": 24,
+        "hole_diameter_mm": 26,
+    }
+    result = run_review(schedule)
+    task = result["calculation_results"][0]["result"]
+    assert task["clauses"] == ["14.3.2"]
+    assert task["checked_conditions_satisfied"]

@@ -1,5 +1,5 @@
 {
-  "package_version": "0.5.0",
+  "package_version": "0.6.0",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1243,7 +1243,77 @@
       "passed": true
     },
     {
+      "name": "Clause 13.3.5(b) brace connection full member design capacity",
+      "actual": 200,
+      "expected": 200,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 13.3.5(b) brace connection at full member capacity",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 13.3.6.3(b) intermediate-frame stiffener details",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 13.3.6.4(a) maximum gas-cut edge roughness",
+      "actual": 12,
+      "expected": 12,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 13.3.6.4(a)-(b) acceptable plastic-region fabrication methods",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 13.3.6.2(a) brace and connection capacity boundaries",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 13.3.6.2(b) full-depth butt-welded stiffener condition",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 13.3.6.2 tension butt weld ultrasonics/radiography percentage",
+      "actual": 10,
+      "expected": 10,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 13.3.6.2 non-tension butt weld visual examination percentage",
+      "actual": 50,
+      "expected": 50,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 13.3.6.2 other welds magnetic particle/dye penetrant percentage",
+      "actual": 5,
+      "expected": 5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 13.3.6.2(c) SP category and NDE coverage limits",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,
@@ -1377,6 +1447,69 @@
     },
     {
       "name": "Clause 12.10.1 protection maintained over connection components",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 standard hole at 24 mm bolt boundary",
+      "actual": 26,
+      "expected": 26,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 base-plate anchor-hole maximum diameter",
+      "actual": 20,
+      "expected": 20,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 base-plate special washer minimum thickness",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 oversize-hole diameter max(1.25d, d+8)",
+      "actual": 28,
+      "expected": 28,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 oversize-hole factor limit 1.25d",
+      "actual": 50.0,
+      "expected": 50.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 short-slot length max(1.33d, d+10)",
+      "actual": 30,
+      "expected": 30,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 short-slot factor limit 1.33d",
+      "actual": 53.2,
+      "expected": 53.2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 long-slot total length 2.5d",
+      "actual": 50.0,
+      "expected": 50,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.2 long-slot washer minimum thickness and alternate plies",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,
