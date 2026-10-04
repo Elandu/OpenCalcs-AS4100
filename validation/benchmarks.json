@@ -410,6 +410,55 @@
       "passed": true
     },
     {
+      "name": "Clause 9.1.8 externally assessed prying added to bolt tension",
+      "actual": 30,
+      "expected": 30,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.5 joint eccentricity x-moment, hand arithmetic",
+      "actual": -0.04,
+      "expected": -0.04,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.5 joint eccentricity y-moment, hand arithmetic",
+      "actual": 0.14,
+      "expected": 0.14,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.5 joint eccentricity z-moment, hand arithmetic",
+      "actual": -0.08,
+      "expected": -0.08,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.6 friction-type fastener satisfies both selection conditions",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.7 60 percent non-slip shear share, hand arithmetic",
+      "actual": 60.0,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.7 40 percent non-slip moment share, hand arithmetic",
+      "actual": 10.0,
+      "expected": 10,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 9.1.4(b)(ii) simple-beam minimum shear, 0.15 branch",
       "actual": 30.0,
       "expected": 30,

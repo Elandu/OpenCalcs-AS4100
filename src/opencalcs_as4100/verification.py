@@ -856,12 +856,122 @@ def verify():
             "filler_thickness_mm": 0,
             "shear_action_kn": 50,
             "tension_action_kn": 80,
+            "prying_tension_kn": 0,
+            "prying_force_assessment_verified": True,
         }
     )
     record(
         "9.3 bolt design shear, hand arithmetic",
         bolt["checks"]["shear"]["design_capacity_kn"],
         92.628,
+    )
+    bolt_prying = run_connections(
+        {
+            "check_type": "bolt",
+            "ultimate_strength_mpa": 830,
+            "minor_area_mm2": 225,
+            "shank_area_mm2": 314,
+            "tensile_area_mm2": 245,
+            "threaded_planes": 1,
+            "plain_planes": 0,
+            "grade": "8.8",
+            "lap_length_mm": 0,
+            "filler_thickness_mm": 0,
+            "shear_action_kn": 0,
+            "tension_action_kn": 20,
+            "prying_tension_kn": 10,
+            "prying_force_assessment_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.8 externally assessed prying added to bolt tension",
+        bolt_prying["intermediate"]["total_bolt_tension_action_kn"],
+        30,
+    )
+    joint_eccentricity = run_connections(
+        {
+            "check_type": "joint_eccentricity_action",
+            "connection_detail_case": "general",
+            "fatigue_loading": False,
+            "fatigue_detail_eccentricity_assessment_verified": False,
+            "centroidal_axes_meet_practicable_verified": False,
+            "centroidal_axes_meet_at_joint_verified": False,
+            "force_kn": [5, 2, 1],
+            "eccentricity_vector_mm": [10, 20, 30],
+            "joint_geometry_and_load_line_assessed_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.5 joint eccentricity x-moment, hand arithmetic",
+        joint_eccentricity["intermediate"]["eccentricity_moment_vector_knm"][0],
+        -0.04,
+    )
+    record(
+        "Clause 9.1.5 joint eccentricity y-moment, hand arithmetic",
+        joint_eccentricity["intermediate"]["eccentricity_moment_vector_knm"][1],
+        0.14,
+    )
+    record(
+        "Clause 9.1.5 joint eccentricity z-moment, hand arithmetic",
+        joint_eccentricity["intermediate"]["eccentricity_moment_vector_knm"][2],
+        -0.08,
+    )
+    fastener_selection = run_connections(
+        {
+            "check_type": "fastener_selection_suitability",
+            "selected_fastener_system": "friction_type_8_8_TF",
+            "serviceability_slip_to_be_avoided": True,
+            "impact_or_vibration_present": True,
+            "service_and_dynamic_action_assessment_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.6 friction-type fastener satisfies both selection conditions",
+        int(fastener_selection["checks"]["fastener_selection"]["satisfied"]),
+        1,
+    )
+    combined_connection = run_connections(
+        {
+            "check_type": "combined_connection_action_assignment",
+            "component_groups": [
+                {"group_id": "friction-bolts", "fastener_class": "non_slip"},
+                {"group_id": "snug-bolts", "fastener_class": "slip_type"},
+                {"group_id": "fitted-bolts", "fastener_class": "non_slip"},
+            ],
+            "load_cases": [
+                {
+                    "case_id": "service-load",
+                    "stage": "non_weld_action",
+                    "actions": {
+                        "axial_kn": 0,
+                        "shear_x_kn": 0,
+                        "shear_y_kn": 100,
+                        "moment_x_knm": 0,
+                        "moment_y_knm": 0,
+                        "moment_z_knm": 25,
+                    },
+                    "shares": [
+                        {"group_id": "friction-bolts", "fraction": 0.6},
+                        {"group_id": "fitted-bolts", "fraction": 0.4},
+                    ],
+                }
+            ],
+            "installation_sequence_assessed_verified": True,
+        }
+    )
+    assigned = combined_connection["intermediate"]["load_case_assignments"][0][
+        "component_group_assignments"
+    ]
+    by_group = {item["group_id"]: item for item in assigned}
+    record(
+        "Clause 9.1.7 60 percent non-slip shear share, hand arithmetic",
+        by_group["friction-bolts"]["assigned_actions"]["shear_y_kn"],
+        60,
+    )
+    record(
+        "Clause 9.1.7 40 percent non-slip moment share, hand arithmetic",
+        by_group["fitted-bolts"]["assigned_actions"]["moment_z_knm"],
+        10,
     )
     beam_connection_shear = run_connections(
         {

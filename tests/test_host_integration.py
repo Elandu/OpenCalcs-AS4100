@@ -205,6 +205,75 @@ def test_family_http_validation(suffix):
             },
         ),
         (
+            "connection_design",
+            {
+                "check_type": "joint_eccentricity_action",
+                "connection_detail_case": "general",
+                "fatigue_loading": False,
+                "fatigue_detail_eccentricity_assessment_verified": False,
+                "centroidal_axes_meet_practicable_verified": False,
+                "centroidal_axes_meet_at_joint_verified": False,
+                "force_kn": [0, 10, 0],
+                "eccentricity_vector_mm": [25, 0, 0],
+                "joint_geometry_and_load_line_assessed_verified": True,
+            },
+        ),
+        (
+            "connection_design",
+            {
+                "check_type": "fastener_selection_suitability",
+                "selected_fastener_system": "friction_type_8_8_TF",
+                "serviceability_slip_to_be_avoided": True,
+                "impact_or_vibration_present": True,
+                "service_and_dynamic_action_assessment_verified": True,
+            },
+        ),
+        (
+            "connection_design",
+            {
+                "check_type": "combined_connection_action_assignment",
+                "component_groups": [
+                    {"group_id": "friction-bolts", "fastener_class": "non_slip"},
+                    {"group_id": "snug-bolts", "fastener_class": "slip_type"},
+                ],
+                "load_cases": [
+                    {
+                        "case_id": "service-load",
+                        "stage": "non_weld_action",
+                        "actions": {
+                            "axial_kn": 0,
+                            "shear_x_kn": 0,
+                            "shear_y_kn": 80,
+                            "moment_x_knm": 0,
+                            "moment_y_knm": 0,
+                            "moment_z_knm": 16,
+                        },
+                        "shares": [{"group_id": "friction-bolts", "fraction": 1}],
+                    }
+                ],
+                "installation_sequence_assessed_verified": True,
+            },
+        ),
+        (
+            "connection_design",
+            {
+                "check_type": "bolt",
+                "ultimate_strength_mpa": 830,
+                "minor_area_mm2": 225,
+                "shank_area_mm2": 314,
+                "tensile_area_mm2": 245,
+                "threaded_planes": 1,
+                "plain_planes": 0,
+                "grade": "8.8",
+                "lap_length_mm": 0,
+                "filler_thickness_mm": 0,
+                "shear_action_kn": 0,
+                "tension_action_kn": 40,
+                "prying_tension_kn": 15,
+                "prying_force_assessment_verified": True,
+            },
+        ),
+        (
             "webs",
             {
                 "operation": "longitudinal_stiffener",
@@ -527,6 +596,22 @@ def test_extended_family_successful_http_execution(suffix, inputs):
             assert response.json()["intermediate"]["required_design_moment_knm"] == pytest.approx(
                 540
             )
+        if inputs.get("check_type") == "joint_eccentricity_action":
+            assert response.json()["intermediate"]["eccentricity_moment_vector_knm"] == [
+                0,
+                0,
+                0.25,
+            ]
+        if inputs.get("check_type") == "fastener_selection_suitability":
+            assert response.json()["checks"]["fastener_selection"]["satisfied"]
+        if inputs.get("check_type") == "combined_connection_action_assignment":
+            assignments = response.json()["intermediate"]["load_case_assignments"][0][
+                "component_group_assignments"
+            ]
+            assert assignments[0]["assigned_actions"]["shear_y_kn"] == 80
+            assert assignments[1]["assigned_actions"]["shear_y_kn"] == 0
+        if inputs.get("check_type") == "bolt":
+            assert response.json()["intermediate"]["total_bolt_tension_action_kn"] == 55
         if inputs.get("operation") == "chs_shear":
             assert response.json()["values"]["effective_shear_area_mm2"] == pytest.approx(2500)
             assert response.json()["checks"]["shear_bending"]["satisfied"]

@@ -4,8 +4,10 @@
 fields in the selected schema are required, additional fields are rejected, and
 numbers must be finite. Dimensions are mm, areas mm², stresses MPa, forces kN,
 moments kNm.
-Design actions must include externally assessed eccentricity and prying. These
-are component calculations, not a complete connection compliance certificate.
+Supply complete design actions and eccentricities. The bolt check accepts
+externally assessed prying tension separately and adds it to bolt tension; other
+connection actions must already include applicable eccentricity and prying.
+These are component calculations, not a complete connection compliance certificate.
 
 The implementation was visually reviewed against the licensed AS 4100:2020
 Section 9, printed pages 112–138, including Clause 9.1.4 on page 114, Table 3.4
@@ -14,6 +16,9 @@ The source standard is not redistributed.
 
 | check_type | Calculation and prerequisites |
 | --- | --- |
+| joint_eccentricity_action | 9.1.5 signed joint moment vector from `r × F`; axes should meet at a point where practicable. For fatigue-loaded angle details, externally verify weld balancing or bolt gauge-line eccentricity from the connection geometry. |
+| fastener_selection_suitability | 9.1.6 rule checks for avoiding serviceability slip and for impact/vibration. Friction-category 8.8/TF or 10.9/TF bolts, fitted bolts and welds satisfy slip avoidance; friction-category bolts, locking devices and welds satisfy impact/vibration. |
+| combined_connection_action_assignment | 9.1.7 assigns explicit design-action shares only to non-slip groups in a non-weld stage; slip-type groups receive none. Initial weld actions and actions applied after welding go wholly to one aggregate weld group. Verify the supplied share fractions and installation sequence from engineering records. |
 | minimum_beam_shear_action | 9.1.4(b)(ii) minimum simple-construction beam-connection shear: the greater of actual member design shear and the lesser of 0.15 times member design shear capacity or 40 kN. Optionally compares a supplied connection design shear capacity with that demand. No capacity factor is applied again. |
 | minimum_rigid_connection_action | 9.1.4(b)(i) rigid-construction connection moment: the greater of actual design moment and 0.5 times member design moment capacity. |
 | minimum_member_end_action | 9.1.4(b)(iii) tensile/compression member-end action: the greater of actual axial action and 0.3 times member design capacity. For verified threaded tension bracing with turnbuckles, the minimum is the full member design capacity. |
@@ -22,7 +27,7 @@ The source standard is not redistributed.
 | minimum_flexural_splice_action | 9.1.4(b)(vi) flexural-splice moment: the greater of actual design moment and 0.3 times member design moment capacity. Do not use for a shear-only splice. |
 | shear_only_splice_eccentric_action | 9.1.4(b)(vi) shear-only splice: retains the design shear and calculates the moment from the force eccentricity relative to the connector-group centroid. |
 | minimum_combined_splice_actions | 9.1.4(b)(vii) axial tension or compression plus bending; calculates the applicable axial minimum and flexural minimum simultaneously. For compression splices between effective lateral supports, also applies the Clause 4.4 amplified moment from 9.1.4(b)(v). The non-full-contact compression route requires evidence that the splice parts are held in line. |
-| bolt | 9.2.2.1–3 shear, tension, squared interaction; lap length, grade 10.9 threaded-plane ductility and filler reduction under 9.2.2.5. Supply minor area (not tensile area) for threaded shear and certified bolt strength/areas. Filler thickness >=20 mm is unsupported. Zero lap length means a non-lap connection. |
+| bolt | 9.1.8 externally assessed prying tension is added to member tension; the supplied prying assessment must use a recognized method supported by experimental evidence. 9.2.2.1–3 shear, tension, squared interaction; lap length, grade 10.9 threaded-plane ductility and filler reduction under 9.2.2.5. Supply minor area (not tensile area) for threaded shear and certified bolt strength/areas. Filler thickness >=20 mm is unsupported. Zero lap length means a non-lap connection. |
 | bearing | 9.2.2.4 ply bearing and edge tear-out. Effective edge distance is clear hole-edge distance towards the loaded edge or adjacent hole plus half bolt diameter. Each ply and action direction needs its own check. |
 | slip | 9.2.3 service shear and linear shear/tension interaction, phi=0.7 under 3.5.5. Installation tension and slip coefficient require compliant installation and surface evidence. As-rolled clean surfaces use 0.35; other surfaces require testing. Separate strength checks remain necessary. |
 | block_shear | 9.1.9(e) net rupture capped by gross shear yielding, phi=0.75, eccentricity factor 1 or 0.5. Enumerate all feasible rupture paths externally. |
@@ -47,10 +52,10 @@ non-lap connection. Weld group inputs describe a non-lap connection; lap weld gr
 are outside this operation's scope. Group geometry must not contain duplicate
 or overlapping weld lengths, and does not include thin RHS longitudinal welds.
 
-The following still require engineering assessment: 9.1.5–9.1.8 joint eccentricity
-and fatigue exceptions, fastener selection, mixed-connection action sharing and
-prying action; actual design actions and classification evidence, force transfer,
-restraint, local hollow-section effects; plate/component section/member checks; out-of-plane bolt groups;
+The following still require engineering assessment: share fractions and installation
+sequence under 9.1.7; special fatigue-angle detail assessment under 9.1.5; actual design
+actions and classification evidence, force transfer, restraint, local hollow-section effects;
+plate/component section/member checks; out-of-plane bolt groups;
 nonstandard holes; weld preparation, enhanced penetration, compound weld
 geometry and built-up-member detailing outside the listed Clause 9.6.3.9 termination checks;
 fabrication, inspection and installation Sections 14/15 and referenced standards.
@@ -59,7 +64,9 @@ capacities must include the applicable capacity factor. Combined splice action
 demands are reported together, but connection component resistance and combined-
 action interaction require separate checks. Clause 9.1.4 earthquake-combination
 action increases are not calculated here and must be assessed under Section 13.
-Fatigue, brittle-fracture and fire applicability are separate checks.
+Clause 9.1.8 does not calculate prying force; the supplied force and its supporting
+experimental-method evidence need engineering review. Fatigue, brittle-fracture
+and fire applicability are separate checks.
 
 Verification includes independent arithmetic benchmarks, table boundaries,
 service and strength capacity factors, signed vector group equilibrium, exact

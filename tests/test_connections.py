@@ -21,6 +21,8 @@ def bolt(**changes):
         "filler_thickness_mm": 0,
         "shear_action_kn": 50,
         "tension_action_kn": 80,
+        "prying_tension_kn": 0,
+        "prying_force_assessment_verified": True,
         **changes,
     }
 
@@ -32,6 +34,37 @@ def simple_beam_shear(**changes):
         "member_design_shear_capacity_kn": 200,
         "simple_construction_beam_connection_verified": True,
         "excluded_connection_arrangement_absent_verified": True,
+        **changes,
+    }
+
+
+def combined_connection(**changes):
+    return {
+        "check_type": "combined_connection_action_assignment",
+        "component_groups": [
+            {"group_id": "friction-bolts", "fastener_class": "non_slip"},
+            {"group_id": "snug-bolts", "fastener_class": "slip_type"},
+            {"group_id": "fitted-bolts", "fastener_class": "non_slip"},
+        ],
+        "load_cases": [
+            {
+                "case_id": "service-load",
+                "stage": "non_weld_action",
+                "actions": {
+                    "axial_kn": 0,
+                    "shear_x_kn": 0,
+                    "shear_y_kn": 100,
+                    "moment_x_knm": 0,
+                    "moment_y_knm": 0,
+                    "moment_z_knm": 25,
+                },
+                "shares": [
+                    {"group_id": "friction-bolts", "fraction": 0.6},
+                    {"group_id": "fitted-bolts", "fraction": 0.4},
+                ],
+            }
+        ],
+        "installation_sequence_assessed_verified": True,
         **changes,
     }
 
@@ -342,6 +375,180 @@ def test_bolt_hand_benchmark():
     assert r["checks"]["interaction"]["utilisation"] == pytest.approx(
         (50 / 92.628) ** 2 + (80 / 162.68) ** 2
     )
+
+
+def test_clause_9_1_8_prying_tension_is_added_to_bolt_tension_action():
+    result = run_connections(bolt(shear_action_kn=0, tension_action_kn=40, prying_tension_kn=15))
+    assert result["intermediate"]["member_tension_action_kn"] == 40
+    assert result["intermediate"]["prying_tension_action_kn"] == 15
+    assert result["intermediate"]["total_bolt_tension_action_kn"] == 55
+    assert result["checks"]["tension"]["clause"] == "9.1.8; 9.2.2.2"
+
+
+def test_clause_9_1_5_joint_eccentricity_moment_vector_hand_arithmetic():
+    result = run_connections(
+        {
+            "check_type": "joint_eccentricity_action",
+            "connection_detail_case": "general",
+            "fatigue_loading": False,
+            "fatigue_detail_eccentricity_assessment_verified": False,
+            "centroidal_axes_meet_practicable_verified": False,
+            "centroidal_axes_meet_at_joint_verified": False,
+            "force_kn": [5, 2, 1],
+            "eccentricity_vector_mm": [10, 20, 30],
+            "joint_geometry_and_load_line_assessed_verified": True,
+        }
+    )
+    assert result["intermediate"]["eccentricity_moment_vector_knm"] == pytest.approx(
+        [-0.04, 0.14, -0.08]
+    )
+
+
+@pytest.mark.parametrize(
+    "system,avoid_slip,impact_or_vibration,expected",
+    [
+        ("friction_type_8_8_TF", True, True, True),
+        ("fitted_bolt", True, False, True),
+        ("locking_device", False, True, True),
+        ("fitted_bolt", False, True, False),
+        ("ordinary_bolt", False, False, True),
+    ],
+)
+def test_clause_9_1_6_fastener_selection_conditions(
+    system, avoid_slip, impact_or_vibration, expected
+):
+    result = run_connections(
+        {
+            "check_type": "fastener_selection_suitability",
+            "selected_fastener_system": system,
+            "serviceability_slip_to_be_avoided": avoid_slip,
+            "impact_or_vibration_present": impact_or_vibration,
+            "service_and_dynamic_action_assessment_verified": True,
+        }
+    )
+    assert result["checks"]["fastener_selection"]["satisfied"] is expected
+
+
+def test_clause_9_1_5_rejects_practicable_axis_offset_and_unassessed_fatigue_angle():
+    base = {
+        "check_type": "joint_eccentricity_action",
+        "connection_detail_case": "general",
+        "fatigue_loading": False,
+        "fatigue_detail_eccentricity_assessment_verified": False,
+        "centroidal_axes_meet_practicable_verified": True,
+        "centroidal_axes_meet_at_joint_verified": False,
+        "force_kn": [0, 10, 0],
+        "eccentricity_vector_mm": [25, 0, 0],
+        "joint_geometry_and_load_line_assessed_verified": True,
+    }
+    with pytest.raises(ValueError, match="when that is practicable"):
+        run_connections(base)
+
+    base.update(
+        connection_detail_case="single_angle_welded_end",
+        centroidal_axes_meet_practicable_verified=False,
+        fatigue_loading=True,
+    )
+    with pytest.raises(ValueError, match="(?i)fatigue-loaded angle"):
+        run_connections(base)
+
+
+def test_bolt_prying_assessment_must_be_verified_and_group_must_remain_in_plane():
+    with pytest.raises(ValueError):
+        run_connections(bolt(prying_force_assessment_verified=False))
+    with pytest.raises(ValueError, match="prying actions must be zero"):
+        run_connections(
+            bolt(
+                check_type="bolt_group",
+                shear_action_kn=0,
+                tension_action_kn=0,
+                prying_tension_kn=1,
+                points_mm=[[-50, 0], [50, 0]],
+                force_x_kn=0,
+                force_y_kn=10,
+                moment_z_knm=0,
+            )
+        )
+
+
+def test_clause_9_1_7_assigns_actions_to_non_slip_groups_and_preserves_moments():
+    result = run_connections(combined_connection())
+    assignment = result["intermediate"]["load_case_assignments"][0]["component_group_assignments"]
+    by_group = {item["group_id"]: item for item in assignment}
+    assert by_group["friction-bolts"]["assigned_actions"]["shear_y_kn"] == 60
+    assert by_group["friction-bolts"]["assigned_actions"]["moment_z_knm"] == 15
+    assert by_group["fitted-bolts"]["assigned_actions"]["shear_y_kn"] == 40
+    assert by_group["fitted-bolts"]["assigned_actions"]["moment_z_knm"] == 10
+    assert by_group["snug-bolts"]["assigned_share"] == 0
+    assert by_group["snug-bolts"]["assigned_actions"]["shear_y_kn"] == 0
+
+
+def test_clause_9_1_7_keeps_weld_stage_actions_on_welds():
+    inputs = combined_connection(
+        component_groups=[
+            {"group_id": "weld-group", "fastener_class": "weld"},
+            {"group_id": "later-bolts", "fastener_class": "non_slip"},
+            {"group_id": "snug-bolts", "fastener_class": "slip_type"},
+        ],
+        load_cases=[
+            {
+                "case_id": "initial-weld-load",
+                "stage": "initially_applied_to_welds",
+                "actions": {
+                    "axial_kn": 0,
+                    "shear_x_kn": 12,
+                    "shear_y_kn": 0,
+                    "moment_x_knm": 0,
+                    "moment_y_knm": 0,
+                    "moment_z_knm": 3,
+                },
+                "shares": [],
+            },
+            {
+                "case_id": "subsequent-load",
+                "stage": "after_welding",
+                "actions": {
+                    "axial_kn": 0,
+                    "shear_x_kn": 20,
+                    "shear_y_kn": 0,
+                    "moment_x_knm": 0,
+                    "moment_y_knm": 0,
+                    "moment_z_knm": 5,
+                },
+                "shares": [],
+            },
+        ],
+    )
+    cases = run_connections(inputs)["intermediate"]["load_case_assignments"]
+    for case in cases:
+        assigned = {item["group_id"]: item for item in case["component_group_assignments"]}
+        weld = assigned["weld-group"]["assigned_actions"]
+        later_bolts = assigned["later-bolts"]["assigned_actions"]
+        snug_bolts = assigned["snug-bolts"]["assigned_actions"]
+        assert weld["shear_x_kn"] == (12 if case["case_id"] == "initial-weld-load" else 20)
+        assert later_bolts["shear_x_kn"] == snug_bolts["shear_x_kn"] == 0
+
+
+@pytest.mark.parametrize(
+    "shares,stage",
+    [
+        ([{"group_id": "snug-bolts", "fraction": 1}], "non_weld_action"),
+        ([{"group_id": "friction-bolts", "fraction": 0.6}], "non_weld_action"),
+        ([], "after_welding"),
+    ],
+)
+def test_clause_9_1_7_rejects_invalid_action_shares_or_weld_sequence(shares, stage):
+    case = combined_connection()["load_cases"][0]
+    case["stage"] = stage
+    case["shares"] = shares
+    inputs = combined_connection(load_cases=[case])
+    if stage == "after_welding":
+        inputs["component_groups"] = [
+            {"group_id": "friction-bolts", "fastener_class": "non_slip"},
+            {"group_id": "snug-bolts", "fastener_class": "slip_type"},
+        ]
+    with pytest.raises(ValueError):
+        run_connections(inputs)
 
 
 @pytest.mark.parametrize(

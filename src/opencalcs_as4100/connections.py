@@ -1,7 +1,7 @@
 """Connection component calculations reviewed against AS 4100:2020 Section 9."""
 
 from collections.abc import Mapping
-from math import cos, hypot, isfinite, pi, radians, sin, sqrt
+from math import cos, hypot, isclose, isfinite, pi, radians, sin, sqrt
 from typing import Any
 
 from jsonschema import Draft202012Validator, ValidationError
@@ -28,6 +28,27 @@ SIGNED = {"type": "number"}
 QUALITY = {"enum": ["SP", "GP"]}
 BOOL = {"type": "boolean"}
 POINT = {"type": "array", "minItems": 2, "maxItems": 2, "items": SIGNED}
+VECTOR3 = {"type": "array", "minItems": 3, "maxItems": 3, "items": SIGNED}
+CONNECTION_ACTIONS = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "axial_kn": SIGNED,
+        "shear_x_kn": SIGNED,
+        "shear_y_kn": SIGNED,
+        "moment_x_knm": SIGNED,
+        "moment_y_knm": SIGNED,
+        "moment_z_knm": SIGNED,
+    },
+    "required": [
+        "axial_kn",
+        "shear_x_kn",
+        "shear_y_kn",
+        "moment_x_knm",
+        "moment_y_knm",
+        "moment_z_knm",
+    ],
+}
 FIELDS = {
     "bolt": {
         "ultimate_strength_mpa": P,
@@ -41,6 +62,8 @@ FIELDS = {
         "filler_thickness_mm": {"type": "number", "minimum": 0, "exclusiveMaximum": 20},
         "shear_action_kn": N,
         "tension_action_kn": N,
+        "prying_tension_kn": N,
+        "prying_force_assessment_verified": {"const": True},
     },
     "bearing": {
         "diameter_mm": P,
@@ -287,6 +310,94 @@ FIELDS = {
         "excluded_connection_arrangement_absent_verified": {"const": True},
         "connection_design_shear_capacity_kn": N,
         "connection_design_moment_capacity_knm": N,
+    },
+    "joint_eccentricity_action": {
+        "connection_detail_case": {
+            "enum": [
+                "general",
+                "single_angle_welded_end",
+                "double_angle_welded_end",
+                "bolted_single_angle_member",
+            ]
+        },
+        "fatigue_loading": BOOL,
+        "fatigue_detail_eccentricity_assessment_verified": BOOL,
+        "centroidal_axes_meet_practicable_verified": BOOL,
+        "centroidal_axes_meet_at_joint_verified": BOOL,
+        "force_kn": VECTOR3,
+        "eccentricity_vector_mm": VECTOR3,
+        "joint_geometry_and_load_line_assessed_verified": {"const": True},
+    },
+    "fastener_selection_suitability": {
+        "selected_fastener_system": {
+            "enum": [
+                "friction_type_8_8_TF",
+                "friction_type_10_9_TF",
+                "fitted_bolt",
+                "weld",
+                "locking_device",
+                "ordinary_bolt",
+                "other",
+            ]
+        },
+        "serviceability_slip_to_be_avoided": BOOL,
+        "impact_or_vibration_present": BOOL,
+        "service_and_dynamic_action_assessment_verified": {"const": True},
+    },
+    "combined_connection_action_assignment": {
+        "component_groups": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "group_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "fastener_class": {"enum": ["non_slip", "slip_type", "weld"]},
+                },
+                "required": ["group_id", "fastener_class"],
+            },
+        },
+        "load_cases": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "case_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "stage": {
+                        "enum": [
+                            "non_weld_action",
+                            "initially_applied_to_welds",
+                            "after_welding",
+                        ]
+                    },
+                    "actions": CONNECTION_ACTIONS,
+                    "shares": {
+                        "type": "array",
+                        "maxItems": 100,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "group_id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 80,
+                                },
+                                "fraction": {"type": "number", "minimum": 0, "maximum": 1},
+                            },
+                            "required": ["group_id", "fraction"],
+                        },
+                    },
+                },
+                "required": ["case_id", "stage", "actions", "shares"],
+            },
+        },
+        "installation_sequence_assessed_verified": {"const": True},
     },
 }
 FIELDS["bolt_group"] = {
@@ -740,13 +851,155 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             c["connection_moment_capacity"] = _connection_capacity_check(
                 eccentric_moment, capacity, "knm", "9.1.4(b)(vi)"
             )
+    elif k == "joint_eccentricity_action":
+        special_detail = d["connection_detail_case"] != "general"
+        if (
+            d["fatigue_loading"]
+            and special_detail
+            and not d["fatigue_detail_eccentricity_assessment_verified"]
+        ):
+            raise ValueError(
+                "Fatigue-loaded angle connections require the Clause 9.1.5 eccentricity "
+                "detail to be assessed."
+            )
+        if (
+            d["centroidal_axes_meet_practicable_verified"]
+            and not d["centroidal_axes_meet_at_joint_verified"]
+        ):
+            raise ValueError(
+                "Arrange the centroidal axes to meet at a point when that is practicable."
+            )
+        fx, fy, fz = d["force_kn"]
+        ex, ey, ez = d["eccentricity_vector_mm"]
+        moments = [
+            (ey * fz - ez * fy) / 1000,
+            (ez * fx - ex * fz) / 1000,
+            (ex * fy - ey * fx) / 1000,
+        ]
+        intermediate = {
+            "clause": "9.1.5",
+            "connection_detail_case": d["connection_detail_case"],
+            "force_kn": [fx, fy, fz],
+            "eccentricity_vector_mm": [ex, ey, ez],
+            "eccentricity_moment_vector_knm": moments,
+            "centroidal_axes_meet_practicable_verified": d[
+                "centroidal_axes_meet_practicable_verified"
+            ],
+            "centroidal_axes_meet_at_joint_verified": d["centroidal_axes_meet_at_joint_verified"],
+            "fatigue_loading": d["fatigue_loading"],
+        }
+    elif k == "fastener_selection_suitability":
+        selected = d["selected_fastener_system"]
+        no_slip_systems = {"friction_type_8_8_TF", "friction_type_10_9_TF", "fitted_bolt", "weld"}
+        dynamic_systems = {
+            "friction_type_8_8_TF",
+            "friction_type_10_9_TF",
+            "locking_device",
+            "weld",
+        }
+        no_slip_required = d["serviceability_slip_to_be_avoided"]
+        dynamic_required = d["impact_or_vibration_present"]
+        no_slip_satisfied = not no_slip_required or selected in no_slip_systems
+        dynamic_satisfied = not dynamic_required or selected in dynamic_systems
+        c["serviceability_slip_avoidance"] = {
+            "required": no_slip_required,
+            "satisfied": no_slip_satisfied,
+            "clause": "9.1.6",
+        }
+        c["impact_or_vibration"] = {
+            "required": dynamic_required,
+            "satisfied": dynamic_satisfied,
+            "clause": "9.1.6",
+        }
+        c["fastener_selection"] = {
+            "satisfied": no_slip_satisfied and dynamic_satisfied,
+            "clause": "9.1.6",
+        }
+        intermediate = {
+            "selected_fastener_system": selected,
+            "systems_suitable_when_service_slip_is_avoided": sorted(no_slip_systems),
+            "systems_suitable_for_impact_or_vibration": sorted(dynamic_systems),
+        }
+    elif k == "combined_connection_action_assignment":
+        groups = {item["group_id"]: item["fastener_class"] for item in d["component_groups"]}
+        if len(groups) != len(d["component_groups"]):
+            raise ValueError("Component group IDs must be unique.")
+        cases = d["load_cases"]
+        case_ids = [item["case_id"] for item in cases]
+        if len(set(case_ids)) != len(case_ids):
+            raise ValueError("Load case IDs must be unique.")
+        weld_groups = [group_id for group_id, kind in groups.items() if kind == "weld"]
+        if len(weld_groups) > 1:
+            raise ValueError("Represent all welds as one aggregate weld group.")
+        non_slip_groups = {group_id for group_id, kind in groups.items() if kind == "non_slip"}
+        all_non_slip_groups = non_slip_groups | set(weld_groups)
+        has_slip_type = any(kind == "slip_type" for kind in groups.values())
+        if not all_non_slip_groups or not (has_slip_type or len(all_non_slip_groups) > 1):
+            raise ValueError("Clause 9.1.7 requires mixed slip/non-slip or non-slip groups.")
+        assignments = []
+        zero_actions = {name: 0.0 for name in CONNECTION_ACTIONS["required"]}
+        for load_case in cases:
+            stage = load_case["stage"]
+            actions = load_case["actions"]
+            if stage == "non_weld_action":
+                shares = load_case["shares"]
+                share_ids = [share["group_id"] for share in shares]
+                if not shares or len(set(share_ids)) != len(share_ids):
+                    raise ValueError("Non-weld actions require unique non-slip load shares.")
+                if not set(share_ids) <= non_slip_groups:
+                    raise ValueError(
+                        "Clause 9.1.7 assigns non-weld-stage actions only to non-slip groups."
+                    )
+                share_total = sum(share["fraction"] for share in shares)
+                if not isclose(share_total, 1.0, rel_tol=0.0, abs_tol=1e-9):
+                    raise ValueError("Non-slip action shares must sum to 1.0.")
+                fractions = {share["group_id"]: share["fraction"] for share in shares}
+            else:
+                if not weld_groups:
+                    raise ValueError("Weld-sequence load cases require an aggregate weld group.")
+                if load_case["shares"]:
+                    raise ValueError("Weld-sequence actions must be assigned to the weld group.")
+                fractions = {weld_groups[0]: 1.0}
+            group_assignments = [
+                {
+                    "group_id": group_id,
+                    "assigned_share": fractions.get(group_id, 0.0),
+                    "assigned_actions": {
+                        name: actions[name] * fractions.get(group_id, 0.0)
+                        for name in CONNECTION_ACTIONS["required"]
+                    }
+                    if fractions.get(group_id, 0.0)
+                    else dict(zero_actions),
+                }
+                for group_id in groups
+            ]
+            assignments.append(
+                {
+                    "case_id": load_case["case_id"],
+                    "stage": stage,
+                    "component_group_assignments": group_assignments,
+                }
+            )
+        c["clause_9_1_7_action_assignment"] = {"satisfied": True, "clause": "9.1.7"}
+        intermediate = {"load_case_assignments": assignments}
     elif k in {"bolt", "bolt_group"}:
         v, n, intermediate = _bolt(d)
-        actions = [(d["shear_action_kn"], d["tension_action_kn"])]
+        tension_action = d["tension_action_kn"]
+        if k == "bolt":
+            tension_action += d["prying_tension_kn"]
+            intermediate.update(
+                {
+                    "member_tension_action_kn": d["tension_action_kn"],
+                    "prying_tension_action_kn": d["prying_tension_kn"],
+                    "total_bolt_tension_action_kn": tension_action,
+                }
+            )
+        actions = [(d["shear_action_kn"], tension_action)]
         if k == "bolt_group":
-            if d["shear_action_kn"] or d["tension_action_kn"]:
+            if d["shear_action_kn"] or d["tension_action_kn"] or d["prying_tension_kn"]:
                 raise ValueError(
-                    "Group uses signed in-plane actions only; component actions must be zero."
+                    "Group uses signed in-plane actions only; component and prying actions "
+                    "must be zero."
                 )
             points = d["points_mm"]
             if len({tuple(p) for p in points}) != len(points):
@@ -769,7 +1022,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         for i, (va, na) in enumerate(actions):
             prefix = f"bolt_{i}_" if k == "bolt_group" else ""
             c[prefix + "shear"] = _check(v, 0.8, va, "9.2.2.1")
-            c[prefix + "tension"] = _check(n, 0.8, na, "9.2.2.2")
+            tension_clause = "9.1.8; 9.2.2.2" if k == "bolt" else "9.2.2.2"
+            c[prefix + "tension"] = _check(n, 0.8, na, tension_clause)
             u = (va / (0.8 * v)) ** 2 + (na / (0.8 * n)) ** 2
             c[prefix + "interaction"] = {"utilisation": u, "satisfied": u <= 1, "clause": "9.2.2.3"}
     elif k == "bearing":
@@ -1086,12 +1340,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         c["net_area"] = {"satisfied": True, "clause": "9.1.10"}
     else:
         c, intermediate = _weld_group(d)
-    result = {
-        "standard": "AS 4100:2020",
-        "check_type": k,
-        "checks": c,
-        "intermediate": intermediate,
-        "scope": (
+    if k in MINIMUM_ACTION_CHECKS:
+        scope = (
             "Clause 9.1.4 required action effects only; check that the connection is not "
             "lacing or to a sag rod, purlin or girt. For a compression splice between lateral "
             "supports, the moment is based conservatively on the greater of the actual axial "
@@ -1100,10 +1350,47 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "include their capacity factor. Component resistance, action interaction, "
             "earthquake increases, detailing, fabrication, prying and local effects require "
             "separate assessment."
-            if k in MINIMUM_ACTION_CHECKS
-            else "Selected connection component checks; detailing, fabrication, prying, "
-            "local effects and complete connection compliance require separate assessment."
-        ),
+        )
+    elif k == "joint_eccentricity_action":
+        scope = (
+            "Clause 9.1.5 signed eccentric moments only; verify axis convergence where "
+            "practicable and supply the complete force and eccentricity vectors. For fatigue-"
+            "loaded angle details, assess weld balancing and bolt gauge-line eccentricity from "
+            "the actual connection geometry. Member and component resistance checks remain "
+            "separate."
+        )
+    elif k == "fastener_selection_suitability":
+        scope = (
+            "Clause 9.1.6 fastener selection conditions only; verify serviceability, impact "
+            "and vibration requirements for the actual joint. Clause 9.1.7 load-sharing rules "
+            "and fastener resistance remain separate."
+        )
+    elif k == "combined_connection_action_assignment":
+        scope = (
+            "Clause 9.1.7 action allocation only. Non-slip shares are explicit design inputs; "
+            "slip-type groups receive no assigned action in the mixed case. Weld-stage actions "
+            "are allocated to the aggregate weld group under the declared installation sequence. "
+            "Verify the sequence and design resistance, interaction and detailing of every "
+            "connection component separately."
+        )
+    elif k == "bolt":
+        scope = (
+            "Bolt tension includes the supplied Clause 9.1.8 prying force, assessed using a "
+            "recognized method supported by experimental evidence. This operation does not "
+            "calculate prying force; verify eccentricity, plate flexibility and connection "
+            "geometry separately."
+        )
+    else:
+        scope = (
+            "Selected connection component checks; detailing, fabrication, prying, local "
+            "effects and complete connection compliance require separate assessment."
+        )
+    result = {
+        "standard": "AS 4100:2020",
+        "check_type": k,
+        "checks": c,
+        "intermediate": intermediate,
+        "scope": scope,
     }
     if not _finite(result):
         raise ValueError("Calculated results must be finite.")
