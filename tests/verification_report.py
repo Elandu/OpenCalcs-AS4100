@@ -666,6 +666,33 @@ def clause_7_4_2_connection_plane_distribution():
     }
 
 
+def clause_7_4_3_back_to_back_connection_layout():
+    result = run_advanced_members(
+        {
+            "operation": "tension_built_up_connection_layout",
+            "connection_arrangement": "separated",
+            "two_eligible_components_verified": True,
+            "discontinuous_back_to_back_connection_verified": True,
+            "separated_within_end_gusset_spacing_verified": True,
+            "member_length_mm": 3000,
+            "bay_lengths_mm": [1000, 1000, 1000],
+            "approximately_equal_bays_verified": True,
+            "end_connection_method": "fasteners",
+            "fasteners_per_connection_line_at_each_end": 2,
+        }
+    )
+    if result["clauses"] != ["7.4.3(a)(ii)", "6.5.1.4"]:
+        raise AssertionError("Separated back-to-back connection route was mislabeled")
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Three-bay, two-fastener end-connection layout failed")
+    return {
+        "bay_count": result["values"]["bay_count"],
+        "fasteners_per_connection_line_at_each_end": result["values"]["end_connection"][
+            "fasteners_per_connection_line_at_each_end"
+        ],
+    }
+
+
 def clause_9_8_packing():
     result = run_connections(
         {
@@ -781,6 +808,7 @@ def main():
         "clause_7_4_4_tension_lacing_tie_thickness": clause_7_4_4_tension_lacing_tie_thickness,
         "clause_7_4_5_tension_batten_geometry": clause_7_4_5_tension_batten_geometry,
         "clause_7_4_2_connection_plane_distribution": clause_7_4_2_connection_plane_distribution,
+        "clause_7_4_3_back_to_back_connection_layout": clause_7_4_3_back_to_back_connection_layout,
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
         "clause_12_10_2_web_protection": clause_12_10_2_web_protection,

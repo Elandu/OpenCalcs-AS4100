@@ -602,6 +602,35 @@ SCHEMAS = {
         },
         optional=("total_design_moment_knm",),
     ),
+    "tension_built_up_connection_layout": _schema(
+        "tension_built_up_connection_layout",
+        {
+            "connection_arrangement": {"enum": ["separated", "in_contact"]},
+            "two_eligible_components_verified": VERIFIED,
+            "discontinuous_back_to_back_connection_verified": VERIFIED,
+            "separated_within_end_gusset_spacing_verified": VERIFIED,
+            "member_length_mm": P,
+            "bay_lengths_mm": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 1000,
+                "items": P,
+            },
+            "approximately_equal_bays_verified": VERIFIED,
+            "end_connection_method": {"enum": ["fasteners", "welds"]},
+            "fasteners_per_connection_line_at_each_end": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 1000000,
+            },
+            "equivalent_end_welds_verified": VERIFIED,
+        },
+        optional=(
+            "separated_within_end_gusset_spacing_verified",
+            "fasteners_per_connection_line_at_each_end",
+            "equivalent_end_welds_verified",
+        ),
+    ),
     "tension_component_slenderness": _schema(
         "tension_component_slenderness",
         {
@@ -1525,6 +1554,88 @@ def run_advanced_members(inputs):
                 "This applies the equal-share rule only. Design the lacing/batten sections, "
                 "connections and load path separately.",
             ],
+        )
+    if op == "tension_built_up_connection_layout":
+        separated = d["connection_arrangement"] == "separated"
+        if separated and "separated_within_end_gusset_spacing_verified" not in d:
+            raise ValueError(
+                "Separated components require verification against the end-gusset "
+                "connection spacing."
+            )
+        if not separated and "separated_within_end_gusset_spacing_verified" in d:
+            raise ValueError(
+                "End-gusset separation confirmation applies only to separated components."
+            )
+        if not isclose(sum(d["bay_lengths_mm"]), d["member_length_mm"], rel_tol=1e-9, abs_tol=1e-9):
+            raise ValueError("Connection bay lengths must sum to the member length.")
+        if d["end_connection_method"] == "fasteners":
+            if "fasteners_per_connection_line_at_each_end" not in d:
+                raise ValueError(
+                    "Fastener end connections require the count on each connection line "
+                    "at each end."
+                )
+            if "equivalent_end_welds_verified" in d:
+                raise ValueError(
+                    "Equivalent-weld confirmation applies only to welded end connections."
+                )
+            end_detail = {
+                "method": "fasteners",
+                "fasteners_per_connection_line_at_each_end": d[
+                    "fasteners_per_connection_line_at_each_end"
+                ],
+                "satisfied": True,
+            }
+        else:
+            if "equivalent_end_welds_verified" not in d:
+                raise ValueError("Welded end connections require verification of weld equivalence.")
+            if "fasteners_per_connection_line_at_each_end" in d:
+                raise ValueError("Fastener count applies only to fastener end connections.")
+            end_detail = {
+                "method": "equivalent_welds",
+                "equivalent_end_welds_verified": True,
+                "satisfied": True,
+            }
+        layout_clause = "6.5.1.4" if separated else "6.5.2.4"
+        tension_clause = "7.4.3(a)(ii)" if separated else "7.4.3(b)"
+        checks = [
+            {
+                "clause": tension_clause,
+                "connection_arrangement": d["connection_arrangement"],
+                "satisfied": True,
+            },
+            {
+                "clause": layout_clause,
+                "bay_count": len(d["bay_lengths_mm"]),
+                "minimum_bay_count": 3,
+                "bay_lengths_mm": d["bay_lengths_mm"],
+                "approximately_equal_bays_verified": True,
+                "satisfied": True,
+            },
+            {"clause": layout_clause, "end_connection": end_detail, "satisfied": True},
+        ]
+        manual = [
+            "Verify this is a two-component, discontinuously connected back-to-back member "
+            "made from flats, angles, channels or tees.",
+            "The 6.5.1.5 or 6.5.2.5 interconnection design-force/capacity check and "
+            "Clause 7.4.2 internal-action assessment remain separate.",
+        ]
+        if separated:
+            manual.append(
+                "Verify that component separation does not exceed the end-gusset "
+                "connection requirement."
+            )
+        return result(
+            op,
+            [tension_clause, layout_clause],
+            {
+                "connection_arrangement": d["connection_arrangement"],
+                "member_length_mm": d["member_length_mm"],
+                "bay_count": len(d["bay_lengths_mm"]),
+                "bay_lengths_mm": d["bay_lengths_mm"],
+                "end_connection": end_detail,
+            },
+            checks,
+            manual,
         )
     if op == "batten":
         end = d["type"] == "end"

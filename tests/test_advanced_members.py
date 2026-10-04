@@ -1052,6 +1052,48 @@ def test_tension_connection_actions_are_shared_equally_between_parallel_planes()
         )
 
 
+def test_tension_back_to_back_connection_layout_routes():
+    separated = {
+        "operation": "tension_built_up_connection_layout",
+        "connection_arrangement": "separated",
+        "two_eligible_components_verified": True,
+        "discontinuous_back_to_back_connection_verified": True,
+        "separated_within_end_gusset_spacing_verified": True,
+        "member_length_mm": 3000,
+        "bay_lengths_mm": [1000, 1000, 1000],
+        "approximately_equal_bays_verified": True,
+        "end_connection_method": "fasteners",
+        "fasteners_per_connection_line_at_each_end": 2,
+    }
+    out = run_advanced_members(separated)
+    assert out["clauses"] == ["7.4.3(a)(ii)", "6.5.1.4"]
+    assert out["values"]["bay_count"] == 3
+    assert out["values"]["end_connection"]["satisfied"]
+    assert out["checked_conditions_satisfied"]
+
+    in_contact = dict(separated)
+    in_contact.update(
+        connection_arrangement="in_contact",
+        bay_lengths_mm=[990, 1000, 1010],
+        end_connection_method="welds",
+        equivalent_end_welds_verified=True,
+    )
+    del in_contact["separated_within_end_gusset_spacing_verified"]
+    del in_contact["fasteners_per_connection_line_at_each_end"]
+    out = run_advanced_members(in_contact)
+    assert out["clauses"] == ["7.4.3(b)", "6.5.2.4"]
+    assert out["values"]["end_connection"]["method"] == "equivalent_welds"
+    assert out["checked_conditions_satisfied"]
+
+    separated["bay_lengths_mm"] = [1000, 1000, 999]
+    with pytest.raises(ValueError, match="sum to the member length"):
+        run_advanced_members(separated)
+    separated["bay_lengths_mm"] = [1000, 1000, 1000]
+    del separated["fasteners_per_connection_line_at_each_end"]
+    with pytest.raises(ValueError, match="Fastener end connections"):
+        run_advanced_members(separated)
+
+
 def test_pin_member_net_area_and_thickness():
     d = {
         "operation": "pin_tension_member",
