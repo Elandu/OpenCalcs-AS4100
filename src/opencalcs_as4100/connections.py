@@ -344,6 +344,20 @@ FIELDS = {
         "qualified_matching_consumable": {"const": True},
         "action_kn": N,
     },
+    "butt_weld_transition": {
+        "dimension_change_mm": P,
+        "effective_transition_run_mm": P,
+        "transition_method": {"enum": ["chamfer_parent_part", "slope_weld_surface", "combined"]},
+        "tension_loaded_joint_verified": {"const": True},
+        "smooth_transition_verified": {"const": True},
+        "fatigue_slope_limit": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+        },
+        "fatigue_slope_limit_verified": {"const": True},
+        "fatigue_assessment_reference": TEXT_REFERENCE,
+    },
     "incomplete_butt_design": {
         "weld_strength_mpa": P,
         "quality": QUALITY,
@@ -364,6 +378,11 @@ FIELDS = {
         "thin_rhs_longitudinal": BOOL,
         "non_prequalified_v_preparation_verified": {"const": True},
         "welding_procedure_and_consumable_basis_verified": {"const": True},
+        "automatic_arc_welding_process_verified": {"const": True},
+        "production_weld_macro_test_verified": {"const": True},
+        "macro_test_required_penetration_achieved_verified": {"const": True},
+        "macro_test_record_reference": TEXT_REFERENCE,
+        "macro_test_penetration_beyond_preparation_mm": N,
         "action_kn": N,
     },
     "plug_slot": {
@@ -746,7 +765,20 @@ OPTIONAL_FIELDS = {
     "bolt_group_elastic_3d": FILLER_PLATE_OPTIONAL_FIELDS,
     "slip": SLIP_SURFACE_OPTIONAL_FIELDS,
     "slip_factor_test": SLIP_FACTOR_TEST_OPTIONAL_FIELDS,
-    "incomplete_butt_design": ("preparation_depth_mm", "double_v_preparation_depths_mm"),
+    "butt_weld_transition": (
+        "fatigue_slope_limit",
+        "fatigue_slope_limit_verified",
+        "fatigue_assessment_reference",
+    ),
+    "incomplete_butt_design": (
+        "preparation_depth_mm",
+        "double_v_preparation_depths_mm",
+        "automatic_arc_welding_process_verified",
+        "production_weld_macro_test_verified",
+        "macro_test_required_penetration_achieved_verified",
+        "macro_test_record_reference",
+        "macro_test_penetration_beyond_preparation_mm",
+    ),
     "minimum_beam_shear_action": (
         "reaction_shear_direction_unit_vector",
         "reaction_shear_eccentricity_vector_mm",
@@ -2166,6 +2198,47 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "9.4.2",
         )
         c["bending"] = _check(fy * dia**3 / 6e6, 0.8, d["moment_action_knm"], "9.4.3", "knm")
+    elif k == "butt_weld_transition":
+        fatigue_fields = {
+            "fatigue_slope_limit",
+            "fatigue_slope_limit_verified",
+            "fatigue_assessment_reference",
+        }
+        supplied_fatigue_fields = fatigue_fields.intersection(d)
+        fatigue_limit_used = bool(supplied_fatigue_fields)
+        if fatigue_limit_used and supplied_fatigue_fields != fatigue_fields:
+            raise ValueError(
+                "A fatigue-specific transition slope requires its assessed limit, verification, "
+                "and assessment reference."
+            )
+        maximum_slope_ratio = d["fatigue_slope_limit"] if fatigue_limit_used else 1.0
+        slope_ratio = d["dimension_change_mm"] / d["effective_transition_run_mm"]
+        minimum_transition_run = d["dimension_change_mm"] / maximum_slope_ratio
+        clause = (
+            "9.6.2.6; externally assessed fatigue-specific slope"
+            if fatigue_limit_used
+            else "9.6.2.6"
+        )
+        c["transition_geometry"] = {
+            "clause": clause,
+            "applicable": True,
+            "tension_loaded_joint_verified": d["tension_loaded_joint_verified"],
+            "smooth_transition_verified": d["smooth_transition_verified"],
+            "transition_method": d["transition_method"],
+            "dimension_change_mm": d["dimension_change_mm"],
+            "effective_transition_run_mm": d["effective_transition_run_mm"],
+            "slope_ratio": slope_ratio,
+            "maximum_permitted_slope_ratio": maximum_slope_ratio,
+            "minimum_transition_run_mm": minimum_transition_run,
+            "fatigue_assessment_reference": d.get("fatigue_assessment_reference"),
+            "satisfied": slope_ratio <= maximum_slope_ratio,
+        }
+        intermediate = {
+            "slope_ratio": slope_ratio,
+            "maximum_permitted_slope_ratio": maximum_slope_ratio,
+            "minimum_transition_run_mm": minimum_transition_run,
+            "fatigue_slope_limit_used": fatigue_limit_used,
+        }
     elif k == "built_up_component_end_weld":
         applicable = d["side_fillet_only"]
         minimum_length = None
@@ -2357,6 +2430,27 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         throat = preparation_depth - throat_reduction
         if throat <= 0:
             raise ValueError("Preparation geometry must produce a positive design throat.")
+        macro_test_fields = {
+            "automatic_arc_welding_process_verified",
+            "production_weld_macro_test_verified",
+            "macro_test_required_penetration_achieved_verified",
+            "macro_test_record_reference",
+            "macro_test_penetration_beyond_preparation_mm",
+        }
+        supplied_macro_test_fields = macro_test_fields.intersection(d)
+        macro_test_used = bool(supplied_macro_test_fields)
+        if macro_test_used and supplied_macro_test_fields != macro_test_fields:
+            raise ValueError(
+                "A macro-test throat increase requires automatic arc process verification, "
+                "a production-weld macro-test record, achieved required penetration, the "
+                "record reference, and measured penetration beyond the preparation depth."
+            )
+        macro_test_extra_penetration = (
+            d["macro_test_penetration_beyond_preparation_mm"] if macro_test_used else 0
+        )
+        macro_test_throat_limit = preparation_depth + 0.85 * macro_test_extra_penetration
+        if macro_test_used:
+            throat = max(throat, macro_test_throat_limit)
         length = d["continuous_full_size_weld_length_mm"]
         weld_data = {
             "weld_strength_mpa": d["weld_strength_mpa"],
@@ -2368,7 +2462,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         throat_clause = (
             "9.6.2.3(b)(ii)(A)" if d["preparation_angle_deg"] <= 60 else "9.6.2.3(b)(ii)(B)"
         )
-        clause = f"{throat_clause}; 9.6.2.4; 9.6.2.5; 9.6.2.7(c); 9.6.3.10"
+        macro_clause = "; 9.6.2.3(b)(iii); 9.6.3.4" if macro_test_used else ""
+        clause = f"{throat_clause}{macro_clause}; 9.6.2.4; 9.6.2.5; 9.6.2.7(c); 9.6.3.10"
         strength_check, strength_intermediate = _fillet_strength_check(
             weld_data, throat, length, clause
         )
@@ -2381,6 +2476,24 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "preparation_angle_deg": d["preparation_angle_deg"],
             "total_throat_reduction_mm": throat_reduction,
             "design_throat_mm": throat,
+            "macro_test_throat_increase": {
+                "used": macro_test_used,
+                "automatic_arc_welding_process_verified": d.get(
+                    "automatic_arc_welding_process_verified", False
+                ),
+                "production_weld_macro_test_verified": d.get(
+                    "production_weld_macro_test_verified", False
+                ),
+                "required_penetration_achieved_verified": d.get(
+                    "macro_test_required_penetration_achieved_verified", False
+                ),
+                "record_reference": d.get("macro_test_record_reference"),
+                "preparation_depth_t_t1_mm": preparation_depth if macro_test_used else None,
+                "penetration_beyond_preparation_t_t2_mm": (
+                    macro_test_extra_penetration if macro_test_used else None
+                ),
+                "maximum_design_throat_mm": macro_test_throat_limit if macro_test_used else None,
+            },
             "effective_length_mm": length,
             "effective_area_mm2": throat * length,
             **strength_intermediate,
@@ -2496,9 +2609,19 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "length and area under 9.6.2.4–5; strength "
             "under 9.6.2.7(c)/9.6.3.10. The supplied preparation classification, dimensions, "
             "welding procedure, consumable strength, quality and any thin-RHS condition require "
-            "project evidence. Prequalified preparations, other preparation forms, macro-test "
-            "throat increases, fatigue quality, inspection and complete connection "
+            "project evidence. Optional Clause 9.6.2.3(b)(iii)/Figure 9.6.3.4 throat increases "
+            "require verified automatic arc welding and a production-weld macro-test record; "
+            "the declared evidence is not authenticated. "
+            "Prequalified preparations, other preparation forms, fatigue quality, inspection and "
+            "complete connection "
             "design are outside this operation."
+        )
+    elif k == "butt_weld_transition":
+        scope = (
+            "Clause 9.6.2.6 transition slope for a tension-loaded butt joint with a verified "
+            "thickness or width change. Smoothness and the measured geometry are declared inputs. "
+            "Any stricter fatigue-detail slope must be assessed externally and supplied with its "
+            "reference; classification and evidence are not authenticated."
         )
     elif k in MINIMUM_ACTION_CHECKS:
         scope = (

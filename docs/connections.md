@@ -21,7 +21,8 @@ each shear plane, including paint film; the operation selects the maximum.
 Alternatively, `filler_thickness_mm` must already be that governing maximum.
 
 The implementation was visually reviewed against the licensed AS 4100:2020
-Section 9, printed pages 112–138, including Clause 9.1.4 on page 114, Table 3.4
+Section 9, printed pages 112–138, including Clause 9.1.4 on page 114, Clauses
+9.6.2.3(b)(iii), 9.6.2.6 on page 127, and 9.6.3.4 and Figure 9.6.3.4 on page 133, Table 3.4
 on page 34, Clause 3.5.5 on page 35, and Appendix J on printed pages 203–206.
 The source standard is not redistributed.
 
@@ -50,8 +51,9 @@ The source standard is not redistributed.
 | cap_plate_weld | 9.6.3.9(b) minimum weld length per joint line at a compression-member cap/base plate. | Supply member width at the contact face and weld length on each joint line. |
 | beam_compression_member_weld | 9.6.3.9(c) weld extent between beam faces and the restraint-dependent extension around a beam-to-compression-member connection. | Supply beam depth, compression-member maximum dimension, restraint condition and measured weld extents. |
 | packing_construction | 9.8 flush trimming and edge-weld size increase for thin packing; extension beyond member edges and welding to the fitted piece for the other branch. | Supply required/provided edge-weld sizes and assess whether packing is too thin for adequate welds or to prevent buckling. |
+| butt_weld_transition | 9.6.2.6 checks the maximum 1:1 slope for a verified thickness/width transition in a tension-loaded butt joint. An optional, stricter fatigue slope can be supplied. | Verify the actual smooth transition and effective run. Fatigue classification and any stricter slope limit need an external assessment and reference. |
 | complete_butt | 9.6.2.7(a) weaker-part nominal capacity multiplied by quality factor; requires qualified procedure and matching consumable attestation. |
-| incomplete_butt_design | 9.6.2.3(b)(ii)(A)–(B), 9.6.2.4–5 and 9.6.2.7(c): for θ≤60°, uses `d−3` for single-V and `d3+d4−6` for double-V; above 60°, uses `d` and `d3+d4`, respectively. Calculates effective area and checks strength as a fillet weld under 9.6.3.10. Does not include the optional macro-test throat increase. | Verify the preparation classification, measured depth(s) and continuous full-size length, weld quality, qualified procedure and consumable basis. Other preparation forms and macro-test throat increases are outside this route. |
+| incomplete_butt_design | 9.6.2.3(b)(ii)(A)–(B), 9.6.2.4–5 and 9.6.2.7(c): for θ≤60°, uses `d−3` for single-V and `d3+d4−6` for double-V; above 60°, uses `d` and `d3+d4`, respectively. Optional 9.6.2.3(b)(iii)/Figure 9.6.3.4 macro-test route uses the preparation depth plus `0.85` times verified penetration beyond it. Calculates effective area and checks strength under 9.6.3.10. | Verify the preparation classification, measured depth(s), continuous full-size length, weld quality, qualified procedure and consumable basis. The macro-test route requires an automatic arc process, required penetration demonstrated on a production-weld macro test, and a traceable record reference. Declarations and measurements are not authenticated. Other preparation forms remain outside this route. |
 | plug_slot | 9.6.4.2 filled-hole shear on externally assessed faying-plane area, permitted applications under 9.6.4.3 require attestation. Circumferential fillet welds use fillet. |
 | layout | 9.5.1–4 pitch and edge limits for standard holes; supply thinnest applicable ply and edge finish. Nonstandard hole-edge reference, corrosion and non-load conditions require external assessment. |
 | hole_deduction | 9.1.10 governing straight/zigzag deduction. Supply maximum straight width sum and each candidate zigzag path separately; each stagger pair is [pitch, gauge]. Includes actual gross hole width, countersink where relevant. Enumerate all paths externally. |
@@ -59,6 +61,15 @@ The source standard is not redistributed.
 | bolt_group_out_of_plane | 9.3.2–3 checks user-supplied per-bolt Fx/Fy/tension actions, their six-resultant equilibrium under 9.1.3(a), and each bolt's shear, tension, prying addition and combined interaction. Bolt tension acts along z; positions are (x,y) about the verified common action origin and moments follow right-handed `r × F`. Load distribution and component stability require verified analysis inputs. Check compression/contact actions and ply bearing separately. |
 | bolt_group_elastic_3d | 9.1.3(a), 9.3.2–3 resolves a planar bolt group's six centroidal resultants with rigid-plate, equal-bolt-stiffness linear elastic distribution, then checks equilibrium and each bolt's shear, tension, prying addition and interaction. Requires a non-collinear layout, verified method/experimental basis, and nonnegative calculated bolt tension. Compression/contact and slack-bolt redistribution, ply bearing and complete connection-component checks remain separate. |
 | weld_group | 9.7.1–3 constant-throat straight-line fillet group, signed Fx/Fy/Fz and Mx/My/Mz at centroid. Exact line integrals including product inertia; vector resultant checked at every endpoint. Forces and moments are in a right-handed xyz system; weld lies in xy plane. |
+
+The optional incomplete-butt macro-test inputs are all required together. The calculation
+uses total preparation depth as `t_t1` and measured penetration beyond it as `t_t2` in
+Figure 9.6.3.4; for double-V preparations the supplied extra penetration is the sum
+across both sides. Confirm those measurements and the production-weld test record.
+
+The Clause 9.6.2.6 transition operation checks only tension-loaded joints. Its
+optional fatigue slope limit is an externally assessed dimension-change-to-run
+ratio and must be supported by the referenced detail assessment.
 
 Weld lap reduction is calculated from the supplied lap length in millimetres.
 The enlarged source Table 9.6.3.10(B) specifies metres; the implementation converts
@@ -73,8 +84,8 @@ actions and classification evidence, force transfer, restraint and alternative C
 distribution methods when the rigid-plate/equal-stiffness case is inapplicable; compression/contact
 and slack-bolt redistribution; local hollow-section effects; plate/component section/member checks;
 nonstandard holes; weld preparation routes outside the listed non-prequalified
-single- and double-V throat formulas, enhanced penetration, macro-test throat increases, compound
-weld geometry and built-up-member detailing outside the listed Clause 9.6.3.9 termination checks;
+single- and double-V throat formulas and macro-test route, compound weld geometry and
+built-up-member detailing outside the listed Clause 9.6.3.9 termination checks;
 fabrication, inspection and installation Sections 14/15 and referenced standards.
 These Clause 9.1.4 routes calculate required actions only; supplied member design
 capacities must include the applicable capacity factor. Combined splice action

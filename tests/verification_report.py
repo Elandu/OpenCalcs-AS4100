@@ -65,6 +65,74 @@ def incomplete_butt_weld():
     return expected
 
 
+def incomplete_butt_macro_test_weld():
+    result = run_connections(
+        {
+            "check_type": "incomplete_butt_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "preparation_type": "single_v",
+            "preparation_depth_mm": 12,
+            "preparation_angle_deg": 60,
+            "continuous_full_size_weld_length_mm": 200,
+            "thin_rhs_longitudinal": False,
+            "non_prequalified_v_preparation_verified": True,
+            "welding_procedure_and_consumable_basis_verified": True,
+            "automatic_arc_welding_process_verified": True,
+            "production_weld_macro_test_verified": True,
+            "macro_test_required_penetration_achieved_verified": True,
+            "macro_test_record_reference": "MACRO-TEST-BENCHMARK",
+            "macro_test_penetration_beyond_preparation_mm": 4,
+            "action_kn": 724.416,
+        }
+    )
+    # Independent arithmetic: t_t = 12 + 0.85(4) = 15.4 mm;
+    # area = 15.4(200) = 3080 mm²; phi Vw = 0.8(0.6)(490)(3080)/1000.
+    expected = {
+        "design_throat_mm": 15.4,
+        "effective_area_mm2": 3080,
+        "nominal_capacity_kn": 905.52,
+        "design_capacity_kn": 724.416,
+    }
+    intermediate = result["intermediate"]
+    strength = result["checks"]["weld_strength"]
+    for name, value in expected.items():
+        observed = strength[name] if name.endswith("capacity_kn") else intermediate[name]
+        expect_close(observed, value)
+    if not strength["satisfied"]:
+        raise AssertionError("Clause 9.6.2.3(b)(iii) macro-test throat benchmark failed")
+    if "9.6.3.4" not in strength["clause"]:
+        raise AssertionError("Figure 9.6.3.4 was not reported for macro-test throat increase")
+    return expected
+
+
+def butt_weld_transition():
+    result = run_connections(
+        {
+            "check_type": "butt_weld_transition",
+            "dimension_change_mm": 10,
+            "effective_transition_run_mm": 20,
+            "transition_method": "slope_weld_surface",
+            "tension_loaded_joint_verified": True,
+            "smooth_transition_verified": True,
+        }
+    )
+    check = result["checks"]["transition_geometry"]
+    expected = {
+        "slope_ratio": 0.5,
+        "minimum_transition_run_mm": 10,
+        "satisfied": True,
+    }
+    for name, value in expected.items():
+        observed = check[name]
+        if isinstance(value, bool):
+            if observed is not value:
+                raise AssertionError("Clause 9.6.2.6 transition boundary benchmark failed")
+        else:
+            expect_close(observed, value)
+    return expected
+
+
 def stiffener(**changes):
     return {
         "operation": "load_bearing_stiffener",
@@ -1515,6 +1583,8 @@ def main():
         "fillet_lap_8000_mm": lambda: expect_close(fillet(8000), 61.24608),
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
+        "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,
+        "clause_9_6_2_6_butt_weld_transition": butt_weld_transition,
         "mixed_stiffener_contact_and_outstand": mixed_stiffener,
         "zero_restrained_flanges": zero_restrained_flanges,
         "yield_above_690_mpa": over_scope_yield,

@@ -1613,6 +1613,29 @@ def incomplete_butt_design(**changes):
     return run_connections(inputs)
 
 
+def macro_test_evidence(penetration_beyond_preparation_mm=0):
+    return {
+        "automatic_arc_welding_process_verified": True,
+        "production_weld_macro_test_verified": True,
+        "macro_test_required_penetration_achieved_verified": True,
+        "macro_test_record_reference": "MACRO-TEST-01",
+        "macro_test_penetration_beyond_preparation_mm": penetration_beyond_preparation_mm,
+    }
+
+
+def butt_weld_transition(**changes):
+    inputs = {
+        "check_type": "butt_weld_transition",
+        "dimension_change_mm": 12,
+        "effective_transition_run_mm": 12,
+        "transition_method": "chamfer_parent_part",
+        "tension_loaded_joint_verified": True,
+        "smooth_transition_verified": True,
+    }
+    inputs.update(changes)
+    return run_connections(inputs)
+
+
 def test_incomplete_butt_design_hand_benchmark():
     result = incomplete_butt_design()
     weld = result["checks"]["weld_strength"]
@@ -1656,6 +1679,119 @@ def test_incomplete_butt_design_single_v_greater_than_60_degrees_uses_full_depth
     assert intermediate["effective_area_mm2"] == 2400
     assert weld["design_capacity_kn"] == pytest.approx(564.48)
     assert "9.6.2.3(b)(ii)(B)" in weld["clause"]
+
+
+def test_incomplete_butt_macro_test_increases_throat_to_preparation_depth():
+    result = incomplete_butt_design(**macro_test_evidence(), action_kn=564.48)
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+
+    assert intermediate["design_throat_mm"] == 12
+    assert intermediate["effective_area_mm2"] == 2400
+    assert weld["design_capacity_kn"] == pytest.approx(564.48)
+    assert weld["satisfied"]
+    assert "9.6.2.3(b)(iii)" in weld["clause"]
+    assert "9.6.3.4" in weld["clause"]
+    assert intermediate["macro_test_throat_increase"] == {
+        "used": True,
+        "automatic_arc_welding_process_verified": True,
+        "production_weld_macro_test_verified": True,
+        "required_penetration_achieved_verified": True,
+        "record_reference": "MACRO-TEST-01",
+        "preparation_depth_t_t1_mm": 12,
+        "penetration_beyond_preparation_t_t2_mm": 0,
+        "maximum_design_throat_mm": 12,
+    }
+
+
+def test_incomplete_butt_macro_test_applies_figure_9_6_3_4_penetration_factor():
+    result = incomplete_butt_design(
+        **macro_test_evidence(4),
+        action_kn=724.416,
+    )
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+
+    assert intermediate["macro_test_throat_increase"]["maximum_design_throat_mm"] == pytest.approx(
+        12 + 0.85 * 4
+    )
+    assert intermediate["design_throat_mm"] == pytest.approx(15.4)
+    assert intermediate["effective_area_mm2"] == pytest.approx(3080)
+    assert weld["nominal_capacity_kn"] == pytest.approx(905.52)
+    assert weld["design_capacity_kn"] == pytest.approx(724.416)
+    assert weld["satisfied"]
+
+
+def test_incomplete_double_v_macro_test_uses_combined_preparation_depth():
+    result = incomplete_butt_design(
+        preparation_type="double_v",
+        preparation_depth_mm=None,
+        double_v_preparation_depths_mm=[8, 7],
+        **macro_test_evidence(3),
+        action_kn=800,
+    )
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+
+    assert intermediate["design_throat_mm"] == pytest.approx(15 + 0.85 * 3)
+    assert intermediate["effective_area_mm2"] == pytest.approx(17.55 * 200)
+    assert weld["design_capacity_kn"] == pytest.approx(825.552)
+    assert weld["satisfied"]
+
+
+def test_incomplete_butt_macro_test_requires_complete_verified_evidence():
+    with pytest.raises(ValueError, match="macro-test throat increase requires"):
+        incomplete_butt_design(automatic_arc_welding_process_verified=True)
+    invalid_evidence = macro_test_evidence()
+    invalid_evidence["production_weld_macro_test_verified"] = False
+    with pytest.raises(ValueError):
+        incomplete_butt_design(**invalid_evidence)
+
+
+def test_butt_weld_transition_enforces_one_to_one_limit():
+    boundary = butt_weld_transition()
+    boundary_check = boundary["checks"]["transition_geometry"]
+    assert boundary_check["clause"] == "9.6.2.6"
+    assert boundary_check["slope_ratio"] == 1
+    assert boundary_check["minimum_transition_run_mm"] == 12
+    assert boundary_check["satisfied"]
+
+    failed = butt_weld_transition(effective_transition_run_mm=11.99)
+    failed_check = failed["checks"]["transition_geometry"]
+    assert failed_check["slope_ratio"] == pytest.approx(12 / 11.99)
+    assert not failed_check["satisfied"]
+
+
+def test_butt_weld_transition_accepts_assessed_fatigue_slope_limit():
+    result = butt_weld_transition(
+        dimension_change_mm=10,
+        effective_transition_run_mm=40,
+        transition_method="combined",
+        fatigue_slope_limit=0.25,
+        fatigue_slope_limit_verified=True,
+        fatigue_assessment_reference="FATIGUE-DETAIL-01",
+    )
+    check = result["checks"]["transition_geometry"]
+    assert check["clause"] == "9.6.2.6; externally assessed fatigue-specific slope"
+    assert check["maximum_permitted_slope_ratio"] == 0.25
+    assert check["minimum_transition_run_mm"] == 40
+    assert check["satisfied"]
+
+    failed = butt_weld_transition(
+        dimension_change_mm=10,
+        effective_transition_run_mm=39,
+        fatigue_slope_limit=0.25,
+        fatigue_slope_limit_verified=True,
+        fatigue_assessment_reference="FATIGUE-DETAIL-01",
+    )
+    assert not failed["checks"]["transition_geometry"]["satisfied"]
+
+
+def test_butt_weld_transition_requires_tension_and_complete_fatigue_evidence():
+    with pytest.raises(ValueError):
+        butt_weld_transition(tension_loaded_joint_verified=False)
+    with pytest.raises(ValueError, match="fatigue-specific transition slope requires"):
+        butt_weld_transition(fatigue_slope_limit=0.5)
 
 
 @pytest.mark.parametrize(
