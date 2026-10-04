@@ -165,6 +165,7 @@ def verify():
                 "bending_axis": "major",
                 "symmetric_sharp_corner_i_section_verified": True,
                 "flange_only_holes_verified": True,
+                "net_hole_layout_preserves_major_axis_verified": True,
                 "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
             },
         }
@@ -230,6 +231,7 @@ def verify():
                 "bending_axis": "major",
                 "symmetric_sharp_corner_i_section_verified": True,
                 "flange_only_holes_verified": True,
+                "net_hole_layout_preserves_major_axis_verified": True,
                 "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
             },
         }
@@ -279,6 +281,7 @@ def verify():
                 "bending_axis": "major",
                 "symmetric_sharp_corner_rhs_section_verified": True,
                 "flange_only_holes_verified": True,
+                "net_hole_layout_preserves_major_axis_verified": True,
                 "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
             },
         }

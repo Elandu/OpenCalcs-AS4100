@@ -166,6 +166,7 @@ def net_i_section_input(**changes):
             "bending_axis": "major",
             "symmetric_sharp_corner_i_section_verified": True,
             "flange_only_holes_verified": True,
+            "net_hole_layout_preserves_major_axis_verified": True,
             "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
         },
     }
@@ -192,6 +193,7 @@ def net_rhs_section_input(**changes):
             "bending_axis": "major",
             "symmetric_sharp_corner_rhs_section_verified": True,
             "flange_only_holes_verified": True,
+            "net_hole_layout_preserves_major_axis_verified": True,
             "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
         },
     }
@@ -324,6 +326,13 @@ def test_hole_modulus_net_i_section_locates_plastic_axis_inside_flange():
 def test_hole_modulus_net_i_section_is_limited_to_major_axis_bending():
     data = net_i_section_input()
     data["net_i_section_geometry"]["bending_axis"] = "minor"
+    with pytest.raises(ValueError):
+        run_members(data)
+
+
+def test_hole_modulus_net_section_requires_holes_to_preserve_principal_axis():
+    data = net_i_section_input()
+    data["net_i_section_geometry"]["net_hole_layout_preserves_major_axis_verified"] = False
     with pytest.raises(ValueError):
         run_members(data)
 

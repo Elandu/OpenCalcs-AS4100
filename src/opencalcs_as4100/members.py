@@ -130,6 +130,7 @@ INPUT_SCHEMA = {
                         "bending_axis": {"const": "major"},
                         "symmetric_sharp_corner_i_section_verified": {"const": True},
                         "flange_only_holes_verified": {"const": True},
+                        "net_hole_layout_preserves_major_axis_verified": {"const": True},
                         "net_flange_areas_deducted_under_clause_9_1_10_verified": {"const": True},
                     },
                     "required": [
@@ -139,6 +140,7 @@ INPUT_SCHEMA = {
                         "bending_axis",
                         "symmetric_sharp_corner_i_section_verified",
                         "flange_only_holes_verified",
+                        "net_hole_layout_preserves_major_axis_verified",
                         "net_flange_areas_deducted_under_clause_9_1_10_verified",
                     ],
                     "additionalProperties": False,
@@ -152,6 +154,7 @@ INPUT_SCHEMA = {
                         "bending_axis": {"const": "major"},
                         "symmetric_sharp_corner_rhs_section_verified": {"const": True},
                         "flange_only_holes_verified": {"const": True},
+                        "net_hole_layout_preserves_major_axis_verified": {"const": True},
                         "net_flange_areas_deducted_under_clause_9_1_10_verified": {"const": True},
                     },
                     "required": [
@@ -161,6 +164,7 @@ INPUT_SCHEMA = {
                         "bending_axis",
                         "symmetric_sharp_corner_rhs_section_verified",
                         "flange_only_holes_verified",
+                        "net_hole_layout_preserves_major_axis_verified",
                         "net_flange_areas_deducted_under_clause_9_1_10_verified",
                     ],
                     "additionalProperties": False,
@@ -805,7 +809,8 @@ def _section_moduli(d):
                 [
                     f"Derived net properties apply only to the verified sharp-corner symmetric "
                     f"{section_form} geometry with major-axis bending and flange-only holes. "
-                    "Confirm the net flange areas and Clause 9.1.10 deductions against the "
+                    "Verify that the net hole layout preserves the principal major axis, and "
+                    "confirm the net flange areas and Clause 9.1.10 deductions against the "
                     "connection geometry; the input attestations are not independently "
                     "authenticated."
                 ]
