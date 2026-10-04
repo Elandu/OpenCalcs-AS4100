@@ -5,6 +5,8 @@ licensed scanned copy was reviewed directly for the expanded calculation
 families. The scan, page images and extracted standard text are not distributed
 with this repository. No separate amendments were supplied or verified;
 applicable amendments and project requirements require engineering review.
+Printed page 180 was reviewed for Clauses 16.1–16.2, pages 181–183 for
+Section 17, and page 185 for informative Appendix B.
 
 Table 2.1 material strengths are available for the listed product forms, grades
 and thickness ranges. Clause 2.2.3 also compares unidentified-steel design
@@ -16,7 +18,7 @@ the weld/detail demand. Material certification, test evidence, Table 2.1 notes,
 Clause 3.8 detailing and clauses 2.3–2.5 remain assessed outside these
 calculations.
 
-Version 0.7.1 exposes twelve installed calculation families. The code implements
+Version 0.7.2 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing

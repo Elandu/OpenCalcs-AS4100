@@ -730,6 +730,31 @@ def test_family_http_validation(suffix):
             },
         ),
         (
+            "testing",
+            {
+                "check_type": "test_scope_applicability",
+                "test_article": "connection",
+                "test_type": "proof",
+                "test_purpose": "specific_unit_characteristics",
+                "design_complies_with_as_4100_verified": True,
+                "special_circumstances_require_test_verified": False,
+                "test_used_as_alternative_to_calculation_verified": False,
+            },
+        ),
+        (
+            "testing",
+            {
+                "check_type": "existing_structure_modification_review",
+                "other_as4100_provisions_applied_unless_modified_verified": True,
+                "site_modifications_during_erection_applicable": True,
+                "site_modifications_conform_as_nzs_5131_verified": True,
+                "existing_modification_or_repair_applicable": True,
+                "existing_modification_or_repair_conforms_as_nzs_5131_verified": True,
+                "strengthening_repair_or_welding_documents_prepared": True,
+                "base_metal_types_determined_before_documents_verified": True,
+            },
+        ),
+        (
             "erection",
             {
                 "operation": "bolted_connection_assembly",

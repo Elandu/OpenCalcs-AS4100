@@ -14,6 +14,7 @@ from opencalcs_as4100.erection import run_erection  # noqa: E402
 from opencalcs_as4100.fabrication import run_fabrication  # noqa: E402
 from opencalcs_as4100.materials import run_materials  # noqa: E402
 from opencalcs_as4100.members import run_members  # noqa: E402
+from opencalcs_as4100.testing import run_testing  # noqa: E402
 from opencalcs_as4100.webs import run_webs  # noqa: E402
 
 
@@ -458,6 +459,96 @@ def clause_15_erection_and_tensioning():
         "below_table_minimum_rejected": True,
         "clause_15_3_2_revised_capacity_route_passed": True,
         "clause_15_1_1_section_17_acceptance_route_passed": True,
+    }
+
+
+def clause_17_test_scope_and_prototype():
+    scope = run_testing(
+        {
+            "check_type": "test_scope_applicability",
+            "test_article": "individual_member",
+            "test_type": "proof",
+            "test_purpose": "specific_unit_characteristics",
+            "design_complies_with_as_4100_verified": True,
+            "special_circumstances_require_test_verified": False,
+            "test_used_as_alternative_to_calculation_verified": False,
+        }
+    )["results"]
+    if (
+        not scope["check_satisfied"]
+        or not scope[
+            "testing_not_required_for_standard_compliant_design_without_special_circumstances"
+        ]
+    ):
+        raise AssertionError("Clauses 17.1.1–17.2 scope or applicability check failed")
+
+    prototype = run_testing(
+        {
+            "check_type": "prototype_strength",
+            "design_load_kn": 100,
+            "sustained_load_kn": 140,
+            "sustained_duration_min": 5,
+            "number_similar_units": 2,
+            "materials_conform_section_2_verified": True,
+            "fabrication_conforms_section_14_verified": True,
+            "manufacturing_specification_requirements_met_verified": True,
+            "erection_method_represents_production_verified": True,
+            "production_units_similar": True,
+            "calibrated_loading_without_artificial_restraints": True,
+            "representative_force_distribution_and_duration": True,
+            "loading_rate_as_uniform_as_practicable_verified": True,
+            "deformations_recorded_before_during_after": True,
+            "loading_method_recorded": True,
+            "deflection_measurement_method_recorded": True,
+            "other_relevant_test_data_recorded": True,
+            "acceptance_statement_recorded": True,
+            "test_report_complete": True,
+        }
+    )["results"]
+    expect_close(prototype["test_load_factor"], 1.4)
+    expect_close(prototype["required_test_load_kn"], 140)
+    if not prototype["check_satisfied"]:
+        raise AssertionError("Clauses 17.5.1–17.5.4 prototype acceptance failed")
+    return {
+        "test_scope_and_proof_definition_passed": True,
+        "standard_design_testing_default": "not_required",
+        "two_unit_prototype_strength_factor": prototype["test_load_factor"],
+        "prototype_conditions_passed": True,
+    }
+
+
+def clause_16_existing_structure_modification():
+    result = run_testing(
+        {
+            "check_type": "existing_structure_modification_review",
+            "other_as4100_provisions_applied_unless_modified_verified": True,
+            "site_modifications_during_erection_applicable": True,
+            "site_modifications_conform_as_nzs_5131_verified": True,
+            "existing_modification_or_repair_applicable": True,
+            "existing_modification_or_repair_conforms_as_nzs_5131_verified": True,
+            "strengthening_repair_or_welding_documents_prepared": True,
+            "base_metal_types_determined_before_documents_verified": True,
+        }
+    )["results"]
+    if not result["check_satisfied"]:
+        raise AssertionError("Clauses 16.1–16.2 accepted evidence was rejected")
+    late_identification = run_testing(
+        {
+            "check_type": "existing_structure_modification_review",
+            "other_as4100_provisions_applied_unless_modified_verified": True,
+            "site_modifications_during_erection_applicable": False,
+            "site_modifications_conform_as_nzs_5131_verified": False,
+            "existing_modification_or_repair_applicable": True,
+            "existing_modification_or_repair_conforms_as_nzs_5131_verified": True,
+            "strengthening_repair_or_welding_documents_prepared": True,
+            "base_metal_types_determined_before_documents_verified": False,
+        }
+    )["results"]
+    if late_identification["check_satisfied"]:
+        raise AssertionError("Clause 16.2 accepted late base-metal identification")
+    return {
+        "applicable_section_16_routes_passed": True,
+        "late_base_metal_identification_rejected": True,
     }
 
 
@@ -1273,6 +1364,8 @@ def main():
             clause_14_fabrication_procedure_and_tolerances
         ),
         "clause_15_erection_and_tensioning": clause_15_erection_and_tensioning,
+        "clause_17_test_scope_and_prototype": clause_17_test_scope_and_prototype,
+        "clause_16_existing_structure_modification": clause_16_existing_structure_modification,
         "clause_5_2_5_internal_gradient_effective_modulus": clause_5_2_5_internal_gradient,
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,
         "clause_5_3_2_4_unequal_flange_restraint_boundary": (clause_5_3_2_4_lateral_restraint),

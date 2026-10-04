@@ -15,6 +15,7 @@ from .erection import run_erection
 from .fabrication import run_fabrication
 from .materials import run_materials
 from .members import run_members
+from .testing import run_testing
 from .webs import buckling_alpha, run_webs
 
 
@@ -2995,6 +2996,89 @@ def verify():
     record(
         "Clause 15.1.1 Section 17 testing acceptance route",
         int(erection_acceptance["values"]["erected_item_may_be_accepted"]),
+        1,
+    )
+    test_scope = run_testing(
+        {
+            "check_type": "test_scope_applicability",
+            "test_article": "individual_member",
+            "test_type": "proof",
+            "test_purpose": "specific_unit_characteristics",
+            "design_complies_with_as_4100_verified": True,
+            "special_circumstances_require_test_verified": False,
+            "test_used_as_alternative_to_calculation_verified": False,
+        }
+    )["results"]
+    record(
+        "Clauses 17.1.1-17.2 in-scope proof test and definition",
+        int(test_scope["check_satisfied"]),
+        1,
+    )
+    record(
+        "Clause 17.1.2 standard-compliant design not required to be tested",
+        int(
+            test_scope[
+                "testing_not_required_for_standard_compliant_design_without_special_circumstances"
+            ]
+        ),
+        1,
+    )
+    prototype_test = run_testing(
+        {
+            "check_type": "prototype_strength",
+            "design_load_kn": 100,
+            "sustained_load_kn": 140,
+            "sustained_duration_min": 5,
+            "number_similar_units": 2,
+            "materials_conform_section_2_verified": True,
+            "fabrication_conforms_section_14_verified": True,
+            "manufacturing_specification_requirements_met_verified": True,
+            "erection_method_represents_production_verified": True,
+            "production_units_similar": True,
+            "calibrated_loading_without_artificial_restraints": True,
+            "representative_force_distribution_and_duration": True,
+            "loading_rate_as_uniform_as_practicable_verified": True,
+            "deformations_recorded_before_during_after": True,
+            "loading_method_recorded": True,
+            "deflection_measurement_method_recorded": True,
+            "other_relevant_test_data_recorded": True,
+            "acceptance_statement_recorded": True,
+            "test_report_complete": True,
+        }
+    )["results"]
+    record(
+        "Table 17.5.2 two-unit prototype strength factor",
+        prototype_test["test_load_factor"],
+        1.4,
+    )
+    record(
+        "Clauses 17.5.1 and 17.5.4 prototype evidence gates",
+        int(prototype_test["check_satisfied"]),
+        1,
+    )
+    modification_review = run_testing(
+        {
+            "check_type": "existing_structure_modification_review",
+            "other_as4100_provisions_applied_unless_modified_verified": True,
+            "site_modifications_during_erection_applicable": True,
+            "site_modifications_conform_as_nzs_5131_verified": True,
+            "existing_modification_or_repair_applicable": True,
+            "existing_modification_or_repair_conforms_as_nzs_5131_verified": True,
+            "strengthening_repair_or_welding_documents_prepared": True,
+            "base_metal_types_determined_before_documents_verified": True,
+        }
+    )["results"]
+    record(
+        "Clause 16.1 separate erection and existing-work AS/NZS 5131 routes",
+        int(
+            modification_review["site_modification_requirements_satisfied"]
+            and modification_review["existing_modification_or_repair_requirements_satisfied"]
+        ),
+        1,
+    )
+    record(
+        "Clause 16.2 base-metal determination before related documents",
+        int(modification_review["base_metal_determination_timing_satisfied"]),
         1,
     )
     return {

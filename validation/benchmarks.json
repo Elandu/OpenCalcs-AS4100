@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.1",
+  "package_version": "0.7.2",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1706,6 +1706,48 @@
     },
     {
       "name": "Clause 15.1.1 Section 17 testing acceptance route",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clauses 17.1.1-17.2 in-scope proof test and definition",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 17.1.2 standard-compliant design not required to be tested",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 17.5.2 two-unit prototype strength factor",
+      "actual": 1.4,
+      "expected": 1.4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clauses 17.5.1 and 17.5.4 prototype evidence gates",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 16.1 separate erection and existing-work AS/NZS 5131 routes",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 16.2 base-metal determination before related documents",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

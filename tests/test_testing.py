@@ -10,13 +10,21 @@ def specimen(op="proof_strength"):
         "design_load_kn": 100,
         "calibrated_loading_without_artificial_restraints": True,
         "representative_force_distribution_and_duration": True,
+        "loading_rate_as_uniform_as_practicable_verified": True,
         "deformations_recorded_before_during_after": True,
+        "loading_method_recorded": True,
+        "deflection_measurement_method_recorded": True,
+        "other_relevant_test_data_recorded": True,
+        "acceptance_statement_recorded": True,
         "test_report_complete": True,
     }
     if op.startswith("prototype"):
         d.update(
             number_similar_units=1,
-            materials_fabrication_erection_representative=True,
+            materials_conform_section_2_verified=True,
+            fabrication_conforms_section_14_verified=True,
+            manufacturing_specification_requirements_met_verified=True,
+            erection_method_represents_production_verified=True,
             production_units_similar=True,
         )
     if op.endswith("strength"):
@@ -40,11 +48,14 @@ def result(d):
 )
 def test_t01_prototype_table(units, strength, serviceability):
     d = specimen("prototype_strength")
-    d.update(number_similar_units=units, sustained_duration_min=5)
+    d.update(number_similar_units=units, sustained_load_kn=strength, sustained_duration_min=5)
     assert result(d)["required_test_load_kn"] == pytest.approx(strength)
+    assert result(d)["check_satisfied"]
     d = specimen("prototype_serviceability")
     d["number_similar_units"] = units
+    d["applied_load_kn"] = serviceability
     assert result(d)["required_test_load_kn"] == pytest.approx(serviceability)
+    assert result(d)["check_satisfied"]
 
 
 def test_t02_proof_duration_and_damage_inspection():
@@ -57,6 +68,9 @@ def test_t02_proof_duration_and_damage_inspection():
     d["sustained_duration_min"] = 15
     d["post_test_damage_inspected"] = False
     assert not result(d)["check_satisfied"]
+    d["post_test_damage_inspected"] = True
+    d["sustained_load_kn"] = 100.001
+    assert not result(d)["check_satisfied"]
 
 
 def test_t03_prototype_duration_and_load_boundaries():
@@ -64,6 +78,8 @@ def test_t03_prototype_duration_and_load_boundaries():
     d.update(sustained_load_kn=150, sustained_duration_min=5)
     assert result(d)["check_satisfied"]
     d["sustained_load_kn"] = 149.999
+    assert not result(d)["check_satisfied"]
+    d.update(sustained_load_kn=150.001, sustained_duration_min=5)
     assert not result(d)["check_satisfied"]
     d.update(sustained_load_kn=150, sustained_duration_min=4.999)
     assert not result(d)["check_satisfied"]
@@ -78,12 +94,80 @@ def test_t04_report_and_production_similarity():
     assert not result(d)["check_satisfied"]
 
 
+@pytest.mark.parametrize(
+    "field",
+    [
+        "loading_method_recorded",
+        "loading_rate_as_uniform_as_practicable_verified",
+        "deflection_measurement_method_recorded",
+        "other_relevant_test_data_recorded",
+        "acceptance_statement_recorded",
+    ],
+)
+def test_t04_report_must_include_clause_17_6_content(field):
+    d = specimen()
+    d[field] = False
+    assert not result(d)["check_satisfied"]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "materials_conform_section_2_verified",
+        "fabrication_conforms_section_14_verified",
+        "manufacturing_specification_requirements_met_verified",
+        "erection_method_represents_production_verified",
+        "production_units_similar",
+    ],
+)
+def test_t04_prototype_specimen_and_production_requirements(field):
+    d = specimen("prototype_strength")
+    d[field] = False
+    assert not result(d)["check_satisfied"]
+
+
+def test_t13_test_scope_and_applicability_clauses_17_1_and_17_2():
+    output = run_testing(
+        {
+            "check_type": "test_scope_applicability",
+            "test_article": "individual_member",
+            "test_type": "proof",
+            "test_purpose": "specific_unit_characteristics",
+            "design_complies_with_as_4100_verified": True,
+            "special_circumstances_require_test_verified": False,
+            "test_used_as_alternative_to_calculation_verified": False,
+        }
+    )
+    results = output["results"]
+    assert output["clauses"] == ["17.1.1", "17.1.2", "17.2"]
+    assert results["check_satisfied"]
+    assert results[
+        "testing_not_required_for_standard_compliant_design_without_special_circumstances"
+    ]
+
+    out_of_scope = run_testing(
+        {
+            "check_type": "test_scope_applicability",
+            "test_article": "structural_model",
+            "test_type": "prototype",
+            "test_purpose": "general_design_criteria_or_data",
+            "design_complies_with_as_4100_verified": False,
+            "special_circumstances_require_test_verified": False,
+            "test_used_as_alternative_to_calculation_verified": True,
+        }
+    )
+    assert not out_of_scope["results"]["check_satisfied"]
+
+
 def test_t05_serviceability_boundary():
     d = specimen("proof_serviceability")
+    d["applied_load_kn"] = 100
     assert result(d)["check_satisfied"]
     d["maximum_deformation_mm"] = 10.001
     assert not result(d)["check_satisfied"]
     d.update(maximum_deformation_mm=10, applied_load_kn=99.999)
+    assert not result(d)["check_satisfied"]
+    d["applied_load_kn"] = 100.001
     assert not result(d)["check_satisfied"]
 
 
@@ -180,8 +264,39 @@ def test_t10_material_audit_never_certifies_design():
     assert not result(d)["prerequisites_satisfied"]
 
 
+def test_t11_existing_structure_modification_clause_16_gates():
+    d = {
+        "check_type": "existing_structure_modification_review",
+        "other_as4100_provisions_applied_unless_modified_verified": True,
+        "site_modifications_during_erection_applicable": True,
+        "site_modifications_conform_as_nzs_5131_verified": True,
+        "existing_modification_or_repair_applicable": True,
+        "existing_modification_or_repair_conforms_as_nzs_5131_verified": True,
+        "strengthening_repair_or_welding_documents_prepared": True,
+        "base_metal_types_determined_before_documents_verified": True,
+    }
+    output = run_testing(d)
+    assert output["clauses"] == ["16.1", "16.2"]
+    checked = output["results"]
+    assert checked["check_satisfied"]
+    assert checked["manual_review_required"]
+
+    d["site_modifications_conform_as_nzs_5131_verified"] = False
+    failed_erection_route = run_testing(d)["results"]
+    assert not failed_erection_route["site_modification_requirements_satisfied"]
+    assert not failed_erection_route["check_satisfied"]
+
+    d.update(
+        site_modifications_during_erection_applicable=False,
+        site_modifications_conform_as_nzs_5131_verified=False,
+        base_metal_types_determined_before_documents_verified=False,
+    )
+    d["strengthening_repair_or_welding_documents_prepared"] = False
+    assert run_testing(d)["results"]["check_satisfied"]
+
+
 @pytest.mark.parametrize("units", [0, 6, 7, 9, 11, True])
-def test_t11_unlisted_prototype_counts_rejected(units):
+def test_t12_unlisted_prototype_counts_rejected(units):
     d = specimen("prototype_strength")
     d["number_similar_units"] = units
     with pytest.raises(ValueError):
