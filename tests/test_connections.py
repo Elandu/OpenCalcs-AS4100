@@ -1678,6 +1678,23 @@ def macro_test_evidence(penetration_beyond_preparation_mm=0):
     }
 
 
+def prequalified_incomplete_butt_design(**changes):
+    inputs = {
+        "check_type": "prequalified_incomplete_butt_design",
+        "weld_strength_mpa": 490,
+        "quality": "SP",
+        "prequalified_design_throat_mm": 8,
+        "prequalified_preparation_verified": True,
+        "prequalified_preparation_reference": "AS/NZS 1554.1 project WPS 01",
+        "welding_procedure_and_consumable_basis_verified": True,
+        "continuous_full_size_weld_length_mm": 200,
+        "thin_rhs_longitudinal": False,
+        "action_kn": 0,
+    }
+    inputs.update(changes)
+    return run_connections(inputs)
+
+
 def butt_weld_transition(**changes):
     inputs = {
         "check_type": "butt_weld_transition",
@@ -1708,6 +1725,52 @@ def test_incomplete_butt_design_hand_benchmark():
     assert "9.6.2.3(b)(ii)(A)" in weld["clause"]
     assert "9.6.2.7(c)" in weld["clause"]
     assert not incomplete_butt_design(action_kn=423.3601)["checks"]["weld_strength"]["satisfied"]
+
+
+def test_prequalified_incomplete_butt_uses_assessed_throat_for_as4100_capacity():
+    result = prequalified_incomplete_butt_design(action_kn=376.32)
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+
+    assert intermediate["preparation_type"] == "prequalified"
+    assert intermediate["prequalified_design_throat_input_mm"] == 8
+    assert intermediate["design_throat_mm"] == 8
+    assert intermediate["effective_length_mm"] == 200
+    assert intermediate["effective_area_mm2"] == 1600
+    assert intermediate["prequalified_preparation_reference"] == "AS/NZS 1554.1 project WPS 01"
+    assert weld["nominal_capacity_kn"] == pytest.approx(470.4)
+    assert weld["design_capacity_kn"] == pytest.approx(376.32)
+    assert weld["satisfied"]
+    assert "9.6.2.3(b)(i)" in weld["clause"]
+    assert "9.6.2.7(c)" in weld["clause"]
+    assert "not authenticated" in result["scope"]
+
+
+def test_prequalified_incomplete_butt_macro_test_can_increase_assessed_throat():
+    result = prequalified_incomplete_butt_design(
+        **macro_test_evidence(2),
+        preparation_depth_mm=12,
+    )
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+    expected_throat = 12 + 0.85 * 2
+    expected_area = expected_throat * 200
+
+    assert intermediate["design_throat_mm"] == pytest.approx(expected_throat)
+    assert intermediate["effective_area_mm2"] == pytest.approx(expected_area)
+    assert weld["nominal_capacity_kn"] == pytest.approx(0.6 * 490 * expected_area / 1000)
+    assert weld["design_capacity_kn"] == pytest.approx(0.8 * 0.6 * 490 * expected_area / 1000)
+    assert "9.6.2.3(b)(iii)" in weld["clause"]
+    assert "Figure 9.6.3.4" in weld["clause"]
+
+
+def test_prequalified_incomplete_butt_rejects_unverified_or_partial_macro_evidence():
+    with pytest.raises(ValueError):
+        prequalified_incomplete_butt_design(prequalified_preparation_verified=False)
+    with pytest.raises(ValueError):
+        prequalified_incomplete_butt_design(prequalified_preparation_reference="")
+    with pytest.raises(ValueError, match="macro-test evidence"):
+        prequalified_incomplete_butt_design(automatic_arc_welding_process_verified=True)
 
 
 def test_incomplete_butt_design_rejects_unsupported_geometry_and_evidence():

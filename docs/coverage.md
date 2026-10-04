@@ -36,6 +36,13 @@ verified extension beyond the connection and verified transfer bolting through
 the combined section. Those two detailing conditions remain externally assessed;
 the calculation does not derive their geometry or bolt-group capacity.
 
+`connection_design.prequalified_incomplete_butt_design` accepts a design throat
+established under a verified AS/NZS 1554.1 or AS/NZS 1554.4 prequalified
+preparation, then calculates the AS 4100 effective length, area and strength.
+It can apply the Clause 9.6.2.3(b)(iii) production-weld macro-test increase when
+the required process, penetration and record evidence are supplied. Referenced
+preparation calculations and production evidence remain external assessments.
+
 Clause 9.2.3.2 slip checks now report the external evidence basis for the supplied
 slip factor and whether the friction-bolt category, surface treatment and paint
 masking requirements are recorded on drawings. Appendix J is a recognized test

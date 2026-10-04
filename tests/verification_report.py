@@ -188,6 +188,81 @@ def fillet_macro_test_throat():
     return expected
 
 
+def prequalified_incomplete_butt_capacity():
+    result = run_connections(
+        {
+            "check_type": "prequalified_incomplete_butt_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "prequalified_design_throat_mm": 8,
+            "prequalified_preparation_verified": True,
+            "prequalified_preparation_reference": "AS/NZS 1554.1 project WPS 01",
+            "welding_procedure_and_consumable_basis_verified": True,
+            "continuous_full_size_weld_length_mm": 200,
+            "thin_rhs_longitudinal": False,
+            "action_kn": 0,
+        }
+    )
+    # Independent AS 4100 arithmetic using the externally established 8 mm throat.
+    area = 8 * 200
+    nominal = 0.6 * 490 * area / 1000
+    expected = {
+        "design_throat_mm": 8,
+        "effective_area_mm2": area,
+        "nominal_capacity_kn": nominal,
+        "design_capacity_kn": 0.8 * nominal,
+    }
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+    for name, value in expected.items():
+        observed = weld[name] if name.endswith("capacity_kn") else intermediate[name]
+        expect_close(observed, value)
+    if "9.6.2.3(b)(i)" not in weld["clause"]:
+        raise AssertionError("Prequalified preparation route was not reported")
+    return expected
+
+
+def prequalified_incomplete_butt_macro_throat():
+    result = run_connections(
+        {
+            "check_type": "prequalified_incomplete_butt_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "prequalified_design_throat_mm": 8,
+            "prequalified_preparation_verified": True,
+            "prequalified_preparation_reference": "AS/NZS 1554.1 project WPS 01",
+            "welding_procedure_and_consumable_basis_verified": True,
+            "continuous_full_size_weld_length_mm": 200,
+            "thin_rhs_longitudinal": False,
+            "preparation_depth_mm": 12,
+            "automatic_arc_welding_process_verified": True,
+            "production_weld_macro_test_verified": True,
+            "macro_test_required_penetration_achieved_verified": True,
+            "macro_test_record_reference": "PREQUALIFIED-MACRO-BENCHMARK",
+            "macro_test_penetration_beyond_preparation_mm": 2,
+            "action_kn": 0,
+        }
+    )
+    # Figure 9.6.3.4: t_t = t_t1 + 0.85 t_t2, then Clause 9.6.3.10.
+    throat = 12 + 0.85 * 2
+    area = throat * 200
+    nominal = 0.6 * 490 * area / 1000
+    expected = {
+        "design_throat_mm": throat,
+        "effective_area_mm2": area,
+        "nominal_capacity_kn": nominal,
+        "design_capacity_kn": 0.8 * nominal,
+    }
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+    for name, value in expected.items():
+        observed = weld[name] if name.endswith("capacity_kn") else intermediate[name]
+        expect_close(observed, value)
+    if "Figure 9.6.3.4" not in weld["clause"]:
+        raise AssertionError("Figure 9.6.3.4 was not reported for the prequalified throat increase")
+    return expected
+
+
 def plug_slot_benchmark(dimensions, expected_area):
     result = run_connections(
         {
@@ -1707,6 +1782,8 @@ def main():
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,
         "clause_9_6_2_6_butt_weld_transition": butt_weld_transition,
+        "clause_9_6_2_prequalified_butt_weld_capacity": prequalified_incomplete_butt_capacity,
+        "clause_9_6_2_prequalified_butt_macro_throat": prequalified_incomplete_butt_macro_throat,
         "clause_9_6_3_4_fillet_macro_test_throat": fillet_macro_test_throat,
         "clause_9_6_4_2_circular_plug_weld_area": plug_slot_circular_hole,
         "clause_9_6_4_2_round_ended_slot_weld_area": plug_slot_round_ended_slot,

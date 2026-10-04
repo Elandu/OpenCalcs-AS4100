@@ -390,6 +390,23 @@ FIELDS = {
         "macro_test_penetration_beyond_preparation_mm": N,
         "action_kn": N,
     },
+    "prequalified_incomplete_butt_design": {
+        "weld_strength_mpa": P,
+        "quality": QUALITY,
+        "prequalified_design_throat_mm": P,
+        "prequalified_preparation_verified": {"const": True},
+        "prequalified_preparation_reference": TEXT_REFERENCE,
+        "welding_procedure_and_consumable_basis_verified": {"const": True},
+        "continuous_full_size_weld_length_mm": P,
+        "thin_rhs_longitudinal": BOOL,
+        "preparation_depth_mm": P,
+        "automatic_arc_welding_process_verified": {"const": True},
+        "production_weld_macro_test_verified": {"const": True},
+        "macro_test_required_penetration_achieved_verified": {"const": True},
+        "macro_test_record_reference": TEXT_REFERENCE,
+        "macro_test_penetration_beyond_preparation_mm": N,
+        "action_kn": N,
+    },
     "plug_slot": {
         "weld_strength_mpa": P,
         "effective_area_mm2": P,
@@ -798,6 +815,14 @@ OPTIONAL_FIELDS = {
     "incomplete_butt_design": (
         "preparation_depth_mm",
         "double_v_preparation_depths_mm",
+        "automatic_arc_welding_process_verified",
+        "production_weld_macro_test_verified",
+        "macro_test_required_penetration_achieved_verified",
+        "macro_test_record_reference",
+        "macro_test_penetration_beyond_preparation_mm",
+    ),
+    "prequalified_incomplete_butt_design": (
+        "preparation_depth_mm",
         "automatic_arc_welding_process_verified",
         "production_weld_macro_test_verified",
         "macro_test_required_penetration_achieved_verified",
@@ -2562,6 +2587,83 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "effective_area_mm2": throat * length,
             **strength_intermediate,
         }
+    elif k == "prequalified_incomplete_butt_design":
+        macro_test_fields = {
+            "preparation_depth_mm",
+            "automatic_arc_welding_process_verified",
+            "production_weld_macro_test_verified",
+            "macro_test_required_penetration_achieved_verified",
+            "macro_test_record_reference",
+            "macro_test_penetration_beyond_preparation_mm",
+        }
+        supplied_macro_test_fields = macro_test_fields.intersection(d)
+        macro_test_used = bool(supplied_macro_test_fields)
+        if macro_test_used and supplied_macro_test_fields != macro_test_fields:
+            raise ValueError(
+                "A prequalified butt-weld throat increase requires preparation depth, "
+                "automatic arc process verification, production-weld macro-test evidence, "
+                "achieved required penetration, the record reference, and measured "
+                "penetration beyond the preparation."
+            )
+        macro_test_extra_penetration = (
+            d["macro_test_penetration_beyond_preparation_mm"] if macro_test_used else 0
+        )
+        macro_test_throat_limit = (
+            d["preparation_depth_mm"] + 0.85 * macro_test_extra_penetration
+            if macro_test_used
+            else None
+        )
+        throat = (
+            max(d["prequalified_design_throat_mm"], macro_test_throat_limit)
+            if macro_test_used
+            else d["prequalified_design_throat_mm"]
+        )
+        length = d["continuous_full_size_weld_length_mm"]
+        weld_data = {
+            "weld_strength_mpa": d["weld_strength_mpa"],
+            "quality": d["quality"],
+            "thin_rhs_longitudinal": d["thin_rhs_longitudinal"],
+            "lap_length_mm": 0,
+            "action_kn": d["action_kn"],
+        }
+        clause = "9.6.2.3(b)(i); 9.6.2.4; 9.6.2.5; 9.6.2.7(c); 9.6.3.10"
+        if macro_test_used:
+            clause = (
+                "9.6.2.3(b)(i); 9.6.2.3(b)(iii); Figure 9.6.3.4; "
+                "9.6.2.4; 9.6.2.5; 9.6.2.7(c); 9.6.3.10"
+            )
+        strength_check, strength_intermediate = _fillet_strength_check(
+            weld_data, throat, length, clause
+        )
+        c["weld_strength"] = {"clause": clause, **strength_check}
+        intermediate = {
+            "preparation_type": "prequalified",
+            "prequalified_design_throat_input_mm": d["prequalified_design_throat_mm"],
+            "prequalified_preparation_verified": d["prequalified_preparation_verified"],
+            "prequalified_preparation_reference": d["prequalified_preparation_reference"],
+            "design_throat_mm": throat,
+            "macro_test_throat_increase": {
+                "used": macro_test_used,
+                "automatic_arc_welding_process_verified": d.get(
+                    "automatic_arc_welding_process_verified", False
+                ),
+                "production_weld_macro_test_verified": d.get(
+                    "production_weld_macro_test_verified", False
+                ),
+                "required_penetration_achieved_verified": d.get(
+                    "macro_test_required_penetration_achieved_verified", False
+                ),
+                "record_reference": d.get("macro_test_record_reference"),
+                "preparation_depth_t_t1_mm": d.get("preparation_depth_mm"),
+                "penetration_beyond_preparation_t_t2_mm": (
+                    macro_test_extra_penetration if macro_test_used else None
+                ),
+                "maximum_design_throat_mm": macro_test_throat_limit,
+            },
+            "effective_length_mm": length,
+            "effective_area_mm2": throat * length,
+            **strength_intermediate,
+        }
     elif k in {"fillet", "complete_butt", "plug_slot"}:
         phi = 0.8 if d["quality"] == "SP" else 0.6
         if k == "fillet":
@@ -2734,6 +2836,17 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "Prequalified preparations, other preparation forms, fatigue quality, inspection and "
             "complete connection "
             "design are outside this operation."
+        )
+    elif k == "prequalified_incomplete_butt_design":
+        scope = (
+            "Clause 9.6.2.3(b)(i) accepts a design throat established for a prequalified "
+            "preparation under AS/NZS 1554.1 or AS/NZS 1554.4; this operation calculates the "
+            "effective length and area under 9.6.2.4–5 and capacity under 9.6.2.7(c)/9.6.3.10. "
+            "The preparation, throat, welding procedure, consumable strength, quality, inspection "
+            "and referenced-standard evidence are externally assessed and not authenticated. "
+            "Optional Clause 9.6.2.3(b)(iii)/Figure 9.6.3.4 throat increases require automatic arc "
+            "process verification and a production-weld macro-test record. Fatigue quality and "
+            "complete connection design remain separate."
         )
     elif k == "butt_weld_transition":
         scope = (
