@@ -143,6 +143,28 @@ INPUT_SCHEMA = {
                     ],
                     "additionalProperties": False,
                 },
+                "net_rhs_geometry": {
+                    "type": "object",
+                    "properties": {
+                        "overall_depth_mm": P,
+                        "flange_thickness_mm": P,
+                        "web_thickness_mm": P,
+                        "bending_axis": {"const": "major"},
+                        "symmetric_sharp_corner_rhs_section_verified": {"const": True},
+                        "flange_only_holes_verified": {"const": True},
+                        "net_flange_areas_deducted_under_clause_9_1_10_verified": {"const": True},
+                    },
+                    "required": [
+                        "overall_depth_mm",
+                        "flange_thickness_mm",
+                        "web_thickness_mm",
+                        "bending_axis",
+                        "symmetric_sharp_corner_rhs_section_verified",
+                        "flange_only_holes_verified",
+                        "net_flange_areas_deducted_under_clause_9_1_10_verified",
+                    ],
+                    "additionalProperties": False,
+                },
             },
             [
                 "method",
@@ -571,17 +593,17 @@ def _plate(d):
     )
 
 
-def _rectangular_i_section_properties(depth, flange_thickness, web_thickness, flange_areas):
+def _major_axis_section_properties(depth, flange_thickness, web_width, flange_areas):
     web_depth = depth - 2 * flange_thickness
     if web_depth <= 0:
         raise ValueError("Overall depth must exceed twice the flange thickness.")
     if any(area <= 0 for area in flange_areas):
-        raise ValueError("I-section flange areas must both be positive.")
+        raise ValueError("Section flange areas must both be positive.")
 
     widths = [area / flange_thickness for area in flange_areas]
     rectangles = [
         (widths[0], 0.0, flange_thickness),
-        (web_thickness, flange_thickness, depth - flange_thickness),
+        (web_width, flange_thickness, depth - flange_thickness),
         (widths[1], depth - flange_thickness, depth),
     ]
     areas = [width * (y1 - y0) for width, y0, y1 in rectangles]
@@ -659,13 +681,19 @@ def _section_moduli(d):
         if net / gross < minimum_net_flange_ratio
     ]
     gross_permitted = not excessive_flange_indices
-    geometry = d.get("net_i_section_geometry")
+    i_section_geometry = d.get("net_i_section_geometry")
+    rhs_geometry = d.get("net_rhs_geometry")
+    if i_section_geometry is not None and rhs_geometry is not None:
+        raise ValueError("Supply one derived net-section geometry form only.")
+    geometry = i_section_geometry or rhs_geometry
+    is_rhs = rhs_geometry is not None
+    section_form = "RHS/SHS" if is_rhs else "I-section"
     net_properties = None
     if geometry is not None:
         if len(gross_flanges) != 2 or len(net_flanges) != 2:
-            raise ValueError("Net I-section geometry requires top and bottom flange areas only.")
+            raise ValueError("Derived net geometry requires top and bottom flange areas only.")
         if not isclose(gross_flanges[0], gross_flanges[1], rel_tol=1e-9, abs_tol=1e-6):
-            raise ValueError("Net I-section geometry requires equal gross flange areas.")
+            raise ValueError(f"Net {section_form} geometry requires equal gross flange areas.")
         depth = geometry["overall_depth_mm"]
         flange_thickness = geometry["flange_thickness_mm"]
         web_thickness = geometry["web_thickness_mm"]
@@ -673,15 +701,21 @@ def _section_moduli(d):
         if web_depth <= 0:
             raise ValueError("Overall depth must exceed twice the flange thickness.")
         gross_flange_width = gross_flanges[0] / flange_thickness
-        if web_thickness > gross_flange_width:
-            raise ValueError("Web thickness must not exceed the gross flange width.")
-        expected_web_area = web_thickness * web_depth
+        web_width = web_thickness * (2 if is_rhs else 1)
+        if web_width > gross_flange_width:
+            raise ValueError(
+                "Web thickness must not exceed the gross flange width; for RHS/SHS, "
+                "the combined width of both webs is checked."
+            )
+        expected_web_area = web_width * web_depth
         if not isclose(d["gross_web_area_mm2"], expected_web_area, rel_tol=1e-9, abs_tol=1e-6):
-            raise ValueError("Gross web area is inconsistent with the supplied I-section geometry.")
+            raise ValueError(
+                f"Gross web area is inconsistent with the supplied {section_form} geometry."
+            )
         if any(area <= 0 for area in net_flanges):
-            raise ValueError("Net I-section flange areas must both be positive.")
-        gross_properties = _rectangular_i_section_properties(
-            depth, flange_thickness, web_thickness, gross_flanges
+            raise ValueError("Net flange areas must both be positive.")
+        gross_properties = _major_axis_section_properties(
+            depth, flange_thickness, web_width, gross_flanges
         )
         if not isclose(
             d["gross_elastic_modulus_mm3"],
@@ -695,10 +729,10 @@ def _section_moduli(d):
             abs_tol=1e-6,
         ):
             raise ValueError(
-                "Gross section moduli are inconsistent with the supplied I-section geometry."
+                f"Gross section moduli are inconsistent with the supplied {section_form} geometry."
             )
-        net_properties = _rectangular_i_section_properties(
-            depth, flange_thickness, web_thickness, net_flanges
+        net_properties = _major_axis_section_properties(
+            depth, flange_thickness, web_width, net_flanges
         )
         if not isclose(net_properties["net_area_mm2"], net_area, rel_tol=1e-9, abs_tol=1e-6):
             raise ValueError("Net flange areas are inconsistent with the supplied section areas.")
@@ -708,7 +742,7 @@ def _section_moduli(d):
     if has_net_elastic_modulus != has_net_plastic_modulus:
         raise ValueError("Supply both net elastic and plastic section moduli, or neither.")
     if geometry is not None and has_net_elastic_modulus:
-        raise ValueError("Supply net I-section geometry or net moduli, not both.")
+        raise ValueError("Supply derived net geometry or net moduli, not both.")
 
     if gross_permitted:
         selected_method = "gross_section"
@@ -769,10 +803,11 @@ def _section_moduli(d):
             "Clause 5.2.2–5.2.5 check.",
             *(
                 [
-                    "Derived net properties apply only to the verified sharp-corner symmetric "
-                    "I-section geometry with major-axis bending and flange-only holes. Confirm "
-                    "the net flange areas and Clause 9.1.10 deductions against the connection "
-                    "geometry; the input attestations are not independently authenticated."
+                    f"Derived net properties apply only to the verified sharp-corner symmetric "
+                    f"{section_form} geometry with major-axis bending and flange-only holes. "
+                    "Confirm the net flange areas and Clause 9.1.10 deductions against the "
+                    "connection geometry; the input attestations are not independently "
+                    "authenticated."
                 ]
                 if geometry is not None
                 else [

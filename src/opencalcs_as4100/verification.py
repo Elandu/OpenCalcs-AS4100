@@ -250,6 +250,85 @@ def verify():
         72332.02459376372,
         1e-7,
     )
+    rhs_flange_holes = run_connections(
+        {
+            "check_type": "hole_deduction",
+            "gross_area_mm2": 1500,
+            "thickness_mm": 10,
+            "straight_hole_width_sum_mm": 30,
+            "zigzag_hole_width_sum_mm": 0,
+            "stagger_pairs": [],
+        }
+    )
+    net_rhs_section = run_members(
+        {
+            "operation": "section_moduli",
+            "method": "net_section",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 400,
+            "gross_area_mm2": 8600,
+            "gross_web_area_mm2": 5600,
+            "gross_flange_areas_mm2": [1500, 1500],
+            "net_flange_areas_mm2": [rhs_flange_holes["intermediate"]["net_area_mm2"], 1500],
+            "gross_elastic_modulus_mm3": 664577.7777777778,
+            "gross_plastic_modulus_mm3": 827000,
+            "net_rhs_geometry": {
+                "overall_depth_mm": 300,
+                "flange_thickness_mm": 10,
+                "web_thickness_mm": 10,
+                "bending_axis": "major",
+                "symmetric_sharp_corner_rhs_section_verified": True,
+                "flange_only_holes_verified": True,
+                "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
+            },
+        }
+    )
+    rhs_properties = net_rhs_section["values"]["net_section_properties"]
+    record(
+        "Clause 9.1.10 RHS single-hole flange net area",
+        rhs_flange_holes["intermediate"]["net_area_mm2"],
+        1200,
+    )
+    record(
+        "Clause 5.2.6(b) net RHS centroid from top",
+        rhs_properties["centroid_from_top_mm"],
+        155.2409638554217,
+        1e-9,
+    )
+    record(
+        "Clause 5.2.6(b) net RHS second moment",
+        rhs_properties["second_moment_of_area_mm4"],
+        93148684.73895583,
+        1e-6,
+    )
+    record(
+        "Clause 5.2.6(b) net RHS plastic neutral axis",
+        rhs_properties["plastic_neutral_axis_from_top_mm"],
+        157.5,
+    )
+    record(
+        "Clause 5.2.6(b) net RHS top elastic modulus",
+        rhs_properties["elastic_modulus_top_mm3"],
+        600026.4519467081,
+        1e-7,
+    )
+    record(
+        "Clause 5.2.6(b) net RHS bottom elastic modulus",
+        rhs_properties["elastic_modulus_bottom_mm3"],
+        643474.0602025246,
+        1e-7,
+    )
+    record(
+        "Clause 5.2.6(b) net RHS plastic modulus, hand integration",
+        rhs_properties["plastic_modulus_mm3"],
+        782375,
+    )
+    record(
+        "Clause 5.2.6(b) selects lower net RHS extreme-fibre modulus",
+        net_rhs_section["values"]["elastic_modulus_mm3"],
+        600026.4519467081,
+        1e-7,
+    )
 
     compact_interaction = run_members(
         {

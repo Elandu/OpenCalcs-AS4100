@@ -11,7 +11,7 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 | Operation | Reviewed clauses | Behavior and prerequisites |
 | --- | --- | --- |
 | `plate` | 5.2.2–5.2.5, 6.2.3–6.2.4 | Table-selected slenderness limits; compact/noncompact/slender effective bending modulus, including slender internal-gradient reduction; uniform-compression effective width or CHS effective diameter. Each call is one controlling element. |
-| `section_moduli` | 5.2.6 | Checks each flange's fastener-hole area reduction and selects gross moduli, the `An/Ag` area-ratio method, supplied net-section moduli, or derived net properties for a verified sharp-corner symmetric I-section with major-axis bending and flange-only holes. The geometry route reports centroid, plastic neutral axis, second moment, elastic moduli at both extreme fibres and plastic modulus; it uses the lower extreme-fibre elastic modulus. Net flange areas are supplied top-to-bottom after 9.1.10 deductions. The area-ratio method uses net flange areas plus gross web area for `An`. |
+| `section_moduli` | 5.2.6 | Checks each flange's fastener-hole area reduction and selects gross moduli, the `An/Ag` area-ratio method, supplied net-section moduli, or derived net properties for verified sharp-corner symmetric I-sections and RHS/SHS with major-axis bending and flange-only holes. The geometry route reports centroid, plastic neutral axis, second moment, elastic moduli at both extreme fibres and plastic modulus; it uses the lower extreme-fibre elastic modulus. Net flange areas are supplied top-to-bottom after 9.1.10 deductions. For RHS/SHS, gross web area is the sum of both side walls. The area-ratio method uses net flange areas plus gross web area for `An`. |
 | `compression` | 6.2.1–6.3.3 | Effective-area form factor, net-section capacity and constant-section flexural buckling about both axes. Only doubly symmetric/RHS/CHS member modes are supported. |
 | `bending` | 5.3.2.1, 5.6.1.1 | Constant equal-flanged open section with both segment ends fully/partially restrained; reference elastic buckling moment and lateral-buckling reduction. Reports the capacity-based full-restraint route when nominal Mb reaches Ms. E=200000 MPa and G=80000 MPa. `moment_modification_factor` in `advanced_members` calculates 5.6.1.1(a)(iii) from the segment moment diagram. |
 | `shear` | 5.11.2–5.11.5, 5.12.3 | Flat unstiffened/stiffened webs, uniform/nonuniform stress reduction and whole-section shear/bending interaction. Conservative flange factor 1. Optional tension-field credit requires assessed stiffeners/end posts. |
@@ -41,8 +41,8 @@ The following cannot currently be claimed as completed by these member primitive
 
 - 5.2.6: fastener-hole deductions under 9.1.10 remain assessed. The area-ratio path is
   limited to inputs where the supplied flange and gross-web areas make up the gross section.
-  Derived net moduli support only verified sharp-corner symmetric I-sections with major-axis
-  bending and flange-only holes; other axes and net-section geometries still require
+  Derived net moduli support only verified sharp-corner symmetric I-sections and RHS/SHS with
+  major-axis bending and flange-only holes; other axes and net-section geometries still require
   independently established net moduli.
 - 5.3–5.5: restraint stiffness/strength, critical flange/section, continuity and load position.
 - 5.6.1.1(b)(iii) elastic buckling-analysis alternative and calculation of the elastic

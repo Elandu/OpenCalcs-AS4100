@@ -144,6 +144,62 @@
       "passed": true
     },
     {
+      "name": "Clause 9.1.10 RHS single-hole flange net area",
+      "actual": 1200,
+      "expected": 1200,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net RHS centroid from top",
+      "actual": 155.24096385542168,
+      "expected": 155.2409638554217,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net RHS second moment",
+      "actual": 93148684.73895583,
+      "expected": 93148684.73895583,
+      "absolute_tolerance": 1e-06,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net RHS plastic neutral axis",
+      "actual": 157.5,
+      "expected": 157.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net RHS top elastic modulus",
+      "actual": 600026.4519467081,
+      "expected": 600026.4519467081,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net RHS bottom elastic modulus",
+      "actual": 643474.0602025246,
+      "expected": 643474.0602025246,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net RHS plastic modulus, hand integration",
+      "actual": 782375.0,
+      "expected": 782375,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) selects lower net RHS extreme-fibre modulus",
+      "actual": 600026.4519467081,
+      "expected": 600026.4519467081,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
       "name": "Clause 8.3.3(a) compact I-section minor-axis capacity, hand arithmetic",
       "actual": 44.625,
       "expected": 44.625,
