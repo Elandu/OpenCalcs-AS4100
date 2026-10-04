@@ -347,8 +347,16 @@ INPUT_SCHEMA = {
                         "tee_flange",
                         "symmetric_paired",
                         "both_flanges",
+                        "table_7_3_2_a",
+                        "table_7_3_2_b",
+                        "table_7_3_2_c",
+                        "table_7_3_2_d",
+                        "table_7_3_2_e",
+                        "table_7_3_2_f",
+                        "table_7_3_2_g",
                     ]
                 },
+                "unequal_angle_connected_by_short_leg": {"type": "boolean"},
                 "connection_length_mm": P,
                 "member_depth_mm": P,
                 "maximum_member_design_force_kn": P,
@@ -1073,7 +1081,37 @@ def _distribution(d):
     }
     checks = {}
     manual = []
-    if configuration == "uniform":
+    if configuration.startswith("table_7_3_2_"):
+        case = configuration[-1]
+        if case in ("a", "b"):
+            if "unequal_angle_connected_by_short_leg" not in d:
+                raise ValueError(
+                    "Table 7.3.2 cases (a) and (b) require the unequal-angle short-leg condition."
+                )
+            factor = 0.75 if d["unequal_angle_connected_by_short_leg"] else 0.85
+        else:
+            if "unequal_angle_connected_by_short_leg" in d:
+                raise ValueError(
+                    "The unequal-angle short-leg condition applies only to Table 7.3.2 "
+                    "cases (a) and (b)."
+                )
+            factor = {"c": 0.85, "d": 0.90, "e": 1.0, "f": 1.0, "g": 1.0}[case]
+        checks["table_7_3_2_correction_factor"] = {
+            "clause": "Table 7.3.2",
+            "case": f"({case})",
+            "tension_distribution_factor": factor,
+            "satisfied": True,
+        }
+        manual.append(
+            f"Verify that the member and connection geometry match Table 7.3.2 case ({case}); "
+            "case selection is not inferred from section geometry."
+        )
+        if case in ("a", "b"):
+            manual.append(
+                "For cases (a) and (b), confirm whether unequal angles are connected by "
+                "the short leg."
+            )
+    elif configuration == "uniform":
         transfer_inputs = ("member_part_count", "member_part_connections")
         if any(name not in d for name in transfer_inputs):
             raise ValueError(

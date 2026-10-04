@@ -913,6 +913,32 @@ def test_lacing_length_slenderness_and_tie_limits():
     assert out["checked_conditions_satisfied"]
     d["angle_degrees"] = 50.1
     assert not run_advanced_members(d)["checked_conditions_satisfied"]
+    d.update(
+        member_mode="tension",
+        angle_degrees=45,
+        tie_edge_stiffened=True,
+        tie_edge_stiffener_slenderness=100,
+        tie_thickness_mm=3.39,
+    )
+    out = run_advanced_members(d)
+    checks = {check.get("clause"): check for check in out["checks"]}
+    assert out["values"]["required_tie_thickness_mm"] == pytest.approx(3.4)
+    assert checks["7.4.4(a)"]["satisfied"]
+    assert checks["7.4.4"]["satisfied"] is False
+    assert not out["checked_conditions_satisfied"]
+    d["tie_thickness_mm"] = 3.4
+    assert run_advanced_members(d)["checked_conditions_satisfied"]
+
+    d.update(
+        member_mode="compression",
+        tie_thickness_mm=3,
+        tie_edge_stiffened=True,
+        tie_edge_stiffener_slenderness=169.9,
+    )
+    out = run_advanced_members(d)
+    checks = {check.get("clause"): check for check in out["checks"]}
+    assert checks["6.4.2.7"]["satisfied"]
+    assert out["checked_conditions_satisfied"]
 
 
 def batten():
@@ -986,6 +1012,44 @@ def test_tension_batten_checks_minimum_thickness_and_two_bolts_per_connection():
     d["connection_type"] = "bolted"
     with pytest.raises(ValueError, match="bolt count"):
         run_advanced_members(d)
+
+
+def test_tension_connection_actions_are_shared_equally_between_parallel_planes():
+    batten_actions = run_advanced_members(
+        {
+            "operation": "tension_connection_plane_distribution",
+            "connection_type": "batten",
+            "parallel_connection_planes": 3,
+            "total_design_force_kn": 120,
+            "total_design_moment_knm": -6,
+        }
+    )
+    assert batten_actions["clauses"] == ["7.4.2"]
+    assert batten_actions["values"]["design_force_per_plane_kn"] == 40
+    assert batten_actions["values"]["design_moment_per_plane_knm"] == -2
+    assert batten_actions["checked_conditions_satisfied"]
+
+    lacing_actions = run_advanced_members(
+        {
+            "operation": "tension_connection_plane_distribution",
+            "connection_type": "lacing",
+            "parallel_connection_planes": 2,
+            "total_design_force_kn": -45,
+        }
+    )
+    assert lacing_actions["values"]["design_force_per_plane_kn"] == -22.5
+    assert lacing_actions["values"]["design_moment_per_plane_knm"] is None
+
+    with pytest.raises(ValueError, match="lacing distribution"):
+        run_advanced_members(
+            {
+                "operation": "tension_connection_plane_distribution",
+                "connection_type": "lacing",
+                "parallel_connection_planes": 2,
+                "total_design_force_kn": 45,
+                "total_design_moment_knm": 3,
+            }
+        )
 
 
 def test_pin_member_net_area_and_thickness():

@@ -719,6 +719,52 @@ def test_tension_force_distribution_conditions():
         run_members(d)
 
 
+@pytest.mark.parametrize(
+    "case,short_leg,factor",
+    [
+        ("a", True, 0.75),
+        ("a", False, 0.85),
+        ("b", True, 0.75),
+        ("b", False, 0.85),
+        ("c", None, 0.85),
+        ("d", None, 0.90),
+        ("e", None, 1.0),
+        ("f", None, 1.0),
+        ("g", None, 1.0),
+    ],
+)
+def test_table_7_3_2_case_factor_lookup(case, short_leg, factor):
+    d = {
+        "operation": "tension_distribution",
+        "configuration": f"table_7_3_2_{case}",
+        "connection_conditions_verified": True,
+    }
+    if short_leg is not None:
+        d["unequal_angle_connected_by_short_leg"] = short_leg
+    out = run_members(d)
+    assert out["values"]["tension_distribution_factor"] == factor
+    assert out["checks"]["table_7_3_2_correction_factor"] == {
+        "clause": "Table 7.3.2",
+        "case": f"({case})",
+        "tension_distribution_factor": factor,
+        "satisfied": True,
+    }
+
+
+def test_table_7_3_2_short_leg_condition_is_limited_to_cases_a_and_b():
+    d = {
+        "operation": "tension_distribution",
+        "configuration": "table_7_3_2_a",
+        "connection_conditions_verified": True,
+    }
+    with pytest.raises(ValueError, match="short-leg condition"):
+        run_members(d)
+    d["configuration"] = "table_7_3_2_c"
+    d["unequal_angle_connected_by_short_leg"] = True
+    with pytest.raises(ValueError, match="applies only"):
+        run_members(d)
+
+
 def test_uniform_tension_distribution_checks_every_member_part_capacity():
     d = {
         "operation": "tension_distribution",

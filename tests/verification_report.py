@@ -522,6 +522,36 @@ def clause_7_3_2_both_flange_force_transfer():
     }
 
 
+def clause_7_3_2_table_factor_lookup():
+    factors = []
+    cases = [
+        ("a", True, 0.75),
+        ("a", False, 0.85),
+        ("b", True, 0.75),
+        ("b", False, 0.85),
+        ("c", None, 0.85),
+        ("d", None, 0.90),
+        ("e", None, 1.0),
+        ("f", None, 1.0),
+        ("g", None, 1.0),
+    ]
+    for case, short_leg, expected in cases:
+        inputs = {
+            "operation": "tension_distribution",
+            "configuration": f"table_7_3_2_{case}",
+            "connection_conditions_verified": True,
+        }
+        if short_leg is not None:
+            inputs["unequal_angle_connected_by_short_leg"] = short_leg
+        result = run_members(inputs)
+        check = result["checks"]["table_7_3_2_correction_factor"]
+        expect_close(result["values"]["tension_distribution_factor"], expected)
+        if check["case"] != f"({case})" or not check["satisfied"]:
+            raise AssertionError(f"Table 7.3.2 case ({case}) selection failed")
+        factors.append(result["values"]["tension_distribution_factor"])
+    return {"table_7_3_2_case_factors": factors}
+
+
 def clause_7_4_component_slenderness():
     clauses = {
         "separated_back_to_back": "7.4.3(a)(i)",
@@ -581,6 +611,58 @@ def clause_7_4_5_tension_batten_geometry():
         "minimum_thickness_mm": result["values"]["minimum_thickness_mm"],
         "intermediate_batten_minimum_width_mm": result["values"]["minimum_width_mm"],
         "bolt_count_per_component_connection": checks["7.4.5(b)"]["bolts_per_component_connection"],
+    }
+
+
+def clause_7_4_4_tension_lacing_tie_thickness():
+    inputs = {
+        "operation": "lacing",
+        "mode": "double_connected",
+        "member_mode": "tension",
+        "angle_degrees": 45,
+        "inner_connection_distance_mm": 1000,
+        "radius_mm": 5,
+        "tie_type": "intermediate",
+        "component_connection_centroid_distance_mm": 200,
+        "tie_width_mm": 150,
+        "tie_thickness_mm": 3.4,
+        "tie_inner_connection_distance_mm": 200,
+        "tie_edge_stiffened": True,
+        "tie_edge_stiffener_slenderness": 100,
+    }
+    at_limit = run_advanced_members(inputs)
+    checks = {check.get("clause"): check for check in at_limit["checks"]}
+    expect_close(at_limit["values"]["required_tie_thickness_mm"], 3.4)
+    if not checks["7.4.4"]["satisfied"] or not at_limit["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 7.4.4 tension tie-plate thickness boundary failed")
+    inputs["tie_thickness_mm"] = 3.39
+    below_limit = run_advanced_members(inputs)
+    below_checks = {check.get("clause"): check for check in below_limit["checks"]}
+    if below_checks["7.4.4"]["satisfied"] or below_limit["checked_conditions_satisfied"]:
+        raise AssertionError("An edge-stiffened tension tie plate passed below 0.017d")
+    return {
+        "minimum_tie_thickness_mm": at_limit["values"]["required_tie_thickness_mm"],
+        "edge_stiffened_plate_below_minimum_rejected": True,
+    }
+
+
+def clause_7_4_2_connection_plane_distribution():
+    result = run_advanced_members(
+        {
+            "operation": "tension_connection_plane_distribution",
+            "connection_type": "batten",
+            "parallel_connection_planes": 3,
+            "total_design_force_kn": 120,
+            "total_design_moment_knm": -6,
+        }
+    )
+    expect_close(result["values"]["design_force_per_plane_kn"], 40)
+    expect_close(result["values"]["design_moment_per_plane_knm"], -2)
+    if result["clauses"] != ["7.4.2"] or not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 7.4.2 equal batten force/moment distribution failed")
+    return {
+        "design_force_per_connection_plane_kn": result["values"]["design_force_per_plane_kn"],
+        "design_moment_per_connection_plane_knm": result["values"]["design_moment_per_plane_knm"],
     }
 
 
@@ -694,8 +776,11 @@ def main():
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
+        "clause_7_3_2_table_factor_lookup": clause_7_3_2_table_factor_lookup,
         "clause_7_4_component_slenderness": clause_7_4_component_slenderness,
+        "clause_7_4_4_tension_lacing_tie_thickness": clause_7_4_4_tension_lacing_tie_thickness,
         "clause_7_4_5_tension_batten_geometry": clause_7_4_5_tension_batten_geometry,
+        "clause_7_4_2_connection_plane_distribution": clause_7_4_2_connection_plane_distribution,
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
         "clause_12_10_2_web_protection": clause_12_10_2_web_protection,

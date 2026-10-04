@@ -588,6 +588,20 @@ SCHEMAS = {
         },
         optional=("connection_type", "bolts_per_component_connection"),
     ),
+    "tension_connection_plane_distribution": _schema(
+        "tension_connection_plane_distribution",
+        {
+            "connection_type": {"enum": ["lacing", "batten"]},
+            "parallel_connection_planes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000,
+            },
+            "total_design_force_kn": S,
+            "total_design_moment_knm": S,
+        },
+        optional=("total_design_moment_knm",),
+    ),
     "tension_component_slenderness": _schema(
         "tension_component_slenderness",
         {
@@ -1430,7 +1444,11 @@ def run_advanced_members(inputs):
             1 if d["tie_type"] == "end" else 0.75
         )
         thickness = (0.02 if compression else 0.017) * d["tie_inner_connection_distance_mm"]
-        thickness_ok = d["tie_edge_stiffened"] and d["tie_edge_stiffener_slenderness"] < 170
+        thickness_ok = (
+            compression and d["tie_edge_stiffened"] and d["tie_edge_stiffener_slenderness"] < 170
+        )
+        lacing_slenderness_clause = "6.4.2.5" if compression else "7.4.4(a)"
+        tie_thickness_clause = "6.4.2.7" if compression else "7.4.4"
         return result(
             op,
             ["6.4.2.3", "6.4.2.4", "6.4.2.5", "6.4.2.7", "7.4.4"],
@@ -1441,20 +1459,71 @@ def run_advanced_members(inputs):
                 "required_tie_thickness_mm": thickness,
             },
             [
-                _limit("lacing slenderness", slenderness, 140 if compression else 210),
+                _limit(lacing_slenderness_clause, slenderness, 140 if compression else 210),
                 {"clause": "6.4.2.3", "satisfied": limits[0] <= d["angle_degrees"] <= limits[1]},
                 _minimum("tie width", d["tie_width_mm"], required_width),
                 {
-                    "clause": "tie thickness",
-                    "satisfied": thickness_ok or d["tie_thickness_mm"] >= thickness,
+                    "clause": tie_thickness_clause,
+                    "minimum_thickness_mm": thickness,
+                    "provided_thickness_mm": d["tie_thickness_mm"],
+                    "satisfied": thickness_ok
+                    or d["tie_thickness_mm"] >= thickness
+                    or isclose(d["tie_thickness_mm"], thickness, rel_tol=1e-12, abs_tol=1e-12),
                 },
             ],
             [
                 "Double lacing length reduction requires crossing weld/fastener connection.",
                 "Tie plates require end/interruption/member-connection placement and "
-                "batten force assessment.",
+                "7.4.2 design-force assessment; equal connection-plane allocation of supplied "
+                "actions is available through tension_connection_plane_distribution.",
                 "Opposed lacing and transverse members require 6.4.2.6 torsional-effect"
                 " assessment.",
+            ],
+        )
+    if op == "tension_connection_plane_distribution":
+        if d["connection_type"] == "lacing" and "total_design_moment_knm" in d:
+            raise ValueError("Clause 7.4.2 lacing distribution accepts design forces only.")
+        planes = d["parallel_connection_planes"]
+        force_per_plane = d["total_design_force_kn"] / planes
+        moment_per_plane = (
+            d["total_design_moment_knm"] / planes if "total_design_moment_knm" in d else None
+        )
+        checks = [
+            {
+                "clause": "7.4.2",
+                "action": "design_force",
+                "parallel_connection_planes": planes,
+                "design_force_per_plane_kn": force_per_plane,
+                "satisfied": True,
+            }
+        ]
+        if moment_per_plane is not None:
+            checks.append(
+                {
+                    "clause": "7.4.2",
+                    "action": "design_bending_moment",
+                    "parallel_connection_planes": planes,
+                    "design_moment_per_plane_knm": moment_per_plane,
+                    "satisfied": True,
+                }
+            )
+        return result(
+            op,
+            ["7.4.2"],
+            {
+                "connection_type": d["connection_type"],
+                "parallel_connection_planes": planes,
+                "total_design_force_kn": d["total_design_force_kn"],
+                "design_force_per_plane_kn": force_per_plane,
+                "total_design_moment_knm": d.get("total_design_moment_knm"),
+                "design_moment_per_plane_knm": moment_per_plane,
+            },
+            checks,
+            [
+                "Supply the verified total action assigned to all parallel connection planes; "
+                "member actions and lacing/batten actions are not derived here.",
+                "This applies the equal-share rule only. Design the lacing/batten sections, "
+                "connections and load path separately.",
             ],
         )
     if op == "batten":
