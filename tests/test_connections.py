@@ -70,20 +70,43 @@ def combined_connection(**changes):
 
 
 def appendix_j_slip_test(estimates=(0.35, 0.36, 0.40, 0.41, 0.45, 0.46)):
+    def loading_increments(bolts):
+        predicted_slip_kn = min(0.7 * bolt["calibrated_bolt_tension_kn"] for bolt in bolts)
+        increment_limit_kn = min(25.0, 0.25 * predicted_slip_kn)
+        final_load_kn = max(bolt["slip_load_kn"] for bolt in bolts)
+        increments = []
+        load_kn = 0.0
+        while load_kn < final_load_kn - 1e-9:
+            next_load_kn = min(load_kn + increment_limit_kn, final_load_kn)
+            increment = {
+                "load_before_kn": load_kn,
+                "load_after_kn": next_load_kn,
+                "maximum_rate_kn_per_min": 40,
+                "loading_rate_approximately_uniform_verified": True,
+            }
+            if increments:
+                increment["preceding_load_creep_effectively_ceased_verified"] = True
+            increments.append(increment)
+            load_kn = next_load_kn
+        return increments
+
     specimens = []
     for i in range(0, len(estimates), 2):
+        bolts = [
+            {
+                "bolt_id": f"B{j + 1}",
+                "slip_load_kn": 200 * estimates[j],
+                "slip_load_method": "clear_observed_slip",
+                "bolt_extension_mm": 0.1,
+                "calibrated_bolt_tension_kn": 100,
+            }
+            for j in (i, i + 1)
+        ]
         specimens.append(
             {
                 "specimen_id": f"S{i // 2 + 1}",
-                "bolts": [
-                    {
-                        "bolt_id": f"B{j + 1}",
-                        "slip_load_kn": 200 * estimates[j],
-                        "bolt_extension_mm": 0.1,
-                        "calibrated_bolt_tension_kn": 100,
-                    }
-                    for j in (i, i + 1)
-                ],
+                "bolts": bolts,
+                "loading_increments": loading_increments(bolts),
             }
         )
     return {
@@ -114,7 +137,6 @@ def appendix_j_slip_test(estimates=(0.35, 0.36, 0.40, 0.41, 0.45, 0.46)):
         "instrumentation_layout_per_appendix_j_verified": True,
         "instrumentation_deformation_reduction_per_appendix_j_verified": True,
         "tensile_loading_only_verified": True,
-        "loading_rate_increment_and_creep_requirements_verified": True,
         "slip_load_identification_per_appendix_j_verified": True,
         "appendix_j_test_report_reference": "LAB-SLIP-001",
         "calibration_test_bolt_count": 3,
@@ -966,6 +988,191 @@ def test_appendix_j_three_specimen_factor_uses_sample_deviation_and_minimum_fall
     )
     assert result["checks"]["specimen_geometry"]["minimum_test_section_length_mm"] == 160
     assert result["checks"]["specimen_geometry"]["specimen_width_mm"] == 96
+
+
+def test_appendix_j3_calculates_connection_slip_load_and_increment_limit():
+    result = run_connections(appendix_j_slip_test())
+    protocol = result["checks"]["loading_protocol"]
+    specimen = protocol["specimens"][0]
+    assert protocol["clause"] == "Appendix J.3"
+    assert specimen["assumed_slip_factor"] == 0.35
+    assert specimen["predicted_connection_slip_load_kn"] == pytest.approx(70)
+    assert specimen["maximum_permitted_increment_kn"] == pytest.approx(17.5)
+    assert specimen["satisfied"]
+    assert all(increment["increment_satisfied"] for increment in specimen["increments"])
+    assert all(increment["rate_satisfied"] for increment in specimen["increments"])
+
+
+def test_appendix_j3_increment_limit_is_capped_at_25_kn():
+    inputs = appendix_j_slip_test()
+    inputs.update(
+        {
+            "nominal_bolt_diameter_mm": 30,
+            "specimen_geometry": {
+                "bolt_centre_spacing_mm": 180,
+                "left_bolt_to_test_section_end_mm": 60,
+                "right_bolt_to_test_section_end_mm": 60,
+                "upper_bolt_edge_distance_mm": 90,
+                "lower_bolt_edge_distance_mm": 90,
+                "inner_plate_thicknesses_mm": [35, 35],
+                "cover_plate_thicknesses_mm": [17, 17],
+                "cover_plate_hole_diameter_mm": 32,
+                "inner_plate_hole_diameter_mm": 33,
+                "butt_gap_mm": 8,
+            },
+        }
+    )
+    for test_specimen in inputs["specimens"]:
+        for bolt in test_specimen["bolts"]:
+            bolt["calibrated_bolt_tension_kn"] = 400
+    specimen = inputs["specimens"][0]
+    specimen["loading_increments"] = [
+        {
+            "load_before_kn": 0,
+            "load_after_kn": 25,
+            "maximum_rate_kn_per_min": 40,
+            "loading_rate_approximately_uniform_verified": True,
+        },
+        {
+            "load_before_kn": 25,
+            "load_after_kn": 50,
+            "maximum_rate_kn_per_min": 40,
+            "loading_rate_approximately_uniform_verified": True,
+            "preceding_load_creep_effectively_ceased_verified": True,
+        },
+        {
+            "load_before_kn": 50,
+            "load_after_kn": 70,
+            "maximum_rate_kn_per_min": 40,
+            "loading_rate_approximately_uniform_verified": True,
+            "preceding_load_creep_effectively_ceased_verified": True,
+        },
+        {
+            "load_before_kn": 70,
+            "load_after_kn": 92,
+            "maximum_rate_kn_per_min": 60,
+            "loading_rate_approximately_uniform_verified": True,
+            "preceding_load_creep_effectively_ceased_verified": True,
+        },
+    ]
+
+    result = run_connections(inputs)
+    protocol = result["checks"]["loading_protocol"]["specimens"][0]
+    assert protocol["predicted_connection_slip_load_kn"] == pytest.approx(280)
+    assert protocol["maximum_permitted_increment_kn"] == pytest.approx(25)
+
+
+def test_appendix_j3_uses_the_lower_predicted_slip_load_for_series_positions():
+    inputs = appendix_j_slip_test()
+    specimen = inputs["specimens"][0]
+    second_bolt = specimen["bolts"][1]
+    second_bolt["calibrated_bolt_tension_kn"] = 120
+    second_bolt["slip_load_kn"] = 84
+    specimen["loading_increments"].append(
+        {
+            "load_before_kn": 72,
+            "load_after_kn": 84,
+            "maximum_rate_kn_per_min": 60,
+            "loading_rate_approximately_uniform_verified": True,
+            "preceding_load_creep_effectively_ceased_verified": True,
+        }
+    )
+
+    result = run_connections(inputs)
+    protocol = result["checks"]["loading_protocol"]["specimens"][0]
+    assert [
+        item["predicted_slip_load_kn"] for item in protocol["predicted_position_slip_loads"]
+    ] == pytest.approx([70, 84])
+    assert protocol["predicted_connection_slip_load_kn"] == pytest.approx(70)
+    assert protocol["maximum_permitted_increment_kn"] == pytest.approx(17.5)
+
+
+def test_appendix_j4_interpolates_13mm_slip_from_the_mean_of_edge_readings():
+    inputs = appendix_j_slip_test()
+    bolt = inputs["specimens"][0]["bolts"][0]
+    bolt.pop("slip_load_kn")
+    bolt["slip_load_method"] = "0.13_mm_deformation"
+    bolt["deformation_readings"] = [
+        {
+            "load_kn": 0,
+            "left_edge_deformation_mm": 0,
+            "right_edge_deformation_mm": 0,
+        },
+        {
+            "load_kn": 60,
+            "left_edge_deformation_mm": 0.08,
+            "right_edge_deformation_mm": 0.12,
+        },
+        {
+            "load_kn": 80,
+            "left_edge_deformation_mm": 0.15,
+            "right_edge_deformation_mm": 0.17,
+        },
+    ]
+
+    result = run_connections(inputs)
+    bolt_result = result["intermediate"]["specimens"][0]["bolts"][0]
+    determination = bolt_result["slip_load_determination"]
+    assert bolt_result["slip_load_kn"] == pytest.approx(70)
+    assert bolt_result["individual_slip_factor_estimate"] == pytest.approx(0.35)
+    assert determination["method"] == "0.13_mm_deformation"
+    assert determination["deformation_threshold_mm"] == pytest.approx(0.13)
+    assert determination["mean_edge_deformation_at_lower_reading_mm"] == pytest.approx(0.1)
+    assert determination["mean_edge_deformation_at_upper_reading_mm"] == pytest.approx(0.16)
+    assert determination["interpolated"]
+
+
+def test_appendix_j4_rejects_unbracketed_or_nonincreasing_load_readings():
+    inputs = appendix_j_slip_test()
+    bolt = inputs["specimens"][0]["bolts"][0]
+    bolt.pop("slip_load_kn")
+    bolt["slip_load_method"] = "0.13_mm_deformation"
+    bolt["deformation_readings"] = [
+        {"load_kn": 0, "left_edge_deformation_mm": 0, "right_edge_deformation_mm": 0},
+        {
+            "load_kn": 60,
+            "left_edge_deformation_mm": 0.1,
+            "right_edge_deformation_mm": 0.1,
+        },
+    ]
+    with pytest.raises(ValueError, match="do not reach 0.13 mm"):
+        run_connections(inputs)
+
+    bolt["deformation_readings"][1]["load_kn"] = 0
+    with pytest.raises(ValueError, match="increasing load values"):
+        run_connections(inputs)
+
+
+def test_appendix_j3_rejects_excessive_increment_or_loading_rate_before_slip():
+    inputs = appendix_j_slip_test()
+    inputs["specimens"][0]["loading_increments"][0]["load_after_kn"] = 17.6
+    with pytest.raises(ValueError, match="load increment exceeds"):
+        run_connections(inputs)
+
+    inputs = appendix_j_slip_test()
+    inputs["specimens"][0]["loading_increments"][0]["maximum_rate_kn_per_min"] = 50.1
+    with pytest.raises(ValueError, match="loading rate exceeds 50 kN/min"):
+        run_connections(inputs)
+
+
+def test_appendix_j3_requires_creep_to_cease_between_load_increments():
+    inputs = appendix_j_slip_test()
+    del inputs["specimens"][0]["loading_increments"][1][
+        "preceding_load_creep_effectively_ceased_verified"
+    ]
+    with pytest.raises(ValueError, match="cessation of creep"):
+        run_connections(inputs)
+
+
+def test_appendix_j3_allows_operator_adjustment_after_first_bolt_position_slips():
+    inputs = appendix_j_slip_test()
+    final_increment = inputs["specimens"][0]["loading_increments"][-1]
+    final_increment["maximum_rate_kn_per_min"] = 60
+    result = run_connections(inputs)
+    final_result = result["checks"]["loading_protocol"]["specimens"][0]["increments"][-1]
+    assert final_result["load_before_kn"] == pytest.approx(70)
+    assert not final_result["increment_and_rate_limits_apply"]
+    assert final_result["rate_satisfied"]
 
 
 def test_appendix_j_five_specimen_factor_uses_k_point_nine_without_fallback():

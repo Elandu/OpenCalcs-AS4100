@@ -149,7 +149,6 @@ FIELDS = {
         "instrumentation_layout_per_appendix_j_verified": {"const": True},
         "instrumentation_deformation_reduction_per_appendix_j_verified": {"const": True},
         "tensile_loading_only_verified": {"const": True},
-        "loading_rate_increment_and_creep_requirements_verified": {"const": True},
         "slip_load_identification_per_appendix_j_verified": {"const": True},
         "appendix_j_test_report_reference": TEXT_REFERENCE,
         "calibration_test_bolt_count": {"type": "integer", "minimum": 3, "maximum": 1000},
@@ -169,9 +168,31 @@ FIELDS = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["specimen_id", "bolts"],
+                "required": ["specimen_id", "bolts", "loading_increments"],
                 "properties": {
                     "specimen_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "loading_increments": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "load_before_kn",
+                                "load_after_kn",
+                                "maximum_rate_kn_per_min",
+                                "loading_rate_approximately_uniform_verified",
+                            ],
+                            "properties": {
+                                "load_before_kn": N,
+                                "load_after_kn": P,
+                                "maximum_rate_kn_per_min": P,
+                                "loading_rate_approximately_uniform_verified": {"const": True},
+                                "preceding_load_creep_effectively_ceased_verified": {"const": True},
+                            },
+                        },
+                    },
                     "bolts": {
                         "type": "array",
                         "minItems": 2,
@@ -179,12 +200,38 @@ FIELDS = {
                         "items": {
                             "type": "object",
                             "additionalProperties": False,
-                            "required": ["bolt_id", "slip_load_kn", "bolt_extension_mm"],
+                            "required": [
+                                "bolt_id",
+                                "bolt_extension_mm",
+                                "slip_load_method",
+                            ],
                             "properties": {
                                 "bolt_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                                "slip_load_method": {
+                                    "enum": ["clear_observed_slip", "0.13_mm_deformation"]
+                                },
                                 "slip_load_kn": P,
                                 "bolt_extension_mm": P,
                                 "calibrated_bolt_tension_kn": P,
+                                "deformation_readings": {
+                                    "type": "array",
+                                    "minItems": 2,
+                                    "maxItems": 10000,
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": False,
+                                        "required": [
+                                            "load_kn",
+                                            "left_edge_deformation_mm",
+                                            "right_edge_deformation_mm",
+                                        ],
+                                        "properties": {
+                                            "load_kn": N,
+                                            "left_edge_deformation_mm": N,
+                                            "right_edge_deformation_mm": N,
+                                        },
+                                    },
+                                },
                                 "unthreaded_grip_length_mm": N,
                                 "unthreaded_shank_area_mm2": P,
                                 "threaded_grip_length_mm": N,
@@ -745,6 +792,76 @@ def _finite(value):
     return not isinstance(value, (int, float)) or isinstance(value, bool) or isfinite(value)
 
 
+def _appendix_j_slip_load(bolt):
+    method = bolt["slip_load_method"]
+    if method == "clear_observed_slip":
+        if "slip_load_kn" not in bolt:
+            raise ValueError(
+                "Appendix J.4 clear slip identification requires the measured slip load."
+            )
+        if "deformation_readings" in bolt:
+            raise ValueError(
+                "Appendix J.4 clear slip identification does not accept 0.13 mm readings."
+            )
+        return bolt["slip_load_kn"], {
+            "method": method,
+            "slip_load_kn": bolt["slip_load_kn"],
+            "clause": "Appendix J.4",
+        }
+
+    if "slip_load_kn" in bolt:
+        raise ValueError(
+            "Appendix J.4 unclear slip identification derives the load from 0.13 mm readings."
+        )
+    readings = bolt.get("deformation_readings")
+    if readings is None:
+        raise ValueError(
+            "Appendix J.4 unclear slip identification requires two-edge deformation readings."
+        )
+    edge_mean_mm = [
+        (reading["left_edge_deformation_mm"] + reading["right_edge_deformation_mm"]) / 2
+        for reading in readings
+    ]
+    loads_kn = [reading["load_kn"] for reading in readings]
+    if any(loads_kn[index] <= loads_kn[index - 1] for index in range(1, len(loads_kn))):
+        raise ValueError("Appendix J.4 deformation readings must have increasing load values.")
+    threshold_mm = 0.13
+    if edge_mean_mm[0] > threshold_mm:
+        raise ValueError("Appendix J.4 deformation history must begin at or below 0.13 mm.")
+    if edge_mean_mm[0] == threshold_mm:
+        if loads_kn[0] <= 0:
+            raise ValueError("Appendix J.4 calculated slip load must be positive.")
+        return loads_kn[0], {
+            "method": method,
+            "slip_load_kn": loads_kn[0],
+            "deformation_threshold_mm": threshold_mm,
+            "bracketing_readings": [0, 0],
+            "interpolated": False,
+            "clause": "Appendix J.4",
+        }
+    for index in range(1, len(readings)):
+        if edge_mean_mm[index] >= threshold_mm:
+            lower_deformation_mm = edge_mean_mm[index - 1]
+            upper_deformation_mm = edge_mean_mm[index]
+            if upper_deformation_mm <= lower_deformation_mm:
+                raise ValueError("Appendix J.4 deformation readings must increase through 0.13 mm.")
+            fraction = (threshold_mm - lower_deformation_mm) / (
+                upper_deformation_mm - lower_deformation_mm
+            )
+            slip_load_kn = loads_kn[index - 1] + fraction * (loads_kn[index] - loads_kn[index - 1])
+            return slip_load_kn, {
+                "method": method,
+                "slip_load_kn": slip_load_kn,
+                "deformation_threshold_mm": threshold_mm,
+                "mean_edge_deformation_at_lower_reading_mm": lower_deformation_mm,
+                "mean_edge_deformation_at_upper_reading_mm": upper_deformation_mm,
+                "bracketing_readings": [index - 1, index],
+                "interpolated": True,
+                "clause": "Appendix J.4",
+            }
+    raise ValueError("Appendix J.4 deformation readings do not reach 0.13 mm.")
+
+
 def _appendix_j_slip_factor(d):
     """Calculate the Appendix J.5 factor from a compliant three- or five-plus series."""
     from .erection import MINIMUM_BOLT_TENSION_KN
@@ -896,6 +1013,7 @@ def _appendix_j_slip_factor(d):
     proof_load_kn = d.get("specified_bolt_proof_load_kn")
     estimates = []
     specimen_results = []
+    loading_increments_by_specimen = {}
     specimen_ids = [specimen["specimen_id"] for specimen in specimens]
     if len(set(specimen_ids)) != specimen_count:
         raise ValueError("Appendix J specimen IDs must be unique.")
@@ -940,19 +1058,22 @@ def _appendix_j_slip_factor(d):
                     f"tension of {minimum_tension_kn:g} kN."
                 )
 
-            slip_factor = 0.5 * bolt["slip_load_kn"] / tension_kn
+            slip_load_kn, slip_load_result = _appendix_j_slip_load(bolt)
+            slip_factor = 0.5 * slip_load_kn / tension_kn
             estimates.append(slip_factor)
             positions.append(
                 {
                     "bolt_id": bolt["bolt_id"],
-                    "slip_load_kn": bolt["slip_load_kn"],
+                    "slip_load_kn": slip_load_kn,
                     "bolt_extension_mm": bolt["bolt_extension_mm"],
                     "bolt_tension_kn": tension_kn,
                     "minimum_bolt_tension_kn": minimum_tension_kn,
                     "individual_slip_factor_estimate": slip_factor,
+                    "slip_load_determination": slip_load_result,
                 }
             )
         specimen_results.append({"specimen_id": specimen["specimen_id"], "bolts": positions})
+        loading_increments_by_specimen[specimen["specimen_id"]] = specimen["loading_increments"]
 
     estimate_count = 2 * specimen_count
     mean_factor = fsum(estimates) / estimate_count
@@ -964,6 +1085,95 @@ def _appendix_j_slip_factor(d):
     minimum_estimate = min(estimates)
     fallback_applied = unadjusted_factor < minimum_estimate
     design_factor = minimum_estimate if fallback_applied else unadjusted_factor
+    loading_protocol_results = []
+    for specimen in specimen_results:
+        bolt_positions = specimen["bolts"]
+        predicted_position_slips = [
+            {
+                "bolt_id": bolt["bolt_id"],
+                "predicted_slip_load_kn": 2 * 0.35 * bolt["bolt_tension_kn"],
+            }
+            for bolt in bolt_positions
+        ]
+        # The specimen has two bolt positions in series. The first predicted position
+        # to slip governs its connection load; J.3's note permits adjustment after that.
+        predicted_connection_slip_kn = min(
+            item["predicted_slip_load_kn"] for item in predicted_position_slips
+        )
+        maximum_increment_kn = min(25.0, 0.25 * predicted_connection_slip_kn)
+        first_measured_slip_kn = min(bolt["slip_load_kn"] for bolt in bolt_positions)
+        increments = loading_increments_by_specimen[specimen["specimen_id"]]
+        if not isclose(increments[0]["load_before_kn"], 0.0, rel_tol=0.0, abs_tol=1e-9):
+            raise ValueError("Appendix J.3 loading increments must start at zero applied load.")
+        increment_results = []
+        previous_end_kn = None
+        for index, increment in enumerate(increments):
+            start_kn = increment["load_before_kn"]
+            end_kn = increment["load_after_kn"]
+            if end_kn <= start_kn:
+                raise ValueError("Appendix J.3 loading increments must increase tensile load.")
+            if index and not isclose(start_kn, previous_end_kn, rel_tol=0.0, abs_tol=1e-6):
+                raise ValueError(
+                    "Appendix J.3 loading increments must form a continuous load history."
+                )
+            creep_ceased = increment.get("preceding_load_creep_effectively_ceased_verified")
+            if index and creep_ceased is not True:
+                raise ValueError(
+                    "Appendix J.3 requires each load increment after the first to follow "
+                    "cessation of creep from the preceding increment."
+                )
+            applies_before_slip = start_kn < first_measured_slip_kn
+            applied_increment_kn = end_kn - start_kn
+            increment_satisfied = (
+                not applies_before_slip or applied_increment_kn <= maximum_increment_kn + 1e-9
+            )
+            rate_satisfied = (
+                not applies_before_slip or increment["maximum_rate_kn_per_min"] <= 50.0 + 1e-9
+            )
+            if not increment_satisfied:
+                raise ValueError(
+                    "Appendix J.3 load increment exceeds the lesser of 25 kN and "
+                    "one-quarter of the calculated connection slip load."
+                )
+            if not rate_satisfied:
+                raise ValueError(
+                    "Appendix J.3 loading rate exceeds 50 kN/min before the first slip."
+                )
+            increment_results.append(
+                {
+                    "load_before_kn": start_kn,
+                    "load_after_kn": end_kn,
+                    "applied_increment_kn": applied_increment_kn,
+                    "maximum_permitted_increment_kn": maximum_increment_kn,
+                    "maximum_measured_rate_kn_per_min": increment["maximum_rate_kn_per_min"],
+                    "maximum_permitted_rate_kn_per_min": 50.0,
+                    "increment_and_rate_limits_apply": applies_before_slip,
+                    "increment_satisfied": increment_satisfied,
+                    "rate_satisfied": rate_satisfied,
+                    "preceding_load_creep_effectively_ceased": (
+                        None if index == 0 else creep_ceased
+                    ),
+                }
+            )
+            previous_end_kn = end_kn
+        if previous_end_kn + 1e-9 < max(bolt["slip_load_kn"] for bolt in bolt_positions):
+            raise ValueError(
+                "Appendix J.3 loading history must reach the measured slip load at both "
+                "bolt positions."
+            )
+        loading_protocol_results.append(
+            {
+                "specimen_id": specimen["specimen_id"],
+                "assumed_slip_factor": 0.35,
+                "predicted_position_slip_loads": predicted_position_slips,
+                "predicted_connection_slip_load_kn": predicted_connection_slip_kn,
+                "maximum_permitted_increment_kn": maximum_increment_kn,
+                "first_measured_slip_load_kn": first_measured_slip_kn,
+                "increments": increment_results,
+                "satisfied": True,
+                "clause": "Appendix J.3",
+            }
+        )
     prerequisite_fields = (
         "symmetrical_double_cover_butt_specimen_verified",
         "bolts_clear_of_bearing_in_loading_direction_verified",
@@ -976,7 +1186,6 @@ def _appendix_j_slip_factor(d):
         "instrumentation_layout_per_appendix_j_verified",
         "instrumentation_deformation_reduction_per_appendix_j_verified",
         "tensile_loading_only_verified",
-        "loading_rate_increment_and_creep_requirements_verified",
         "slip_load_identification_per_appendix_j_verified",
     )
     return (
@@ -992,6 +1201,11 @@ def _appendix_j_slip_factor(d):
                 "specimen_count": specimen_count,
                 "k": k,
                 "clause": "Appendix J.5",
+            },
+            "loading_protocol": {
+                "satisfied": True,
+                "specimens": loading_protocol_results,
+                "clause": "Appendix J.3",
             },
             "specimen_geometry": {
                 "satisfied": True,

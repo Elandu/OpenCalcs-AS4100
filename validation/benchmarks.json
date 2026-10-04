@@ -662,6 +662,83 @@
       "passed": true
     },
     {
+      "name": "Appendix J.5 three-specimen arithmetic mean",
+      "actual": 0.405,
+      "expected": 0.405,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J.5 three-specimen sample standard deviation",
+      "actual": 0.04505552130427526,
+      "expected": 0.04505552130427524,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J.5 lowest-estimate fallback",
+      "actual": 0.35,
+      "expected": 0.35,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J.3 predicted connection slip load from 0.35 factor",
+      "actual": 70.0,
+      "expected": 70,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J.3 maximum load increment, one-quarter connection slip load",
+      "actual": 17.5,
+      "expected": 17.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J.4 load at mean edge deformation 0.13 mm",
+      "actual": 70.0,
+      "expected": 70,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J.4 derived individual slip-factor estimate",
+      "actual": 0.35,
+      "expected": 0.35,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J Figure J.1 M16 specimen test-section length",
+      "actual": 160,
+      "expected": 160,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J Figure J.1 M16 specimen width",
+      "actual": 96,
+      "expected": 96,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix J.5 five-specimen k=0.90 factor without fallback",
+      "actual": 0.22729912694365886,
+      "expected": 0.22729912694365897,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Equation J.1 bolt tension, independently evaluated geometry",
+      "actual": 100.77509124087592,
+      "expected": 100.77509124087591,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 9.1.5 joint eccentricity x-moment, hand arithmetic",
       "actual": -0.04,
       "expected": -0.04,

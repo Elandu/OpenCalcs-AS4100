@@ -42,17 +42,24 @@ masking requirements are recorded on drawings. Appendix J is a recognized test
 route. The contact-surface assessment, test evidence and drawing records are not
 authenticated by the calculation.
 
-`connection_design.slip_factor_test` now calculates the Appendix J.5 design
-factor from two bolt-position estimates per specimen, including the sample
-standard deviation and the permitted lowest-estimate fallback. It supports the
-Appendix J.1.2 load-cell calibration-curve route and Equation J.1 extension
-route, checks the Table 15.2.2.2 minimum bolt tension, and requires explicit
-evidence for specimen form, faying-surface condition, assembly, instrumentation
-and test procedure. Figure J.1 dimensional limits are calculated from the
-nominal bolt diameter.
+`connection_design.slip_factor_test` calculates the Appendix J.5 design factor
+from two bolt-position estimates per specimen, including the sample standard
+deviation and permitted lowest-estimate fallback. It supports the Appendix J.1.2
+load-cell calibration-curve route and Equation J.1 extension route, checks the
+Table 15.2.2.2 minimum bolt tension, and calculates Figure J.1 dimensional
+limits. For J.3 it calculates the assumed slip load at each bolt position from
+0.35 and the calculated bolt tension, uses the lower of the two series positions
+to set the permitted increment, and checks measured increments and maximum
+rates up to first measured slip. It also requires the recorded loading rate to
+be approximately uniform and creep to have ceased before each later increment.
+For J.4 it accepts a clearly observed slip load or calculates the load at
+0.13 mm from the mean of the two edge-gauge readings, interpolating between the
+measurements that bracket that deformation. Specimen form, faying-surface
+condition, assembly, instrumentation and other test records are supplied
+evidence; the calculation does not authenticate them.
 Appendix J states `k` for three specimens and five or more; four is rejected.
-Test records and declarations are not authenticated, and complete surface
-classification and connection design remain outside this calculation.
+Complete surface classification and connection design remain outside this
+calculation.
 
 Additional bounded routes in this release include `advanced_members` checks for
 7.4.3(a)(i), 7.4.4(b) and 7.4.5(a) component slenderness, plus the optional
