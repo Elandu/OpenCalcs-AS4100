@@ -1,6 +1,6 @@
 # OpenCalcs AS 4100
 
-OpenCalcs plugin version 0.6.0 provides eleven bounded calculation families for
+OpenCalcs plugin version 0.7.0 provides twelve bounded calculation families for
 AS 4100:2020 steel design. It evaluates selected equations and declared
 conditions; it does not establish full standard or project compliance. Every
 applicable member, connection, action, detail and construction requirement needs
@@ -16,7 +16,8 @@ an engineering assessment supported by evidence.
 | `durability` | Selected brittle-fracture, fatigue, fire and earthquake checks. |
 | `design_actions` | Stability, serviceability, notional load and selected buckling/amplification calculations. |
 | `webs` | Selected web thickness/opening limits, bearing, bearing/bending and stiffener checks. |
-| `fabrication` | Clause 14.3.2 standard, base-plate, oversize and slotted-hole size/use checks. |
+| `fabrication` | Selected Clause 14.2 material/fabrication checks, Clause 14.3 hole and bolt-assembly checks, and Clause 14.4 tolerance acceptance paths. |
+| `erection` | Selected Clause 15.1.1 acceptance routes, 15.1.2 safety, 15.2 erection and bolt tensioning, and 15.3 tolerance checks. |
 | `design_review` | Calculation schedule and engineering-evidence register across Sections 1–17. |
 | `testing` | Selected proof/prototype load-test comparisons, existing-material prerequisites and informative Appendix B deflection suggestions. |
 
@@ -33,7 +34,8 @@ unsupported. The detailed family notes are in
 [connections](docs/connections.md),
 [durability](docs/durability.md) and
 [testing](docs/testing.md), and [materials](docs/materials.md).
-Clause 14.3.2 hole checks are detailed in [fabrication](docs/fabrication.md).
+Fabrication checks are detailed in [fabrication](docs/fabrication.md).
+Erection checks are detailed in [erection](docs/erection.md).
 
 Install with `pip install .`, then restart OpenCalcs. For development and host
 integration verification from a sibling checkout:

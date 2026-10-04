@@ -106,7 +106,8 @@ def _calculations():
             "run_design_actions",
         ),
         ("webs", "Web bearing and stiffeners", "webs", "run_webs"),
-        ("fabrication", "Fabrication hole checks", "fabrication", "run_fabrication"),
+        ("fabrication", "Fabrication checks", "fabrication", "run_fabrication"),
+        ("erection", "Erection and bolt installation checks", "erection", "run_erection"),
         ("design_review", "Steel design schedule and evidence review", "review", "run_review"),
         ("testing", "Load testing and existing structures", "testing", "run_testing"),
     ]

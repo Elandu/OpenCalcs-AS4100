@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from opencalcs_as4100.advanced_members import run_advanced_members  # noqa: E402
 from opencalcs_as4100.connections import run_connections  # noqa: E402
 from opencalcs_as4100.durability import run_durability  # noqa: E402
+from opencalcs_as4100.erection import run_erection  # noqa: E402
 from opencalcs_as4100.fabrication import run_fabrication  # noqa: E402
 from opencalcs_as4100.materials import run_materials  # noqa: E402
 from opencalcs_as4100.members import run_members  # noqa: E402
@@ -288,6 +289,162 @@ def clause_14_3_2_hole_sizes_and_use():
         "short_slot_maximum_length_mm": 30,
         "long_slot_maximum_length_mm": 50,
         "long_slot_alternate_plies_and_washer_pass": True,
+    }
+
+
+def clause_14_fabrication_procedure_and_tolerances():
+    basis = run_fabrication(
+        {
+            "check_type": "fabrication_basis",
+            "materials_conform_referenced_standards_verified": True,
+            "surface_defects_removed_per_referenced_standards_verified": True,
+            "steel_grade_identifiable_at_all_fabrication_stages_verified": False,
+            "steel_classified_as_unidentified": True,
+            "clause_2_2_3_unidentified_steel_inputs": {
+                "operation": "unidentified_steel",
+                "design_yield_strength_mpa": 170,
+                "design_tensile_strength_mpa": 300,
+                "surface_imperfections_verified": True,
+                "properties_and_weldability_verified": True,
+                "full_test_to_as1391_verified": False,
+            },
+            "marking_does_not_damage_material_verified": True,
+            "fabrication_per_as_nzs_5131_verified": True,
+            "fabrication_methods_preserve_design_properties_verified": True,
+        }
+    )
+    if basis["clauses"] != ["2.2.3", "14.2.1", "14.2.2", "14.3.1"]:
+        raise AssertionError("Clause 14.2.2 did not evaluate the unidentified-steel route")
+    if not basis["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 14.2.2/14.3.1 accepted fabrication evidence was rejected")
+
+    assembly = run_fabrication(
+        {
+            "check_type": "bolt_assembly",
+            "connection_type": "bearing_type",
+            "bolts_nuts_washers_conform_clause_2_3_1_verified": True,
+            "all_material_within_bolt_grip_is_steel_verified": True,
+            "clear_threads_above_nut_count": 1,
+            "thread_plus_runout_clear_beneath_nut_verified": True,
+            "rotated_part": "nut",
+            "washer_under_rotated_part_verified": True,
+            "maximum_contact_surface_slope_ratio": 0.05,
+            "contact_surface_slope_measurement_verified": True,
+            "subject_to_vibration": False,
+            "fully_tensioned_high_strength_bolt_installed_during_fabrication": False,
+        }
+    )
+    if not assembly["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 14.3.3.1 bolt assembly boundary was rejected")
+
+    tolerance_result = run_fabrication(
+        {
+            "check_type": "geometric_tolerance",
+            "tolerance_type": "essential",
+            "measured_deviation_mm": 3,
+            "permissible_deviation_mm": 2,
+            "as_nzs_5131_tolerance_limit_verified": True,
+            "measurement_after_fabrication_and_corrosion_protection_verified": True,
+            "coating_thickness_excluded_from_measurement_verified": True,
+            "excess_deviation_in_revised_design_capacity_verified": True,
+        }
+    )
+    if not tolerance_result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 14.4.2 revised-capacity route was rejected")
+    return {
+        "unidentified_steel_clause_2_2_3_route_passed": True,
+        "bolt_assembly_thread_and_slope_checks_passed": True,
+        "essential_tolerance_revised_design_route_passed": True,
+    }
+
+
+def clause_15_erection_and_tensioning():
+    # Independently transcribed from licensed AS 4100:2020 Table 15.2.2.2.
+    expected_tensions = {
+        (16, "8.8"): 95,
+        (16, "10.9"): 130,
+        (20, "8.8"): 145,
+        (20, "10.9"): 205,
+        (24, "8.8"): 210,
+        (24, "10.9"): 295,
+        (30, "8.8"): 335,
+        (30, "10.9"): 465,
+        (36, "8.8"): 490,
+        (36, "10.9"): 680,
+    }
+    checked = []
+    for (diameter, grade), minimum in expected_tensions.items():
+        output = run_erection(
+            {
+                "operation": "bolted_connection_assembly",
+                "connection_type": "fully_tensioned",
+                "assembly_per_as_nzs_5131_verified": True,
+                "bolt_group_reference": f"VERIFY-M{diameter}-{grade}",
+                "nominal_bolt_diameter_mm": diameter,
+                "bolt_grade": grade,
+                "bolt_tension_measurements": [{"bolt_id": "B1", "measured_tension_kn": minimum}],
+                "homogeneous_bolt_group_verified": True,
+                "all_bolts_in_group_listed_verified": True,
+                "all_bolts_in_group_tightened_verified": True,
+                "tensioning_method": "direct_tension_indicator",
+                "tensioning_method_per_as_nzs_5131_verified": True,
+            }
+        )
+        expect_close(output["values"]["required_minimum_bolt_tension_kn"], minimum)
+        if not output["checked_conditions_satisfied"]:
+            raise AssertionError(f"Table 15.2.2.2 M{diameter} {grade} exact minimum failed")
+        checked.append(minimum)
+
+    below = run_erection(
+        {
+            "operation": "bolted_connection_assembly",
+            "connection_type": "fully_tensioned",
+            "assembly_per_as_nzs_5131_verified": True,
+            "bolt_group_reference": "VERIFY-BELOW",
+            "nominal_bolt_diameter_mm": 16,
+            "bolt_grade": "8.8",
+            "bolt_tension_measurements": [{"bolt_id": "B1", "measured_tension_kn": 94.99}],
+            "homogeneous_bolt_group_verified": True,
+            "all_bolts_in_group_listed_verified": True,
+            "all_bolts_in_group_tightened_verified": True,
+            "tensioning_method": "part_turn",
+            "tensioning_method_per_as_nzs_5131_verified": True,
+        }
+    )
+    if below["checked_conditions_satisfied"]:
+        raise AssertionError("A bolt below Table 15.2.2.2 minimum tension passed")
+
+    tolerance = run_erection(
+        {
+            "operation": "geometric_tolerance",
+            "tolerance_type": "essential",
+            "measured_deviation_mm": 3,
+            "permissible_deviation_mm": 2,
+            "as_nzs_5131_tolerance_limit_verified": True,
+            "measurement_after_erection_completed_verified": True,
+            "excess_deviation_in_revised_design_capacity_verified": True,
+        }
+    )
+    if not tolerance["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 15.3.2 revised-capacity route failed")
+
+    acceptance = run_erection(
+        {
+            "operation": "erected_item_acceptance",
+            "clause_15_2_erection_requirements_satisfied": False,
+            "clause_15_3_tolerances_satisfied": False,
+            "bolt_hardware_conforms_clauses_14_3_3_and_15_2": True,
+            "structural_adequacy_and_intended_use_unimpaired_demonstrated": False,
+            "section_17_testing_passed": True,
+        }
+    )
+    if not acceptance["values"]["erected_item_may_be_accepted"]:
+        raise AssertionError("Clause 15.1.1 Section 17 acceptance route failed")
+    return {
+        "table_15_2_2_2_minimum_tensions_kn": checked,
+        "below_table_minimum_rejected": True,
+        "clause_15_3_2_revised_capacity_route_passed": True,
+        "clause_15_1_1_section_17_acceptance_route_passed": True,
     }
 
 
@@ -1099,6 +1256,10 @@ def main():
         "clause_2_2_4_standard_properties": clause_2_2_4_properties,
         "clause_2_2_5_through_thickness_quality": clause_2_2_5_z_quality,
         "clause_14_3_2_hole_sizes_and_use": clause_14_3_2_hole_sizes_and_use,
+        "clause_14_fabrication_procedure_and_tolerances": (
+            clause_14_fabrication_procedure_and_tolerances
+        ),
+        "clause_15_erection_and_tensioning": clause_15_erection_and_tensioning,
         "clause_5_2_5_internal_gradient_effective_modulus": clause_5_2_5_internal_gradient,
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,
         "clause_5_3_2_4_unequal_flange_restraint_boundary": (clause_5_3_2_4_lateral_restraint),

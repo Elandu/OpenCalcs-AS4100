@@ -11,6 +11,7 @@ from .analysis import run_analysis
 from .connections import run_connections
 from .design_actions import run_design_actions
 from .durability import run_durability
+from .erection import run_erection
 from .fabrication import run_fabrication
 from .materials import run_materials
 from .members import run_members
@@ -2803,6 +2804,182 @@ def verify():
     record(
         "Clause 14.3.2 long-slot washer minimum thickness and alternate plies",
         int(long_slot["checked_conditions_satisfied"]),
+        1,
+    )
+    material_identification = run_fabrication(
+        {
+            "check_type": "fabrication_basis",
+            "materials_conform_referenced_standards_verified": True,
+            "surface_defects_removed_per_referenced_standards_verified": True,
+            "steel_grade_identifiable_at_all_fabrication_stages_verified": False,
+            "steel_classified_as_unidentified": True,
+            "clause_2_2_3_unidentified_steel_inputs": {
+                "operation": "unidentified_steel",
+                "design_yield_strength_mpa": 170,
+                "design_tensile_strength_mpa": 300,
+                "surface_imperfections_verified": True,
+                "properties_and_weldability_verified": True,
+                "full_test_to_as1391_verified": False,
+            },
+            "marking_does_not_damage_material_verified": True,
+            "fabrication_per_as_nzs_5131_verified": True,
+            "fabrication_methods_preserve_design_properties_verified": True,
+        }
+    )
+    record(
+        "Clause 14.2.2 unidentified steel Clause 2.2.3 route",
+        int(material_identification["checked_conditions_satisfied"]),
+        1,
+    )
+    bolt_assembly = run_fabrication(
+        {
+            "check_type": "bolt_assembly",
+            "connection_type": "bearing_type",
+            "bolts_nuts_washers_conform_clause_2_3_1_verified": True,
+            "all_material_within_bolt_grip_is_steel_verified": True,
+            "clear_threads_above_nut_count": 1,
+            "thread_plus_runout_clear_beneath_nut_verified": True,
+            "rotated_part": "nut",
+            "washer_under_rotated_part_verified": True,
+            "maximum_contact_surface_slope_ratio": 0.05,
+            "contact_surface_slope_measurement_verified": True,
+            "subject_to_vibration": False,
+            "fully_tensioned_high_strength_bolt_installed_during_fabrication": False,
+        }
+    )
+    record(
+        "Clause 14.3.3.1 thread projection and 1:20 slope boundary",
+        int(
+            bolt_assembly["checked_conditions_satisfied"]
+            and not bolt_assembly["values"]["tapered_washer_required"]
+        ),
+        1,
+    )
+    friction_assembly = run_fabrication(
+        {
+            "check_type": "bolt_assembly",
+            "connection_type": "friction_type",
+            "bolts_nuts_washers_conform_clause_2_3_1_verified": True,
+            "all_material_within_bolt_grip_is_steel_verified": True,
+            "clear_threads_above_nut_count": 1,
+            "thread_plus_runout_clear_beneath_nut_verified": True,
+            "rotated_part": "nut",
+            "washer_under_rotated_part_verified": True,
+            "maximum_contact_surface_slope_ratio": 0.05,
+            "contact_surface_slope_measurement_verified": True,
+            "subject_to_vibration": False,
+            "fully_tensioned_high_strength_bolt_installed_during_fabrication": False,
+            "friction_surfaces_prepared_per_as_nzs_5131_verified": True,
+            "friction_surfaces_clean_as_rolled_or_equivalent_verified": False,
+            "clause_9_2_3_2_alternative_route_verified": True,
+        }
+    )
+    record(
+        "Clause 14.3.3.2 friction surface alternative design route",
+        int(friction_assembly["checked_conditions_satisfied"]),
+        1,
+    )
+    essential_tolerance = run_fabrication(
+        {
+            "check_type": "geometric_tolerance",
+            "tolerance_type": "essential",
+            "measured_deviation_mm": 3,
+            "permissible_deviation_mm": 2,
+            "as_nzs_5131_tolerance_limit_verified": True,
+            "measurement_after_fabrication_and_corrosion_protection_verified": True,
+            "coating_thickness_excluded_from_measurement_verified": True,
+            "excess_deviation_in_revised_design_capacity_verified": True,
+        }
+    )
+    record(
+        "Clause 14.4.2 essential tolerance revised-capacity route",
+        int(essential_tolerance["checked_conditions_satisfied"]),
+        1,
+    )
+    functional_tolerance = run_fabrication(
+        {
+            "check_type": "geometric_tolerance",
+            "tolerance_type": "functional",
+            "measured_deviation_mm": 1,
+            "permissible_deviation_mm": 2,
+            "as_nzs_5131_tolerance_limit_verified": True,
+            "measurement_after_fabrication_and_corrosion_protection_verified": True,
+            "coating_thickness_excluded_from_measurement_verified": True,
+        }
+    )
+    record(
+        "Clause 14.4.1 unspecified functional class defaults to Class 1",
+        functional_tolerance["values"]["functional_tolerance_class_applied"],
+        1,
+    )
+    table_15_2_2_2 = {
+        (16, "8.8"): 95,
+        (16, "10.9"): 130,
+        (20, "8.8"): 145,
+        (20, "10.9"): 205,
+        (24, "8.8"): 210,
+        (24, "10.9"): 295,
+        (30, "8.8"): 335,
+        (30, "10.9"): 465,
+        (36, "8.8"): 490,
+        (36, "10.9"): 680,
+    }
+    for (diameter, grade), expected in table_15_2_2_2.items():
+        tension_result = run_erection(
+            {
+                "operation": "bolted_connection_assembly",
+                "connection_type": "fully_tensioned",
+                "assembly_per_as_nzs_5131_verified": True,
+                "bolt_group_reference": f"BG-M{diameter}-{grade}",
+                "nominal_bolt_diameter_mm": diameter,
+                "bolt_grade": grade,
+                "bolt_tension_measurements": [{"bolt_id": "B1", "measured_tension_kn": expected}],
+                "homogeneous_bolt_group_verified": True,
+                "all_bolts_in_group_listed_verified": True,
+                "all_bolts_in_group_tightened_verified": True,
+                "tensioning_method": "part_turn",
+                "tensioning_method_per_as_nzs_5131_verified": True,
+            }
+        )
+        record(
+            f"Table 15.2.2.2 M{diameter} grade {grade} minimum bolt tension (kN)",
+            tension_result["values"]["required_minimum_bolt_tension_kn"],
+            expected,
+        )
+        record(
+            f"Table 15.2.2.2 M{diameter} grade {grade} exact minimum is accepted",
+            int(tension_result["checked_conditions_satisfied"]),
+            1,
+        )
+    erection_tolerance = run_erection(
+        {
+            "operation": "geometric_tolerance",
+            "tolerance_type": "essential",
+            "measured_deviation_mm": 3,
+            "permissible_deviation_mm": 2,
+            "as_nzs_5131_tolerance_limit_verified": True,
+            "measurement_after_erection_completed_verified": True,
+            "excess_deviation_in_revised_design_capacity_verified": True,
+        }
+    )
+    record(
+        "Clause 15.3.2 essential erection deviation revised-capacity route",
+        int(erection_tolerance["checked_conditions_satisfied"]),
+        1,
+    )
+    erection_acceptance = run_erection(
+        {
+            "operation": "erected_item_acceptance",
+            "clause_15_2_erection_requirements_satisfied": False,
+            "clause_15_3_tolerances_satisfied": False,
+            "bolt_hardware_conforms_clauses_14_3_3_and_15_2": True,
+            "structural_adequacy_and_intended_use_unimpaired_demonstrated": False,
+            "section_17_testing_passed": True,
+        }
+    )
+    record(
+        "Clause 15.1.1 Section 17 testing acceptance route",
+        int(erection_acceptance["values"]["erected_item_may_be_accepted"]),
         1,
     )
     return {

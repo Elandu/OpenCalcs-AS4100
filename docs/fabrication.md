@@ -1,10 +1,10 @@
 # Fabrication hole checks
 
-The `structural.as4100.fabrication` family implements selected hole-size and
-use checks from AS 4100:2020 Clause 14.3.2. It evaluates one declared hole per
-call through the `bolt_hole` operation. Inputs are millimetres. This operation
-does not determine whether a hole or connection arrangement is appropriate for
-the design.
+The `structural.as4100.fabrication` family implements selected checks from AS
+4100:2020 Clauses 14.2.2, 14.3.1–14.3.3 and 14.4. Its operations evaluate one
+declared fabrication basis, hole, bolt assembly or tolerance per call. Dimensional inputs are millimetres.
+These operations do not determine whether a hole or connection arrangement is
+appropriate for the design.
 
 Set `hole_type` to one of `standard`, `base_plate_anchor`, `oversize`,
 `short_slot` or `long_slot`:
@@ -37,12 +37,38 @@ Set `hole_type` to one of `standard`, `base_plate_anchor`, `oversize`,
   design action. Friction-type connections subject to shear have no slot
   direction restriction under this check.
 
+The `fabrication_basis` operation checks referenced material-standard
+conformity and surface-defect removal under Clause 14.2.1, grade identification
+and non-damaging marking under Clause 14.2.2, and AS/NZS 5131 fabrication and
+material-property preservation declarations under Clause 14.3.1. If steel is
+classified as unidentified, it calls the Clause 2.2.3 calculation using the
+supplied operation inputs.
+
+The `bolt_assembly` operation covers selected Clause 14.3.3.1–14.3.3.4
+conditions: verified bolt/nut/washer material conformity, steel within the
+bolt grip, at least one clear thread above the nut and thread plus runout clear
+beneath it, a washer beneath the rotated part, and vibration securing. It
+compares the declared maximum contact-surface slope ratio with 1:20 and, above
+that limit, requires evidence of the tapered-washer arrangement. Friction-type
+connections require AS/NZS 5131 surface preparation and either clean as-rolled
+or equivalent surfaces or an assessed Clause 9.2.3.2 route. Bearing-type
+connections report that an applied finish is permitted. A fully tensioned
+high-strength bolt installed during fabrication requires a Clause 15.2
+installation declaration.
+
+The `geometric_tolerance` operation checks a measured deviation against a
+permissible AS/NZS 5131 value supplied with evidence. It requires the final
+measurement after fabrication and corrosion protection and confirmation that
+coating thickness was excluded. Functional tolerance Class 1 applies when no
+class is supplied. A functional deviation outside its limit fails; an
+essential deviation outside its limit passes only when its inclusion in a
+revised design-capacity calculation is declared.
+
 The input schemas require confirmation that an oversize or slotted hole is not
 a base-plate anchor hole, the connection type and whether shear acts. They also
 require side-specific washer/product declarations. Evidence flags are supplied
 assertions; the software does not authenticate drawings, measurements, material
 certificates, installation or load paths. `full_standard_compliance` remains
-false. Clause 14.3.2 is one
-limited part of Section 14; material identification, welding/fabrication
-procedures, other fabrication requirements and Clause 14.4 tolerances remain
-outside this family.
+false. Material certification, detailed fabrication procedures, actual
+construction records, other fabrication requirements and the numeric AS/NZS
+5131 tolerance limits remain externally assessed.

@@ -1,5 +1,5 @@
 {
-  "package_version": "0.6.0",
+  "package_version": "0.7.0",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1510,6 +1510,195 @@
     },
     {
       "name": "Clause 14.3.2 long-slot washer minimum thickness and alternate plies",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.2.2 unidentified steel Clause 2.2.3 route",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.3.1 thread projection and 1:20 slope boundary",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.3.3.2 friction surface alternative design route",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.4.2 essential tolerance revised-capacity route",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 14.4.1 unspecified functional class defaults to Class 1",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M16 grade 8.8 minimum bolt tension (kN)",
+      "actual": 95,
+      "expected": 95,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M16 grade 8.8 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M16 grade 10.9 minimum bolt tension (kN)",
+      "actual": 130,
+      "expected": 130,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M16 grade 10.9 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M20 grade 8.8 minimum bolt tension (kN)",
+      "actual": 145,
+      "expected": 145,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M20 grade 8.8 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M20 grade 10.9 minimum bolt tension (kN)",
+      "actual": 205,
+      "expected": 205,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M20 grade 10.9 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M24 grade 8.8 minimum bolt tension (kN)",
+      "actual": 210,
+      "expected": 210,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M24 grade 8.8 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M24 grade 10.9 minimum bolt tension (kN)",
+      "actual": 295,
+      "expected": 295,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M24 grade 10.9 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M30 grade 8.8 minimum bolt tension (kN)",
+      "actual": 335,
+      "expected": 335,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M30 grade 8.8 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M30 grade 10.9 minimum bolt tension (kN)",
+      "actual": 465,
+      "expected": 465,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M30 grade 10.9 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M36 grade 8.8 minimum bolt tension (kN)",
+      "actual": 490,
+      "expected": 490,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M36 grade 8.8 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M36 grade 10.9 minimum bolt tension (kN)",
+      "actual": 680,
+      "expected": 680,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 15.2.2.2 M36 grade 10.9 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 15.3.2 essential erection deviation revised-capacity route",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 15.1.1 Section 17 testing acceptance route",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

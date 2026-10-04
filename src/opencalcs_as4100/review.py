@@ -22,7 +22,9 @@ REQUIREMENTS = {
     "fabrication": (
         "14: drawings, hole geometry/use, tolerances, weld procedure and inspection records"
     ),
-    "erection": "15: temporary stability, bolt/weld installation and inspection records",
+    "erection": (
+        "15: erection safety and procedures, bolt tensioning, tolerances and acceptance evidence"
+    ),
     "modification": "16: material identification, condition, repairs and structural reanalysis",
     "testing": "17: load-test planning, specimen representation, acceptance and reporting",
 }
@@ -50,6 +52,7 @@ _TASK = object_schema(
                 "design_actions",
                 "webs",
                 "fabrication",
+                "erection",
                 "testing",
             ]
         },
@@ -91,6 +94,7 @@ def run_review(inputs):
         "design_actions": ("design_actions", "run_design_actions"),
         "webs": ("webs", "run_webs"),
         "fabrication": ("fabrication", "run_fabrication"),
+        "erection": ("erection", "run_erection"),
         "testing": ("testing", "run_testing"),
     }
 
