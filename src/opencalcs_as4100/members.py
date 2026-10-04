@@ -351,6 +351,9 @@ INPUT_SCHEMA = {
                 },
                 "connection_length_mm": P,
                 "member_depth_mm": P,
+                "maximum_member_design_force_kn": P,
+                "top_flange_connection_design_capacity_kn": N,
+                "bottom_flange_connection_design_capacity_kn": N,
                 "connection_conditions_verified": {"const": True},
             },
             ["configuration", "connection_conditions_verified"],
@@ -1044,19 +1047,55 @@ def _distribution(d):
         "symmetric_paired": 1,
         "both_flanges": 0.85,
     }
+    checks = {}
     if configuration == "both_flanges":
         if "connection_length_mm" not in d or "member_depth_mm" not in d:
             raise ValueError("Both-flange connection requires length and depth.")
         if d["connection_length_mm"] < d["member_depth_mm"]:
             raise ValueError("Both-flange connection length must be at least member depth.")
+        transfer_inputs = (
+            "maximum_member_design_force_kn",
+            "top_flange_connection_design_capacity_kn",
+            "bottom_flange_connection_design_capacity_kn",
+        )
+        if any(name not in d for name in transfer_inputs):
+            raise ValueError(
+                "Both-flange connection requires the maximum member design force and "
+                "connection capacity for each flange."
+            )
+        minimum_flange_capacity = d["maximum_member_design_force_kn"] / 2
+        top_capacity = d["top_flange_connection_design_capacity_kn"]
+        bottom_capacity = d["bottom_flange_connection_design_capacity_kn"]
+        transfer_satisfied = all(
+            capacity >= minimum_flange_capacity for capacity in (top_capacity, bottom_capacity)
+        )
+        checks["both_flange_force_transfer"] = {
+            "clause": "7.3.2(b)(ii)",
+            "maximum_member_design_force_kn": d["maximum_member_design_force_kn"],
+            "minimum_design_capacity_each_flange_kn": minimum_flange_capacity,
+            "top_flange_connection_design_capacity_kn": top_capacity,
+            "bottom_flange_connection_design_capacity_kn": bottom_capacity,
+            "satisfied": transfer_satisfied,
+        }
+        factor = factors[configuration] if transfer_satisfied else None
+    else:
+        factor = factors[configuration]
     return (
-        {"tension_distribution_factor": factors[configuration]},
-        {},
+        {"tension_distribution_factor": factor},
+        checks,
         ["7.3.1", "7.3.2"],
         [
-            "Connection conditions must be assessed against 7.3 and Table 7.3.2 diagrams.",
-            "Short-leg case applies only to unequal angles; paired arrangements must be symmetric.",
-            "Each flange in both-flange case must transfer at least half the maximum design force.",
+            "Verify the selected configuration against Clause 7.3 and the Table 7.3.2 diagram; "
+            "the table case is not inferred from member geometry.",
+            (
+                "The short-leg case applies only to unequal angles; paired arrangements must "
+                "be symmetric."
+            ),
+            (
+                "For both-flange connections, verify the member is a solid I-section or channel "
+                "connected by both flanges only. The Clause 7.3.2(b)(ii) force-transfer check "
+                "must pass before its kt factor can be used."
+            ),
         ],
     )
 

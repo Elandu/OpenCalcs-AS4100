@@ -695,10 +695,46 @@ def test_tension_force_distribution_conditions():
         "connection_conditions_verified": True,
         "connection_length_mm": 200,
         "member_depth_mm": 200,
+        "maximum_member_design_force_kn": 100,
+        "top_flange_connection_design_capacity_kn": 50,
+        "bottom_flange_connection_design_capacity_kn": 50,
     }
-    assert run_members(d)["values"]["tension_distribution_factor"] == 0.85
+    out = run_members(d)
+    assert out["values"]["tension_distribution_factor"] == 0.85
+    assert out["checks"]["both_flange_force_transfer"] == {
+        "clause": "7.3.2(b)(ii)",
+        "maximum_member_design_force_kn": 100,
+        "minimum_design_capacity_each_flange_kn": 50,
+        "top_flange_connection_design_capacity_kn": 50,
+        "bottom_flange_connection_design_capacity_kn": 50,
+        "satisfied": True,
+    }
+    d["top_flange_connection_design_capacity_kn"] = 49.999
+    out = run_members(d)
+    assert out["values"]["tension_distribution_factor"] is None
+    assert not out["checks"]["both_flange_force_transfer"]["satisfied"]
+    d["top_flange_connection_design_capacity_kn"] = 50
     d["connection_length_mm"] = 199
     with pytest.raises(ValueError, match="length"):
+        run_members(d)
+
+
+def test_both_flange_force_transfer_capacity_is_required_for_each_flange():
+    d = {
+        "operation": "tension_distribution",
+        "configuration": "both_flanges",
+        "connection_conditions_verified": True,
+        "connection_length_mm": 250,
+        "member_depth_mm": 200,
+        "maximum_member_design_force_kn": 100,
+        "top_flange_connection_design_capacity_kn": 75,
+        "bottom_flange_connection_design_capacity_kn": 49,
+    }
+    out = run_members(d)
+    assert out["checks"]["both_flange_force_transfer"]["satisfied"] is False
+    assert out["values"]["tension_distribution_factor"] is None
+    del d["bottom_flange_connection_design_capacity_kn"]
+    with pytest.raises(ValueError, match="capacity for each flange"):
         run_members(d)
 
 

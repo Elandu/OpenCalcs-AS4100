@@ -363,6 +363,7 @@ def clause_5_6_1_1_b_varying_section():
             "reference_buckling_moment_verified": True,
             "moment_factor": 1.3,
             "moment_factor_verified": True,
+            "both_ends_restrained_verified": True,
             "action_knm": 60,
             "variation_type": "stepped",
             "segment_length_mm": 6000,
@@ -396,6 +397,7 @@ def clause_5_6_1_1_a_iii_moment_factor():
             "midpoint_moment_3_knm": 100,
             "quarter_point_moment_4_knm": 80,
             "moment_diagram_verified": True,
+            "both_ends_restrained_verified": True,
         }
     )
     factor = result["values"]["moment_factor"]
@@ -465,6 +467,29 @@ def clause_6_5_1_5_interconnection():
     if check["clause"] != "6.5.1.5" or not check["satisfied"]:
         raise AssertionError("Clause 6.5.1.5 interconnection equality boundary failed")
     return {"interconnection_design_demand_kn": check["design_demand_kn"]}
+
+
+def clause_7_3_2_both_flange_force_transfer():
+    result = run_members(
+        {
+            "operation": "tension_distribution",
+            "configuration": "both_flanges",
+            "connection_conditions_verified": True,
+            "connection_length_mm": 250,
+            "member_depth_mm": 200,
+            "maximum_member_design_force_kn": 100,
+            "top_flange_connection_design_capacity_kn": 50,
+            "bottom_flange_connection_design_capacity_kn": 50,
+        }
+    )
+    check = result["checks"]["both_flange_force_transfer"]
+    expect_close(check["minimum_design_capacity_each_flange_kn"], 50)
+    if not check["satisfied"] or result["values"]["tension_distribution_factor"] != 0.85:
+        raise AssertionError("Clause 7.3.2(b)(ii) half-force boundary failed")
+    return {
+        "minimum_design_capacity_each_flange_kn": check["minimum_design_capacity_each_flange_kn"],
+        "tension_distribution_factor": result["values"]["tension_distribution_factor"],
+    }
 
 
 def clause_7_4_component_slenderness():
@@ -601,6 +626,7 @@ def main():
         "clause_5_6_1_1_b_varying_section": clause_5_6_1_1_b_varying_section,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
+        "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
         "clause_7_4_component_slenderness": clause_7_4_component_slenderness,
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
