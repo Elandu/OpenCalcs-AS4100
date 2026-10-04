@@ -354,6 +354,30 @@ INPUT_SCHEMA = {
                 "maximum_member_design_force_kn": P,
                 "top_flange_connection_design_capacity_kn": N,
                 "bottom_flange_connection_design_capacity_kn": N,
+                "member_part_count": {"type": "integer", "minimum": 1, "maximum": 100},
+                "member_part_connections": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "member_part_id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 100,
+                            },
+                            "maximum_part_design_force_kn": N,
+                            "part_connection_design_capacity_kn": N,
+                        },
+                        "required": [
+                            "member_part_id",
+                            "maximum_part_design_force_kn",
+                            "part_connection_design_capacity_kn",
+                        ],
+                        "additionalProperties": False,
+                    },
+                },
                 "connection_conditions_verified": {"const": True},
             },
             ["configuration", "connection_conditions_verified"],
@@ -1048,7 +1072,45 @@ def _distribution(d):
         "both_flanges": 0.85,
     }
     checks = {}
-    if configuration == "both_flanges":
+    manual = []
+    if configuration == "uniform":
+        transfer_inputs = ("member_part_count", "member_part_connections")
+        if any(name not in d for name in transfer_inputs):
+            raise ValueError(
+                "Uniform distribution requires a count and design force/capacity for each "
+                "connected member part."
+            )
+        parts = d["member_part_connections"]
+        if len(parts) != d["member_part_count"]:
+            raise ValueError("List every connected member part exactly once.")
+        part_ids = [part["member_part_id"] for part in parts]
+        if len(set(part_ids)) != len(part_ids):
+            raise ValueError("Member part identifiers must be unique.")
+        part_checks = [
+            {
+                "member_part_id": part["member_part_id"],
+                "maximum_part_design_force_kn": part["maximum_part_design_force_kn"],
+                "part_connection_design_capacity_kn": part["part_connection_design_capacity_kn"],
+                "satisfied": (
+                    part["part_connection_design_capacity_kn"]
+                    >= part["maximum_part_design_force_kn"]
+                ),
+            }
+            for part in parts
+        ]
+        transfer_satisfied = all(part["satisfied"] for part in part_checks)
+        checks["uniform_connection_part_capacity"] = {
+            "clause": "7.3.1(b)",
+            "parts": part_checks,
+            "satisfied": transfer_satisfied,
+        }
+        factor = factors[configuration] if transfer_satisfied else None
+        manual.append(
+            "Verify under Clause 7.3.1(a) that connections are made to every member part and "
+            "are symmetrically placed about the member centroidal axis. The Clause 7.3.1(b) "
+            "capacity comparison uses the supplied maximum force for each part."
+        )
+    elif configuration == "both_flanges":
         if "connection_length_mm" not in d or "member_depth_mm" not in d:
             raise ValueError("Both-flange connection requires length and depth.")
         if d["connection_length_mm"] < d["member_depth_mm"]:
@@ -1078,25 +1140,28 @@ def _distribution(d):
             "satisfied": transfer_satisfied,
         }
         factor = factors[configuration] if transfer_satisfied else None
+        manual.append(
+            "Verify the member is a solid I-section or channel connected by both flanges only. "
+            "The Clause 7.3.2(b)(ii) force-transfer check must pass before "
+            "its kt factor can be used."
+        )
     else:
         factor = factors[configuration]
+        manual.append(
+            "Verify the selected configuration against the applicable Table 7.3.2 diagram; "
+            "the table case is not inferred from member geometry."
+        )
+    if configuration in ("angle_short_leg", "angle_other"):
+        manual.append(
+            "The short-leg factor applies only to unequal angles connected by the short leg."
+        )
+    if configuration == "symmetric_paired":
+        manual.append("Verify that the paired member arrangement is symmetric.")
     return (
         {"tension_distribution_factor": factor},
         checks,
         ["7.3.1", "7.3.2"],
-        [
-            "Verify the selected configuration against Clause 7.3 and the Table 7.3.2 diagram; "
-            "the table case is not inferred from member geometry.",
-            (
-                "The short-leg case applies only to unequal angles; paired arrangements must "
-                "be symmetric."
-            ),
-            (
-                "For both-flange connections, verify the member is a solid I-section or channel "
-                "connected by both flanges only. The Clause 7.3.2(b)(ii) force-transfer check "
-                "must pass before its kt factor can be used."
-            ),
-        ],
+        manual,
     )
 
 

@@ -719,6 +719,66 @@ def test_tension_force_distribution_conditions():
         run_members(d)
 
 
+def test_uniform_tension_distribution_checks_every_member_part_capacity():
+    d = {
+        "operation": "tension_distribution",
+        "configuration": "uniform",
+        "connection_conditions_verified": True,
+        "member_part_count": 2,
+        "member_part_connections": [
+            {
+                "member_part_id": "web",
+                "maximum_part_design_force_kn": 40,
+                "part_connection_design_capacity_kn": 40,
+            },
+            {
+                "member_part_id": "flanges",
+                "maximum_part_design_force_kn": 60,
+                "part_connection_design_capacity_kn": 65,
+            },
+        ],
+    }
+    out = run_members(d)
+    assert out["values"]["tension_distribution_factor"] == 1
+    part_capacity = out["checks"]["uniform_connection_part_capacity"]
+    assert part_capacity["clause"] == "7.3.1(b)"
+    assert part_capacity["satisfied"]
+    assert [part["satisfied"] for part in part_capacity["parts"]] == [True, True]
+
+    d["member_part_connections"][1]["part_connection_design_capacity_kn"] = 59.999
+    out = run_members(d)
+    assert out["values"]["tension_distribution_factor"] is None
+    assert not out["checks"]["uniform_connection_part_capacity"]["satisfied"]
+
+
+def test_uniform_tension_distribution_rejects_incomplete_or_duplicate_parts():
+    d = {
+        "operation": "tension_distribution",
+        "configuration": "uniform",
+        "connection_conditions_verified": True,
+        "member_part_count": 2,
+        "member_part_connections": [
+            {
+                "member_part_id": "web",
+                "maximum_part_design_force_kn": 40,
+                "part_connection_design_capacity_kn": 40,
+            },
+            {
+                "member_part_id": "flange",
+                "maximum_part_design_force_kn": 60,
+                "part_connection_design_capacity_kn": 60,
+            },
+        ],
+    }
+    d["member_part_count"] = 3
+    with pytest.raises(ValueError, match="every connected member part"):
+        run_members(d)
+    d["member_part_count"] = 2
+    d["member_part_connections"][1]["member_part_id"] = "web"
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        run_members(d)
+
+
 def test_both_flange_force_transfer_capacity_is_required_for_each_flange():
     d = {
         "operation": "tension_distribution",

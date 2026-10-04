@@ -19,7 +19,7 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 | `chs_shear` | 5.11.3–5.11.4, 5.12.3 | Circular hollow section shear-yield capacity with the specified gross/net effective-area rule and whole-section shear/bending interaction. Requires supplied gross/net area and section moment capacity. |
 | `shear_proportioning` | 5.12.2 | Flange-only bending capacity with separate web shear capacity, using the effective compression-flange area and the net-area/tensile-strength limit for the tension flange. |
 | `interaction` | 8.3.2–8.3.4, 8.4.2, 8.4.4–8.4.5 | General linear section interaction; optional Clause 8.3.2(a) compact-section major-axis reduction for tension or verified compression with `kf=1.0`, or 8.3.2(b) for verified compression with `kf<1.0` using the calculated web slenderness and Table 6.2.4 limit; Clause 8.3.3(a)/(b) minor-axis reduction for compact doubly symmetric I or RHS/SHS sections and powered Clause 8.3.4 section interaction; elastic in-plane/out-of-plane compression-tension reduction and biaxial member interaction. Section and member checks are reported separately. |
-| `tension_distribution` | 7.3.1–7.3.2 | Supported Table 7.3.2 factors; checks the both-flange connection length and compares each supplied flange connection design capacity with half the maximum member design force before returning `kt = 0.85`. |
+| `tension_distribution` | 7.3.1–7.3.2 | Checks supplied design connection capacities against each member-part force for the uniform 7.3.1 route and checks the both-flange length and half-force requirements for the 7.3.2(b) route. A failed capacity check returns no usable `kt` factor. |
 
 All member actions must already include applicable second-order effects under 8.2.
 Effective lengths are assessed inputs, not inferred from an analysis mesh.
@@ -63,10 +63,10 @@ The following cannot currently be claimed as completed by these member primitive
 - 6.3.3 torsional-flexural buckling cases requiring AS/NZS 4600; 6.3.4 varying sections;
   6.4 laced/battened members; 6.5 back-to-back members; 6.6 restraint systems.
 - 7.4 built-up tension-member connection/spacing requirements; 7.5 pin-connected members;
-  automatic interpretation of Table 7.3.2 diagrams, Clause 7.3.1 symmetry and connection-to-each-part
-  conditions, and capacity calculation for the supplied flange connections. For the both-flange
-  route, the caller must supply verified design capacities for each flange connection and the
-  maximum member force; a failed half-force check returns no usable `kt` factor.
+  automatic interpretation of Table 7.3.2 diagrams and Clause 7.3.1 symmetry/connection-layout
+  conditions. For the uniform route, the caller must enumerate every member part and supply its
+  maximum design force and connection design capacity. For the both-flange route, the caller must
+  supply verified design capacities for each flange connection and the maximum member force.
 - 8.3.2(a)/(b), 8.3.3(a)/(b) and the powered 8.3.4 alternative are available for verified
   compact doubly symmetric I or RHS/SHS sections. The 8.3.2(b) route calculates web
   slenderness from supplied clear width, thickness and yield strength, then selects the

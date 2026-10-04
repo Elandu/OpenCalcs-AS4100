@@ -469,6 +469,36 @@ def clause_6_5_1_5_interconnection():
     return {"interconnection_design_demand_kn": check["design_demand_kn"]}
 
 
+def clause_7_3_1_uniform_connection_capacity():
+    result = run_members(
+        {
+            "operation": "tension_distribution",
+            "configuration": "uniform",
+            "connection_conditions_verified": True,
+            "member_part_count": 2,
+            "member_part_connections": [
+                {
+                    "member_part_id": "web",
+                    "maximum_part_design_force_kn": 40,
+                    "part_connection_design_capacity_kn": 40,
+                },
+                {
+                    "member_part_id": "flanges",
+                    "maximum_part_design_force_kn": 60,
+                    "part_connection_design_capacity_kn": 60,
+                },
+            ],
+        }
+    )
+    check = result["checks"]["uniform_connection_part_capacity"]
+    if not check["satisfied"] or result["values"]["tension_distribution_factor"] != 1:
+        raise AssertionError("Clause 7.3.1(b) exact part-capacity boundary failed")
+    return {
+        "part_count": len(check["parts"]),
+        "tension_distribution_factor": result["values"]["tension_distribution_factor"],
+    }
+
+
 def clause_7_3_2_both_flange_force_transfer():
     result = run_members(
         {
@@ -626,6 +656,7 @@ def main():
         "clause_5_6_1_1_b_varying_section": clause_5_6_1_1_b_varying_section,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
+        "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
         "clause_7_4_component_slenderness": clause_7_4_component_slenderness,
         "clause_9_8_packing": clause_9_8_packing,
