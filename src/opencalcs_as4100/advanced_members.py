@@ -455,6 +455,31 @@ SCHEMAS = {
             "flexural_mode_verified": VERIFIED,
         },
     ),
+    "torsional_flexural_compression": _schema(
+        "torsional_flexural_compression",
+        {
+            "member_section_form": {
+                "enum": [
+                    "fabricated_monosymmetric",
+                    "fabricated_nonsymmetric",
+                    "hot_rolled_channel",
+                    "unlipped_angle",
+                    "tee",
+                    "cruciform",
+                ]
+            },
+            "bracing_axis": {"enum": ["major_principal", "minor_principal"]},
+            "section_and_axis_applicability_verified": VERIFIED,
+            "as_nzs_4600_nominal_member_capacity_kn": P,
+            "as_nzs_4600_calculation_verified": VERIFIED,
+            "as_nzs_4600_calculation_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+            },
+            "action_kn": N,
+        },
+    ),
     "buckling_analysis_bending": _schema(
         "buckling_analysis_bending",
         {
@@ -1055,6 +1080,46 @@ def run_advanced_members(inputs):
                 "varying section.",
                 "Assess both axes separately and select applicable Table 6.3.3(A/B) "
                 "section constant.",
+            ],
+        )
+    if op == "torsional_flexural_compression":
+        form, axis = d["member_section_form"], d["bracing_axis"]
+        if form in {"unlipped_angle", "tee", "cruciform"}:
+            raise ValueError(
+                "Clause 6.3.3's AS/NZS 4600 flexural-torsional route excludes "
+                "unlipped angles, tees and cruciform sections."
+            )
+        if form == "hot_rolled_channel" and axis == "minor_principal":
+            raise ValueError(
+                "Clause 6.3.3's AS/NZS 4600 route excludes hot-rolled channels "
+                "braced about the minor principal axis."
+            )
+        reference = d["as_nzs_4600_calculation_reference"].strip()
+        if not reference:
+            raise ValueError("AS/NZS 4600 calculation reference must not be blank.")
+        external_capacity = d["as_nzs_4600_nominal_member_capacity_kn"]
+        reduction = 0.85
+        nominal_capacity = reduction * external_capacity
+        return result(
+            op,
+            ["6.3.3"],
+            {
+                "member_section_form": form,
+                "bracing_axis": axis,
+                "as_nzs_4600_nominal_member_capacity_kn": external_capacity,
+                "as_nzs_4600_calculation_reference": reference,
+                "as_4100_torsional_flexural_reduction_factor": reduction,
+                "nominal_member_capacity_kn": nominal_capacity,
+            },
+            [capacity_check("6.3.3", nominal_capacity, d["action_kn"])],
+            [
+                "The caller must establish that the section, bracing axis and restraint "
+                "conditions fall within the Clause 6.3.3 flexural-torsional provision.",
+                "Supply the unreduced nominal flexural-torsional member capacity calculated "
+                "to AS/NZS 4600 for the actual section, restraints and loading. This operation "
+                "applies the AS 4100 reduction factor of 0.85 and capacity factor of 0.90.",
+                "The AS/NZS 4600 analysis, its reference and applicability evidence are "
+                "recorded but not authenticated or recalculated here.",
             ],
         )
     if op == "moment_modification_factor":

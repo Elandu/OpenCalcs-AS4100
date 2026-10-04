@@ -274,6 +274,28 @@ def verify():
             expected,
             0.00051,
         )
+    torsional_flexural = run_advanced_members(
+        {
+            "operation": "torsional_flexural_compression",
+            "member_section_form": "fabricated_monosymmetric",
+            "bracing_axis": "minor_principal",
+            "section_and_axis_applicability_verified": True,
+            "as_nzs_4600_nominal_member_capacity_kn": 400,
+            "as_nzs_4600_calculation_verified": True,
+            "as_nzs_4600_calculation_reference": "INDEPENDENT-HAND-CALC",
+            "action_kn": 306,
+        }
+    )
+    record(
+        "Clause 6.3.3 AS 4100 flexural-torsional reduction",
+        torsional_flexural["values"]["nominal_member_capacity_kn"],
+        340,
+    )
+    record(
+        "Clause 6.3.3 AS 4100 factored capacity",
+        torsional_flexural["checks"][0]["design_capacity"],
+        306,
+    )
     euler = run_design_actions(
         {
             "operation": "euler_buckling",

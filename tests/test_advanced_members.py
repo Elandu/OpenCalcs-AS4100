@@ -19,6 +19,77 @@ def test_varying_compression_independent_table_reference():
     assert out["checks"][0]["satisfied"]
 
 
+def torsional_flexural_compression_inputs(**changes):
+    return {
+        "operation": "torsional_flexural_compression",
+        "member_section_form": "fabricated_monosymmetric",
+        "bracing_axis": "minor_principal",
+        "section_and_axis_applicability_verified": True,
+        "as_nzs_4600_nominal_member_capacity_kn": 400,
+        "as_nzs_4600_calculation_verified": True,
+        "as_nzs_4600_calculation_reference": "TF-ANALYSIS-001",
+        "action_kn": 306,
+        **changes,
+    }
+
+
+def test_clause_6_3_3_as4100_factors_and_capacity_check():
+    out = run_advanced_members(torsional_flexural_compression_inputs())
+    assert out["clauses"] == ["6.3.3"]
+    assert out["values"]["as_nzs_4600_nominal_member_capacity_kn"] == 400
+    assert out["values"]["as_4100_torsional_flexural_reduction_factor"] == 0.85
+    assert out["values"]["nominal_member_capacity_kn"] == 340
+    assert out["checks"][0]["nominal_capacity"] == 340
+    assert out["checks"][0]["capacity_factor"] == 0.90
+    assert out["checks"][0]["design_capacity"] == 306
+    assert out["checks"][0]["satisfied"]
+    assert out["full_standard_compliance"] is False
+
+    over_capacity = run_advanced_members(torsional_flexural_compression_inputs(action_kn=306.001))
+    assert not over_capacity["checks"][0]["satisfied"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"member_section_form": "unlipped_angle"},
+        {"member_section_form": "tee"},
+        {"member_section_form": "cruciform"},
+        {
+            "member_section_form": "hot_rolled_channel",
+            "bracing_axis": "minor_principal",
+        },
+    ],
+)
+def test_clause_6_3_3_as4100_route_rejects_excluded_member_forms(changes):
+    with pytest.raises(ValueError, match="excludes"):
+        run_advanced_members(torsional_flexural_compression_inputs(**changes))
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"section_and_axis_applicability_verified": False},
+        {"as_nzs_4600_calculation_verified": False},
+        {"as_nzs_4600_calculation_reference": "  "},
+        {"as_nzs_4600_nominal_member_capacity_kn": 0},
+    ],
+)
+def test_clause_6_3_3_as4100_route_requires_verified_external_capacity(changes):
+    with pytest.raises(ValueError):
+        run_advanced_members(torsional_flexural_compression_inputs(**changes))
+
+
+def test_clause_6_3_3_hot_rolled_channel_major_axis_remains_in_scope():
+    out = run_advanced_members(
+        torsional_flexural_compression_inputs(
+            member_section_form="hot_rolled_channel",
+            bracing_axis="major_principal",
+        )
+    )
+    assert out["checks"][0]["design_capacity"] == 306
+
+
 @pytest.mark.parametrize(
     "ends,factor,expected",
     [
