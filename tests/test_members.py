@@ -53,6 +53,16 @@ def test_compression_against_standard_table(slenderness, constant, expected):
     assert out["values"]["reduction_x"] == pytest.approx(expected, abs=0.0006)
 
 
+@pytest.mark.parametrize(
+    "constant,expected",
+    [(-1, 1.000), (-0.5, 0.989), (0, 0.978), (0.5, 0.967), (1, 0.956)],
+)
+def test_amendment_1_corrected_table_6_3_3_c_lambda_20_row(constant, expected):
+    # AS 4100:2020 Amd 1:2021 replaces the complete row beginning at lambda_n=20.
+    out = run_members(compression(200, constant))
+    assert out["values"]["reduction_x"] == pytest.approx(expected, abs=0.00051)
+
+
 def test_compression_axes_and_monotonicity():
     values = [
         run_members(compression(length))["values"]["reduction_x"]
@@ -728,6 +738,17 @@ def test_general_interaction_independent_arithmetic():
     out = run_members(interaction("tension"))
     assert out["values"]["out_of_plane_x_knm"] == pytest.approx(77)
     assert "compact_section_reduced_y_knm" not in out["values"]
+
+
+def test_amendment_1_clause_8_4_5_2_uses_powered_biaxial_member_interaction():
+    d = interaction("tension")
+    d.update(axial_action_kn=90, moment_x_knm=45, moment_y_knm=22.5)
+    out = run_members(d)
+
+    # Mtx=77 kN.m and Mry=45 kN.m; use the corrected 1.4-power interaction.
+    expected = (45 / (0.9 * 77)) ** 1.4 + (22.5 / (0.9 * 45)) ** 1.4
+    assert out["checks"]["member_combined"]["utilisation"] == pytest.approx(expected)
+    assert out["checks"]["member_combined"]["satisfied"]
 
 
 def test_clause_8_3_3a_and_8_3_4_compact_i_section_hand_arithmetic():

@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.2",
+  "package_version": "0.7.3",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -287,6 +287,41 @@
       "name": "Table 6.3.3(C), alpha_b=0.5, lambda=100",
       "actual": 0.48549963124694845,
       "expected": 0.485,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Amd 1 Table 6.3.3(C), lambda=20, alpha_b=-1",
+      "actual": 0.9995551200095341,
+      "expected": 1.0,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Amd 1 Table 6.3.3(C), lambda=20, alpha_b=-0.5",
+      "actual": 0.9889249238935056,
+      "expected": 0.989,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Amd 1 Table 6.3.3(C), lambda=20, alpha_b=0",
+      "actual": 0.9782193718874038,
+      "expected": 0.978,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Amd 1 Table 6.3.3(C), lambda=20, alpha_b=0.5",
+      "actual": 0.9673679464123723,
+      "expected": 0.967,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Amd 1 Table 6.3.3(C), lambda=20, alpha_b=1",
+      "actual": 0.9563011821613636,
+      "expected": 0.956,
       "absolute_tolerance": 0.00051,
       "passed": true
     },
@@ -1089,10 +1124,17 @@
       "passed": true
     },
     {
-      "name": "Clause 5.7.2/8.4.5 unconstrained biaxial member interaction",
+      "name": "Amd 1 Clause 8.4.5.1 powered biaxial member interaction",
       "actual": 1.0357668804187459,
       "expected": 1.0357668804187459,
       "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Amd 1 Clause 8.4.5.2 powered biaxial member interaction",
+      "actual": 0.9855057230960604,
+      "expected": 0.9855057230960604,
+      "absolute_tolerance": 1e-12,
       "passed": true
     },
     {
@@ -1190,6 +1232,41 @@
       "name": "Clause 8.4.6 eccentricity minimum-moment route",
       "actual": 1.5,
       "expected": 1.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Amd 1:2021 Clause 8.4.6 axial interaction term",
+      "actual": 0.5,
+      "expected": 0.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Amd 1:2021 Clause 8.4.6 moment term with cos alpha",
+      "actual": 0.4999999999999999,
+      "expected": 0.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Amd 1:2021 Clause 8.4.6 exact interaction boundary",
+      "actual": 0.9999999999999999,
+      "expected": 1.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Amd 1:2021 Clause 8.4.6 exact interaction boundary accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Amd 1 Appendix H.4 square closed-section torsion constant, hand arithmetic",
+      "actual": 5000000.0,
+      "expected": 5000000,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

@@ -659,6 +659,38 @@ def test_family_http_validation(suffix):
             },
         ),
         (
+            "advanced_members",
+            {
+                "operation": "angle_combined_interaction",
+                "design_compression_kn": 90,
+                "design_moment_about_h_knm": 9,
+                "nominal_member_compression_nch_kn": 200,
+                "nominal_member_bending_mbx_knm": 40,
+                "angle_between_x_and_h_deg": 60,
+                "clause_8_3_interaction_satisfied": True,
+                "single_angle_web_compression_member_in_truss_verified": True,
+                "end_connection_at_least_two_bolts_or_welded_verified": True,
+                "loaded_through_one_leg_figure_8_4_6_verified": True,
+                "angle_axis_orientation_verified": True,
+                "nominal_nch_mbx_calculations_verified": True,
+            },
+        ),
+        (
+            "advanced_members",
+            {
+                "operation": "closed_section_torsion_constant",
+                "enclosed_median_line_area_mm2": 10_000,
+                "wall_segments": [
+                    {"median_line_length_mm": 100, "thickness_mm": 5},
+                    {"median_line_length_mm": 100, "thickness_mm": 5},
+                    {"median_line_length_mm": 100, "thickness_mm": 5},
+                    {"median_line_length_mm": 100, "thickness_mm": 5},
+                ],
+                "single_cell_thin_walled_closed_section_verified": True,
+                "median_line_geometry_verified": True,
+            },
+        ),
+        (
             "fabrication",
             {
                 "check_type": "bolt_hole",

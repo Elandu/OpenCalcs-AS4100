@@ -3,6 +3,55 @@ import pytest
 from opencalcs_as4100.advanced_members import run_advanced_members
 
 
+def closed_torsion_constant_inputs(**changes):
+    return {
+        "operation": "closed_section_torsion_constant",
+        "enclosed_median_line_area_mm2": 10_000,
+        "wall_segments": [
+            {"median_line_length_mm": 100, "thickness_mm": 5},
+            {"median_line_length_mm": 100, "thickness_mm": 5},
+            {"median_line_length_mm": 100, "thickness_mm": 5},
+            {"median_line_length_mm": 100, "thickness_mm": 5},
+        ],
+        "single_cell_thin_walled_closed_section_verified": True,
+        "median_line_geometry_verified": True,
+        **changes,
+    }
+
+
+def test_amendment_1_appendix_h4_closed_section_torsion_constant_hand_arithmetic():
+    out = run_advanced_members(closed_torsion_constant_inputs())
+    values = out["values"]
+    assert values["wall_length_to_thickness_sum"] == 80
+    assert values["torsion_constant_j_mm4"] == 5_000_000
+    assert out["clauses"] == ["Appendix H.4 (Amd 1:2021)"]
+    assert out["full_standard_compliance"] is False
+
+    nonuniform = closed_torsion_constant_inputs(
+        enclosed_median_line_area_mm2=8000,
+        wall_segments=[
+            {"median_line_length_mm": 100, "thickness_mm": 5},
+            {"median_line_length_mm": 80, "thickness_mm": 4},
+            {"median_line_length_mm": 100, "thickness_mm": 5},
+            {"median_line_length_mm": 80, "thickness_mm": 4},
+        ],
+    )
+    assert run_advanced_members(nonuniform)["values"]["torsion_constant_j_mm4"] == 3_200_000
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"wall_segments": [{"median_line_length_mm": 100, "thickness_mm": 5}] * 2},
+        {"single_cell_thin_walled_closed_section_verified": False},
+        {"median_line_geometry_verified": False},
+    ],
+)
+def test_amendment_1_appendix_h4_rejects_unsupported_or_unverified_geometry(changes):
+    with pytest.raises(ValueError):
+        run_advanced_members(closed_torsion_constant_inputs(**changes))
+
+
 def test_varying_compression_independent_table_reference():
     out = run_advanced_members(
         {
@@ -1620,6 +1669,53 @@ def test_clause_8_4_6_rejects_unequal_legs_and_requires_factor_outside_limit():
     inputs.pop("moment_factor_verified")
     with pytest.raises(ValueError, match="moment_factor"):
         run_advanced_members(inputs)
+
+
+def angle_combined_interaction_inputs(**updates):
+    return {
+        "operation": "angle_combined_interaction",
+        "design_compression_kn": 90,
+        "design_moment_about_h_knm": 9,
+        "nominal_member_compression_nch_kn": 200,
+        "nominal_member_bending_mbx_knm": 40,
+        "angle_between_x_and_h_deg": 60,
+        "clause_8_3_interaction_satisfied": True,
+        "single_angle_web_compression_member_in_truss_verified": True,
+        "end_connection_at_least_two_bolts_or_welded_verified": True,
+        "loaded_through_one_leg_figure_8_4_6_verified": True,
+        "angle_axis_orientation_verified": True,
+        "nominal_nch_mbx_calculations_verified": True,
+        **updates,
+    }
+
+
+def test_clause_8_4_6_amendment_interaction_hand_arithmetic_and_boundary():
+    out = run_advanced_members(angle_combined_interaction_inputs())
+    values = out["values"]
+    assert values["amendment_applied"] == "AS 4100:2020 Amd 1:2021"
+    assert values["capacity_factor_phi"] == 0.9
+    assert values["axial_utilisation"] == pytest.approx(0.5)
+    assert values["cos_alpha"] == pytest.approx(0.5)
+    assert values["moment_utilisation"] == pytest.approx(0.5)
+    assert values["interaction_utilisation"] == pytest.approx(1.0)
+    assert out["checked_conditions_satisfied"]
+    assert [check["clause"] for check in out["checks"]] == ["8.3", "8.4.6 (Amd 1:2021)"]
+
+    over = run_advanced_members(angle_combined_interaction_inputs(design_moment_about_h_knm=9.001))
+    assert not over["checked_conditions_satisfied"]
+    assert not over["checks"][1]["satisfied"]
+
+    failed_section = run_advanced_members(
+        angle_combined_interaction_inputs(clause_8_3_interaction_satisfied=False)
+    )
+    assert not failed_section["checked_conditions_satisfied"]
+    assert not failed_section["checks"][0]["satisfied"]
+
+
+@pytest.mark.parametrize("alpha", [-0.1, 90, 90.1])
+def test_clause_8_4_6_amendment_rejects_invalid_angle(alpha):
+    with pytest.raises(ValueError):
+        run_advanced_members(angle_combined_interaction_inputs(angle_between_x_and_h_deg=alpha))
 
 
 def test_external_prerequisite_cannot_be_false():

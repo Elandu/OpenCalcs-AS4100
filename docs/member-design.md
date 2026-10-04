@@ -92,8 +92,9 @@ calculation or a recorded engineering assessment; applicability is never assumed
 Tests use independent hand arithmetic for hole-adjusted section moduli, effective moduli/widths,
 moment/shear capacities,
 combined action reductions and boundary cases. Compression reduction is checked against
-Table 6.3.3(C) at multiple slenderness and imperfection values, including both ends of the
-table. Stiffened shear is checked against Table 5.11.5.2. The table comparisons allow only
+Table 6.3.3(C) at multiple slenderness and imperfection values, including the complete
+Amendment No. 1 corrected row at modified slenderness 20 and both ends of the table.
+Stiffened shear is checked against Table 5.11.5.2. The table comparisons allow only
 the published rounding difference. Additional tests check monotonic reductions, both axes,
 unsupported geometries, inconsistent dimensions, nonfinite values and exceeded capacities.
 

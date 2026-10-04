@@ -474,6 +474,36 @@ def verify():
             expected,
             0.00051,
         )
+    for constant, expected in [
+        (-1, 1.000),
+        (-0.5, 0.989),
+        (0, 0.978),
+        (0.5, 0.967),
+        (1, 0.956),
+    ]:
+        amended_row = run_members(
+            {
+                "operation": "compression",
+                "yield_strength_mpa": 250,
+                "gross_area_mm2": 1000,
+                "net_area_mm2": 1000,
+                "effective_area_mm2": 1000,
+                "effective_length_x_mm": 200,
+                "effective_length_y_mm": 200,
+                "radius_x_mm": 10,
+                "radius_y_mm": 10,
+                "section_constant_x": constant,
+                "section_constant_y": constant,
+                "action_kn": 100,
+                "geometry": "doubly_symmetric",
+            }
+        )
+        record(
+            f"Amd 1 Table 6.3.3(C), lambda=20, alpha_b={constant}",
+            amended_row["values"]["reduction_x"],
+            expected,
+            0.00051,
+        )
     torsional_flexural = run_advanced_members(
         {
             "operation": "torsional_flexural_compression",
@@ -2015,9 +2045,30 @@ def verify():
         1.1,
     )
     record(
-        "Clause 5.7.2/8.4.5 unconstrained biaxial member interaction",
+        "Amd 1 Clause 8.4.5.1 powered biaxial member interaction",
         nonprincipal_bending["values"]["member_interaction"],
         2 * (0.625**1.4),
+    )
+    amended_8452 = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "tension",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 500,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 90,
+            "moment_x_knm": 45,
+            "moment_y_knm": 22.5,
+        }
+    )
+    record(
+        "Amd 1 Clause 8.4.5.2 powered biaxial member interaction",
+        amended_8452["checks"]["member_combined"]["utilisation"],
+        (45 / (0.9 * 77)) ** 1.4 + (22.5 / (0.9 * 45)) ** 1.4,
+        1e-12,
     )
     angle_shortcut = run_advanced_members(
         {
@@ -2213,6 +2264,63 @@ def verify():
         "Clause 8.4.6 eccentricity minimum-moment route",
         angle_eccentricity_minimum["values"]["design_moment_knm"],
         1.5,
+    )
+    angle_interaction = run_advanced_members(
+        {
+            "operation": "angle_combined_interaction",
+            "design_compression_kn": 90,
+            "design_moment_about_h_knm": 9,
+            "nominal_member_compression_nch_kn": 200,
+            "nominal_member_bending_mbx_knm": 40,
+            "angle_between_x_and_h_deg": 60,
+            "clause_8_3_interaction_satisfied": True,
+            "single_angle_web_compression_member_in_truss_verified": True,
+            "end_connection_at_least_two_bolts_or_welded_verified": True,
+            "loaded_through_one_leg_figure_8_4_6_verified": True,
+            "angle_axis_orientation_verified": True,
+            "nominal_nch_mbx_calculations_verified": True,
+        }
+    )
+    angle_interaction_values = angle_interaction["values"]
+    record(
+        "Amd 1:2021 Clause 8.4.6 axial interaction term",
+        angle_interaction_values["axial_utilisation"],
+        0.5,
+    )
+    record(
+        "Amd 1:2021 Clause 8.4.6 moment term with cos alpha",
+        angle_interaction_values["moment_utilisation"],
+        0.5,
+    )
+    record(
+        "Amd 1:2021 Clause 8.4.6 exact interaction boundary",
+        angle_interaction_values["interaction_utilisation"],
+        1.0,
+    )
+    record(
+        "Amd 1:2021 Clause 8.4.6 exact interaction boundary accepted",
+        int(angle_interaction["checked_conditions_satisfied"]),
+        1,
+    )
+    closed_section_j = run_advanced_members(
+        {
+            "operation": "closed_section_torsion_constant",
+            "enclosed_median_line_area_mm2": 10_000,
+            "wall_segments": [
+                {"median_line_length_mm": 100, "thickness_mm": 5},
+                {"median_line_length_mm": 100, "thickness_mm": 5},
+                {"median_line_length_mm": 100, "thickness_mm": 5},
+                {"median_line_length_mm": 100, "thickness_mm": 5},
+            ],
+            "single_cell_thin_walled_closed_section_verified": True,
+            "median_line_geometry_verified": True,
+        }
+    )
+    record(
+        "Amd 1 Appendix H.4 square closed-section torsion constant, hand arithmetic",
+        closed_section_j["values"]["torsion_constant_j_mm4"],
+        5_000_000,
+        1e-9,
     )
     back_to_back = run_advanced_members(
         {

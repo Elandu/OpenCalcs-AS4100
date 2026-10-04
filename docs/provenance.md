@@ -2,9 +2,15 @@
 
 The reference edition is AS 4100:2020, *Steel structures*. The project owner's
 licensed scanned copy was reviewed directly for the expanded calculation
-families. The scan, page images and extracted standard text are not distributed
-with this repository. No separate amendments were supplied or verified;
-applicable amendments and project requirements require engineering review.
+families. Amendment No. 1:2021 (Correction amendment) was reviewed. The supported
+routes apply its Clause 5.6.1.1 labels, the corrected Table 6.3.3(C) row, the
+Clause 6.4.1 equation label, powered Clause 8.4.5.1–8.4.5.2 interactions and
+Clause 8.4.6 interaction. Its corrected Appendix H.4 torsion-constant equation is
+implemented for verified thin-walled single-cell closed sections; other torsion
+properties and warping constant `Iw` remain externally supplied. The amendment
+PDF, base-standard scan, page images and extracted standard text are not
+distributed with this repository. No later amendments were supplied or verified;
+applicable project requirements require engineering review.
 Printed page 180 was reviewed for Clauses 16.1–16.2, pages 181–183 for
 Section 17, and page 185 for informative Appendix B.
 
@@ -18,7 +24,7 @@ the weld/detail demand. Material certification, test evidence, Table 2.1 notes,
 Clause 3.8 detailing and clauses 2.3–2.5 remain assessed outside these
 calculations.
 
-Version 0.7.2 exposes twelve installed calculation families. The code implements
+Version 0.7.3 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing

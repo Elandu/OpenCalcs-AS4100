@@ -552,6 +552,104 @@ def clause_16_existing_structure_modification():
     }
 
 
+def clause_8_4_6_amended_angle_interaction():
+    passed = run_advanced_members(
+        {
+            "operation": "angle_combined_interaction",
+            "design_compression_kn": 90,
+            "design_moment_about_h_knm": 9,
+            "nominal_member_compression_nch_kn": 200,
+            "nominal_member_bending_mbx_knm": 40,
+            "angle_between_x_and_h_deg": 60,
+            "clause_8_3_interaction_satisfied": True,
+            "single_angle_web_compression_member_in_truss_verified": True,
+            "end_connection_at_least_two_bolts_or_welded_verified": True,
+            "loaded_through_one_leg_figure_8_4_6_verified": True,
+            "angle_axis_orientation_verified": True,
+            "nominal_nch_mbx_calculations_verified": True,
+        }
+    )
+    if not isclose(passed["values"]["interaction_utilisation"], 1.0, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Amended Clause 8.4.6 interaction boundary is incorrect")
+    if not passed["checked_conditions_satisfied"]:
+        raise AssertionError("Amended Clause 8.4.6 exact boundary was rejected")
+    outside = run_advanced_members(
+        {
+            "operation": "angle_combined_interaction",
+            "design_compression_kn": 90,
+            "design_moment_about_h_knm": 9.001,
+            "nominal_member_compression_nch_kn": 200,
+            "nominal_member_bending_mbx_knm": 40,
+            "angle_between_x_and_h_deg": 60,
+            "clause_8_3_interaction_satisfied": True,
+            "single_angle_web_compression_member_in_truss_verified": True,
+            "end_connection_at_least_two_bolts_or_welded_verified": True,
+            "loaded_through_one_leg_figure_8_4_6_verified": True,
+            "angle_axis_orientation_verified": True,
+            "nominal_nch_mbx_calculations_verified": True,
+        }
+    )
+    if outside["checked_conditions_satisfied"]:
+        raise AssertionError("Amended Clause 8.4.6 accepted an over-capacity interaction")
+    return {
+        "exact_interaction_boundary": passed["values"]["interaction_utilisation"],
+        "boundary_accepted": True,
+        "above_boundary_rejected": True,
+    }
+
+
+def clause_6_3_3_c_amended_lambda_20_row():
+    expected = [(-1, 1.000), (-0.5, 0.989), (0, 0.978), (0.5, 0.967), (1, 0.956)]
+    observed = []
+    for constant, table_factor in expected:
+        result = run_members(
+            {
+                "operation": "compression",
+                "yield_strength_mpa": 250,
+                "gross_area_mm2": 1000,
+                "net_area_mm2": 1000,
+                "effective_area_mm2": 1000,
+                "effective_length_x_mm": 200,
+                "effective_length_y_mm": 200,
+                "radius_x_mm": 10,
+                "radius_y_mm": 10,
+                "section_constant_x": constant,
+                "section_constant_y": constant,
+                "action_kn": 100,
+                "geometry": "doubly_symmetric",
+            }
+        )
+        factor = result["values"]["reduction_x"]
+        if not isclose(factor, table_factor, rel_tol=0, abs_tol=0.00051):
+            raise AssertionError(
+                f"Amd 1 Table 6.3.3(C) at lambda_n=20, alpha_b={constant}: "
+                f"expected {table_factor}, observed {factor}"
+            )
+        observed.append(factor)
+    return {"amended_lambda_20_reduction_factors": observed}
+
+
+def appendix_h4_amended_closed_section_torsion_constant():
+    result = run_advanced_members(
+        {
+            "operation": "closed_section_torsion_constant",
+            "enclosed_median_line_area_mm2": 10_000,
+            "wall_segments": [
+                {"median_line_length_mm": 100, "thickness_mm": 5},
+                {"median_line_length_mm": 100, "thickness_mm": 5},
+                {"median_line_length_mm": 100, "thickness_mm": 5},
+                {"median_line_length_mm": 100, "thickness_mm": 5},
+            ],
+            "single_cell_thin_walled_closed_section_verified": True,
+            "median_line_geometry_verified": True,
+        }
+    )
+    value = result["values"]["torsion_constant_j_mm4"]
+    if not isclose(value, 5_000_000, rel_tol=0, abs_tol=1e-9):
+        raise AssertionError(f"Amended Appendix H.4 expected J=5000000, observed {value}")
+    return {"square_closed_section_torsion_constant_mm4": value}
+
+
 def clause_5_2_6_hole_moduli():
     result = run_members(
         {
@@ -1366,6 +1464,11 @@ def main():
         "clause_15_erection_and_tensioning": clause_15_erection_and_tensioning,
         "clause_17_test_scope_and_prototype": clause_17_test_scope_and_prototype,
         "clause_16_existing_structure_modification": clause_16_existing_structure_modification,
+        "clause_8_4_6_amended_angle_interaction": clause_8_4_6_amended_angle_interaction,
+        "clause_6_3_3_c_amended_lambda_20_row": clause_6_3_3_c_amended_lambda_20_row,
+        "appendix_h4_amended_closed_section_torsion_constant": (
+            appendix_h4_amended_closed_section_torsion_constant
+        ),
         "clause_5_2_5_internal_gradient_effective_modulus": clause_5_2_5_internal_gradient,
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,
         "clause_5_3_2_4_unequal_flange_restraint_boundary": (clause_5_3_2_4_lateral_restraint),

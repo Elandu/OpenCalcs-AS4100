@@ -15,7 +15,10 @@ class StandardReference:
             "code": self.code,
             "edition": self.edition,
             "title": self.title,
-            "amendments": "No separate amendments supplied or verified",
+            "amendments": (
+                "AS 4100:2020 Amendment No. 1 (2021) reviewed; only the covered "
+                "corrected provisions are applied."
+            ),
         }
 
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Further member provisions with explicit external analysis prerequisites."""
 
-from math import isclose, isfinite, pi, sqrt
+from math import cos, isclose, isfinite, pi, radians, sqrt
 
 from .standards import ELASTIC_MODULUS_MPA, SHEAR_MODULUS_MPA
 from .validation import (
@@ -396,6 +396,25 @@ BOOL = {"type": "boolean"}
 VERIFIED = {"const": True}
 BETA = {"type": "number", "minimum": -1, "maximum": 1}
 SCHEMAS = {
+    "closed_section_torsion_constant": _schema(
+        "closed_section_torsion_constant",
+        {
+            "enclosed_median_line_area_mm2": P,
+            "wall_segments": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "median_line_length_mm": P,
+                        "thickness_mm": P,
+                    }
+                ),
+            },
+            "single_cell_thin_walled_closed_section_verified": VERIFIED,
+            "median_line_geometry_verified": VERIFIED,
+        },
+    ),
     "continuous_lateral_restraints": _schema(
         "continuous_lateral_restraints",
         {
@@ -756,6 +775,26 @@ SCHEMAS = {
     "angle_section_bending_capacity": _angle_section_bending_schema(),
     "angle_compression_capacity": _angle_compression_capacity_schema(),
     "angle_bending_capacity": _angle_bending_capacity_schema(),
+    "angle_combined_interaction": _schema(
+        "angle_combined_interaction",
+        {
+            "design_compression_kn": P,
+            "design_moment_about_h_knm": N,
+            "nominal_member_compression_nch_kn": P,
+            "nominal_member_bending_mbx_knm": P,
+            "angle_between_x_and_h_deg": {
+                "type": "number",
+                "minimum": 0,
+                "exclusiveMaximum": 90,
+            },
+            "clause_8_3_interaction_satisfied": BOOL,
+            "single_angle_web_compression_member_in_truss_verified": VERIFIED,
+            "end_connection_at_least_two_bolts_or_welded_verified": VERIFIED,
+            "loaded_through_one_leg_figure_8_4_6_verified": VERIFIED,
+            "angle_axis_orientation_verified": VERIFIED,
+            "nominal_nch_mbx_calculations_verified": VERIFIED,
+        },
+    ),
     "angle_eccentricity": _angle_eccentricity_schema(),
 }
 INPUT_SCHEMA = {"oneOf": list(SCHEMAS.values())}
@@ -809,6 +848,37 @@ def _reduced_check(clause, moment, nominal):
 def run_advanced_members(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
+    if op == "closed_section_torsion_constant":
+        enclosed_area = d["enclosed_median_line_area_mm2"]
+        wall_ratio_sum = sum(
+            segment["median_line_length_mm"] / segment["thickness_mm"]
+            for segment in d["wall_segments"]
+        )
+        torsion_constant = 4 * enclosed_area**2 / wall_ratio_sum
+        if not isfinite(wall_ratio_sum) or wall_ratio_sum <= 0:
+            raise ValueError(
+                "Appendix H.4 wall length-to-thickness sum must be positive and finite."
+            )
+        if not isfinite(torsion_constant) or torsion_constant <= 0:
+            raise ValueError("Appendix H.4 torsion constant must be positive and finite.")
+        return result(
+            op,
+            ["Appendix H.4 (Amd 1:2021)"],
+            {
+                "enclosed_median_line_area_mm2": enclosed_area,
+                "wall_length_to_thickness_sum": wall_ratio_sum,
+                "torsion_constant_j_mm4": torsion_constant,
+            },
+            [],
+            [
+                "Applies the AS 4100:2020 Appendix H.4 formula corrected by Amendment No. 1:2021 "
+                "to a thin-walled, single-cell closed section.",
+                "Supply the enclosed median-line area and each wall length measured along the "
+                "median line, with its matching wall thickness; verify the closed-cell geometry.",
+                "Multi-cell and open sections are outside this operation. It calculates J only; "
+                "warping constant Iw and other section properties are separate.",
+            ],
+        )
     if op == "continuous_lateral_restraints":
         return result(
             op,
@@ -2109,6 +2179,48 @@ def run_advanced_members(inputs):
                 "no combined action interaction is evaluated.",
             ],
         )
+    if op == "angle_combined_interaction":
+        phi = 0.9
+        alpha = radians(d["angle_between_x_and_h_deg"])
+        cos_alpha = cos(alpha)
+        axial_utilisation = d["design_compression_kn"] / (
+            phi * d["nominal_member_compression_nch_kn"]
+        )
+        moment_utilisation = d["design_moment_about_h_knm"] / (
+            phi * d["nominal_member_bending_mbx_knm"] * cos_alpha
+        )
+        interaction_utilisation = axial_utilisation + moment_utilisation
+        checks = [
+            {
+                "clause": "8.3",
+                "satisfied": d["clause_8_3_interaction_satisfied"],
+            },
+            _limit("8.4.6 (Amd 1:2021)", interaction_utilisation, 1.0),
+        ]
+        return result(
+            op,
+            ["8.3", "8.4.6"],
+            {
+                "amendment_applied": "AS 4100:2020 Amd 1:2021",
+                "capacity_factor_phi": phi,
+                "angle_between_x_and_h_deg": d["angle_between_x_and_h_deg"],
+                "cos_alpha": cos_alpha,
+                "axial_utilisation": axial_utilisation,
+                "moment_utilisation": moment_utilisation,
+                "interaction_utilisation": interaction_utilisation,
+                "clause_8_3_interaction_satisfied": d["clause_8_3_interaction_satisfied"],
+            },
+            checks,
+            [
+                "Uses the Clause 8.4.6 equation corrected by AS 4100:2020 Amendment No. 1 (2021).",
+                "Nch and Mbx are supplied nominal capacities; verify them from their respective "
+                "Clause 8.4.6 capacity operations and verify the angle-axis orientation.",
+                "This operation applies only to a single-angle web compression member in a truss "
+                "connected by at least two bolts or welded at its ends and loaded through one leg.",
+                "Clause 8.3 is a required separate check. This result does not establish "
+                "whole-member or full-standard compliance.",
+            ],
+        )
     if op == "angle_compression_capacity":
         ag = d["gross_area_mm2"]
         an = d["net_area_mm2"]
@@ -2215,13 +2327,13 @@ def run_advanced_members(inputs):
                 "applicable moment distribution. If the equal-leg limit is not met, supply "
                 "alpha_m independently selected under Clause 5.6.1.1(1).",
                 "Calculates the angle member bending capacity Mbx only. It does not calculate "
-                "Nch, compare a design moment with capacity, or evaluate the unresolved "
-                "8.4.6 combined interaction.",
+                "Nch or compare a design moment with capacity. Supply Mbx to the separate "
+                "angle_combined_interaction operation when checking Clause 8.4.6.",
                 "For equal-leg angles within the limit, Clause 8.4.6 permits Mbx=Msx; the "
                 "moment factor is not used on that route.",
             ],
         )
-    # Geometry-only primitive: does not invent the ambiguous interaction printed in 8.4.6.
+    # Geometry-only primitive: calculate the eccentricity and design end moment.
     if d["arrangement"] == "same_side":
         eccentricity = d["compression_centroid_offset_mm"] - d["leg_thickness_mm"] / 2
         if eccentricity < 0:
@@ -2256,7 +2368,7 @@ def run_advanced_members(inputs):
             "The legacy input shape defaults to conservative_max, taking the greater of the "
             "rational-analysis moment and N*e.",
             "The operation calculates design moment only; the special angle interaction "
-            "still requires a separately verified interpretation.",
+            "is checked separately by angle_combined_interaction using Amendment No. 1:2021.",
             "Angles must be double-bolted or welded and loading through one leg "
             "must match Figure 8.4.6.",
         ],
