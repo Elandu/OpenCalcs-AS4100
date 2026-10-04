@@ -18,7 +18,7 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 | `shear_with_flange_restraint` | 5.11.2–5.11.5.2, 5.12.3 | Flat-web shear and bending interaction with the calculated flange-restraint factor. The clause route requires verified absence of longitudinal web stiffeners; section geometry and web count must be supplied. |
 | `chs_shear` | 5.11.3–5.11.4, 5.12.3 | Circular hollow section shear-yield capacity with the specified gross/net effective-area rule and whole-section shear/bending interaction. Requires supplied gross/net area and section moment capacity. |
 | `shear_proportioning` | 5.12.2 | Flange-only bending capacity with separate web shear capacity, using the effective compression-flange area and the net-area/tensile-strength limit for the tension flange. |
-| `interaction` | 8.3.2–8.3.4, 8.4.2, 8.4.4–8.4.5 | General linear section interaction; elastic in-plane and out-of-plane compression/tension reduction; biaxial member interaction. Section and member checks are reported separately. |
+| `interaction` | 8.3.2–8.3.4, 8.4.2, 8.4.4–8.4.5 | General linear section interaction; optional Clause 8.3.2(a) compact-section major-axis reduction for tension or verified compression with `kf=1.0`, or 8.3.2(b) for verified compression with `kf<1.0` using the calculated web slenderness and Table 6.2.4 limit; Clause 8.3.3(a)/(b) minor-axis reduction for compact doubly symmetric I or RHS/SHS sections and powered Clause 8.3.4 section interaction; elastic in-plane/out-of-plane compression-tension reduction and biaxial member interaction. Section and member checks are reported separately. |
 | `tension_distribution` | 7.3.1–7.3.2 | Supported Table 7.3.2 arrangements and both-flange connection length gate. Explicit confirmation of arrangement and force transfer conditions is required. |
 
 All member actions must already include applicable second-order effects under 8.2.
@@ -44,9 +44,10 @@ The following cannot currently be claimed as completed by these member primitive
 - 5.3–5.5: restraint stiffness/strength, critical flange/section, continuity and load position.
 - 5.6.1.1(b)(iii) elastic buckling-analysis alternative and calculation of the elastic
   buckling moment under 5.6.2(ii)/5.6.4 still require independently verified analysis inputs.
-  Unequal-flange I-section buckling under 5.6.1.2 and selected varying-section methods under
-  5.6.1.1(b)(i)–(ii) are in `advanced_members`; 5.6.3 effective-length factors are available
-  there for selected cases.
+  Table 5.6.1 and the 5.6.1.1(a)(iii) moment factor are in `advanced_members`, with both-end
+  restraint and diagram applicability assessed externally. Unequal-flange I-section buckling
+  under 5.6.1.2 and selected varying-section methods under 5.6.1.1(b)(i)–(ii) are also
+  available; 5.6.3 effective-length factors are available there for selected cases.
 - 5.7.1–5.7.2 require rational analysis to establish principal-axis moments and restraint
   forces. `advanced_members.nonprincipal_bending` applies the 8.3.4 section interaction and,
   when deflections are unconstrained, the 8.4.5 biaxial member interaction to those supplied
@@ -63,9 +64,13 @@ The following cannot currently be claimed as completed by these member primitive
   6.4 laced/battened members; 6.5 back-to-back members; 6.6 restraint systems.
 - 7.4 built-up tension-member connection/spacing requirements; 7.5 pin-connected members;
   automatic interpretation of Table 7.3.2 diagrams and connection component force capacity.
-- 8.3 optional compact-section enhancements are omitted; the standard's general conservative
-  method is used. 8.4.3 plastic-analysis eligibility/hinge checks, 8.4.6 eccentric angle design,
-  and alternative enhanced compact-section interactions are not implemented.
+- 8.3.2(a)/(b), 8.3.3(a)/(b) and the powered 8.3.4 alternative are available for verified
+  compact doubly symmetric I or RHS/SHS sections. The 8.3.2(b) route calculates web
+  slenderness from supplied clear width, thickness and yield strength, then selects the
+  Table 6.2.4 limit from the supplied residual-stress category. Compactness of the remaining
+  section elements and consistency of the supplied form factor with Clause 6.2 capacities
+  remain assessed inputs. 8.4.3 plastic-analysis eligibility/hinge checks, 8.4.6
+  eccentric angle design, and other compact-section paths remain outside this operation.
 - Annex H section-constant generation and rational elastic buckling calculations. Section
   properties and effective lengths need an independently verified source.
 

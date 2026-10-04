@@ -46,6 +46,83 @@
       "passed": true
     },
     {
+      "name": "Clause 8.3.3(a) compact I-section minor-axis capacity, hand arithmetic",
+      "actual": 44.625,
+      "expected": 44.625,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.4 compact biaxial exponent, hand arithmetic",
+      "actual": 1.9,
+      "expected": 1.9,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.4 compact biaxial interaction, hand arithmetic",
+      "actual": 0.32328522582491365,
+      "expected": 0.32328522582491365,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.2(a) compact major-axis capacity for kf=1.0, hand arithmetic",
+      "actual": 59.0,
+      "expected": 59,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.4 powered interaction with Clause 8.3.2(a), hand arithmetic",
+      "actual": 0.30779756197106134,
+      "expected": 0.30779756197106134,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.2.3 web element slenderness, hand arithmetic",
+      "actual": 65.0,
+      "expected": 65,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 6.2.4 hot-rolled internal plate yield slenderness limit",
+      "actual": 45,
+      "expected": 45,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.2(b) compact major-axis capacity, hand arithmetic",
+      "actual": 54.13513513513514,
+      "expected": 54.13513513513514,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.4 powered interaction with Clause 8.3.2(b), hand arithmetic",
+      "actual": 0.3152420180103579,
+      "expected": 0.3152420180103579,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.3(b) compact RHS/SHS minor-axis capacity, hand arithmetic",
+      "actual": 29.5,
+      "expected": 29.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.4 compact RHS/SHS biaxial interaction, hand arithmetic",
+      "actual": 0.6411580100977792,
+      "expected": 0.6411580100977792,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
       "name": "Table 6.3.3(C), alpha_b=0.5, lambda=50",
       "actual": 0.8079391778296219,
       "expected": 0.808,
@@ -333,6 +410,118 @@
       "passed": true
     },
     {
+      "name": "Clause 9.1.4(b)(ii) simple-beam minimum shear, 0.15 branch",
+      "actual": 30.0,
+      "expected": 30,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(ii) simple-beam minimum shear, 40 kN cap",
+      "actual": 40.0,
+      "expected": 40,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4 actual member shear governs the minimum",
+      "actual": 60,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(i) rigid connection minimum moment",
+      "actual": 50.0,
+      "expected": 50,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(iii) member-end axial action minimum",
+      "actual": 60.0,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(iii) threaded bracing turnbuckle exception",
+      "actual": 200.0,
+      "expected": 200,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(iv) axial tension splice minimum",
+      "actual": 60.0,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(v) full-contact compression splice minimum",
+      "actual": 30.0,
+      "expected": 30,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(v) non-full-contact compression splice minimum",
+      "actual": 60.0,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(v) compression splice amplified minimum moment",
+      "actual": 270.0,
+      "expected": 270,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(vii) combined axial tension splice force",
+      "actual": 60.0,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(vii) combined flexural splice moment",
+      "actual": 60.0,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(vii) combined compression splice axial force",
+      "actual": 120.0,
+      "expected": 120,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(vii) combined compression splice moment",
+      "actual": 540.0,
+      "expected": 540,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(vi) flexural splice minimum moment",
+      "actual": 60.0,
+      "expected": 60,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.4(b)(vi) shear-only splice eccentric moment",
+      "actual": 5.0,
+      "expected": 5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 9.6.3.4 equal-leg fillet design throat",
       "actual": 4.242640687119286,
       "expected": 4.242640687119285,
@@ -372,6 +561,76 @@
       "actual": 1.1258525035052873,
       "expected": 1.1258525035052873,
       "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 end_moments moment factor, hand arithmetic",
+      "actual": 2.35,
+      "expected": 2.35,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 two_symmetric_point_loads moment factor, hand arithmetic",
+      "actual": 1.126,
+      "expected": 1.126,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 single_point_load moment factor, hand arithmetic",
+      "actual": 1.4140000000000001,
+      "expected": 1.414,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 midspan_point_load_with_one_end_moment moment factor, hand arithmetic",
+      "actual": 1.5000000000000002,
+      "expected": 1.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 midspan_point_load_with_equal_end_moments moment factor, hand arithmetic",
+      "actual": 1.53,
+      "expected": 1.53,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 uniform_load_with_one_end_moment moment factor, hand arithmetic",
+      "actual": 1.5500000000000003,
+      "expected": 1.55,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 uniform_load_with_equal_end_moments moment factor, hand arithmetic",
+      "actual": 1.22,
+      "expected": 1.22,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 uniform_moment moment factor, hand arithmetic",
+      "actual": 1.0,
+      "expected": 1.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 point_load moment factor, hand arithmetic",
+      "actual": 1.75,
+      "expected": 1.75,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.1 uniform_load moment factor, hand arithmetic",
+      "actual": 2.5,
+      "expected": 2.5,
+      "absolute_tolerance": 1e-09,
       "passed": true
     },
     {

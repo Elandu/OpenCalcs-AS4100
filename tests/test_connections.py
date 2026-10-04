@@ -25,6 +25,315 @@ def bolt(**changes):
     }
 
 
+def simple_beam_shear(**changes):
+    return {
+        "check_type": "minimum_beam_shear_action",
+        "actual_design_shear_kn": 10,
+        "member_design_shear_capacity_kn": 200,
+        "simple_construction_beam_connection_verified": True,
+        "excluded_connection_arrangement_absent_verified": True,
+        **changes,
+    }
+
+
+@pytest.mark.parametrize(
+    "actual_shear,member_capacity,expected_minimum,expected_action",
+    [
+        (10, 200, 30, 30),
+        (10, 400, 40, 40),
+        (60, 400, 40, 60),
+        (0, 800 / 3, 40, 40),
+    ],
+)
+def test_clause_9_1_4_b_ii_minimum_simple_beam_shear_hand_arithmetic(
+    actual_shear, member_capacity, expected_minimum, expected_action
+):
+    result = run_connections(
+        simple_beam_shear(
+            actual_design_shear_kn=actual_shear,
+            member_design_shear_capacity_kn=member_capacity,
+        )
+    )
+    assert result["intermediate"]["minimum_design_shear_kn"] == pytest.approx(expected_minimum)
+    assert result["intermediate"]["required_design_shear_kn"] == pytest.approx(expected_action)
+    assert result["intermediate"]["governing_action"] == (
+        "actual_design_shear" if actual_shear >= expected_minimum else "minimum_design_shear"
+    )
+    assert result["intermediate"]["member_capacity_includes_capacity_factor"]
+    assert result["checks"] == {}
+
+
+@pytest.mark.parametrize("connection_capacity,expected_satisfied", [(29.9, False), (30, True)])
+def test_clause_9_1_4_connection_design_shear_capacity_boundary(
+    connection_capacity, expected_satisfied
+):
+    result = run_connections(
+        simple_beam_shear(connection_design_shear_capacity_kn=connection_capacity)
+    )
+    check = result["checks"]["connection_shear_capacity"]
+    assert check["design_action_kn"] == 30
+    assert check["design_capacity_kn"] == connection_capacity
+    assert check["satisfied"] is expected_satisfied
+
+
+def test_clause_9_1_4_requires_scope_and_exclusion_confirmations():
+    data = simple_beam_shear(simple_construction_beam_connection_verified=False)
+    with pytest.raises(ValueError):
+        run_connections(data)
+
+    data = simple_beam_shear(excluded_connection_arrangement_absent_verified=False)
+    with pytest.raises(ValueError):
+        run_connections(data)
+
+    with pytest.raises(ValueError):
+        run_connections(simple_beam_shear(member_design_shear_capacity_kn=0))
+
+
+def test_clause_9_1_4_b_i_rigid_connection_minimum_moment():
+    result = run_connections(
+        {
+            "check_type": "minimum_rigid_connection_action",
+            "rigid_construction_connection_verified": True,
+            "actual_design_moment_knm": 25,
+            "member_design_moment_capacity_knm": 100,
+            "excluded_connection_arrangement_absent_verified": True,
+            "connection_design_moment_capacity_knm": 49.9,
+        }
+    )
+    assert result["intermediate"]["minimum_design_moment_knm"] == 50
+    assert result["intermediate"]["required_design_moment_knm"] == 50
+    assert not result["checks"]["connection_moment_capacity"]["satisfied"]
+
+
+@pytest.mark.parametrize(
+    "case,turnbuckle,action,capacity,expected",
+    [
+        ("tension_member_end", False, 10, 200, 60),
+        ("compression_member_end", False, 80, 200, 80),
+        ("threaded_tension_bracing_with_turnbuckles", True, 10, 200, 200),
+    ],
+)
+def test_clause_9_1_4_b_iii_member_end_minimum_actions(
+    case, turnbuckle, action, capacity, expected
+):
+    result = run_connections(
+        {
+            "check_type": "minimum_member_end_action",
+            "connection_at_member_end_verified": True,
+            "member_end_case": case,
+            "actual_design_axial_action_kn": action,
+            "member_design_axial_capacity_kn": capacity,
+            "threaded_bracing_turnbuckle_arrangement_verified": turnbuckle,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    assert result["intermediate"]["required_design_axial_action_kn"] == expected
+
+
+@pytest.mark.parametrize(
+    "case,full_contact,action,capacity,expected",
+    [
+        ("axial_tension", False, 50, 200, 60),
+        ("compression_full_contact", True, 10, 200, 30),
+        ("compression_not_full_contact", False, 80, 200, 80),
+    ],
+)
+def test_clause_9_1_4_b_iv_v_axial_splice_minimum_actions(
+    case, full_contact, action, capacity, expected
+):
+    result = run_connections(
+        {
+            "check_type": "minimum_axial_splice_action",
+            "axial_member_splice_verified": True,
+            "splice_case": case,
+            "actual_design_axial_action_kn": action,
+            "member_design_axial_capacity_kn": capacity,
+            "full_contact_bearing_verified": full_contact,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": (
+                case == "compression_not_full_contact"
+            ),
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    assert result["intermediate"]["required_design_axial_action_kn"] == expected
+
+
+def test_clause_9_1_4_b_v_compression_splice_between_lateral_supports():
+    result = run_connections(
+        {
+            "check_type": "minimum_compression_splice_between_supports",
+            "compression_member_splice_verified": True,
+            "actual_design_axial_action_kn": 50,
+            "actual_design_moment_knm": 200,
+            "member_design_axial_capacity_kn": 400,
+            "full_contact_bearing_verified": True,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+            "splice_between_effective_lateral_supports_verified": True,
+            "effective_lateral_support_distance_mm": 3000,
+            "amplification_factor_type": "delta_s",
+            "amplification_factor": 1.5,
+            "amplification_factor_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+            "connection_design_axial_capacity_kn": 60,
+            "connection_design_moment_capacity_knm": 270,
+        }
+    )
+    assert result["intermediate"]["minimum_design_axial_action_kn"] == 60
+    assert result["intermediate"]["moment_basis_axial_action_kn"] == 60
+    assert result["intermediate"]["minimum_design_moment_knm"] == 270
+    assert result["intermediate"]["required_design_moment_knm"] == 270
+    assert result["checks"]["connection_axial_capacity"]["satisfied"]
+    assert result["checks"]["connection_moment_capacity"]["satisfied"]
+
+
+def test_clause_9_1_4_b_vi_flexural_splice_minimum_moment():
+    result = run_connections(
+        {
+            "check_type": "minimum_flexural_splice_action",
+            "flexural_splice_not_shear_only_verified": True,
+            "actual_design_moment_knm": 20,
+            "member_design_moment_capacity_knm": 200,
+            "excluded_connection_arrangement_absent_verified": True,
+            "connection_design_moment_capacity_knm": 59,
+        }
+    )
+    assert result["intermediate"]["required_design_moment_knm"] == 60
+    assert not result["checks"]["connection_moment_capacity"]["satisfied"]
+
+
+def test_clause_9_1_4_b_vi_shear_only_splice_eccentric_moment():
+    result = run_connections(
+        {
+            "check_type": "shear_only_splice_eccentric_action",
+            "actual_design_shear_kn": 50,
+            "force_eccentricity_mm": 100,
+            "shear_only_splice_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+            "connection_design_shear_capacity_kn": 50,
+            "connection_design_moment_capacity_knm": 5,
+        }
+    )
+    assert result["intermediate"]["required_design_shear_kn"] == 50
+    assert result["intermediate"]["required_design_moment_knm"] == 5
+    assert result["checks"]["connection_shear_capacity"]["satisfied"]
+    assert result["checks"]["connection_moment_capacity"]["satisfied"]
+
+
+def test_clause_9_1_4_b_vii_combined_tension_and_bending_splice_actions():
+    result = run_connections(
+        {
+            "check_type": "minimum_combined_splice_actions",
+            "combined_axial_bending_splice_verified": True,
+            "splice_case": "axial_tension",
+            "actual_design_axial_action_kn": 20,
+            "member_design_axial_capacity_kn": 200,
+            "full_contact_bearing_verified": False,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+            "actual_design_moment_knm": 20,
+            "member_design_moment_capacity_knm": 200,
+            "splice_between_effective_lateral_supports_verified": False,
+            "excluded_connection_arrangement_absent_verified": True,
+            "connection_design_axial_capacity_kn": 60,
+            "connection_design_moment_capacity_knm": 60,
+        }
+    )
+    assert result["intermediate"]["required_design_axial_action_kn"] == 60
+    assert result["intermediate"]["required_design_moment_knm"] == 60
+    assert result["checks"]["connection_axial_capacity"]["satisfied"]
+    assert result["checks"]["connection_moment_capacity"]["satisfied"]
+
+
+def test_clause_9_1_4_b_vii_combined_compression_splice_in_support_span():
+    result = run_connections(
+        {
+            "check_type": "minimum_combined_splice_actions",
+            "combined_axial_bending_splice_verified": True,
+            "splice_case": "compression_not_full_contact",
+            "actual_design_axial_action_kn": 50,
+            "member_design_axial_capacity_kn": 400,
+            "full_contact_bearing_verified": False,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": True,
+            "actual_design_moment_knm": 100,
+            "member_design_moment_capacity_knm": 500,
+            "splice_between_effective_lateral_supports_verified": True,
+            "effective_lateral_support_distance_mm": 3000,
+            "amplification_factor_type": "delta_s",
+            "amplification_factor": 1.5,
+            "amplification_factor_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+            "connection_design_axial_capacity_kn": 120,
+            "connection_design_moment_capacity_knm": 539.9,
+        }
+    )
+    assert result["intermediate"]["required_design_axial_action_kn"] == 120
+    assert result["intermediate"]["minimum_flexural_splice_moment_knm"] == 150
+    assert result["intermediate"]["minimum_between_supports_moment_knm"] == 540
+    assert result["intermediate"]["required_design_moment_knm"] == 540
+    assert result["checks"]["connection_axial_capacity"]["satisfied"]
+    assert not result["checks"]["connection_moment_capacity"]["satisfied"]
+
+
+def test_clause_9_1_4_rejects_unverified_case_and_full_contact_mismatch():
+    with pytest.raises(ValueError):
+        run_connections(
+            {
+                "check_type": "minimum_rigid_connection_action",
+                "rigid_construction_connection_verified": False,
+                "actual_design_moment_knm": 0,
+                "member_design_moment_capacity_knm": 100,
+                "excluded_connection_arrangement_absent_verified": True,
+            }
+        )
+
+    with pytest.raises(ValueError, match="full-contact"):
+        run_connections(
+            {
+                "check_type": "minimum_axial_splice_action",
+                "axial_member_splice_verified": True,
+                "splice_case": "compression_full_contact",
+                "actual_design_axial_action_kn": 0,
+                "member_design_axial_capacity_kn": 100,
+                "full_contact_bearing_verified": False,
+                "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+                "excluded_connection_arrangement_absent_verified": True,
+            }
+        )
+
+    with pytest.raises(ValueError, match="hold all parts in line"):
+        run_connections(
+            {
+                "check_type": "minimum_combined_splice_actions",
+                "combined_axial_bending_splice_verified": True,
+                "splice_case": "compression_not_full_contact",
+                "actual_design_axial_action_kn": 0,
+                "member_design_axial_capacity_kn": 100,
+                "full_contact_bearing_verified": False,
+                "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+                "actual_design_moment_knm": 0,
+                "member_design_moment_capacity_knm": 100,
+                "splice_between_effective_lateral_supports_verified": False,
+                "excluded_connection_arrangement_absent_verified": True,
+            }
+        )
+
+    with pytest.raises(ValueError, match="requires its verified span"):
+        run_connections(
+            {
+                "check_type": "minimum_combined_splice_actions",
+                "combined_axial_bending_splice_verified": True,
+                "splice_case": "compression_full_contact",
+                "actual_design_axial_action_kn": 0,
+                "member_design_axial_capacity_kn": 100,
+                "full_contact_bearing_verified": True,
+                "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+                "actual_design_moment_knm": 0,
+                "member_design_moment_capacity_knm": 100,
+                "splice_between_effective_lateral_supports_verified": True,
+                "excluded_connection_arrangement_absent_verified": True,
+            }
+        )
+
+
 def test_bolt_hand_benchmark():
     r = run_connections(bolt())
     # 0.8 * 0.62 * 830 * 225 / 1000 = 92.628 kN

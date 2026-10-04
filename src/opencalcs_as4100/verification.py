@@ -105,6 +105,137 @@ def verify():
         slender_gradient["values"]["effective_modulus_mm3"],
         100000 * (115 / 120) ** 2,
     )
+    compact_interaction = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 500,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 450,
+            "moment_x_knm": 10,
+            "moment_y_knm": 20,
+            "compact_doubly_symmetric_i_verified": True,
+        }
+    )
+    record(
+        "Clause 8.3.3(a) compact I-section minor-axis capacity, hand arithmetic",
+        compact_interaction["values"]["compact_section_reduced_y_knm"],
+        44.625,
+    )
+    record(
+        "Clause 8.3.4 compact biaxial exponent, hand arithmetic",
+        compact_interaction["values"]["compact_section_biaxial_gamma"],
+        1.9,
+    )
+    record(
+        "Clause 8.3.4 compact biaxial interaction, hand arithmetic",
+        compact_interaction["checks"]["compact_section_biaxial"]["utilisation"],
+        0.32328522582491365,
+        1e-12,
+    )
+    compact_kf_one_interaction = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 500,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 450,
+            "moment_x_knm": 10,
+            "moment_y_knm": 20,
+            "compact_doubly_symmetric_i_verified": True,
+            "compression_form_factor_one_verified": True,
+        }
+    )
+    record(
+        "Clause 8.3.2(a) compact major-axis capacity for kf=1.0, hand arithmetic",
+        compact_kf_one_interaction["values"]["compact_section_reduced_x_knm"],
+        59,
+    )
+    record(
+        "Clause 8.3.4 powered interaction with Clause 8.3.2(a), hand arithmetic",
+        compact_kf_one_interaction["checks"]["compact_section_biaxial"]["utilisation"],
+        0.30779756197106134,
+        1e-12,
+    )
+    compact_kf_below_one_interaction = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 500,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 450,
+            "moment_x_knm": 10,
+            "moment_y_knm": 20,
+            "compact_doubly_symmetric_i_verified": True,
+            "compression_form_factor_below_one_verified": True,
+            "compression_form_factor": 0.8,
+            "web_clear_width_mm": 65,
+            "web_thickness_mm": 1,
+            "web_yield_strength_mpa": 250,
+            "web_residual_stress_category": "HR",
+        }
+    )
+    record(
+        "Clause 6.2.3 web element slenderness, hand arithmetic",
+        compact_kf_below_one_interaction["values"]["compact_section_web_lambda_w"],
+        65,
+    )
+    record(
+        "Table 6.2.4 hot-rolled internal plate yield slenderness limit",
+        compact_kf_below_one_interaction["values"]["compact_section_web_lambda_wy"],
+        45,
+    )
+    record(
+        "Clause 8.3.2(b) compact major-axis capacity, hand arithmetic",
+        compact_kf_below_one_interaction["values"]["compact_section_reduced_x_knm"],
+        54.13513513513514,
+        1e-12,
+    )
+    record(
+        "Clause 8.3.4 powered interaction with Clause 8.3.2(b), hand arithmetic",
+        compact_kf_below_one_interaction["checks"]["compact_section_biaxial"]["utilisation"],
+        0.3152420180103579,
+        1e-12,
+    )
+    compact_rhs_interaction = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 500,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 450,
+            "moment_x_knm": 10,
+            "moment_y_knm": 20,
+            "compact_rhs_shs_verified": True,
+        }
+    )
+    record(
+        "Clause 8.3.3(b) compact RHS/SHS minor-axis capacity, hand arithmetic",
+        compact_rhs_interaction["values"]["compact_section_reduced_y_knm"],
+        29.5,
+    )
+    record(
+        "Clause 8.3.4 compact RHS/SHS biaxial interaction, hand arithmetic",
+        compact_rhs_interaction["checks"]["compact_section_biaxial"]["utilisation"],
+        0.6411580100977792,
+        1e-12,
+    )
     for slenderness, expected in [(50, 0.808), (100, 0.485)]:
         record(
             f"Table 6.3.3(C), alpha_b=0.5, lambda={slenderness}",
@@ -732,6 +863,249 @@ def verify():
         bolt["checks"]["shear"]["design_capacity_kn"],
         92.628,
     )
+    beam_connection_shear = run_connections(
+        {
+            "check_type": "minimum_beam_shear_action",
+            "actual_design_shear_kn": 10,
+            "member_design_shear_capacity_kn": 200,
+            "simple_construction_beam_connection_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(ii) simple-beam minimum shear, 0.15 branch",
+        beam_connection_shear["intermediate"]["minimum_design_shear_kn"],
+        30,
+    )
+    beam_connection_shear_cap = run_connections(
+        {
+            "check_type": "minimum_beam_shear_action",
+            "actual_design_shear_kn": 10,
+            "member_design_shear_capacity_kn": 400,
+            "simple_construction_beam_connection_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(ii) simple-beam minimum shear, 40 kN cap",
+        beam_connection_shear_cap["intermediate"]["minimum_design_shear_kn"],
+        40,
+    )
+    beam_connection_governing_shear = run_connections(
+        {
+            "check_type": "minimum_beam_shear_action",
+            "actual_design_shear_kn": 60,
+            "member_design_shear_capacity_kn": 400,
+            "simple_construction_beam_connection_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4 actual member shear governs the minimum",
+        beam_connection_governing_shear["intermediate"]["required_design_shear_kn"],
+        60,
+    )
+    rigid_connection_action = run_connections(
+        {
+            "check_type": "minimum_rigid_connection_action",
+            "rigid_construction_connection_verified": True,
+            "actual_design_moment_knm": 20,
+            "member_design_moment_capacity_knm": 100,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(i) rigid connection minimum moment",
+        rigid_connection_action["intermediate"]["required_design_moment_knm"],
+        50,
+    )
+    member_end_action = run_connections(
+        {
+            "check_type": "minimum_member_end_action",
+            "connection_at_member_end_verified": True,
+            "member_end_case": "tension_member_end",
+            "actual_design_axial_action_kn": 20,
+            "member_design_axial_capacity_kn": 200,
+            "threaded_bracing_turnbuckle_arrangement_verified": False,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(iii) member-end axial action minimum",
+        member_end_action["intermediate"]["required_design_axial_action_kn"],
+        60,
+    )
+    threaded_bracing_action = run_connections(
+        {
+            "check_type": "minimum_member_end_action",
+            "connection_at_member_end_verified": True,
+            "member_end_case": "threaded_tension_bracing_with_turnbuckles",
+            "actual_design_axial_action_kn": 20,
+            "member_design_axial_capacity_kn": 200,
+            "threaded_bracing_turnbuckle_arrangement_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(iii) threaded bracing turnbuckle exception",
+        threaded_bracing_action["intermediate"]["required_design_axial_action_kn"],
+        200,
+    )
+    tension_splice_action = run_connections(
+        {
+            "check_type": "minimum_axial_splice_action",
+            "axial_member_splice_verified": True,
+            "splice_case": "axial_tension",
+            "actual_design_axial_action_kn": 20,
+            "member_design_axial_capacity_kn": 200,
+            "full_contact_bearing_verified": False,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(iv) axial tension splice minimum",
+        tension_splice_action["intermediate"]["required_design_axial_action_kn"],
+        60,
+    )
+    compression_full_contact_action = run_connections(
+        {
+            "check_type": "minimum_axial_splice_action",
+            "axial_member_splice_verified": True,
+            "splice_case": "compression_full_contact",
+            "actual_design_axial_action_kn": 20,
+            "member_design_axial_capacity_kn": 200,
+            "full_contact_bearing_verified": True,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(v) full-contact compression splice minimum",
+        compression_full_contact_action["intermediate"]["required_design_axial_action_kn"],
+        30,
+    )
+    compression_splice_action = run_connections(
+        {
+            "check_type": "minimum_axial_splice_action",
+            "axial_member_splice_verified": True,
+            "splice_case": "compression_not_full_contact",
+            "actual_design_axial_action_kn": 20,
+            "member_design_axial_capacity_kn": 200,
+            "full_contact_bearing_verified": False,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(v) non-full-contact compression splice minimum",
+        compression_splice_action["intermediate"]["required_design_axial_action_kn"],
+        60,
+    )
+    compression_splice_between_supports = run_connections(
+        {
+            "check_type": "minimum_compression_splice_between_supports",
+            "compression_member_splice_verified": True,
+            "actual_design_axial_action_kn": 50,
+            "actual_design_moment_knm": 20,
+            "member_design_axial_capacity_kn": 400,
+            "full_contact_bearing_verified": True,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+            "splice_between_effective_lateral_supports_verified": True,
+            "effective_lateral_support_distance_mm": 3000,
+            "amplification_factor_type": "delta_s",
+            "amplification_factor": 1.5,
+            "amplification_factor_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(v) compression splice amplified minimum moment",
+        compression_splice_between_supports["intermediate"]["required_design_moment_knm"],
+        270,
+    )
+    combined_tension_splice = run_connections(
+        {
+            "check_type": "minimum_combined_splice_actions",
+            "combined_axial_bending_splice_verified": True,
+            "splice_case": "axial_tension",
+            "actual_design_axial_action_kn": 20,
+            "member_design_axial_capacity_kn": 200,
+            "full_contact_bearing_verified": False,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+            "actual_design_moment_knm": 20,
+            "member_design_moment_capacity_knm": 200,
+            "splice_between_effective_lateral_supports_verified": False,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(vii) combined axial tension splice force",
+        combined_tension_splice["intermediate"]["required_design_axial_action_kn"],
+        60,
+    )
+    record(
+        "Clause 9.1.4(b)(vii) combined flexural splice moment",
+        combined_tension_splice["intermediate"]["required_design_moment_knm"],
+        60,
+    )
+    combined_compression_splice = run_connections(
+        {
+            "check_type": "minimum_combined_splice_actions",
+            "combined_axial_bending_splice_verified": True,
+            "splice_case": "compression_not_full_contact",
+            "actual_design_axial_action_kn": 50,
+            "member_design_axial_capacity_kn": 400,
+            "full_contact_bearing_verified": False,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": True,
+            "actual_design_moment_knm": 100,
+            "member_design_moment_capacity_knm": 500,
+            "splice_between_effective_lateral_supports_verified": True,
+            "effective_lateral_support_distance_mm": 3000,
+            "amplification_factor_type": "delta_s",
+            "amplification_factor": 1.5,
+            "amplification_factor_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(vii) combined compression splice axial force",
+        combined_compression_splice["intermediate"]["required_design_axial_action_kn"],
+        120,
+    )
+    record(
+        "Clause 9.1.4(b)(vii) combined compression splice moment",
+        combined_compression_splice["intermediate"]["required_design_moment_knm"],
+        540,
+    )
+    flexural_splice_action = run_connections(
+        {
+            "check_type": "minimum_flexural_splice_action",
+            "flexural_splice_not_shear_only_verified": True,
+            "actual_design_moment_knm": 20,
+            "member_design_moment_capacity_knm": 200,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(vi) flexural splice minimum moment",
+        flexural_splice_action["intermediate"]["required_design_moment_knm"],
+        60,
+    )
+    shear_only_splice_action = run_connections(
+        {
+            "check_type": "shear_only_splice_eccentric_action",
+            "actual_design_shear_kn": 50,
+            "force_eccentricity_mm": 100,
+            "shear_only_splice_verified": True,
+            "excluded_connection_arrangement_absent_verified": True,
+        }
+    )
+    record(
+        "Clause 9.1.4(b)(vi) shear-only splice eccentric moment",
+        shear_only_splice_action["intermediate"]["required_design_moment_knm"],
+        5,
+    )
     fillet_weld = run_connections(
         {
             "check_type": "fillet_design",
@@ -817,6 +1191,7 @@ def verify():
             "midpoint_moment_3_knm": 100,
             "quarter_point_moment_4_knm": 80,
             "moment_diagram_verified": True,
+            "both_ends_restrained_verified": True,
         }
     )
     record(
@@ -825,6 +1200,33 @@ def verify():
         1.1258525035052873,
         1e-12,
     )
+    table_moment_cases = [
+        ("end_moments", {"beta_m": 0.5}, 2.35),
+        ("two_symmetric_point_loads", {"twice_a_over_length": 0.4}, 1.126),
+        ("single_point_load", {"twice_a_over_length": 0.4}, 1.414),
+        ("midspan_point_load_with_one_end_moment", {"beta_m": 0.9}, 1.5),
+        ("midspan_point_load_with_equal_end_moments", {"beta_m": 0.5}, 1.53),
+        ("uniform_load_with_one_end_moment", {"beta_m": 0.8}, 1.55),
+        ("uniform_load_with_equal_end_moments", {"beta_m": 0.75}, 1.22),
+        ("uniform_moment", {}, 1.0),
+        ("point_load", {}, 1.75),
+        ("uniform_load", {}, 2.5),
+    ]
+    for load_case, case_inputs, expected in table_moment_cases:
+        table_moment = run_advanced_members(
+            {
+                "operation": "table_5_6_1_moment_factor",
+                "load_case": load_case,
+                "both_ends_restrained_verified": True,
+                "table_5_6_1_diagram_verified": True,
+                **case_inputs,
+            }
+        )
+        record(
+            f"Table 5.6.1 {load_case} moment factor, hand arithmetic",
+            table_moment["values"]["moment_factor"],
+            expected,
+        )
     unequal_flange_inputs = {
         "operation": "unequal_flange_bending",
         "section_capacity_knm": 200,
@@ -834,6 +1236,7 @@ def verify():
         "effective_length_mm": 15_000,
         "moment_factor": 1.2,
         "moment_factor_verified": True,
+        "both_ends_restrained_verified": True,
         "action_knm": 120,
         "section_properties_verified": True,
         "constant_cross_section_verified": True,
@@ -885,6 +1288,7 @@ def verify():
             "reference_buckling_moment_verified": True,
             "moment_factor": 1.3,
             "moment_factor_verified": True,
+            "both_ends_restrained_verified": True,
             "action_knm": 60,
             "variation_type": "stepped",
             "segment_length_mm": 6000,
@@ -1223,6 +1627,7 @@ def verify():
             "angle_section_verified": True,
             "constant_cross_section_verified": True,
             "segment_without_full_lateral_restraint_verified": True,
+            "both_ends_restrained_verified": True,
         }
     )
     record(

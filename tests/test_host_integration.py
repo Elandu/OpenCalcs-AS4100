@@ -164,6 +164,47 @@ def test_family_http_validation(suffix):
             {"operation": "notional_horizontal_load", "floor_vertical_design_load_kn": 1000},
         ),
         (
+            "connection_design",
+            {
+                "check_type": "minimum_beam_shear_action",
+                "actual_design_shear_kn": 10,
+                "member_design_shear_capacity_kn": 200,
+                "simple_construction_beam_connection_verified": True,
+                "excluded_connection_arrangement_absent_verified": True,
+                "connection_design_shear_capacity_kn": 30,
+            },
+        ),
+        (
+            "connection_design",
+            {
+                "check_type": "minimum_rigid_connection_action",
+                "rigid_construction_connection_verified": True,
+                "actual_design_moment_knm": 20,
+                "member_design_moment_capacity_knm": 100,
+                "excluded_connection_arrangement_absent_verified": True,
+            },
+        ),
+        (
+            "connection_design",
+            {
+                "check_type": "minimum_combined_splice_actions",
+                "combined_axial_bending_splice_verified": True,
+                "splice_case": "compression_not_full_contact",
+                "actual_design_axial_action_kn": 50,
+                "member_design_axial_capacity_kn": 400,
+                "full_contact_bearing_verified": False,
+                "splice_parts_and_fasteners_hold_all_parts_in_line_verified": True,
+                "actual_design_moment_knm": 100,
+                "member_design_moment_capacity_knm": 500,
+                "splice_between_effective_lateral_supports_verified": True,
+                "effective_lateral_support_distance_mm": 3000,
+                "amplification_factor_type": "delta_s",
+                "amplification_factor": 1.5,
+                "amplification_factor_verified": True,
+                "excluded_connection_arrangement_absent_verified": True,
+            },
+        ),
+        (
             "webs",
             {
                 "operation": "longitudinal_stiffener",
@@ -403,6 +444,7 @@ def test_family_http_validation(suffix):
                 "midpoint_moment_3_knm": 100,
                 "quarter_point_moment_4_knm": 80,
                 "moment_diagram_verified": True,
+                "both_ends_restrained_verified": True,
             },
         ),
         (
@@ -416,6 +458,7 @@ def test_family_http_validation(suffix):
                 "effective_length_mm": 15_000,
                 "moment_factor": 1.2,
                 "moment_factor_verified": True,
+                "both_ends_restrained_verified": True,
                 "action_knm": 120,
                 "section_properties_verified": True,
                 "constant_cross_section_verified": True,
@@ -434,6 +477,7 @@ def test_family_http_validation(suffix):
                 "reference_buckling_moment_verified": True,
                 "moment_factor": 1.3,
                 "moment_factor_verified": True,
+                "both_ends_restrained_verified": True,
                 "action_knm": 60,
                 "variation_type": "stepped",
                 "segment_length_mm": 6000,
@@ -472,6 +516,17 @@ def test_extended_family_successful_http_execution(suffix, inputs):
             assert response.json()["values"]["required_web_thickness_mm"] == pytest.approx(5)
         if inputs.get("operation") == "web_opening_geometry":
             assert response.json()["checked_conditions_satisfied"]
+        if inputs.get("check_type") == "minimum_beam_shear_action":
+            assert response.json()["intermediate"]["required_design_shear_kn"] == pytest.approx(30)
+            assert response.json()["checks"]["connection_shear_capacity"]["satisfied"]
+        if inputs.get("check_type") == "minimum_rigid_connection_action":
+            assert response.json()["intermediate"]["required_design_moment_knm"] == pytest.approx(
+                50
+            )
+        if inputs.get("check_type") == "minimum_combined_splice_actions":
+            assert response.json()["intermediate"]["required_design_moment_knm"] == pytest.approx(
+                540
+            )
         if inputs.get("operation") == "chs_shear":
             assert response.json()["values"]["effective_shear_area_mm2"] == pytest.approx(2500)
             assert response.json()["checks"]["shear_bending"]["satisfied"]

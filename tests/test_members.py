@@ -461,6 +461,223 @@ def test_general_interaction_independent_arithmetic():
     assert out["checks"]["section_combined"]["utilisation"] == pytest.approx(0.3222222222)
     out = run_members(interaction("tension"))
     assert out["values"]["out_of_plane_x_knm"] == pytest.approx(77)
+    assert "compact_section_reduced_y_knm" not in out["values"]
+
+
+def test_clause_8_3_3a_and_8_3_4_compact_i_section_hand_arithmetic():
+    d = interaction()
+    d.update(
+        axial_action_kn=450,
+        moment_x_knm=10,
+        moment_y_knm=20,
+        compact_doubly_symmetric_i_verified=True,
+    )
+    out = run_members(d)
+    values = out["values"]
+
+    # N*/(phi Ns)=0.5; Clause 8.3.3(a) gives 1.19*50*(1-0.5^2)=44.625.
+    assert values["compact_section_reduced_x_knm"] == 50
+    assert values["compact_section_reduced_y_knm"] == pytest.approx(44.625)
+    assert values["compact_section_design_capacity_x_knm"] == 45
+    assert values["compact_section_design_capacity_y_knm"] == pytest.approx(40.1625)
+    assert values["compact_section_biaxial_gamma"] == pytest.approx(1.9)
+    assert values["compact_section_x_reduction_method"] == "8.3.2 general"
+    # Clause 8.3.4: (10/45)^1.9 + (20/40.1625)^1.9.
+    assert out["checks"]["compact_section_biaxial"]["utilisation"] == pytest.approx(
+        0.32328522582491365
+    )
+    assert out["checks"]["compact_section_biaxial"]["satisfied"]
+    assert out["checks"]["compact_minor_axis_component"]["satisfied"]
+    assert {"clause": "8.3.3(a)"} in out["trace"]
+
+
+def test_clause_8_3_2a_compact_major_axis_route_for_tension_and_kf_one_compression():
+    d = interaction()
+    d.update(
+        axial_action_kn=450,
+        moment_x_knm=10,
+        moment_y_knm=20,
+        compact_doubly_symmetric_i_verified=True,
+        compression_form_factor_one_verified=True,
+    )
+    compression_out = run_members(d)
+    assert compression_out["values"]["compact_section_reduced_x_knm"] == 59
+    assert compression_out["values"]["compact_section_x_reduction_method"] == "8.3.2(a)"
+    assert {"clause": "8.3.2(a)"} in compression_out["trace"]
+    assert compression_out["checks"]["compact_section_biaxial"]["utilisation"] == pytest.approx(
+        0.30779756197106134
+    )
+
+    d = interaction("tension")
+    d.update(
+        axial_action_kn=450,
+        compact_doubly_symmetric_i_verified=True,
+    )
+    tension_out = run_members(d)
+    assert tension_out["values"]["compact_section_reduced_x_knm"] == 59
+    assert tension_out["values"]["compact_section_x_reduction_method"] == "8.3.2(a)"
+
+
+def test_clause_8_3_2a_kf_confirmation_cannot_be_used_outside_its_scope():
+    d = interaction()
+    d["compression_form_factor_one_verified"] = True
+    with pytest.raises(ValueError, match="requires a verified compact"):
+        run_members(d)
+
+    d["compact_doubly_symmetric_i_verified"] = True
+    d["axial_mode"] = "tension"
+    with pytest.raises(ValueError, match="applies only to compression"):
+        run_members(d)
+
+
+def test_clause_8_3_2b_compact_major_axis_route_uses_web_slenderness_hand_arithmetic():
+    d = interaction()
+    d.update(
+        axial_action_kn=450,
+        moment_x_knm=10,
+        moment_y_knm=20,
+        compact_doubly_symmetric_i_verified=True,
+        compression_form_factor_below_one_verified=True,
+        compression_form_factor=0.8,
+        web_clear_width_mm=65,
+        web_thickness_mm=1,
+        web_yield_strength_mpa=250,
+        web_residual_stress_category="HR",
+    )
+
+    out = run_members(d)
+    values = out["values"]
+    assert values["compact_section_compression_form_factor"] == 0.8
+    assert values["compact_section_web_lambda_w"] == 65
+    assert values["compact_section_web_lambda_wy"] == 45
+    assert values["compact_section_x_reduction_factor"] == pytest.approx(
+        1 + 0.18 * (82 - 65) / (82 - 45)
+    )
+    assert values["compact_section_reduced_x_knm"] == pytest.approx(54.13513513513514)
+    assert values["compact_section_x_reduction_method"] == "8.3.2(b)"
+    assert out["checks"]["compact_section_biaxial"]["utilisation"] == pytest.approx(
+        0.3152420180103579
+    )
+    assert {"clause": "8.3.2(b)"} in out["trace"]
+
+
+@pytest.mark.parametrize(
+    "residual_stress,expected_limit",
+    [("SR", 45), ("HR", 45), ("LW", 40), ("CF", 40), ("HW", 35)],
+)
+def test_clause_8_3_2b_uses_table_6_2_4_internal_web_yield_limit(residual_stress, expected_limit):
+    d = interaction()
+    d.update(
+        compact_rhs_shs_verified=True,
+        compression_form_factor_below_one_verified=True,
+        compression_form_factor=0.8,
+        web_clear_width_mm=20,
+        web_thickness_mm=1,
+        web_yield_strength_mpa=250,
+        web_residual_stress_category=residual_stress,
+    )
+    out = run_members(d)
+    assert out["values"]["compact_section_web_lambda_wy"] == expected_limit
+
+
+def test_clause_8_3_2b_rejects_inconsistent_scope_and_web_compactness():
+    d = interaction()
+    d.update(
+        compact_doubly_symmetric_i_verified=True,
+        compression_form_factor_below_one_verified=True,
+        compression_form_factor=1.0,
+        web_clear_width_mm=20,
+        web_thickness_mm=1,
+        web_yield_strength_mpa=250,
+        web_residual_stress_category="HR",
+    )
+    with pytest.raises(ValueError, match="kf<1.0"):
+        run_members(d)
+
+    d["compression_form_factor"] = 0.8
+    d["web_clear_width_mm"] = 83
+    with pytest.raises(ValueError, match="Clause 5.2.3 compactness limit"):
+        run_members(d)
+
+    d["web_clear_width_mm"] = 20
+    d["axial_mode"] = "tension"
+    with pytest.raises(ValueError, match="applies only to compression"):
+        run_members(d)
+
+
+def test_clause_8_3_2b_web_compactness_boundary_and_section_capacity_cap():
+    d = interaction()
+    d.update(
+        axial_action_kn=450,
+        compact_doubly_symmetric_i_verified=True,
+        compression_form_factor_below_one_verified=True,
+        compression_form_factor=0.8,
+        web_clear_width_mm=82,
+        web_thickness_mm=1,
+        web_yield_strength_mpa=250,
+        web_residual_stress_category="HW",
+    )
+    boundary = run_members(d)["values"]
+    assert boundary["compact_section_web_lambda_w"] == 82
+    assert boundary["compact_section_web_lambda_wy"] == 35
+    assert boundary["compact_section_x_reduction_factor"] == pytest.approx(1)
+    assert boundary["compact_section_reduced_x_knm"] == pytest.approx(50)
+
+    d.update(axial_action_kn=0, web_clear_width_mm=20)
+    capped = run_members(d)["values"]
+    assert capped["compact_section_x_reduction_factor"] > 1
+    assert capped["compact_section_reduced_x_knm"] == 100
+
+
+def test_clause_8_3_3b_rhs_shs_minor_axis_and_compact_biaxial_interaction():
+    d = interaction()
+    d.update(
+        axial_action_kn=450,
+        moment_x_knm=10,
+        moment_y_knm=20,
+        compact_rhs_shs_verified=True,
+    )
+    out = run_members(d)
+    assert out["values"]["compact_section_reduced_y_knm"] == pytest.approx(29.5)
+    assert out["values"]["compact_section_design_capacity_y_knm"] == pytest.approx(26.55)
+    assert out["values"]["compact_section_y_reduction_method"] == "8.3.3(b)"
+    assert out["checks"]["compact_section_biaxial"]["utilisation"] == pytest.approx(
+        0.6411580100977792
+    )
+    assert {"clause": "8.3.3(b)"} in out["trace"]
+
+
+def test_compact_interaction_rejects_two_competing_section_type_confirmations():
+    d = interaction()
+    d["compact_doubly_symmetric_i_verified"] = True
+    d["compact_rhs_shs_verified"] = True
+    with pytest.raises(ValueError, match="Select one verified compact section type"):
+        run_members(d)
+
+
+def test_clause_8_3_3a_caps_at_msy_and_fails_after_axial_overload():
+    d = interaction()
+    d.update(compact_doubly_symmetric_i_verified=True, axial_action_kn=0)
+    assert run_members(d)["values"]["compact_section_reduced_y_knm"] == 50
+
+    d.update(axial_action_kn=1000, moment_x_knm=0, moment_y_knm=0)
+    zero_moment = run_members(d)
+    assert not zero_moment["checks"]["compact_minor_axis_component"]["satisfied"]
+    assert not zero_moment["checks"]["compact_section_biaxial"]["satisfied"]
+
+    d.update(axial_action_kn=1000, moment_x_knm=0, moment_y_knm=1)
+    out = run_members(d)
+    assert out["values"]["compact_section_reduced_y_knm"] == 0
+    assert out["checks"]["compact_minor_axis_component"]["satisfied"] is False
+    assert out["checks"]["compact_section_biaxial"]["utilisation"] is None
+    assert out["checks"]["compact_section_biaxial"]["satisfied"] is False
+
+
+def test_compact_interaction_route_requires_explicit_positive_scope_confirmation():
+    d = interaction()
+    d["compact_doubly_symmetric_i_verified"] = False
+    with pytest.raises(ValueError):
+        run_members(d)
 
 
 def test_axial_failure_does_not_pass_zero_moment_interaction():

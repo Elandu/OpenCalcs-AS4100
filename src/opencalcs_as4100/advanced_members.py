@@ -168,6 +168,7 @@ def _unequal_flange_bending_schema():
         "effective_length_mm": P,
         "moment_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 2.5},
         "moment_factor_verified": VERIFIED,
+        "both_ends_restrained_verified": VERIFIED,
         "action_knm": N,
         "section_properties_verified": VERIFIED,
         "constant_cross_section_verified": VERIFIED,
@@ -203,8 +204,42 @@ def _moment_modification_factor_schema():
             "midpoint_moment_3_knm": N,
             "quarter_point_moment_4_knm": N,
             "moment_diagram_verified": VERIFIED,
+            "both_ends_restrained_verified": VERIFIED,
         },
     )
+
+
+def _table_5_6_1_moment_factor_schema():
+    variants = []
+    common = {
+        "table_5_6_1_diagram_verified": VERIFIED,
+        "both_ends_restrained_verified": VERIFIED,
+    }
+    beta = {"type": "number", "minimum": 0, "maximum": 1}
+    twice_a_over_length = {"type": "number", "minimum": 0, "maximum": 1}
+
+    def add(load_case, properties):
+        variants.append(
+            object_schema(
+                {
+                    "operation": {"const": "table_5_6_1_moment_factor"},
+                    "load_case": {"const": load_case},
+                    **common,
+                    **properties,
+                }
+            )
+        )
+
+    add("end_moments", {"beta_m": {"type": "number", "minimum": -1, "maximum": 1}})
+    add("two_symmetric_point_loads", {"twice_a_over_length": twice_a_over_length})
+    add("single_point_load", {"twice_a_over_length": twice_a_over_length})
+    add("midspan_point_load_with_one_end_moment", {"beta_m": beta})
+    add("midspan_point_load_with_equal_end_moments", {"beta_m": beta})
+    add("uniform_load_with_one_end_moment", {"beta_m": beta})
+    add("uniform_load_with_equal_end_moments", {"beta_m": beta})
+    for load_case in ("uniform_moment", "point_load", "uniform_load"):
+        add(load_case, {})
+    return {"oneOf": variants}
 
 
 def _angle_eccentricity_schema():
@@ -262,6 +297,7 @@ def _angle_section_bending_schema():
             "angle_section_verified": VERIFIED,
             "constant_cross_section_verified": VERIFIED,
             "segment_without_full_lateral_restraint_verified": VERIFIED,
+            "both_ends_restrained_verified": VERIFIED,
         },
     )
 
@@ -314,6 +350,7 @@ def _varying_section_bending_schema():
         "reference_buckling_moment_verified": VERIFIED,
         "moment_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 2.5},
         "moment_factor_verified": VERIFIED,
+        "both_ends_restrained_verified": VERIFIED,
         "action_knm": N,
     }
     variants = [
@@ -405,6 +442,7 @@ SCHEMAS = {
     ),
     "critical_flange": _critical_flange_schema(),
     "moment_modification_factor": _moment_modification_factor_schema(),
+    "table_5_6_1_moment_factor": _table_5_6_1_moment_factor_schema(),
     "unequal_flange_bending": _unequal_flange_bending_schema(),
     "varying_section_bending": _varying_section_bending_schema(),
     "varying_compression": _schema(
@@ -949,9 +987,53 @@ def run_advanced_members(inputs):
                 "The supplied moments are nonnegative design-moment magnitudes from the "
                 "same segment; the maximum moment and quarter-point/midpoint values must "
                 "represent the assessed moment diagram.",
+                "Both ends of the segment must be fully or partially restrained under "
+                "Clause 5.6.1.",
                 "Use this equation for the moment-modification-factor option in Clause "
                 "5.6.1.1(a). Table 5.6.1 and elastic-buckling alternatives remain separate "
                 "assessed paths.",
+            ],
+        )
+    if op == "table_5_6_1_moment_factor":
+        load_case = d["load_case"]
+        beta = d.get("beta_m")
+        ratio = d.get("twice_a_over_length")
+        if load_case == "end_moments":
+            factor = 1.75 + 1.05 * beta + 0.3 * beta**2 if beta <= 0.6 else 2.5
+        elif load_case == "two_symmetric_point_loads":
+            factor = 1.0 + 0.35 * (1 - ratio) ** 2
+        elif load_case == "single_point_load":
+            factor = 1.35 + 0.4 * ratio**2
+        elif load_case == "midspan_point_load_with_one_end_moment":
+            factor = 1.35 + 0.15 * beta if beta < 0.9 else -1.2 + 3.0 * beta
+        elif load_case == "midspan_point_load_with_equal_end_moments":
+            factor = 1.35 + 0.36 * beta
+        elif load_case == "uniform_load_with_one_end_moment":
+            factor = 1.13 + 0.10 * beta if beta <= 0.7 else -1.25 + 3.5 * beta
+        elif load_case == "uniform_load_with_equal_end_moments":
+            factor = 1.13 + 0.12 * beta if beta <= 0.75 else -2.38 + 4.8 * beta
+        elif load_case == "uniform_moment":
+            factor = 1.0
+        elif load_case == "point_load":
+            factor = 1.75
+        else:
+            factor = 2.5
+        values = {"load_case": load_case, "moment_factor": factor}
+        if beta is not None:
+            values["beta_m"] = beta
+        if ratio is not None:
+            values["twice_a_over_length"] = ratio
+        return result(
+            op,
+            ["5.6.1", "Table 5.6.1"],
+            values,
+            [],
+            [
+                "Select and verify the exact Table 5.6.1 moment-distribution diagram; both "
+                "segment ends must be fully or partially restrained.",
+                "For the selected diagram, supply beta_m or 2a/l exactly as defined in the "
+                "table. This operation returns alpha_m only; establish the reference buckling "
+                "moment and complete the member capacity check separately.",
             ],
         )
     if op == "unequal_flange_bending":
@@ -1000,6 +1082,7 @@ def run_advanced_members(inputs):
             },
             [capacity_check("5.6.1.2", mb, d["action_knm"])],
             [
+                "Verify full or partial restraint at both ends under Clause 5.6.1.",
                 "Use gross-section Ms from Clause 5.2 and effective length including the "
                 "applicable Clause 5.6.3 factors.",
                 "Verify section properties and compression-flange selection. Clause "
@@ -1064,6 +1147,7 @@ def run_advanced_members(inputs):
             },
             [capacity_check("5.6.1.1(b)", mb, d["action_knm"])],
             [
+                "Verify full or partial restraint at both ends under Clause 5.6.1.",
                 "The supplied nominal section capacity and reference buckling moment must "
                 "both use the verified minimum cross-section for method (i), or the "
                 "verified critical cross-section for method (ii).",
@@ -1552,7 +1636,8 @@ def run_advanced_members(inputs):
             [],
             [
                 "Applies to constant-cross-section angle members without full lateral "
-                "restraint. Supply gross-section Ms from Clause 5.2 and angle Iy/J values.",
+                "restraint, with restraint conditions verified at both ends under Clause 5.6.1. "
+                "Supply gross-section Ms from Clause 5.2 and angle Iy/J values.",
                 "Clause 5.6.1.3 specifies Iw=0. The effective length must include the "
                 "applicable Clause 5.6.3 assessment.",
                 "Select alpha_m independently under Clause 5.6.1.1(1); this operation "

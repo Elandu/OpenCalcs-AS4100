@@ -33,6 +33,7 @@ def _variant(operation, properties, required):
 P = _number(positive=True)
 N = _number()
 R = {"type": "string", "enum": ["SR", "HR", "CF", "LW", "HW"]}
+INTERNAL_PLATE_YIELD_LIMITS = {"SR": 45, "HR": 45, "LW": 40, "CF": 40, "HW": 35}
 PLATE = {
     "type": "object",
     "properties": {
@@ -307,6 +308,19 @@ INPUT_SCHEMA = {
                 "axial_action_kn": N,
                 "moment_x_knm": N,
                 "moment_y_knm": N,
+                "compact_doubly_symmetric_i_verified": {"const": True},
+                "compact_rhs_shs_verified": {"const": True},
+                "compression_form_factor_one_verified": {"const": True},
+                "compression_form_factor_below_one_verified": {"const": True},
+                "compression_form_factor": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1,
+                },
+                "web_clear_width_mm": P,
+                "web_thickness_mm": P,
+                "web_yield_strength_mpa": P,
+                "web_residual_stress_category": R,
             },
             [
                 "axial_mode",
@@ -404,7 +418,7 @@ def _plate(d):
         lp, ly = 82, 115
         compression_limit = None
     elif edge == "both":
-        lp, ly = 30, {"SR": 45, "HR": 45, "LW": 40, "CF": 40, "HW": 35}[residual]
+        lp, ly = 30, INTERNAL_PLATE_YIELD_LIMITS[residual]
         compression_limit = ly
     else:
         lp = {"SR": 10, "HR": 9, "CF": 8, "LW": 8, "HW": 8}[residual]
@@ -820,6 +834,57 @@ def _interaction(d):
     mb = d["member_moment_x_knm"]
     if mb > msx:
         raise ValueError("Member moment capacity must not exceed section capacity.")
+    compact_i_verified = d.get("compact_doubly_symmetric_i_verified", False)
+    compact_rhs_shs_verified = d.get("compact_rhs_shs_verified", False)
+    kf_one_verified = d.get("compression_form_factor_one_verified", False)
+    kf_below_one_verified = d.get("compression_form_factor_below_one_verified", False)
+    web_input_names = (
+        "compression_form_factor",
+        "web_clear_width_mm",
+        "web_thickness_mm",
+        "web_yield_strength_mpa",
+        "web_residual_stress_category",
+    )
+    has_web_route_inputs = any(name in d for name in web_input_names)
+    if compact_i_verified and compact_rhs_shs_verified:
+        raise ValueError("Select one verified compact section type for the Clause 8.3 route.")
+    if kf_one_verified and kf_below_one_verified:
+        raise ValueError("Select one Clause 8.3.2 compression form-factor route.")
+    if kf_one_verified and not (compact_i_verified or compact_rhs_shs_verified):
+        raise ValueError("Clause 8.3.2(a) requires a verified compact section route.")
+    if kf_one_verified and d["axial_mode"] != "compression":
+        raise ValueError("The kf=1.0 confirmation applies only to compression members.")
+    if has_web_route_inputs and not kf_below_one_verified:
+        raise ValueError("Clause 8.3.2(b) inputs require its explicit verification flag.")
+    web_route = None
+    if kf_below_one_verified:
+        if d["axial_mode"] != "compression":
+            raise ValueError("Clause 8.3.2(b) applies only to compression members.")
+        if not (compact_i_verified or compact_rhs_shs_verified):
+            raise ValueError("Clause 8.3.2(b) requires a verified compact section route.")
+        missing = [name for name in web_input_names if name not in d]
+        if missing:
+            raise ValueError(
+                "Clause 8.3.2(b) requires the form factor and web geometry/material inputs."
+            )
+        kf = d["compression_form_factor"]
+        if kf >= 1.0:
+            raise ValueError("Clause 8.3.2(b) requires a verified compression form factor kf<1.0.")
+        web_slenderness = (
+            d["web_clear_width_mm"]
+            / d["web_thickness_mm"]
+            * sqrt(d["web_yield_strength_mpa"] / 250)
+        )
+        web_yield_limit = INTERNAL_PLATE_YIELD_LIMITS[d["web_residual_stress_category"]]
+        if web_slenderness > 82:
+            raise ValueError(
+                "Clause 8.3.2(b) web slenderness exceeds the Clause 5.2.3 compactness limit."
+            )
+        web_route = {
+            "compression_form_factor": kf,
+            "web_slenderness": web_slenderness,
+            "web_yield_limit": web_yield_limit,
+        }
     ratio = n / (phi * ns)
     mrx, mry = msx * max(0, 1 - ratio), msy * max(0, 1 - ratio)
     if d["axial_mode"] == "compression":
@@ -856,22 +921,115 @@ def _interaction(d):
         checks["member_combined"]["satisfied"] &= all(
             checks[key]["satisfied"] for key in ("member_axial_x", "member_axial_y")
         )
+    values = {
+        "section_reduced_x_knm": mrx,
+        "section_reduced_y_knm": mry,
+        "in_plane_x_knm": mix,
+        "in_plane_y_knm": miy,
+        "out_of_plane_x_knm": mox,
+    }
+    clauses = ["8.3.2", "8.3.3", "8.3.4", "8.4.2", "8.4.4", "8.4.5"]
+    manual = [
+        "Elastic analysis only; moments must satisfy 8.2 second-order requirements.",
+        "Section general linear paths used; optional compact-section enhancements omitted.",
+        "Compression in-plane effective-length assumptions must satisfy 8.4.2.2.",
+        "Special eccentrically connected angle and plastic-analysis paths excluded.",
+    ]
+    if compact_i_verified or compact_rhs_shs_verified:
+        compact_mrx = mrx
+        compact_x_method = "8.3.2 general"
+        compact_x_factor = None
+        if web_route is not None:
+            compact_x_factor = 1 + 0.18 * (82 - web_route["web_slenderness"]) / (
+                82 - web_route["web_yield_limit"]
+            )
+            compact_mrx = min(
+                msx,
+                max(0.0, msx * (1 - ratio) * compact_x_factor),
+            )
+            compact_x_method = "8.3.2(b)"
+        elif d["axial_mode"] == "tension" or kf_one_verified:
+            compact_mrx = min(msx, max(0.0, 1.18 * msx * (1 - ratio)))
+            compact_x_method = "8.3.2(a)"
+        if compact_i_verified:
+            compact_mry = min(msy, max(0.0, 1.19 * msy * (1 - ratio**2)))
+            compact_y_method = "8.3.3(a)"
+        else:
+            compact_mry = min(msy, max(0.0, 1.18 * msy * (1 - ratio)))
+            compact_y_method = "8.3.3(b)"
+        compact_gamma = min(1.4 + ratio, 2.0)
+        compact_x_design = phi * compact_mrx
+        compact_y_design = phi * compact_mry
+
+        def powered_term(action, capacity):
+            if capacity == 0:
+                return 0.0 if action == 0 else None
+            return (action / capacity) ** compact_gamma
+
+        x_term = powered_term(mx, compact_x_design)
+        y_term = powered_term(my, compact_y_design)
+        compact_biaxial_util = None if x_term is None or y_term is None else x_term + y_term
+        values.update(
+            {
+                "compact_section_reduced_x_knm": compact_mrx,
+                "compact_section_reduced_y_knm": compact_mry,
+                "compact_section_design_capacity_x_knm": compact_x_design,
+                "compact_section_design_capacity_y_knm": compact_y_design,
+                "compact_section_biaxial_gamma": compact_gamma,
+                "compact_section_x_reduction_method": compact_x_method,
+                "compact_section_y_reduction_method": compact_y_method,
+            }
+        )
+        if web_route is not None:
+            values.update(
+                {
+                    "compact_section_compression_form_factor": web_route["compression_form_factor"],
+                    "compact_section_web_lambda_w": web_route["web_slenderness"],
+                    "compact_section_web_lambda_wy": web_route["web_yield_limit"],
+                    "compact_section_x_reduction_factor": compact_x_factor,
+                }
+            )
+        compact_minor_check = _check(my, compact_y_design)
+        compact_minor_check["axial_capacity_satisfied"] = ratio <= 1
+        compact_minor_check["satisfied"] &= ratio <= 1
+        checks["compact_minor_axis_component"] = compact_minor_check
+        checks["compact_section_biaxial"] = {
+            "utilisation": compact_biaxial_util,
+            "satisfied": (
+                ratio <= 1 and compact_biaxial_util is not None and compact_biaxial_util <= 1
+            ),
+        }
+        clauses.append(compact_y_method)
+        if compact_x_method in ("8.3.2(a)", "8.3.2(b)"):
+            clauses.append(compact_x_method)
+        manual[1] = (
+            "The verified compact section route is reported alongside the "
+            "general linear section interaction."
+        )
+        manual.extend(
+            [
+                "The compact route requires independently verified Clause 5.2.3 compactness, "
+                "doubly symmetric I-section or AS/NZS 1163 RHS/SHS geometry as selected, "
+                "Clause 5.2 moment capacities and the Clause 6.2 or 7.2 axial capacity.",
+                "The compact biaxial check uses the general Clause 8.3.2 major-axis reduction "
+                "unless Clause 8.3.2(a) applies to tension or verified compression with kf=1.0, "
+                "or Clause 8.3.2(b) applies to verified compression with kf<1.0. It uses Clause "
+                "8.3.3(a) for I-sections or 8.3.3(b) for RHS/SHS. Repeat at all critical "
+                "sections along the member.",
+            ]
+        )
+        if web_route is not None:
+            manual.append(
+                "Verify that the supplied section axial capacity uses this Clause 6.2.2 form "
+                "factor, that the web clear width and yield strength are correct, and that the "
+                "residual-stress category matches the fabrication evidence. Other section "
+                "elements must also satisfy Clause 5.2.3 compactness."
+            )
     return (
-        {
-            "section_reduced_x_knm": mrx,
-            "section_reduced_y_knm": mry,
-            "in_plane_x_knm": mix,
-            "in_plane_y_knm": miy,
-            "out_of_plane_x_knm": mox,
-        },
+        values,
         checks,
-        ["8.3.2", "8.3.3", "8.3.4", "8.4.2", "8.4.4", "8.4.5"],
-        [
-            "Elastic analysis only; moments must satisfy 8.2 second-order requirements.",
-            "Section general linear paths used; optional compact-section enhancements omitted.",
-            "Compression in-plane effective-length assumptions must satisfy 8.4.2.2.",
-            "Special eccentrically connected angle and plastic-analysis paths excluded.",
-        ],
+        clauses,
+        manual,
     )
 
 

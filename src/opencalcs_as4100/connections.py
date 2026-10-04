@@ -13,11 +13,11 @@ def _number(minimum=0, positive=False):
     return {"type": "number", "exclusiveMinimum" if positive else "minimum": minimum}
 
 
-def _schema(kind, fields):
+def _schema(kind, fields, optional=()):
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["check_type", *fields],
+        "required": ["check_type", *(field for field in fields if field not in optional)],
         "properties": {"check_type": {"const": kind}, **fields},
     }
 
@@ -188,6 +188,106 @@ FIELDS = {
             },
         },
     },
+    "minimum_beam_shear_action": {
+        "actual_design_shear_kn": N,
+        "member_design_shear_capacity_kn": P,
+        "simple_construction_beam_connection_verified": {"const": True},
+        "excluded_connection_arrangement_absent_verified": {"const": True},
+        "connection_design_shear_capacity_kn": N,
+    },
+    "minimum_rigid_connection_action": {
+        "rigid_construction_connection_verified": {"const": True},
+        "actual_design_moment_knm": N,
+        "member_design_moment_capacity_knm": P,
+        "excluded_connection_arrangement_absent_verified": {"const": True},
+        "connection_design_moment_capacity_knm": N,
+    },
+    "minimum_member_end_action": {
+        "connection_at_member_end_verified": {"const": True},
+        "member_end_case": {
+            "enum": [
+                "tension_member_end",
+                "compression_member_end",
+                "threaded_tension_bracing_with_turnbuckles",
+            ]
+        },
+        "actual_design_axial_action_kn": N,
+        "member_design_axial_capacity_kn": P,
+        "threaded_bracing_turnbuckle_arrangement_verified": BOOL,
+        "excluded_connection_arrangement_absent_verified": {"const": True},
+        "connection_design_axial_capacity_kn": N,
+    },
+    "minimum_axial_splice_action": {
+        "axial_member_splice_verified": {"const": True},
+        "splice_case": {
+            "enum": [
+                "axial_tension",
+                "compression_full_contact",
+                "compression_not_full_contact",
+            ]
+        },
+        "actual_design_axial_action_kn": N,
+        "member_design_axial_capacity_kn": P,
+        "full_contact_bearing_verified": BOOL,
+        "splice_parts_and_fasteners_hold_all_parts_in_line_verified": BOOL,
+        "excluded_connection_arrangement_absent_verified": {"const": True},
+        "connection_design_axial_capacity_kn": N,
+    },
+    "minimum_combined_splice_actions": {
+        "combined_axial_bending_splice_verified": {"const": True},
+        "splice_case": {
+            "enum": [
+                "axial_tension",
+                "compression_full_contact",
+                "compression_not_full_contact",
+            ]
+        },
+        "actual_design_axial_action_kn": N,
+        "member_design_axial_capacity_kn": P,
+        "full_contact_bearing_verified": BOOL,
+        "splice_parts_and_fasteners_hold_all_parts_in_line_verified": BOOL,
+        "actual_design_moment_knm": N,
+        "member_design_moment_capacity_knm": P,
+        "splice_between_effective_lateral_supports_verified": BOOL,
+        "effective_lateral_support_distance_mm": P,
+        "amplification_factor_type": {"enum": ["delta_b", "delta_s"]},
+        "amplification_factor": P,
+        "amplification_factor_verified": {"const": True},
+        "excluded_connection_arrangement_absent_verified": {"const": True},
+        "connection_design_axial_capacity_kn": N,
+        "connection_design_moment_capacity_knm": N,
+    },
+    "minimum_compression_splice_between_supports": {
+        "compression_member_splice_verified": {"const": True},
+        "actual_design_axial_action_kn": N,
+        "actual_design_moment_knm": N,
+        "member_design_axial_capacity_kn": P,
+        "full_contact_bearing_verified": BOOL,
+        "splice_parts_and_fasteners_hold_all_parts_in_line_verified": BOOL,
+        "splice_between_effective_lateral_supports_verified": {"const": True},
+        "effective_lateral_support_distance_mm": P,
+        "amplification_factor_type": {"enum": ["delta_b", "delta_s"]},
+        "amplification_factor": P,
+        "amplification_factor_verified": {"const": True},
+        "excluded_connection_arrangement_absent_verified": {"const": True},
+        "connection_design_axial_capacity_kn": N,
+        "connection_design_moment_capacity_knm": N,
+    },
+    "minimum_flexural_splice_action": {
+        "flexural_splice_not_shear_only_verified": {"const": True},
+        "actual_design_moment_knm": N,
+        "member_design_moment_capacity_knm": P,
+        "excluded_connection_arrangement_absent_verified": {"const": True},
+        "connection_design_moment_capacity_knm": N,
+    },
+    "shear_only_splice_eccentric_action": {
+        "actual_design_shear_kn": N,
+        "force_eccentricity_mm": N,
+        "shear_only_splice_verified": {"const": True},
+        "excluded_connection_arrangement_absent_verified": {"const": True},
+        "connection_design_shear_capacity_kn": N,
+        "connection_design_moment_capacity_knm": N,
+    },
 }
 FIELDS["bolt_group"] = {
     **FIELDS["bolt"],
@@ -208,9 +308,33 @@ FIELDS["weld_group"] = {
     **{f"force_{a}_kn": SIGNED for a in "xyz"},
     **{f"moment_{a}_knm": SIGNED for a in "xyz"},
 }
+OPTIONAL_FIELDS = {
+    "minimum_beam_shear_action": ("connection_design_shear_capacity_kn",),
+    "minimum_rigid_connection_action": ("connection_design_moment_capacity_knm",),
+    "minimum_member_end_action": ("connection_design_axial_capacity_kn",),
+    "minimum_axial_splice_action": ("connection_design_axial_capacity_kn",),
+    "minimum_combined_splice_actions": (
+        "effective_lateral_support_distance_mm",
+        "amplification_factor_type",
+        "amplification_factor",
+        "amplification_factor_verified",
+        "connection_design_axial_capacity_kn",
+        "connection_design_moment_capacity_knm",
+    ),
+    "minimum_compression_splice_between_supports": (
+        "connection_design_axial_capacity_kn",
+        "connection_design_moment_capacity_knm",
+    ),
+    "minimum_flexural_splice_action": ("connection_design_moment_capacity_knm",),
+    "shear_only_splice_eccentric_action": (
+        "connection_design_shear_capacity_kn",
+        "connection_design_moment_capacity_knm",
+    ),
+}
+MINIMUM_ACTION_CHECKS = frozenset(OPTIONAL_FIELDS)
 INPUT_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "oneOf": [_schema(k, v) for k, v in FIELDS.items()],
+    "oneOf": [_schema(k, v, optional=OPTIONAL_FIELDS.get(k, ())) for k, v in FIELDS.items()],
 }
 OUTPUT_SCHEMA = {
     "type": "object",
@@ -244,6 +368,16 @@ def _check(capacity, phi, action, clause, unit="kn"):
         "capacity_factor": phi,
         "utilisation": action / design,
         "satisfied": action <= design,
+        "clause": clause,
+    }
+
+
+def _connection_capacity_check(action, capacity, unit, clause):
+    return {
+        f"design_action_{unit}": action,
+        f"design_capacity_{unit}": capacity,
+        "utilisation": action / capacity if capacity else None,
+        "satisfied": action <= capacity,
         "clause": clause,
     }
 
@@ -312,7 +446,301 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("All numeric inputs must be finite.")
     k = d["check_type"]
     c, intermediate = {}, {}
-    if k in {"bolt", "bolt_group"}:
+    if k in MINIMUM_ACTION_CHECKS:
+        excluded_absent = d["excluded_connection_arrangement_absent_verified"]
+        if not excluded_absent:
+            raise ValueError("Clause 9.1.4 excludes lacing, sag-rod, purlin and girt connections.")
+    if k == "minimum_beam_shear_action":
+        actual = d["actual_design_shear_kn"]
+        member_capacity = d["member_design_shear_capacity_kn"]
+        fractional_minimum = 0.15 * member_capacity
+        minimum = min(fractional_minimum, 40.0)
+        required = max(actual, minimum)
+        intermediate = {
+            "clause": "9.1.4(b)(ii)",
+            "actual_design_shear_kn": actual,
+            "member_design_shear_capacity_kn": member_capacity,
+            "fractional_minimum_shear_kn": fractional_minimum,
+            "minimum_design_shear_kn": minimum,
+            "required_design_shear_kn": required,
+            "governing_action": (
+                "actual_design_shear" if actual >= minimum else "minimum_design_shear"
+            ),
+            "minimum_fraction_of_member_design_capacity": 0.15,
+            "maximum_minimum_shear_kn": 40.0,
+            "member_capacity_includes_capacity_factor": True,
+        }
+        if "connection_design_shear_capacity_kn" in d:
+            capacity = d["connection_design_shear_capacity_kn"]
+            intermediate["connection_design_shear_capacity_kn"] = capacity
+            c["connection_shear_capacity"] = _connection_capacity_check(
+                required, capacity, "kn", "9.1.4(b)(ii)"
+            )
+    elif k == "minimum_rigid_connection_action":
+        actual = d["actual_design_moment_knm"]
+        minimum = 0.5 * d["member_design_moment_capacity_knm"]
+        required = max(actual, minimum)
+        intermediate = {
+            "clause": "9.1.4(b)(i)",
+            "actual_design_moment_knm": actual,
+            "member_design_moment_capacity_knm": d["member_design_moment_capacity_knm"],
+            "minimum_design_moment_knm": minimum,
+            "required_design_moment_knm": required,
+            "minimum_fraction_of_member_design_capacity": 0.5,
+        }
+        if "connection_design_moment_capacity_knm" in d:
+            capacity = d["connection_design_moment_capacity_knm"]
+            intermediate["connection_design_moment_capacity_knm"] = capacity
+            c["connection_moment_capacity"] = _connection_capacity_check(
+                required, capacity, "knm", "9.1.4(b)(i)"
+            )
+    elif k == "minimum_member_end_action":
+        case = d["member_end_case"]
+        turnbuckle = d["threaded_bracing_turnbuckle_arrangement_verified"]
+        is_threaded_bracing = case == "threaded_tension_bracing_with_turnbuckles"
+        if turnbuckle != is_threaded_bracing:
+            raise ValueError("Verify turnbuckles only for the threaded tension-bracing exception.")
+        actual = d["actual_design_axial_action_kn"]
+        member_capacity = d["member_design_axial_capacity_kn"]
+        factor = 1.0 if is_threaded_bracing else 0.3
+        minimum = factor * member_capacity
+        required = max(actual, minimum)
+        intermediate = {
+            "clause": "9.1.4(b)(iii)",
+            "member_end_case": case,
+            "actual_design_axial_action_kn": actual,
+            "member_design_axial_capacity_kn": member_capacity,
+            "minimum_design_axial_action_kn": minimum,
+            "required_design_axial_action_kn": required,
+            "minimum_fraction_of_member_design_capacity": factor,
+        }
+        if "connection_design_axial_capacity_kn" in d:
+            capacity = d["connection_design_axial_capacity_kn"]
+            intermediate["connection_design_axial_capacity_kn"] = capacity
+            c["connection_axial_capacity"] = _connection_capacity_check(
+                required, capacity, "kn", "9.1.4(b)(iii)"
+            )
+    elif k == "minimum_axial_splice_action":
+        case = d["splice_case"]
+        full_contact = d["full_contact_bearing_verified"]
+        expected_full_contact = case == "compression_full_contact"
+        if full_contact != expected_full_contact:
+            raise ValueError("Splice case must agree with its verified full-contact condition.")
+        alignment_verified = d["splice_parts_and_fasteners_hold_all_parts_in_line_verified"]
+        expected_alignment = case == "compression_not_full_contact"
+        if alignment_verified != expected_alignment:
+            raise ValueError("The non-full-contact compression splice must hold all parts in line.")
+        factors = {
+            "axial_tension": 0.3,
+            "compression_full_contact": 0.15,
+            "compression_not_full_contact": 0.3,
+        }
+        actual = d["actual_design_axial_action_kn"]
+        member_capacity = d["member_design_axial_capacity_kn"]
+        factor = factors[case]
+        minimum = factor * member_capacity
+        required = max(actual, minimum)
+        intermediate = {
+            "clause": "9.1.4(b)(iv)" if case == "axial_tension" else "9.1.4(b)(v)",
+            "splice_case": case,
+            "actual_design_axial_action_kn": actual,
+            "member_design_axial_capacity_kn": member_capacity,
+            "minimum_design_axial_action_kn": minimum,
+            "required_design_axial_action_kn": required,
+            "minimum_fraction_of_member_design_capacity": factor,
+        }
+        if "connection_design_axial_capacity_kn" in d:
+            capacity = d["connection_design_axial_capacity_kn"]
+            intermediate["connection_design_axial_capacity_kn"] = capacity
+            clause = "9.1.4(b)(iv)" if case == "axial_tension" else "9.1.4(b)(v)"
+            c["connection_axial_capacity"] = _connection_capacity_check(
+                required, capacity, "kn", clause
+            )
+    elif k == "minimum_combined_splice_actions":
+        case = d["splice_case"]
+        full_contact = d["full_contact_bearing_verified"]
+        expected_full_contact = case == "compression_full_contact"
+        if full_contact != expected_full_contact:
+            raise ValueError("Splice case must agree with its verified full-contact condition.")
+        alignment_verified = d["splice_parts_and_fasteners_hold_all_parts_in_line_verified"]
+        expected_alignment = case == "compression_not_full_contact"
+        if alignment_verified != expected_alignment:
+            raise ValueError("The non-full-contact compression splice must hold all parts in line.")
+        between_supports = d["splice_between_effective_lateral_supports_verified"]
+        support_fields = {
+            "effective_lateral_support_distance_mm",
+            "amplification_factor_type",
+            "amplification_factor",
+            "amplification_factor_verified",
+        }
+        supplied_support_fields = support_fields.intersection(d)
+        if between_supports:
+            if case == "axial_tension":
+                raise ValueError(
+                    "The Clause 9.1.4(b)(v) support-span moment applies to compression splices."
+                )
+            if supplied_support_fields != support_fields:
+                raise ValueError(
+                    "A between-support compression splice requires its verified span and "
+                    "Clause 4.4 amplification factor."
+                )
+        elif supplied_support_fields:
+            raise ValueError("Support-span inputs require a verified between-support splice.")
+
+        axial_factors = {
+            "axial_tension": 0.3,
+            "compression_full_contact": 0.15,
+            "compression_not_full_contact": 0.3,
+        }
+        actual_axial = d["actual_design_axial_action_kn"]
+        member_axial_capacity = d["member_design_axial_capacity_kn"]
+        axial_factor = axial_factors[case]
+        minimum_axial = axial_factor * member_axial_capacity
+        required_axial = max(actual_axial, minimum_axial)
+        actual_moment = d["actual_design_moment_knm"]
+        member_moment_capacity = d["member_design_moment_capacity_knm"]
+        minimum_flexural_moment = 0.3 * member_moment_capacity
+        minimum_support_moment = 0.0
+        if between_supports:
+            minimum_support_moment = (
+                d["amplification_factor"]
+                * required_axial
+                * d["effective_lateral_support_distance_mm"]
+                / 1000
+            )
+        required_moment = max(actual_moment, minimum_flexural_moment, minimum_support_moment)
+        axial_clause = "9.1.4(b)(iv)" if case == "axial_tension" else "9.1.4(b)(v)"
+        intermediate = {
+            "clause": "9.1.4(b)(vii)",
+            "splice_case": case,
+            "actual_design_axial_action_kn": actual_axial,
+            "member_design_axial_capacity_kn": member_axial_capacity,
+            "minimum_design_axial_action_kn": minimum_axial,
+            "required_design_axial_action_kn": required_axial,
+            "actual_design_moment_knm": actual_moment,
+            "member_design_moment_capacity_knm": member_moment_capacity,
+            "minimum_flexural_splice_moment_knm": minimum_flexural_moment,
+            "minimum_between_supports_moment_knm": minimum_support_moment,
+            "required_design_moment_knm": required_moment,
+            "axial_splice_clause": axial_clause,
+            "flexural_splice_clause": "9.1.4(b)(vi)",
+            "splice_between_effective_lateral_supports": between_supports,
+        }
+        if between_supports:
+            intermediate.update(
+                {
+                    "amplification_factor_type": d["amplification_factor_type"],
+                    "amplification_factor": d["amplification_factor"],
+                    "effective_lateral_support_distance_mm": d[
+                        "effective_lateral_support_distance_mm"
+                    ],
+                    "moment_basis_axial_action_kn": required_axial,
+                }
+            )
+        if "connection_design_axial_capacity_kn" in d:
+            capacity = d["connection_design_axial_capacity_kn"]
+            intermediate["connection_design_axial_capacity_kn"] = capacity
+            c["connection_axial_capacity"] = _connection_capacity_check(
+                required_axial, capacity, "kn", axial_clause
+            )
+        if "connection_design_moment_capacity_knm" in d:
+            capacity = d["connection_design_moment_capacity_knm"]
+            intermediate["connection_design_moment_capacity_knm"] = capacity
+            c["connection_moment_capacity"] = _connection_capacity_check(
+                required_moment, capacity, "knm", "9.1.4(b)(vi); 9.1.4(b)(vii)"
+            )
+    elif k == "minimum_compression_splice_between_supports":
+        full_contact = d["full_contact_bearing_verified"]
+        alignment_verified = d["splice_parts_and_fasteners_hold_all_parts_in_line_verified"]
+        if alignment_verified == full_contact:
+            raise ValueError(
+                "Verify full-contact bearing or verify that a non-full-contact splice holds "
+                "all parts in line."
+            )
+        factor = 0.15 if full_contact else 0.3
+        actual_axial = d["actual_design_axial_action_kn"]
+        member_capacity = d["member_design_axial_capacity_kn"]
+        minimum_axial = factor * member_capacity
+        required_axial = max(actual_axial, minimum_axial)
+        moment_basis_axial = required_axial
+        minimum_moment = (
+            d["amplification_factor"]
+            * moment_basis_axial
+            * d["effective_lateral_support_distance_mm"]
+            / 1000
+        )
+        actual_moment = d["actual_design_moment_knm"]
+        required_moment = max(actual_moment, minimum_moment)
+        intermediate = {
+            "clause": "9.1.4(b)(v)",
+            "actual_design_axial_action_kn": actual_axial,
+            "member_design_axial_capacity_kn": member_capacity,
+            "minimum_design_axial_action_kn": minimum_axial,
+            "required_design_axial_action_kn": required_axial,
+            "actual_design_moment_knm": actual_moment,
+            "amplification_factor_type": d["amplification_factor_type"],
+            "amplification_factor": d["amplification_factor"],
+            "effective_lateral_support_distance_mm": d["effective_lateral_support_distance_mm"],
+            "moment_basis_axial_action_kn": moment_basis_axial,
+            "minimum_design_moment_knm": minimum_moment,
+            "required_design_moment_knm": required_moment,
+            "minimum_fraction_of_member_design_capacity": factor,
+        }
+        if "connection_design_axial_capacity_kn" in d:
+            capacity = d["connection_design_axial_capacity_kn"]
+            intermediate["connection_design_axial_capacity_kn"] = capacity
+            c["connection_axial_capacity"] = _connection_capacity_check(
+                required_axial, capacity, "kn", "9.1.4(b)(v)"
+            )
+        if "connection_design_moment_capacity_knm" in d:
+            capacity = d["connection_design_moment_capacity_knm"]
+            intermediate["connection_design_moment_capacity_knm"] = capacity
+            c["connection_moment_capacity"] = _connection_capacity_check(
+                required_moment, capacity, "knm", "9.1.4(b)(v)"
+            )
+    elif k == "minimum_flexural_splice_action":
+        actual = d["actual_design_moment_knm"]
+        minimum = 0.3 * d["member_design_moment_capacity_knm"]
+        required = max(actual, minimum)
+        intermediate = {
+            "clause": "9.1.4(b)(vi)",
+            "actual_design_moment_knm": actual,
+            "member_design_moment_capacity_knm": d["member_design_moment_capacity_knm"],
+            "minimum_design_moment_knm": minimum,
+            "required_design_moment_knm": required,
+            "minimum_fraction_of_member_design_capacity": 0.3,
+        }
+        if "connection_design_moment_capacity_knm" in d:
+            capacity = d["connection_design_moment_capacity_knm"]
+            intermediate["connection_design_moment_capacity_knm"] = capacity
+            c["connection_moment_capacity"] = _connection_capacity_check(
+                required, capacity, "knm", "9.1.4(b)(vi)"
+            )
+    elif k == "shear_only_splice_eccentric_action":
+        shear = d["actual_design_shear_kn"]
+        eccentricity = d["force_eccentricity_mm"]
+        eccentric_moment = shear * eccentricity / 1000
+        intermediate = {
+            "clause": "9.1.4(b)(vi)",
+            "actual_design_shear_kn": shear,
+            "force_eccentricity_mm": eccentricity,
+            "required_design_shear_kn": shear,
+            "eccentric_design_moment_knm": eccentric_moment,
+            "required_design_moment_knm": eccentric_moment,
+        }
+        if "connection_design_shear_capacity_kn" in d:
+            capacity = d["connection_design_shear_capacity_kn"]
+            intermediate["connection_design_shear_capacity_kn"] = capacity
+            c["connection_shear_capacity"] = _connection_capacity_check(
+                shear, capacity, "kn", "9.1.4(b)(vi)"
+            )
+        if "connection_design_moment_capacity_knm" in d:
+            capacity = d["connection_design_moment_capacity_knm"]
+            intermediate["connection_design_moment_capacity_knm"] = capacity
+            c["connection_moment_capacity"] = _connection_capacity_check(
+                eccentric_moment, capacity, "knm", "9.1.4(b)(vi)"
+            )
+    elif k in {"bolt", "bolt_group"}:
         v, n, intermediate = _bolt(d)
         actions = [(d["shear_action_kn"], d["tension_action_kn"])]
         if k == "bolt_group":
@@ -664,7 +1092,16 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         "checks": c,
         "intermediate": intermediate,
         "scope": (
-            "Selected connection component checks; detailing, fabrication, prying, "
+            "Clause 9.1.4 required action effects only; check that the connection is not "
+            "lacing or to a sag rod, purlin or girt. For a compression splice between lateral "
+            "supports, the moment is based conservatively on the greater of the actual axial "
+            "action and the minimum splice axial action. The supplied amplification factor "
+            "must be selected under Clause 4.4, and supplied connection capacities already "
+            "include their capacity factor. Component resistance, action interaction, "
+            "earthquake increases, detailing, fabrication, prying and local effects require "
+            "separate assessment."
+            if k in MINIMUM_ACTION_CHECKS
+            else "Selected connection component checks; detailing, fabrication, prying, "
             "local effects and complete connection compliance require separate assessment."
         ),
     }

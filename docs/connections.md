@@ -1,17 +1,27 @@
 # Connection calculations
 
-`run_connections` evaluates a strict `check_type` tagged object. Every field in the
-selected schema is required, additional fields are rejected, and numbers must be
-finite. Dimensions are mm, areas mm², stresses MPa, forces kN, moments kNm.
+`run_connections` evaluates a strict `check_type` tagged object. All non-optional
+fields in the selected schema are required, additional fields are rejected, and
+numbers must be finite. Dimensions are mm, areas mm², stresses MPa, forces kN,
+moments kNm.
 Design actions must include externally assessed eccentricity and prying. These
 are component calculations, not a complete connection compliance certificate.
 
 The implementation was visually reviewed against the licensed AS 4100:2020
-Section 9, printed pages 116–138, Table 3.4 on page 34, and Clause 3.5.5 on page 35.
+Section 9, printed pages 112–138, including Clause 9.1.4 on page 114, Table 3.4
+on page 34, and Clause 3.5.5 on page 35.
 The source standard is not redistributed.
 
 | check_type | Calculation and prerequisites |
 | --- | --- |
+| minimum_beam_shear_action | 9.1.4(b)(ii) minimum simple-construction beam-connection shear: the greater of actual member design shear and the lesser of 0.15 times member design shear capacity or 40 kN. Optionally compares a supplied connection design shear capacity with that demand. No capacity factor is applied again. |
+| minimum_rigid_connection_action | 9.1.4(b)(i) rigid-construction connection moment: the greater of actual design moment and 0.5 times member design moment capacity. |
+| minimum_member_end_action | 9.1.4(b)(iii) tensile/compression member-end action: the greater of actual axial action and 0.3 times member design capacity. For verified threaded tension bracing with turnbuckles, the minimum is the full member design capacity. |
+| minimum_axial_splice_action | 9.1.4(b)(iv) axial-tension splice minimum of 0.3 times member design capacity; 9.1.4(b)(v) axial-compression splice minimum of 0.15 for verified full-contact bearing or 0.3 when not prepared for full contact. The latter route also requires evidence that the splice material and fasteners hold all parts in line. |
+| minimum_compression_splice_between_supports | 9.1.4(b)(v) compression-splice axial action plus moment `M* = δ N* Ls / 1000`; select the Clause 4.4 `δb` or `δs` value externally and verify its basis. The calculated minimum moment uses the greater of actual axial action and the splice's minimum axial action as a conservative `N*` basis. When not prepared for full contact, evidence that the splice parts are held in line is required. Optional connection axial and moment capacities are compared separately. |
+| minimum_flexural_splice_action | 9.1.4(b)(vi) flexural-splice moment: the greater of actual design moment and 0.3 times member design moment capacity. Do not use for a shear-only splice. |
+| shear_only_splice_eccentric_action | 9.1.4(b)(vi) shear-only splice: retains the design shear and calculates the moment from the force eccentricity relative to the connector-group centroid. |
+| minimum_combined_splice_actions | 9.1.4(b)(vii) axial tension or compression plus bending; calculates the applicable axial minimum and flexural minimum simultaneously. For compression splices between effective lateral supports, also applies the Clause 4.4 amplified moment from 9.1.4(b)(v). The non-full-contact compression route requires evidence that the splice parts are held in line. |
 | bolt | 9.2.2.1–3 shear, tension, squared interaction; lap length, grade 10.9 threaded-plane ductility and filler reduction under 9.2.2.5. Supply minor area (not tensile area) for threaded shear and certified bolt strength/areas. Filler thickness >=20 mm is unsupported. Zero lap length means a non-lap connection. |
 | bearing | 9.2.2.4 ply bearing and edge tear-out. Effective edge distance is clear hole-edge distance towards the loaded edge or adjacent hole plus half bolt diameter. Each ply and action direction needs its own check. |
 | slip | 9.2.3 service shear and linear shear/tension interaction, phi=0.7 under 3.5.5. Installation tension and slip coefficient require compliant installation and surface evidence. As-rolled clean surfaces use 0.35; other surfaces require testing. Separate strength checks remain necessary. |
@@ -37,13 +47,19 @@ non-lap connection. Weld group inputs describe a non-lap connection; lap weld gr
 are outside this operation's scope. Group geometry must not contain duplicate
 or overlapping weld lengths, and does not include thin RHS longitudinal welds.
 
-The following still require engineering assessment: 9.1 connection modelling,
-minimum design actions, force transfer, restraint, prying, local hollow-section
-effects; plate/component section/member checks; out-of-plane bolt groups;
+The following still require engineering assessment: 9.1.5–9.1.8 joint eccentricity
+and fatigue exceptions, fastener selection, mixed-connection action sharing and
+prying action; actual design actions and classification evidence, force transfer,
+restraint, local hollow-section effects; plate/component section/member checks; out-of-plane bolt groups;
 nonstandard holes; weld preparation, enhanced penetration, compound weld
 geometry and built-up-member detailing outside the listed Clause 9.6.3.9 termination checks;
 fabrication, inspection and installation Sections 14/15 and referenced standards.
-Fatigue, brittle fracture, seismic and fire applicability are separate checks.
+These Clause 9.1.4 routes calculate required actions only; supplied member design
+capacities must include the applicable capacity factor. Combined splice action
+demands are reported together, but connection component resistance and combined-
+action interaction require separate checks. Clause 9.1.4 earthquake-combination
+action increases are not calculated here and must be assessed under Section 13.
+Fatigue, brittle-fracture and fire applicability are separate checks.
 
 Verification includes independent arithmetic benchmarks, table boundaries,
 service and strength capacity factors, signed vector group equilibrium, exact

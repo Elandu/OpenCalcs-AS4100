@@ -103,6 +103,7 @@ def moment_factor_inputs(**updates):
         "midpoint_moment_3_knm": 100,
         "quarter_point_moment_4_knm": 80,
         "moment_diagram_verified": True,
+        "both_ends_restrained_verified": True,
         **updates,
     }
 
@@ -127,6 +128,84 @@ def test_clause_5_6_1_1_a_iii_caps_moment_modification_factor_at_2_5():
     assert out["values"]["uncapped_moment_factor"] > 2.5
     assert out["values"]["moment_factor"] == 2.5
     assert out["values"]["upper_cap_applied"]
+
+
+def test_clause_5_6_1_1_a_iii_requires_both_ends_restrained():
+    with pytest.raises(ValueError):
+        run_advanced_members(moment_factor_inputs(both_ends_restrained_verified=False))
+
+
+def table_5_6_1_inputs(load_case, **updates):
+    return {
+        "operation": "table_5_6_1_moment_factor",
+        "load_case": load_case,
+        "both_ends_restrained_verified": True,
+        "table_5_6_1_diagram_verified": True,
+        **updates,
+    }
+
+
+@pytest.mark.parametrize(
+    "load_case,case_inputs,expected",
+    [
+        ("end_moments", {"beta_m": 0.5}, 2.35),
+        ("two_symmetric_point_loads", {"twice_a_over_length": 0.4}, 1.126),
+        ("single_point_load", {"twice_a_over_length": 0.4}, 1.414),
+        ("midspan_point_load_with_one_end_moment", {"beta_m": 0.9}, 1.5),
+        ("midspan_point_load_with_equal_end_moments", {"beta_m": 0.5}, 1.53),
+        ("uniform_load_with_one_end_moment", {"beta_m": 0.8}, 1.55),
+        ("uniform_load_with_equal_end_moments", {"beta_m": 0.75}, 1.22),
+        ("uniform_moment", {}, 1.0),
+        ("point_load", {}, 1.75),
+        ("uniform_load", {}, 2.5),
+    ],
+)
+def test_table_5_6_1_all_diagram_factors(load_case, case_inputs, expected):
+    out = run_advanced_members(table_5_6_1_inputs(load_case, **case_inputs))
+    assert out["values"]["moment_factor"] == pytest.approx(expected)
+    assert out["clauses"] == ["5.6.1", "Table 5.6.1"]
+    assert out["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    "load_case,case_inputs,expected",
+    [
+        ("end_moments", {"beta_m": 0.6}, 2.488),
+        ("end_moments", {"beta_m": 0.600001}, 2.5),
+        ("midspan_point_load_with_one_end_moment", {"beta_m": 0.899999}, 1.48499985),
+        ("midspan_point_load_with_one_end_moment", {"beta_m": 0.9}, 1.5),
+        ("uniform_load_with_one_end_moment", {"beta_m": 0.7}, 1.2),
+        ("uniform_load_with_equal_end_moments", {"beta_m": 0.75}, 1.22),
+    ],
+)
+def test_table_5_6_1_piecewise_boundaries(load_case, case_inputs, expected):
+    out = run_advanced_members(table_5_6_1_inputs(load_case, **case_inputs))
+    assert out["values"]["moment_factor"] == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "load_case,case_inputs",
+    [
+        ("end_moments", {"beta_m": -1.01}),
+        ("uniform_load_with_one_end_moment", {"beta_m": -0.01}),
+        ("two_symmetric_point_loads", {"twice_a_over_length": 1.01}),
+        ("uniform_moment", {"beta_m": 0.5}),
+    ],
+)
+def test_table_5_6_1_rejects_out_of_scope_inputs(load_case, case_inputs):
+    with pytest.raises(ValueError):
+        run_advanced_members(table_5_6_1_inputs(load_case, **case_inputs))
+
+
+def test_table_5_6_1_requires_restraint_and_diagram_verification():
+    inputs = table_5_6_1_inputs("uniform_load")
+    inputs["both_ends_restrained_verified"] = False
+    with pytest.raises(ValueError):
+        run_advanced_members(inputs)
+    inputs = table_5_6_1_inputs("uniform_load")
+    inputs.pop("table_5_6_1_diagram_verified")
+    with pytest.raises(ValueError):
+        run_advanced_members(inputs)
 
 
 @pytest.mark.parametrize(
@@ -158,6 +237,7 @@ def unequal_flange_bending(beta_method="compression_flange_inertia", **updates):
         "effective_length_mm": 15_000,
         "moment_factor": 1.2,
         "moment_factor_verified": True,
+        "both_ends_restrained_verified": True,
         "action_knm": 120,
         "section_properties_verified": True,
         "constant_cross_section_verified": True,
@@ -229,6 +309,11 @@ def test_unequal_flange_bending_requires_constant_section_evidence():
         run_advanced_members(inputs)
 
 
+def test_unequal_flange_bending_requires_both_ends_restrained():
+    with pytest.raises(ValueError):
+        run_advanced_members(unequal_flange_bending(both_ends_restrained_verified=False))
+
+
 def varying_section_bending(design_method="critical_section_reduced_reference", **updates):
     inputs = {
         "operation": "varying_section_bending",
@@ -238,6 +323,7 @@ def varying_section_bending(design_method="critical_section_reduced_reference", 
         "reference_buckling_moment_verified": True,
         "moment_factor": 1.3,
         "moment_factor_verified": True,
+        "both_ends_restrained_verified": True,
         "action_knm": 60,
     }
     if design_method == "minimum_section":
@@ -278,6 +364,11 @@ def test_clause_5_6_1_1_b_minimum_section_method_uses_unreduced_moment():
     assert out["values"]["adjusted_reference_buckling_moment_knm"] == 100
     assert out["values"]["member_capacity_knm"] == pytest.approx(84.90743825340327)
     assert out["clauses"][1] == "5.6.1.1(b)(i)"
+
+
+def test_varying_section_bending_requires_both_ends_restrained():
+    with pytest.raises(ValueError):
+        run_advanced_members(varying_section_bending(both_ends_restrained_verified=False))
 
 
 @pytest.mark.parametrize(
@@ -996,6 +1087,7 @@ def angle_section_bending_inputs(**updates):
         "angle_section_verified": True,
         "constant_cross_section_verified": True,
         "segment_without_full_lateral_restraint_verified": True,
+        "both_ends_restrained_verified": True,
         **updates,
     }
 
@@ -1016,6 +1108,11 @@ def test_clause_5_6_1_3_angle_bending_caps_capacity_at_ms():
         angle_section_bending_inputs(section_capacity_knm=20, moment_factor=2.5)
     )["values"]
     assert values["nominal_member_moment_capacity_mb_knm"] == 20
+
+
+def test_clause_5_6_1_3_requires_restraint_conditions_at_both_ends():
+    with pytest.raises(ValueError):
+        run_advanced_members(angle_section_bending_inputs(both_ends_restrained_verified=False))
 
 
 def equal_angle_compression_inputs(**updates):
