@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Further member provisions with explicit external analysis prerequisites."""
 
-from math import isfinite, pi, sqrt
+from math import isclose, isfinite, pi, sqrt
 
 from .standards import ELASTIC_MODULUS_MPA, SHEAR_MODULUS_MPA
 from .validation import (
@@ -579,7 +579,14 @@ SCHEMAS = {
             "connection_centroid_distance_mm": P,
             "parallel_planes": {"type": "integer", "minimum": 1, "maximum": 1000000},
             "effective_end_width_mm": P,
+            "connection_type": {"enum": ["bolted", "welded"]},
+            "bolts_per_component_connection": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000,
+            },
         },
+        optional=("connection_type", "bolts_per_component_connection"),
     ),
     "tension_component_slenderness": _schema(
         "tension_component_slenderness",
@@ -1461,7 +1468,9 @@ def run_advanced_members(inputs):
         if not compression and not end:
             width = 0.5 * d["effective_end_width_mm"]
         thickness = (0.02 if compression else 0.017) * d["inner_connection_distance_mm"]
-        thickness_ok = d["edge_stiffened"] and d["edge_stiffener_slenderness"] <= 170
+        thickness_ok = (
+            compression and d["edge_stiffened"] and d["edge_stiffener_slenderness"] <= 170
+        )
         shear = (
             d["transverse_shear_kn"]
             * d["longitudinal_spacing_mm"]
@@ -1472,9 +1481,65 @@ def run_advanced_members(inputs):
             * d["longitudinal_spacing_mm"]
             / (2 * d["parallel_planes"] * 1000)
         )
+        clauses = ["6.4.3.3", "6.4.3.4", "6.4.3.5", "6.4.3.6"]
+        width_clause = "6.4.3.5"
+        thickness_clause = "6.4.3.6" if compression else "7.4.5(c)"
+        checks = [
+            _limit("6.4.3.4", le / d["radius_mm"], 180),
+            {
+                "clause": "7.4.5(d)" if not compression and not end else width_clause,
+                "satisfied": d["width_mm"] >= width,
+                "required_width_mm": width,
+                "provided_width_mm": d["width_mm"],
+            },
+            {
+                "clause": thickness_clause,
+                "satisfied": (
+                    thickness_ok
+                    or d["thickness_mm"] >= thickness
+                    or isclose(d["thickness_mm"], thickness, rel_tol=1e-12, abs_tol=1e-12)
+                ),
+                "minimum_thickness_mm": thickness,
+                "provided_thickness_mm": d["thickness_mm"],
+            },
+        ]
+        manual = []
+        if compression:
+            clauses.append("6.4.3.7")
+            manual.append(
+                "Simultaneous connection shear and moment require section and connection design."
+            )
+        else:
+            if "connection_type" not in d:
+                raise ValueError("Tension batten requires its connection type.")
+            if d["connection_type"] == "bolted" and "bolts_per_component_connection" not in d:
+                raise ValueError(
+                    "Bolted tension batten requires the bolt count per component connection."
+                )
+            clauses.extend(["7.4.5(b)", "7.4.5(c)", "7.4.5(d)"])
+            bolted = d["connection_type"] == "bolted"
+            bolt_check = {
+                "clause": "7.4.5(b)",
+                "connection_type": d["connection_type"],
+                "satisfied": (not bolted or d["bolts_per_component_connection"] >= 2),
+            }
+            if bolted:
+                bolt_check["bolts_per_component_connection"] = d["bolts_per_component_connection"]
+            checks.append(bolt_check)
+            manual.append(
+                "Under Clause 7.4.2, design tension battens and their connections for the "
+                "internal actions from the external design forces and bending moments, divided "
+                "equally among connection planes parallel to the force. Those actions are not "
+                "calculated here."
+            )
+            if bolted:
+                manual.append(
+                    "Clause 7.4.5(b) is checked using the bolt count at each batten-to-component "
+                    "connection; Clause 6.4.3.7 does not apply to this bolted tension route."
+                )
         return result(
             op,
-            ["6.4.3.3", "6.4.3.4", "6.4.3.5", "6.4.3.6", "6.4.3.7", "7.4.5"],
+            clauses,
             {
                 "effective_length_mm": le,
                 "slenderness": le / d["radius_mm"],
@@ -1483,19 +1548,8 @@ def run_advanced_members(inputs):
                 "connection_longitudinal_shear_kn": shear if compression else None,
                 "connection_moment_knm": moment if compression else None,
             },
-            [
-                _limit("6.4.3.4", le / d["radius_mm"], 180),
-                _minimum("batten width", d["width_mm"], width),
-                {
-                    "clause": "batten thickness",
-                    "satisfied": thickness_ok or d["thickness_mm"] >= thickness,
-                },
-            ],
-            [
-                "Simultaneous connection shear and moment require section and connection design.",
-                "Tension-member bolted battens need at least two bolts; 6.4.3.7 "
-                "compression-force formula does not apply.",
-            ],
+            checks,
+            manual,
         )
     if op == "tension_component_slenderness":
         clause = {

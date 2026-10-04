@@ -548,6 +548,42 @@ def clause_7_4_component_slenderness():
     return {"component_slenderness_at_limit": maximum}
 
 
+def clause_7_4_5_tension_batten_geometry():
+    result = run_advanced_members(
+        {
+            "operation": "batten",
+            "type": "intermediate",
+            "member_mode": "tension",
+            "centroid_distance_mm": 200,
+            "narrower_component_width_mm": 60,
+            "radius_mm": 2,
+            "width_mm": 120,
+            "thickness_mm": 3.4,
+            "inner_connection_distance_mm": 200,
+            "edge_stiffened": False,
+            "edge_stiffener_slenderness": 0,
+            "transverse_shear_kn": 10,
+            "longitudinal_spacing_mm": 1000,
+            "connection_centroid_distance_mm": 200,
+            "parallel_planes": 2,
+            "effective_end_width_mm": 200,
+            "connection_type": "bolted",
+            "bolts_per_component_connection": 2,
+        }
+    )
+    checks = {check["clause"]: check for check in result["checks"]}
+    expect_close(result["values"]["minimum_thickness_mm"], 3.4)
+    if not all(checks[clause]["satisfied"] for clause in ("7.4.5(b)", "7.4.5(c)", "7.4.5(d)")):
+        raise AssertionError("Clause 7.4.5(b)-(d) inclusive geometry boundaries failed")
+    if "6.4.3.7" in result["clauses"]:
+        raise AssertionError("Clause 6.4.3.7 was applied to a bolted tension batten")
+    return {
+        "minimum_thickness_mm": result["values"]["minimum_thickness_mm"],
+        "intermediate_batten_minimum_width_mm": result["values"]["minimum_width_mm"],
+        "bolt_count_per_component_connection": checks["7.4.5(b)"]["bolts_per_component_connection"],
+    }
+
+
 def clause_9_8_packing():
     result = run_connections(
         {
@@ -659,6 +695,7 @@ def main():
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
         "clause_7_4_component_slenderness": clause_7_4_component_slenderness,
+        "clause_7_4_5_tension_batten_geometry": clause_7_4_5_tension_batten_geometry,
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
         "clause_12_10_2_web_protection": clause_12_10_2_web_protection,

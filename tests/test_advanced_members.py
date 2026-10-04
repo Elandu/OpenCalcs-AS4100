@@ -945,7 +945,47 @@ def test_batten_force_units_and_dimensions():
     assert out["checked_conditions_satisfied"]
     d = batten()
     d["member_mode"] = "tension"
-    assert run_advanced_members(d)["values"]["connection_longitudinal_shear_kn"] is None
+    d["connection_type"] = "bolted"
+    d["bolts_per_component_connection"] = 2
+    tension = run_advanced_members(d)
+    assert tension["values"]["connection_longitudinal_shear_kn"] is None
+    assert tension["checked_conditions_satisfied"]
+
+
+def test_tension_batten_checks_minimum_thickness_and_two_bolts_per_connection():
+    d = batten()
+    d.update(
+        member_mode="tension",
+        connection_type="bolted",
+        bolts_per_component_connection=2,
+        edge_stiffened=True,
+        edge_stiffener_slenderness=100,
+        thickness_mm=3.39,
+    )
+    out = run_advanced_members(d)
+    checks = {check["clause"]: check for check in out["checks"]}
+    assert out["values"]["minimum_thickness_mm"] == pytest.approx(3.4)
+    assert checks["7.4.5(b)"]["satisfied"]
+    assert checks["7.4.5(c)"]["satisfied"] is False
+    assert checks["7.4.5(d)"]["satisfied"]
+    assert "6.4.3.7" not in out["clauses"]
+    assert not out["checked_conditions_satisfied"]
+
+    d["thickness_mm"] = 3.4
+    d["bolts_per_component_connection"] = 1
+    out = run_advanced_members(d)
+    checks = {check["clause"]: check for check in out["checks"]}
+    assert checks["7.4.5(c)"]["satisfied"]
+    assert checks["7.4.5(b)"]["satisfied"] is False
+    assert not out["checked_conditions_satisfied"]
+
+    d["connection_type"] = "welded"
+    del d["bolts_per_component_connection"]
+    assert run_advanced_members(d)["checked_conditions_satisfied"]
+
+    d["connection_type"] = "bolted"
+    with pytest.raises(ValueError, match="bolt count"):
+        run_advanced_members(d)
 
 
 def test_pin_member_net_area_and_thickness():
