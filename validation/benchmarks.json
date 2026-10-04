@@ -487,6 +487,13 @@
       "passed": true
     },
     {
+      "name": "Clause 9.1.2.3 simple-beam eccentric reaction moment, hand arithmetic",
+      "actual": 1.2,
+      "expected": 1.2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 9.1.4(b)(ii) simple-beam minimum shear, 40 kN cap",
       "actual": 40.0,
       "expected": 40,

@@ -216,6 +216,9 @@ FIELDS = {
         "member_design_shear_capacity_kn": P,
         "simple_construction_beam_connection_verified": {"const": True},
         "excluded_connection_arrangement_absent_verified": {"const": True},
+        "reaction_shear_direction_unit_vector": VECTOR3,
+        "reaction_shear_eccentricity_vector_mm": VECTOR3,
+        "reaction_shear_eccentricity_assessment_verified": {"const": True},
         "connection_design_shear_capacity_kn": N,
     },
     "minimum_rigid_connection_action": {
@@ -472,7 +475,12 @@ FIELDS["weld_group"] = {
     **{f"moment_{a}_knm": SIGNED for a in "xyz"},
 }
 OPTIONAL_FIELDS = {
-    "minimum_beam_shear_action": ("connection_design_shear_capacity_kn",),
+    "minimum_beam_shear_action": (
+        "reaction_shear_direction_unit_vector",
+        "reaction_shear_eccentricity_vector_mm",
+        "reaction_shear_eccentricity_assessment_verified",
+        "connection_design_shear_capacity_kn",
+    ),
     "minimum_rigid_connection_action": ("connection_design_moment_capacity_knm",),
     "minimum_member_end_action": ("connection_design_axial_capacity_kn",),
     "minimum_axial_splice_action": ("connection_design_axial_capacity_kn",),
@@ -633,6 +641,36 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "maximum_minimum_shear_kn": 40.0,
             "member_capacity_includes_capacity_factor": True,
         }
+        eccentricity_fields = (
+            "reaction_shear_direction_unit_vector",
+            "reaction_shear_eccentricity_vector_mm",
+            "reaction_shear_eccentricity_assessment_verified",
+        )
+        eccentricity_fields_present = [field in d for field in eccentricity_fields]
+        if any(eccentricity_fields_present) and not all(eccentricity_fields_present):
+            raise ValueError(
+                "Provide the shear direction, eccentricity vector and assessment together."
+            )
+        if all(eccentricity_fields_present):
+            direction = d["reaction_shear_direction_unit_vector"]
+            direction_length = sqrt(sum(component * component for component in direction))
+            if not isclose(direction_length, 1.0, rel_tol=0.0, abs_tol=1e-9):
+                raise ValueError("Reaction shear direction must be a unit vector.")
+            force = [required * component for component in direction]
+            ex, ey, ez = d["reaction_shear_eccentricity_vector_mm"]
+            fx, fy, fz = force
+            moments = [
+                (ey * fz - ez * fy) / 1000,
+                (ez * fx - ex * fz) / 1000,
+                (ex * fy - ey * fx) / 1000,
+            ]
+            intermediate.update(
+                {
+                    "clause_9_1_2_3_reaction_shear_vector_kn": force,
+                    "reaction_shear_eccentricity_vector_mm": [ex, ey, ez],
+                    "clause_9_1_2_3_eccentricity_moment_vector_knm": moments,
+                }
+            )
         if "connection_design_shear_capacity_kn" in d:
             capacity = d["connection_design_shear_capacity_kn"]
             intermediate["connection_design_shear_capacity_kn"] = capacity
@@ -1494,6 +1532,20 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "earthquake increases, detailing, fabrication, prying and local effects require "
             "separate assessment."
         )
+        if k == "minimum_beam_shear_action":
+            if "clause_9_1_2_3_eccentricity_moment_vector_knm" in intermediate:
+                scope = (
+                    "Clauses 9.1.4(b)(ii) and 9.1.2.3 required shear and its eccentric moment "
+                    "from supplied direction and geometry; separately verify connection strength, "
+                    "local components, installation and detailing."
+                )
+            else:
+                scope = (
+                    "Clause 9.1.4(b)(ii) minimum shear only. Supply the assessed reaction-shear "
+                    "direction and connection eccentricity under Clause 9.1.2.3 to calculate its "
+                    "moment; separately verify connection strength, local components, installation "
+                    "and detailing."
+                )
     elif k == "joint_eccentricity_action":
         scope = (
             "Clause 9.1.5 signed eccentric moments only; verify axis convergence where "

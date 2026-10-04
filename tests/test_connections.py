@@ -141,6 +141,37 @@ def test_clause_9_1_4_b_ii_minimum_simple_beam_shear_hand_arithmetic(
     assert result["checks"] == {}
 
 
+def test_clause_9_1_2_3_simple_beam_reaction_moment_from_eccentricity():
+    result = run_connections(
+        simple_beam_shear(
+            reaction_shear_direction_unit_vector=[0, 1, 0],
+            reaction_shear_eccentricity_vector_mm=[40, 0, 0],
+            reaction_shear_eccentricity_assessment_verified=True,
+        )
+    )
+    assert result["intermediate"]["required_design_shear_kn"] == 30
+    assert result["intermediate"]["clause_9_1_2_3_reaction_shear_vector_kn"] == [0, 30, 0]
+    assert result["intermediate"]["clause_9_1_2_3_eccentricity_moment_vector_knm"] == [
+        0,
+        0,
+        1.2,
+    ]
+    assert "9.1.2.3" in result["scope"]
+
+
+def test_clause_9_1_2_3_requires_complete_geometry_and_unit_direction():
+    with pytest.raises(ValueError, match="(?i)provide the shear direction"):
+        run_connections(simple_beam_shear(reaction_shear_direction_unit_vector=[0, 1, 0]))
+    with pytest.raises(ValueError, match="unit vector"):
+        run_connections(
+            simple_beam_shear(
+                reaction_shear_direction_unit_vector=[0, 2, 0],
+                reaction_shear_eccentricity_vector_mm=[40, 0, 0],
+                reaction_shear_eccentricity_assessment_verified=True,
+            )
+        )
+
+
 @pytest.mark.parametrize("connection_capacity,expected_satisfied", [(29.9, False), (30, True)])
 def test_clause_9_1_4_connection_design_shear_capacity_boundary(
     connection_capacity, expected_satisfied

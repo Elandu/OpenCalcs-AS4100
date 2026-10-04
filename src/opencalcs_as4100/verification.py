@@ -1038,12 +1038,20 @@ def verify():
             "member_design_shear_capacity_kn": 200,
             "simple_construction_beam_connection_verified": True,
             "excluded_connection_arrangement_absent_verified": True,
+            "reaction_shear_direction_unit_vector": [0, 1, 0],
+            "reaction_shear_eccentricity_vector_mm": [40, 0, 0],
+            "reaction_shear_eccentricity_assessment_verified": True,
         }
     )
     record(
         "Clause 9.1.4(b)(ii) simple-beam minimum shear, 0.15 branch",
         beam_connection_shear["intermediate"]["minimum_design_shear_kn"],
         30,
+    )
+    record(
+        "Clause 9.1.2.3 simple-beam eccentric reaction moment, hand arithmetic",
+        beam_connection_shear["intermediate"]["clause_9_1_2_3_eccentricity_moment_vector_knm"][2],
+        1.2,
     )
     beam_connection_shear_cap = run_connections(
         {

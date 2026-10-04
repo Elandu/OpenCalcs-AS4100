@@ -171,6 +171,9 @@ def test_family_http_validation(suffix):
                 "member_design_shear_capacity_kn": 200,
                 "simple_construction_beam_connection_verified": True,
                 "excluded_connection_arrangement_absent_verified": True,
+                "reaction_shear_direction_unit_vector": [0, 1, 0],
+                "reaction_shear_eccentricity_vector_mm": [40, 0, 0],
+                "reaction_shear_eccentricity_assessment_verified": True,
                 "connection_design_shear_capacity_kn": 30,
             },
         ),
@@ -632,6 +635,9 @@ def test_extended_family_successful_http_execution(suffix, inputs):
         if inputs.get("check_type") == "minimum_beam_shear_action":
             assert response.json()["intermediate"]["required_design_shear_kn"] == pytest.approx(30)
             assert response.json()["checks"]["connection_shear_capacity"]["satisfied"]
+            assert response.json()["intermediate"][
+                "clause_9_1_2_3_eccentricity_moment_vector_knm"
+            ] == [0, 0, 1.2]
         if inputs.get("check_type") == "minimum_rigid_connection_action":
             assert response.json()["intermediate"]["required_design_moment_knm"] == pytest.approx(
                 50
