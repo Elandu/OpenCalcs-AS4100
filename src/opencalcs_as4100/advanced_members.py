@@ -652,12 +652,25 @@ SCHEMAS = {
     "pin_tension_member": _schema(
         "pin_tension_member",
         {
+            "design_tension_kn": P,
+            "yield_strength_mpa": FY,
+            "ultimate_strength_mpa": P,
+            "gross_area_mm2": P,
+            "member_net_area_mm2": P,
+            "tension_distribution_factor": {"enum": [0.75, 0.85, 0.9, 1.0]},
+            "member_net_area_assessed_verified": VERIFIED,
+            "tension_distribution_factor_assessed_verified": VERIFIED,
             "thickness_mm": P,
             "hole_to_edge_distance_mm": P,
             "internal_nut_clamped_ply": BOOL,
-            "net_area_beyond_hole_mm2": P,
+            "net_area_beyond_hole_planes_mm2": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 10000,
+                "items": P,
+            },
             "net_area_perpendicular_mm2": P,
-            "required_member_net_area_mm2": P,
+            "all_beyond_hole_planes_assessed_verified": VERIFIED,
             "pin_plates_distribute_load_without_eccentricity_verified": VERIFIED,
         },
     ),
@@ -1770,28 +1783,77 @@ def run_advanced_members(inputs):
             ],
         )
     if op == "pin_tension_member":
-        required = d["required_member_net_area_mm2"]
+        if d["ultimate_strength_mpa"] < d["yield_strength_mpa"]:
+            raise ValueError("Ultimate strength must not be below yield strength.")
+        if d["member_net_area_mm2"] > d["gross_area_mm2"]:
+            raise ValueError("Member net area must not exceed gross area.")
+        net_areas = [*d["net_area_beyond_hole_planes_mm2"], d["net_area_perpendicular_mm2"]]
+        if any(area > d["gross_area_mm2"] for area in net_areas):
+            raise ValueError("Pin-member net areas must not exceed gross area.")
+
+        tension = d["design_tension_kn"]
+        fy, fu = d["yield_strength_mpa"], d["ultimate_strength_mpa"]
+        gross_area, net_area = d["gross_area_mm2"], d["member_net_area_mm2"]
+        kt = d["tension_distribution_factor"]
+        gross_yielding = gross_area * fy / 1000
+        net_fracture = 0.85 * kt * net_area * fu / 1000
+        governing_mode = (
+            "gross section yielding" if gross_yielding <= net_fracture else "net section fracture"
+        )
+        required_gross_area = tension * 1000 / (0.9 * fy)
+        required_net_area = tension * 1000 / (0.9 * 0.85 * kt * fu)
         thickness = 0.25 * d["hole_to_edge_distance_mm"]
+        checks = [
+            capacity_check("7.2 gross-section yielding", gross_yielding, tension),
+            capacity_check("7.2 net-section fracture", net_fracture, tension),
+            (
+                {"clause": "7.5(a)", "satisfied": True}
+                if d["internal_nut_clamped_ply"]
+                else _minimum("7.5(a)", d["thickness_mm"], thickness)
+            ),
+        ]
+        checks.extend(
+            {
+                "clause": "7.5(b)",
+                "plane_index": index,
+                "actual": area,
+                "required_minimum": required_net_area,
+                "satisfied": area >= required_net_area,
+            }
+            for index, area in enumerate(d["net_area_beyond_hole_planes_mm2"], start=1)
+        )
+        checks.extend(
+            [
+                _minimum("7.5(c)", d["net_area_perpendicular_mm2"], 1.33 * required_net_area),
+                {"clause": "7.5(d)", "satisfied": True},
+            ]
+        )
         return result(
             op,
-            ["7.5"],
+            ["7.1", "7.2", "7.5"],
             {
+                "tension_distribution_factor": kt,
+                "gross_yield_nominal_capacity_kn": gross_yielding,
+                "net_fracture_nominal_capacity_kn": net_fracture,
+                "nominal_section_tension_capacity_kn": min(gross_yielding, net_fracture),
+                "design_section_tension_capacity_kn": 0.9 * min(gross_yielding, net_fracture),
+                "governing_capacity_mode": governing_mode,
+                "required_gross_area_mm2": required_gross_area,
+                "required_member_net_area_mm2": required_net_area,
                 "minimum_thickness_mm": thickness,
-                "minimum_net_area_beyond_mm2": required,
-                "minimum_net_area_perpendicular_mm2": 1.33 * required,
+                "minimum_net_area_beyond_hole_mm2": required_net_area,
+                "minimum_net_area_perpendicular_mm2": 1.33 * required_net_area,
             },
+            checks,
             [
-                {
-                    "clause": "7.5(a)",
-                    "satisfied": d["internal_nut_clamped_ply"] or d["thickness_mm"] >= thickness,
-                },
-                _minimum("7.5(b)", d["net_area_beyond_hole_mm2"], required),
-                _minimum("7.5(c)", d["net_area_perpendicular_mm2"], 1.33 * required),
-            ],
-            [
-                "Pin capacity is assessed separately under 9.4.",
-                "Beyond-hole net area must be checked for all planes parallel to or "
-                "within 45 degrees of member axis.",
+                "Gross and net areas and the Clause 7.3 tension-distribution factor are "
+                "assessed inputs; apply all relevant deductions and use the appropriate "
+                "verified factor.",
+                "Supply every candidate beyond-hole plane parallel to or within 45 degrees "
+                "of the member axis; completeness is an assessed prerequisite.",
+                "Clause 7.5(d) load transfer and eccentricity are supplied as verified "
+                "evidence. Pin shear, bearing and bending resistance are checked separately "
+                "under Clause 9.4.",
             ],
         )
     if op == "restraint_action":

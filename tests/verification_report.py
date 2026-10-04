@@ -552,6 +552,39 @@ def clause_7_3_2_table_factor_lookup():
     return {"table_7_3_2_case_factors": factors}
 
 
+def clause_7_5_pin_member_design():
+    result = run_advanced_members(
+        {
+            "operation": "pin_tension_member",
+            "design_tension_kn": 306,
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 400,
+            "gross_area_mm2": 2000,
+            "member_net_area_mm2": 1500,
+            "tension_distribution_factor": 0.85,
+            "member_net_area_assessed_verified": True,
+            "tension_distribution_factor_assessed_verified": True,
+            "thickness_mm": 10,
+            "hole_to_edge_distance_mm": 40,
+            "internal_nut_clamped_ply": False,
+            "net_area_beyond_hole_planes_mm2": [1200, 1190],
+            "net_area_perpendicular_mm2": 1600,
+            "all_beyond_hole_planes_assessed_verified": True,
+            "pin_plates_distribute_load_without_eccentricity_verified": True,
+        }
+    )
+    expected_net_area = 306000 / (0.9 * 0.85 * 0.85 * 400)
+    expect_close(result["values"]["required_member_net_area_mm2"], expected_net_area)
+    expect_close(result["values"]["gross_yield_nominal_capacity_kn"], 600)
+    expect_close(result["values"]["net_fracture_nominal_capacity_kn"], 433.5)
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 7.1/7.2/7.5 pin-member benchmark failed")
+    return {
+        "required_net_area_mm2": result["values"]["required_member_net_area_mm2"],
+        "nominal_section_capacity_kn": result["values"]["nominal_section_tension_capacity_kn"],
+    }
+
+
 def clause_7_4_component_slenderness():
     clauses = {
         "separated_back_to_back": "7.4.3(a)(i)",
@@ -804,6 +837,7 @@ def main():
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
         "clause_7_3_2_table_factor_lookup": clause_7_3_2_table_factor_lookup,
+        "clause_7_1_7_2_7_5_pin_member_design": clause_7_5_pin_member_design,
         "clause_7_4_component_slenderness": clause_7_4_component_slenderness,
         "clause_7_4_4_tension_lacing_tie_thickness": clause_7_4_4_tension_lacing_tie_thickness,
         "clause_7_4_5_tension_batten_geometry": clause_7_4_5_tension_batten_geometry,

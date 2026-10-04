@@ -62,9 +62,12 @@ The following cannot currently be claimed as completed by these member primitive
   by a passing shear check.
 - 6.3.3 torsional-flexural buckling cases requiring AS/NZS 4600; 6.3.4 varying sections;
   6.4 laced/battened members; 6.5 back-to-back members; 6.6 restraint systems.
-- 7.4 built-up tension-member connection/spacing requirements; 7.5 pin-connected members;
-  automatic identification of the Table 7.3.2 diagram and Clause 7.3.1 symmetry/connection-layout
-  conditions. For the uniform route, the caller must enumerate every member part and supply its
+- 7.4 built-up tension-member connection/spacing requirements; automatic identification of the
+  Table 7.3.2 diagram and Clause 7.3.1 symmetry/connection-layout conditions. Pin-member 7.1–7.2
+  capacity/required-area and 7.5 geometry checks are available in `advanced_members`, but require
+  assessed gross/net section areas, a verified Clause 7.3 factor, complete beyond-hole plane
+  enumeration, and the Clause 7.5(d) load-transfer assessment; pin resistance is checked separately
+  under 9.4. For the uniform route, the caller must enumerate every member part and supply its
   maximum design force and connection design capacity. For the both-flange route, the caller must
   supply verified design capacities for each flange connection and the maximum member force.
 - 8.3.2(a)/(b), 8.3.3(a)/(b) and the powered 8.3.4 alternative are available for verified

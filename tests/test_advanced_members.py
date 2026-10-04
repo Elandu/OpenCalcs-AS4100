@@ -1094,20 +1094,100 @@ def test_tension_back_to_back_connection_layout_routes():
         run_advanced_members(separated)
 
 
-def test_pin_member_net_area_and_thickness():
+def pin_member(**changes):
     d = {
         "operation": "pin_tension_member",
+        "design_tension_kn": 306,
+        "yield_strength_mpa": 300,
+        "ultimate_strength_mpa": 400,
+        "gross_area_mm2": 2000,
+        "member_net_area_mm2": 1500,
+        "tension_distribution_factor": 0.85,
+        "member_net_area_assessed_verified": True,
+        "tension_distribution_factor_assessed_verified": True,
         "thickness_mm": 10,
         "hole_to_edge_distance_mm": 40,
         "internal_nut_clamped_ply": False,
-        "net_area_beyond_hole_mm2": 1000,
-        "net_area_perpendicular_mm2": 1330,
-        "required_member_net_area_mm2": 1000,
+        "net_area_beyond_hole_planes_mm2": [1200, 1190],
+        "net_area_perpendicular_mm2": 1600,
+        "all_beyond_hole_planes_assessed_verified": True,
         "pin_plates_distribute_load_without_eccentricity_verified": True,
     }
-    assert run_advanced_members(d)["checked_conditions_satisfied"]
-    d["net_area_perpendicular_mm2"] = 1329
-    assert not run_advanced_members(d)["checked_conditions_satisfied"]
+    d.update(changes)
+    return d
+
+
+def test_pin_member_derives_required_area_and_checks_clause_7_2_capacity():
+    out = run_advanced_members(pin_member())
+    values = out["values"]
+    required_net_area = 306000 / (0.9 * 0.85 * 0.85 * 400)
+    assert values["required_gross_area_mm2"] == pytest.approx(306000 / (0.9 * 300))
+    assert values["required_member_net_area_mm2"] == pytest.approx(required_net_area)
+    assert values["minimum_net_area_perpendicular_mm2"] == pytest.approx(1.33 * required_net_area)
+    assert values["gross_yield_nominal_capacity_kn"] == pytest.approx(600)
+    assert values["net_fracture_nominal_capacity_kn"] == pytest.approx(433.5)
+    assert values["design_section_tension_capacity_kn"] == pytest.approx(390.15)
+    assert values["governing_capacity_mode"] == "net section fracture"
+    assert out["clauses"] == ["7.1", "7.2", "7.5"]
+    assert out["checked_conditions_satisfied"]
+
+
+def test_pin_member_checks_every_beyond_hole_plane_and_pin_exemption():
+    required_net_area = 306000 / (0.9 * 0.85 * 0.85 * 400)
+    out = run_advanced_members(
+        pin_member(
+            thickness_mm=9,
+            internal_nut_clamped_ply=True,
+            net_area_beyond_hole_planes_mm2=[1200, required_net_area - 0.01],
+        )
+    )
+    assert out["checks"][2]["clause"] == "7.5(a)"
+    assert out["checks"][2]["satisfied"]
+    assert out["checks"][4]["plane_index"] == 2
+    assert not out["checks"][4]["satisfied"]
+    assert not out["checked_conditions_satisfied"]
+
+
+def test_pin_member_thickness_and_area_limits_are_inclusive():
+    required_net_area = 306000 / (0.9 * 0.85 * 0.85 * 400)
+    out = run_advanced_members(
+        pin_member(
+            thickness_mm=10,
+            net_area_beyond_hole_planes_mm2=[required_net_area],
+            net_area_perpendicular_mm2=1.33 * required_net_area,
+        )
+    )
+    assert out["checked_conditions_satisfied"]
+
+
+def test_pin_member_rejects_invalid_strength_area_and_distribution_factor():
+    with pytest.raises(ValueError, match="Ultimate strength"):
+        run_advanced_members(pin_member(ultimate_strength_mpa=299))
+    with pytest.raises(ValueError, match="net area must not exceed gross"):
+        run_advanced_members(pin_member(member_net_area_mm2=2001))
+    with pytest.raises(ValueError, match="not valid under any"):
+        run_advanced_members(pin_member(tension_distribution_factor=0.8))
+
+
+def test_pin_member_fails_when_either_section_capacity_is_below_design_tension():
+    net_fracture_failure = run_advanced_members(pin_member(member_net_area_mm2=1000))
+    assert net_fracture_failure["checks"][0]["satisfied"]
+    assert not net_fracture_failure["checks"][1]["satisfied"]
+    assert not net_fracture_failure["checked_conditions_satisfied"]
+
+    gross_yield_failure = run_advanced_members(
+        pin_member(
+            gross_area_mm2=1000,
+            member_net_area_mm2=1000,
+            ultimate_strength_mpa=600,
+            tension_distribution_factor=1.0,
+            net_area_beyond_hole_planes_mm2=[800, 800],
+            net_area_perpendicular_mm2=900,
+        )
+    )
+    assert not gross_yield_failure["checks"][0]["satisfied"]
+    assert gross_yield_failure["checks"][1]["satisfied"]
+    assert not gross_yield_failure["checked_conditions_satisfied"]
 
 
 def test_parallel_restraint_and_analysis_force_envelope():
