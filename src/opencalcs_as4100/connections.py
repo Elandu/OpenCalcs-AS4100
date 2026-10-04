@@ -864,8 +864,7 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         if full_contact != expected_full_contact:
             raise ValueError("Splice case must agree with its verified full-contact condition.")
         alignment_verified = d["splice_parts_and_fasteners_hold_all_parts_in_line_verified"]
-        expected_alignment = case == "compression_not_full_contact"
-        if alignment_verified != expected_alignment:
+        if case == "compression_not_full_contact" and not alignment_verified:
             raise ValueError("The non-full-contact compression splice must hold all parts in line.")
         factors = {
             "axial_tension": 0.3,
@@ -900,8 +899,7 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         if full_contact != expected_full_contact:
             raise ValueError("Splice case must agree with its verified full-contact condition.")
         alignment_verified = d["splice_parts_and_fasteners_hold_all_parts_in_line_verified"]
-        expected_alignment = case == "compression_not_full_contact"
-        if alignment_verified != expected_alignment:
+        if case == "compression_not_full_contact" and not alignment_verified:
             raise ValueError("The non-full-contact compression splice must hold all parts in line.")
         between_supports = d["splice_between_effective_lateral_supports_verified"]
         support_fields = {
@@ -989,11 +987,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
     elif k == "minimum_compression_splice_between_supports":
         full_contact = d["full_contact_bearing_verified"]
         alignment_verified = d["splice_parts_and_fasteners_hold_all_parts_in_line_verified"]
-        if alignment_verified == full_contact:
-            raise ValueError(
-                "Verify full-contact bearing or verify that a non-full-contact splice holds "
-                "all parts in line."
-            )
+        if not full_contact and not alignment_verified:
+            raise ValueError("A non-full-contact compression splice must hold all parts in line.")
         factor = 0.15 if full_contact else 0.3
         actual_axial = d["actual_design_axial_action_kn"]
         member_capacity = d["member_design_axial_capacity_kn"]

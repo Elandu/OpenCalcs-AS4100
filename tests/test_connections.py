@@ -310,9 +310,7 @@ def test_clause_9_1_4_b_iv_v_axial_splice_minimum_actions(
             "actual_design_axial_action_kn": action,
             "member_design_axial_capacity_kn": capacity,
             "full_contact_bearing_verified": full_contact,
-            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": (
-                case == "compression_not_full_contact"
-            ),
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": True,
             "excluded_connection_arrangement_absent_verified": True,
         }
     )
@@ -328,7 +326,7 @@ def test_clause_9_1_4_b_v_compression_splice_between_lateral_supports():
             "actual_design_moment_knm": 200,
             "member_design_axial_capacity_kn": 400,
             "full_contact_bearing_verified": True,
-            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": True,
             "splice_between_effective_lateral_supports_verified": True,
             "effective_lateral_support_distance_mm": 3000,
             "amplification_factor_type": "delta_s",
@@ -389,7 +387,7 @@ def test_clause_9_1_4_b_vii_combined_tension_and_bending_splice_actions():
             "actual_design_axial_action_kn": 20,
             "member_design_axial_capacity_kn": 200,
             "full_contact_bearing_verified": False,
-            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+            "splice_parts_and_fasteners_hold_all_parts_in_line_verified": True,
             "actual_design_moment_knm": 20,
             "member_design_moment_capacity_knm": 200,
             "splice_between_effective_lateral_supports_verified": False,
@@ -463,6 +461,20 @@ def test_clause_9_1_4_rejects_unverified_case_and_full_contact_mismatch():
     with pytest.raises(ValueError, match="hold all parts in line"):
         run_connections(
             {
+                "check_type": "minimum_axial_splice_action",
+                "axial_member_splice_verified": True,
+                "splice_case": "compression_not_full_contact",
+                "actual_design_axial_action_kn": 0,
+                "member_design_axial_capacity_kn": 100,
+                "full_contact_bearing_verified": False,
+                "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+                "excluded_connection_arrangement_absent_verified": True,
+            }
+        )
+
+    with pytest.raises(ValueError, match="hold all parts in line"):
+        run_connections(
+            {
                 "check_type": "minimum_combined_splice_actions",
                 "combined_axial_bending_splice_verified": True,
                 "splice_case": "compression_not_full_contact",
@@ -486,7 +498,7 @@ def test_clause_9_1_4_rejects_unverified_case_and_full_contact_mismatch():
                 "actual_design_axial_action_kn": 0,
                 "member_design_axial_capacity_kn": 100,
                 "full_contact_bearing_verified": True,
-                "splice_parts_and_fasteners_hold_all_parts_in_line_verified": False,
+                "splice_parts_and_fasteners_hold_all_parts_in_line_verified": True,
                 "actual_design_moment_knm": 0,
                 "member_design_moment_capacity_knm": 100,
                 "splice_between_effective_lateral_supports_verified": True,
