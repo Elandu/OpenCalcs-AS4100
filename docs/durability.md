@@ -20,6 +20,8 @@ page images are not included in this package.
   form. Detail conditions, stress direction and weld quality need verified drawing
   or fabrication references; detail (43) also requires the continuous automatic
   weld/no-stop-start condition and detail (48) the non-load-carrying condition.
+  Categories 112 and below require referenced Category SP weld-quality evidence
+  under AS/NZS 1554.1 or 1554.4, as applicable.
   This lookup reports a normal-stress detail category only. It does not verify the
   physical detail or replace the separate fatigue strength and service-spectrum checks.
 - `fatigue_group1_detail`: Table 11.5.1(A) details (1)–(7), including the
@@ -33,6 +35,16 @@ page images are not included in this package.
   Detail (42) identifies the tensile-stress area for bolts or rods in tension and
   requires a referenced assessment that includes prying effects. Bolt force ranges
   and stress ranges are not calculated by this category lookup.
+- `fatigue_welded_detail`: every Table 11.5.1(B) entry (8)–(40), including its
+  geometry-dependent category boundaries, stress type and stress-area basis.
+  Category 125 requires referenced weld quality to AS/NZS 1554.5; categories 112
+  and below require referenced Category SP weld-quality evidence to AS/NZS 1554.1
+  or 1554.4, as applicable. Detail 36 requires principal stress range for combined
+  web bending and shear. Detail 20 is Category 90 without a cope hole and Category
+  71 with a cope hole verified as unfilled. Details 23 and 24 accept a backing-strip
+  weld end exactly 10 mm from the stressed-plate edge; Detail 25 applies at 10 mm
+  or less. Detail identity, weld examination, geometry and force hierarchy still
+  require drawing and fabrication review.
 - `fatigue_constant`: normal stress S–N slopes 3/5 and shear slope 5
   (11.6), explicit thickness correction (11.1.6), capacity factor (11.1.5),
   stress limits (11.1.3), exemption below the normal constant-amplitude limit

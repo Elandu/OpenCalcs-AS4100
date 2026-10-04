@@ -57,10 +57,76 @@ def hollow_fatigue_detail(detail, form, **changes):
         "detail_conditions_verified": True,
         "stress_direction_verified": True,
         "weld_quality_verified": True,
+        "weld_quality_basis": "AS/NZS 1554.1 SP",
+        "weld_quality_evidence_reference": "WELD-QUALITY-4100-01",
         "detail_evidence_reference": "DRAWING-4100-01",
         "stress_direction_evidence_reference": "STRESS-REVIEW-4100-01",
         **changes,
     }
+
+
+def welded_fatigue_detail(detail, **changes):
+    conditions = {
+        "continuous_automatic_weld_both_sides_verified": True,
+        "no_unrepaired_stop_starts_verified": True,
+        "continuous_automatic_backing_butt_weld_verified": True,
+        "continuous_backing_bar_verified": True,
+        "continuous_welds_both_sides_verified": True,
+        "stop_start_positions_present": True,
+        "continuous_weld_one_side_verified": True,
+        "intermittent_longitudinal_weld_verified": True,
+        "cope_hole_not_filled_verified": True,
+        "cope_hole_present": False,
+        "full_penetration_weld_verified": True,
+        "weld_runoff_tabs_removed_verified": True,
+        "weld_ends_ground_flush_in_stress_direction_verified": True,
+        "reinforcement_ground_flush_verified": True,
+        "ndt_100_percent_verified": True,
+        "weld_free_of_exposed_porosity_verified": True,
+        "welds_from_both_sides_verified": True,
+        "plate_girder_welded_before_assembly_verified": True,
+        "backing_bar_verified": True,
+        "cruciform_ndt_and_defect_free_verified": True,
+        "lap_weld_conditions_verified": True,
+        "non_load_carrying_verified": True,
+        "smooth_transition_verified": True,
+        "failure_location_verified": True,
+        "cover_plate_conditions_verified": True,
+        "weld_quality_basis": "AS/NZS 1554.5" if detail in {8, 9} else "AS/NZS 1554.1 SP",
+        "weld_process": "automatic",
+        "transition_slope": 0.3 if detail == 22 else 0.2,
+        "backing_weld_end_distance_mm": 10 if detail == 25 else 20,
+        "intermediate_plate_thickness_mm": 10,
+        "maximum_plate_misalignment_mm": 1,
+        "stress_range_area_basis": "weld_throat_area" if detail == 28 else "plate_area",
+        "lap_capacity_hierarchy": {
+            30: "weld_and_main_gt_overlap",
+            31: "main_and_overlap_gt_weld",
+        }.get(detail, "weld_and_overlap_gt_main"),
+        "lap_taper_slope": 0.5,
+        "overlap_width_mm": 70,
+        "main_plate_thickness_mm": 10,
+        "weld_end_distance_mm": 20,
+        "attachment_weld_length_mm": 40,
+        "transition_radius_mm": 4,
+        "section_width_mm": 12,
+        "plate_thickness_mm": 12,
+        "combined_web_bending_and_shear": False,
+        "principal_stress_range_verified": True,
+        "flange_thickness_mm": 25,
+        "cover_plate_thickness_mm": 25,
+        "cover_plate_wider_than_flange": False,
+        "cover_plate_end_weld_present": False,
+        "failure_location": "base_material" if detail == 34 else "weld",
+        "detail_conditions_verified": True,
+        "stress_direction_verified": True,
+        "weld_quality_verified": True,
+        "detail_evidence_reference": "WELD-DETAIL-4100-01",
+        "stress_direction_evidence_reference": "STRESS-REVIEW-4100-01",
+        "weld_quality_evidence_reference": "WELD-QUALITY-4100-01",
+    }
+    conditions.update(changes)
+    return {"check_type": "fatigue_welded_detail", "detail_number": detail, **conditions}
 
 
 def group1_fatigue_detail(detail, **changes):
@@ -378,6 +444,141 @@ def test_durability_table_11_5_1_c_rejects_wrong_bolt_category_or_missing_prying
         )
     with pytest.raises(ValueError, match="prying effects"):
         result(bolt_fatigue_detail(42))
+
+
+@pytest.mark.parametrize(
+    "detail,expected",
+    [
+        (8, 125),
+        (9, 125),
+        (10, 112),
+        (11, 112),
+        (12, 112),
+        (13, 90),
+        (14, 80),
+        (15, 71),
+        (16, 112),
+        (17, 112),
+        (18, 112),
+        (19, 90),
+        (20, 90),
+        (21, 90),
+        (22, 80),
+        (23, 71),
+        (24, 71),
+        (25, 50),
+        (26, 71),
+        (27, 56),
+        (28, 36),
+        (29, 63),
+        (30, 56),
+        (31, 45),
+        (32, 80),
+        (33, 90),
+        (34, 80),
+        (35, 80),
+        (36, 71),
+        (37, 71),
+        (38, 50),
+        (39, 80),
+        (40, 80),
+    ],
+)
+def test_durability_table_11_5_1_b_all_welded_details(detail, expected):
+    assert result(welded_fatigue_detail(detail))["detail_category_mpa"] == expected
+
+
+def test_durability_table_11_5_1_b_manual_longitudinal_weld_and_quality_categories():
+    manual = result(welded_fatigue_detail(12, weld_process="manual"))
+    assert manual["detail_category_mpa"] == 100
+    assert manual["weld_quality_basis"] == "AS/NZS 1554.1 SP"
+
+    with pytest.raises(ValueError, match="AS/NZS 1554.5"):
+        result(welded_fatigue_detail(8, weld_quality_basis="AS/NZS 1554.1 SP"))
+    with pytest.raises(ValueError, match="Category SP"):
+        result(welded_fatigue_detail(13, weld_quality_basis="AS/NZS 1554.5"))
+    with pytest.raises(ValueError):
+        result(welded_fatigue_detail(12, weld_process="unknown"))
+
+
+def test_durability_table_11_5_1_b_geometry_boundaries_and_stress_bases():
+    assert result(welded_fatigue_detail(22, transition_slope=0.4))["detail_category_mpa"] == 80
+    assert result(welded_fatigue_detail(24, transition_slope=0.399))["detail_category_mpa"] == 71
+    assert (
+        result(welded_fatigue_detail(25, backing_weld_end_distance_mm=10))["detail_category_mpa"]
+        == 50
+    )
+    for detail in (23, 24):
+        assert (
+            result(welded_fatigue_detail(detail, backing_weld_end_distance_mm=10))[
+                "detail_category_mpa"
+            ]
+            == 71
+        )
+    assert (
+        result(welded_fatigue_detail(32, attachment_weld_length_mm=50))["detail_category_mpa"] == 80
+    )
+    assert (
+        result(welded_fatigue_detail(32, attachment_weld_length_mm=100))["detail_category_mpa"]
+        == 71
+    )
+    assert (
+        result(welded_fatigue_detail(32, attachment_weld_length_mm=100.001))["detail_category_mpa"]
+        == 50
+    )
+    assert (
+        result(welded_fatigue_detail(33, transition_radius_mm=1, section_width_mm=6))[
+            "detail_category_mpa"
+        ]
+        == 71
+    )
+    assert (
+        result(welded_fatigue_detail(33, transition_radius_mm=0.9, section_width_mm=6))[
+            "detail_category_mpa"
+        ]
+        == 45
+    )
+    assert result(welded_fatigue_detail(35, plate_thickness_mm=12))["detail_category_mpa"] == 80
+
+    plate_area = result(welded_fatigue_detail(27))
+    assert plate_area["stress_area_basis"] == "plate_area"
+    throat_area = result(welded_fatigue_detail(28, stress_range_area_basis="weld_throat_area"))
+    assert throat_area["stress_area_basis"] == "weld_throat_area"
+    weld_shear = result(welded_fatigue_detail(39))
+    assert weld_shear["stress_type"] == "shear"
+    assert weld_shear["stress_area_basis"] == "weld_throat_area"
+    stud_shear = result(welded_fatigue_detail(40))
+    assert stud_shear["stress_type"] == "shear"
+    assert stud_shear["stress_area_basis"] == "nominal_stud_section"
+
+
+def test_durability_table_11_5_1_b_rejects_unmet_conditions_and_unsupported_geometry():
+    with pytest.raises(ValueError):
+        result(welded_fatigue_detail(8, no_unrepaired_stop_starts_verified=False))
+    cope_hole = result(welded_fatigue_detail(20, cope_hole_present=True))
+    assert cope_hole["detail_category_mpa"] == 71
+    with pytest.raises(ValueError):
+        result(
+            welded_fatigue_detail(20, cope_hole_present=True, cope_hole_not_filled_verified=False)
+        )
+    with pytest.raises(ValueError, match="misalignment"):
+        result(welded_fatigue_detail(26, maximum_plate_misalignment_mm=1.5))
+    with pytest.raises(ValueError, match="at least 10 mm"):
+        result(welded_fatigue_detail(23, backing_weld_end_distance_mm=9.999))
+    with pytest.raises(ValueError, match="b < 8t"):
+        result(welded_fatigue_detail(30, overlap_width_mm=80))
+    with pytest.raises(ValueError, match="end weld"):
+        result(
+            welded_fatigue_detail(
+                38,
+                cover_plate_wider_than_flange=True,
+                cover_plate_end_weld_present=False,
+            )
+        )
+    with pytest.raises(ValueError, match="no listed category"):
+        result(welded_fatigue_detail(38, flange_thickness_mm=25, cover_plate_thickness_mm=25.1))
+    with pytest.raises(ValueError, match="base material"):
+        result(welded_fatigue_detail(34, failure_location="weld"))
 
 
 def test_d07_exemption_strict_boundary():

@@ -33,6 +33,31 @@ def fillet(length):
     )["checks"]["weld"]["design_capacity_kn"]
 
 
+def fatigue_welded_coped_splice():
+    result = run_durability(
+        {
+            "check_type": "fatigue_welded_detail",
+            "detail_number": 20,
+            "detail_conditions_verified": True,
+            "stress_direction_verified": True,
+            "weld_quality_verified": True,
+            "full_penetration_weld_verified": True,
+            "weld_runoff_tabs_removed_verified": True,
+            "weld_ends_ground_flush_in_stress_direction_verified": True,
+            "welds_from_both_sides_verified": True,
+            "cope_hole_present": True,
+            "cope_hole_not_filled_verified": True,
+            "weld_quality_basis": "AS/NZS 1554.1 SP",
+            "detail_evidence_reference": "BENCHMARK-DRAWING-01",
+            "stress_direction_evidence_reference": "BENCHMARK-STRESS-01",
+            "weld_quality_evidence_reference": "BENCHMARK-WELD-01",
+        }
+    )["results"]
+    if result["detail_category_mpa"] != 71:
+        raise AssertionError("Table 11.5.1(B) cope-hole splice should use category 71")
+    return {"detail_category_mpa": result["detail_category_mpa"]}
+
+
 def incomplete_butt_weld():
     result = run_connections(
         {
@@ -1779,6 +1804,7 @@ def main():
         "fillet_lap_1700_mm": lambda: expect_close(fillet(1700), 98.784),
         "fillet_lap_8000_mm": lambda: expect_close(fillet(8000), 61.24608),
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),
+        "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,
         "clause_9_6_2_6_butt_weld_transition": butt_weld_transition,

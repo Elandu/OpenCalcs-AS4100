@@ -350,6 +350,89 @@ INPUT_SCHEMA = {
             ],
         ),
         _operation(
+            "fatigue_welded_detail",
+            {
+                "detail_number": {"type": "integer", "enum": list(range(8, 41))},
+                **{
+                    field: {"const": True}
+                    for field in [
+                        "detail_conditions_verified",
+                        "stress_direction_verified",
+                        "weld_quality_verified",
+                        "continuous_automatic_weld_both_sides_verified",
+                        "no_unrepaired_stop_starts_verified",
+                        "continuous_automatic_backing_butt_weld_verified",
+                        "continuous_backing_bar_verified",
+                        "continuous_welds_both_sides_verified",
+                        "stop_start_positions_present",
+                        "continuous_weld_one_side_verified",
+                        "intermittent_longitudinal_weld_verified",
+                        "cope_hole_not_filled_verified",
+                        "full_penetration_weld_verified",
+                        "weld_runoff_tabs_removed_verified",
+                        "weld_ends_ground_flush_in_stress_direction_verified",
+                        "reinforcement_ground_flush_verified",
+                        "ndt_100_percent_verified",
+                        "weld_free_of_exposed_porosity_verified",
+                        "welds_from_both_sides_verified",
+                        "plate_girder_welded_before_assembly_verified",
+                        "backing_bar_verified",
+                        "cruciform_ndt_and_defect_free_verified",
+                        "lap_weld_conditions_verified",
+                        "non_load_carrying_verified",
+                        "smooth_transition_verified",
+                        "failure_location_verified",
+                        "cover_plate_conditions_verified",
+                    ]
+                },
+                "weld_quality_basis": {
+                    "enum": ["AS/NZS 1554.1 SP", "AS/NZS 1554.4 SP", "AS/NZS 1554.5"]
+                },
+                "weld_process": {"enum": ["automatic", "manual"]},
+                "cope_hole_present": _BOOL,
+                "transition_slope": _POS,
+                "backing_weld_end_distance_mm": _POS,
+                "intermediate_plate_thickness_mm": _POS,
+                "maximum_plate_misalignment_mm": _number(),
+                "stress_range_area_basis": {"enum": ["plate_area", "weld_throat_area"]},
+                "lap_capacity_hierarchy": {
+                    "enum": [
+                        "weld_and_overlap_gt_main",
+                        "weld_and_main_gt_overlap",
+                        "main_and_overlap_gt_weld",
+                    ]
+                },
+                "lap_taper_slope": _POS,
+                "overlap_width_mm": _POS,
+                "main_plate_thickness_mm": _POS,
+                "weld_end_distance_mm": _POS,
+                "attachment_weld_length_mm": _POS,
+                "transition_radius_mm": _POS,
+                "section_width_mm": _POS,
+                "plate_thickness_mm": _POS,
+                "combined_web_bending_and_shear": _BOOL,
+                "principal_stress_range_verified": {"const": True},
+                "flange_thickness_mm": _POS,
+                "cover_plate_thickness_mm": _POS,
+                "cover_plate_wider_than_flange": _BOOL,
+                "cover_plate_end_weld_present": _BOOL,
+                "failure_location": {"enum": ["base_material", "weld"]},
+                "detail_evidence_reference": {"type": "string", "minLength": 1},
+                "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+                "weld_quality_evidence_reference": {"type": "string", "minLength": 1},
+            },
+            required=[
+                "detail_number",
+                "detail_conditions_verified",
+                "stress_direction_verified",
+                "weld_quality_verified",
+                "detail_evidence_reference",
+                "stress_direction_evidence_reference",
+                "weld_quality_evidence_reference",
+                "weld_quality_basis",
+            ],
+        ),
+        _operation(
             "fatigue_group1_detail",
             {
                 "detail_number": {"type": "integer", "enum": [1, 2, 3, 4, 5, 6, 7]},
@@ -407,6 +490,10 @@ INPUT_SCHEMA = {
                 "detail_conditions_verified": {"const": True},
                 "stress_direction_verified": {"const": True},
                 "weld_quality_verified": {"const": True},
+                "weld_quality_basis": {
+                    "enum": ["AS/NZS 1554.1 SP", "AS/NZS 1554.4 SP", "AS/NZS 1554.5"]
+                },
+                "weld_quality_evidence_reference": {"type": "string", "minLength": 1},
                 "no_stop_starts_verified": {"const": True},
                 "non_load_carrying_verified": {"const": True},
                 "detail_evidence_reference": {"type": "string", "minLength": 1},
@@ -812,10 +899,43 @@ _RESULT_SCHEMAS = {
             "stress_type": {"const": "normal"},
             "detail_evidence_reference": {"type": "string", "minLength": 1},
             "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+            "weld_quality_basis": {
+                "enum": ["AS/NZS 1554.1 SP", "AS/NZS 1554.4 SP", "AS/NZS 1554.5"]
+            },
+            "weld_quality_evidence_reference": {"type": "string", "minLength": 1},
             "wall_thickness_mm": _POS,
             "section_width_parallel_to_stress_mm": _POS,
         },
-        ["wall_thickness_mm", "section_width_parallel_to_stress_mm"],
+        [
+            "wall_thickness_mm",
+            "section_width_parallel_to_stress_mm",
+            "weld_quality_basis",
+            "weld_quality_evidence_reference",
+        ],
+    ),
+    "fatigue_welded_detail": _result_schema(
+        {
+            "detail_number": {"type": "integer", "minimum": 8, "maximum": 40},
+            "detail_category_mpa": _POS,
+            "stress_type": {"enum": ["normal", "shear"]},
+            "stress_area_basis": {
+                "enum": [
+                    "base_material_section",
+                    "plate_area",
+                    "weld_throat_area",
+                    "main_plate_area",
+                    "nominal_stud_section",
+                ]
+            },
+            "stress_basis": {"enum": ["nominal", "principal_stress_range"]},
+            "weld_quality_basis": {
+                "enum": ["AS/NZS 1554.1 SP", "AS/NZS 1554.4 SP", "AS/NZS 1554.5"]
+            },
+            "detail_evidence_reference": {"type": "string", "minLength": 1},
+            "stress_direction_evidence_reference": {"type": "string", "minLength": 1},
+            "weld_quality_evidence_reference": {"type": "string", "minLength": 1},
+        },
+        ["stress_basis"],
     ),
     "fatigue_group1_detail": _result_schema(
         {
@@ -1470,6 +1590,16 @@ def _fatigue_hollow_section_detail(d):
         result["wall_thickness_mm"] = thickness
 
     result["detail_category_mpa"] = category
+    if category <= 112:
+        quality_basis = d.get("weld_quality_basis")
+        quality_reference = d.get("weld_quality_evidence_reference", "").strip()
+        if quality_basis not in {"AS/NZS 1554.1 SP", "AS/NZS 1554.4 SP"} or not quality_reference:
+            raise ValueError(
+                "Table 11.5.1(D) details of category 112 and below require referenced "
+                "Category SP weld-quality evidence."
+            )
+        result["weld_quality_basis"] = quality_basis
+        result["weld_quality_evidence_reference"] = quality_reference
     warnings = [
         "The selected table detail, geometry, stress direction and weld quality rely on the "
         "supplied assessment references; they are not authenticated by this calculation."
@@ -1603,6 +1733,281 @@ def _fatigue_bolt_detail(d):
             "effects using an assessed method."
         )
     return result, ["11.5.1", "Table 11.5.1(C)"], warnings
+
+
+def _fatigue_welded_detail(d):
+    detail = d["detail_number"]
+    references = {
+        "detail_evidence_reference": d["detail_evidence_reference"].strip(),
+        "stress_direction_evidence_reference": d["stress_direction_evidence_reference"].strip(),
+        "weld_quality_evidence_reference": d["weld_quality_evidence_reference"].strip(),
+    }
+    if any(not reference for reference in references.values()):
+        raise ValueError("Detail, stress-direction and weld-quality references must be non-empty.")
+
+    def require(*fields):
+        if any(d.get(field) is not True for field in fields):
+            raise ValueError(
+                f"Table 11.5.1(B) detail {detail} is missing a required verified condition."
+            )
+
+    category = None
+    stress_type = "normal"
+    stress_area_basis = "base_material_section"
+    stress_basis = "nominal"
+
+    if detail in {8, 9}:
+        require(
+            "continuous_automatic_weld_both_sides_verified",
+            "no_unrepaired_stop_starts_verified",
+        )
+        category = 125
+    elif detail in {10, 11}:
+        require(
+            "continuous_automatic_backing_butt_weld_verified",
+            "continuous_backing_bar_verified",
+            "no_unrepaired_stop_starts_verified",
+        )
+        category = 112
+    elif detail == 12:
+        require("continuous_welds_both_sides_verified", "stop_start_positions_present")
+        process = d.get("weld_process")
+        if process not in {"manual", "automatic"}:
+            raise ValueError("Detail 12 requires a manual or automatic weld process.")
+        category = 100 if process == "manual" else 112
+    elif detail == 13:
+        require("continuous_weld_one_side_verified")
+        category = 90
+    elif detail == 14:
+        require("intermittent_longitudinal_weld_verified")
+        category = 80
+    elif detail == 15:
+        require("cope_hole_not_filled_verified")
+        category = 71
+    elif detail in {16, 17, 18}:
+        require(
+            "full_penetration_weld_verified",
+            "weld_runoff_tabs_removed_verified",
+            "weld_ends_ground_flush_in_stress_direction_verified",
+            "reinforcement_ground_flush_verified",
+            "ndt_100_percent_verified",
+            "weld_free_of_exposed_porosity_verified",
+            "welds_from_both_sides_verified",
+        )
+        if detail == 17:
+            require("plate_girder_welded_before_assembly_verified")
+        if detail == 18:
+            slope = d.get("transition_slope")
+            if slope is None or slope > 0.25:
+                raise ValueError("Detail 18 requires a transition slope no greater than 1:4.")
+        category = 112
+    elif detail in {19, 20, 21, 22}:
+        require(
+            "full_penetration_weld_verified",
+            "weld_runoff_tabs_removed_verified",
+            "weld_ends_ground_flush_in_stress_direction_verified",
+            "welds_from_both_sides_verified",
+        )
+        if detail == 20:
+            cope_hole_present = d.get("cope_hole_present")
+            if not isinstance(cope_hole_present, bool):
+                raise ValueError("Detail 20 requires the cope-hole condition to be stated.")
+            category = 71 if cope_hole_present else 90
+            if cope_hole_present:
+                require("cope_hole_not_filled_verified")
+        if detail in {21, 22}:
+            slope = d.get("transition_slope")
+            if slope is None:
+                raise ValueError(f"Detail {detail} requires the splice transition slope.")
+            if detail == 21 and slope > 0.25:
+                raise ValueError("Detail 21 requires a transition taper no steeper than 1:4.")
+            if detail == 22 and not (0.25 < slope <= 0.4):
+                raise ValueError(
+                    "Detail 22 requires a taper greater than 1:4 and no steeper than 1:2.5."
+                )
+        if detail != 20:
+            category = 80 if detail == 22 else 90
+    elif detail in {23, 24, 25}:
+        require("full_penetration_weld_verified", "backing_bar_verified")
+        distance = d.get("backing_weld_end_distance_mm")
+        if distance is None:
+            raise ValueError(f"Detail {detail} requires the backing-strip weld-end distance.")
+        if detail in {23, 24} and distance < 10:
+            raise ValueError(
+                f"Detail {detail} requires the backing-strip weld end to be at least 10 mm away."
+            )
+        if detail == 25 and distance > 10:
+            raise ValueError(
+                "Detail 25 applies when the backing-strip weld end is at most 10 mm away."
+            )
+        if detail == 24:
+            slope = d.get("transition_slope")
+            if slope is None or slope >= 0.4:
+                raise ValueError("Detail 24 requires a width or thickness taper less than 1:2.5.")
+        category = 50 if detail == 25 else 71
+    elif detail == 26:
+        require("full_penetration_weld_verified", "cruciform_ndt_and_defect_free_verified")
+        thickness = d.get("intermediate_plate_thickness_mm")
+        misalignment = d.get("maximum_plate_misalignment_mm")
+        if thickness is None or misalignment is None:
+            raise ValueError(
+                "Detail 26 requires intermediate-plate thickness and maximum misalignment."
+            )
+        if misalignment < 0 or misalignment >= 0.15 * thickness:
+            raise ValueError(
+                "Detail 26 misalignment must be less than 0.15 times the "
+                "intermediate-plate thickness."
+            )
+        category = 71
+    elif detail in {27, 28}:
+        area_basis = d.get("stress_range_area_basis")
+        expected_basis = "plate_area" if detail == 27 else "weld_throat_area"
+        if area_basis != expected_basis:
+            raise ValueError(
+                f"Detail {detail} requires stress range on {expected_basis.replace('_', ' ')}."
+            )
+        category = 56 if detail == 27 else 36
+        stress_area_basis = expected_basis
+    elif detail in {29, 30, 31}:
+        require("lap_weld_conditions_verified")
+        hierarchy = d.get("lap_capacity_hierarchy")
+        expected_hierarchy = {
+            29: "weld_and_overlap_gt_main",
+            30: "weld_and_main_gt_overlap",
+            31: "main_and_overlap_gt_weld",
+        }[detail]
+        if hierarchy != expected_hierarchy:
+            raise ValueError(
+                f"Detail {detail} requires its specified lap-joint capacity hierarchy."
+            )
+        if detail == 29:
+            slope = d.get("lap_taper_slope")
+            if slope is None or slope > 0.5:
+                raise ValueError("Detail 29 requires a lap transition taper no steeper than 1:2.")
+            category = 63
+            stress_area_basis = "main_plate_area"
+        elif detail == 30:
+            width = d.get("overlap_width_mm")
+            thickness = d.get("main_plate_thickness_mm")
+            distance = d.get("weld_end_distance_mm")
+            if width is None or thickness is None or distance is None:
+                raise ValueError(
+                    "Detail 30 requires overlap width, main-plate thickness and weld-end distance."
+                )
+            if width >= 8 * thickness or distance <= 10:
+                raise ValueError(
+                    "Detail 30 requires b < 8t and weld ends more than 10 mm from the edge."
+                )
+            category = 56
+        else:
+            category = 45
+    elif detail == 32:
+        require("non_load_carrying_verified")
+        length = d.get("attachment_weld_length_mm")
+        if length is None:
+            raise ValueError("Detail 32 requires attachment-weld length.")
+        category = 80 if length <= 50 else 71 if length <= 100 else 50
+    elif detail == 33:
+        require("non_load_carrying_verified", "smooth_transition_verified")
+        radius = d.get("transition_radius_mm")
+        width = d.get("section_width_mm")
+        if radius is None or width is None:
+            raise ValueError("Detail 33 requires transition radius and section width.")
+        ratio = radius / width
+        category = 90 if ratio >= 1 / 3 else 71 if ratio >= 1 / 6 else 45
+    elif detail == 34:
+        require("failure_location_verified")
+        if d.get("failure_location") != "base_material":
+            raise ValueError(
+                "Detail 34 applies when the shear connector failure is in the base material."
+            )
+        category = 80
+    elif detail == 35:
+        thickness = d.get("plate_thickness_mm")
+        distance = d.get("weld_end_distance_mm")
+        if thickness is None or distance is None:
+            raise ValueError("Detail 35 requires plate thickness and weld-end distance.")
+        if distance < 10:
+            raise ValueError(
+                "Detail 35 requires the weld end to be at least 10 mm from the plate edge."
+            )
+        category = 80 if thickness <= 12 else 71
+    elif detail == 36:
+        combined = d.get("combined_web_bending_and_shear")
+        if combined is None:
+            raise ValueError("Detail 36 requires the combined web bending-and-shear condition.")
+        if combined:
+            require("principal_stress_range_verified")
+            stress_basis = "principal_stress_range"
+        category = 71
+    elif detail == 37:
+        category = 71
+    elif detail == 38:
+        require("cover_plate_conditions_verified")
+        flange_t = d.get("flange_thickness_mm")
+        cover_t = d.get("cover_plate_thickness_mm")
+        wider = d.get("cover_plate_wider_than_flange")
+        end_weld = d.get("cover_plate_end_weld_present")
+        if flange_t is None or cover_t is None or wider is None or end_weld is None:
+            raise ValueError("Detail 38 requires both thicknesses and cover-plate end geometry.")
+        if wider and not end_weld:
+            raise ValueError(
+                "Detail 38 requires an end weld when the cover plate is wider than the flange."
+            )
+        if flange_t <= 25 and cover_t <= 25:
+            category = 50
+        elif flange_t > 25 and cover_t > 25:
+            category = 36
+        else:
+            raise ValueError(
+                "Detail 38 has no listed category when only one thickness exceeds 25 mm."
+            )
+    elif detail == 39:
+        category = 80
+        stress_type = "shear"
+        stress_area_basis = "weld_throat_area"
+    else:  # detail 40
+        require("failure_location_verified")
+        if d.get("failure_location") != "weld":
+            raise ValueError("Detail 40 applies when the welded-stud shear failure is in the weld.")
+        category = 80
+        stress_type = "shear"
+        stress_area_basis = "nominal_stud_section"
+
+    quality_basis = d["weld_quality_basis"]
+    if category == 125:
+        if quality_basis != "AS/NZS 1554.5":
+            raise ValueError(
+                "Detail category 125 requires weld quality conforming to AS/NZS 1554.5."
+            )
+    elif quality_basis not in {"AS/NZS 1554.1 SP", "AS/NZS 1554.4 SP"}:
+        raise ValueError(
+            "Detail category 112 and below requires referenced Category SP weld-quality evidence."
+        )
+
+    result = {
+        "detail_number": detail,
+        "detail_category_mpa": category,
+        "stress_type": stress_type,
+        "stress_area_basis": stress_area_basis,
+        "weld_quality_basis": quality_basis,
+        **references,
+    }
+    if stress_basis != "nominal":
+        result["stress_basis"] = stress_basis
+    warnings = [
+        "The selected detail, stress direction and weld-quality evidence are supplied "
+        "declarations; the referenced fabrication records are not authenticated here."
+    ]
+    if detail in {39, 40}:
+        warnings.append(
+            "Use the reported shear stress-area basis when calculating the bolt/weld stress range."
+        )
+    if detail == 36 and stress_basis == "principal_stress_range":
+        warnings.append(
+            "For combined web bending and shear, use the stress range of principal stresses."
+        )
+    return result, ["11.5.1", "Table 11.5.1(B)", "11.1.4"], warnings
 
 
 _TEMPERATURES = {
@@ -2168,6 +2573,8 @@ def _run_durability(inputs):
         result, clauses, warnings = _fatigue_group1_detail(d)
     elif op == "fatigue_bolt_detail":
         result, clauses, warnings = _fatigue_bolt_detail(d)
+    elif op == "fatigue_welded_detail":
+        result, clauses, warnings = _fatigue_welded_detail(d)
     elif op == "fatigue_hollow_section_detail":
         result, clauses, warnings = _fatigue_hollow_section_detail(d)
     elif op == "hollow_section_truss_stress_range":

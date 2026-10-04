@@ -153,6 +153,8 @@ def verify():
         "detail_conditions_verified": True,
         "stress_direction_verified": True,
         "weld_quality_verified": True,
+        "weld_quality_basis": "AS/NZS 1554.1 SP",
+        "weld_quality_evidence_reference": "VERIFY-WELD-QUALITY-01",
         "detail_evidence_reference": "VERIFY-DRAWING-01",
         "stress_direction_evidence_reference": "VERIFY-STRESS-01",
     }
@@ -212,6 +214,143 @@ def verify():
         "Table 11.5.1(D) non-load-carrying attachment width limit",
         attachment["detail_category_mpa"],
         71,
+    )
+
+    welded_conditions = {
+        "detail_conditions_verified": True,
+        "stress_direction_verified": True,
+        "weld_quality_verified": True,
+        "continuous_automatic_weld_both_sides_verified": True,
+        "no_unrepaired_stop_starts_verified": True,
+        "continuous_automatic_backing_butt_weld_verified": True,
+        "continuous_backing_bar_verified": True,
+        "continuous_welds_both_sides_verified": True,
+        "stop_start_positions_present": True,
+        "continuous_weld_one_side_verified": True,
+        "intermittent_longitudinal_weld_verified": True,
+        "cope_hole_not_filled_verified": True,
+        "cope_hole_present": False,
+        "full_penetration_weld_verified": True,
+        "weld_runoff_tabs_removed_verified": True,
+        "weld_ends_ground_flush_in_stress_direction_verified": True,
+        "reinforcement_ground_flush_verified": True,
+        "ndt_100_percent_verified": True,
+        "weld_free_of_exposed_porosity_verified": True,
+        "welds_from_both_sides_verified": True,
+        "plate_girder_welded_before_assembly_verified": True,
+        "backing_bar_verified": True,
+        "cruciform_ndt_and_defect_free_verified": True,
+        "lap_weld_conditions_verified": True,
+        "non_load_carrying_verified": True,
+        "smooth_transition_verified": True,
+        "failure_location_verified": True,
+        "cover_plate_conditions_verified": True,
+        "weld_quality_basis": "AS/NZS 1554.1 SP",
+        "weld_process": "automatic",
+        "transition_slope": 0.2,
+        "backing_weld_end_distance_mm": 20,
+        "intermediate_plate_thickness_mm": 10,
+        "maximum_plate_misalignment_mm": 1,
+        "stress_range_area_basis": "plate_area",
+        "lap_capacity_hierarchy": "weld_and_overlap_gt_main",
+        "lap_taper_slope": 0.5,
+        "overlap_width_mm": 70,
+        "main_plate_thickness_mm": 10,
+        "weld_end_distance_mm": 20,
+        "attachment_weld_length_mm": 40,
+        "transition_radius_mm": 4,
+        "section_width_mm": 12,
+        "plate_thickness_mm": 12,
+        "combined_web_bending_and_shear": False,
+        "principal_stress_range_verified": True,
+        "flange_thickness_mm": 25,
+        "cover_plate_thickness_mm": 25,
+        "cover_plate_wider_than_flange": False,
+        "cover_plate_end_weld_present": False,
+        "failure_location": "base_material",
+        "detail_evidence_reference": "VERIFY-WELD-DETAIL-01",
+        "stress_direction_evidence_reference": "VERIFY-STRESS-01",
+        "weld_quality_evidence_reference": "VERIFY-WELD-QUALITY-01",
+    }
+
+    def welded_detail(detail, **changes):
+        inputs = {
+            "check_type": "fatigue_welded_detail",
+            "detail_number": detail,
+            **welded_conditions,
+            **changes,
+        }
+        return run_durability(inputs)["results"]
+
+    full_penetration_125 = welded_detail(
+        8,
+        continuous_automatic_weld_both_sides_verified=True,
+        weld_quality_basis="AS/NZS 1554.5",
+    )
+    record(
+        "Table 11.5.1(B) automatic two-sided longitudinal weld category",
+        full_penetration_125["detail_category_mpa"],
+        125,
+    )
+    manual_longitudinal = welded_detail(12, weld_process="manual")
+    record(
+        "Table 11.5.1(B) manual longitudinal weld category",
+        manual_longitudinal["detail_category_mpa"],
+        100,
+    )
+    cope_hole_splice = welded_detail(20, cope_hole_present=True)
+    record(
+        "Table 11.5.1(B) transverse splice with unfilled cope hole",
+        cope_hole_splice["detail_category_mpa"],
+        71,
+    )
+    taper_limit = welded_detail(22, transition_slope=0.4)
+    record(
+        "Table 11.5.1(B) butt-weld taper upper boundary",
+        taper_limit["detail_category_mpa"],
+        80,
+    )
+    cruciform = welded_detail(26, maximum_plate_misalignment_mm=1.49)
+    record(
+        "Table 11.5.1(B) cruciform misalignment below 0.15t",
+        cruciform["detail_category_mpa"],
+        71,
+    )
+    attachment_length = welded_detail(32, attachment_weld_length_mm=100)
+    record(
+        "Table 11.5.1(B) longitudinal attachment length at 100 mm",
+        attachment_length["detail_category_mpa"],
+        71,
+    )
+    gusset_transition = welded_detail(33, transition_radius_mm=1, section_width_mm=6)
+    record(
+        "Table 11.5.1(B) gusset transition radius ratio at 1/6",
+        gusset_transition["detail_category_mpa"],
+        71,
+    )
+    cover_plate = welded_detail(38)
+    record(
+        "Table 11.5.1(B) cover plate with flange and plate at 25 mm",
+        cover_plate["detail_category_mpa"],
+        50,
+    )
+    shear_weld = welded_detail(39)
+    record(
+        "Table 11.5.1(B) shear weld detail stress-area classification",
+        int(
+            shear_weld["stress_type"] == "shear"
+            and shear_weld["stress_area_basis"] == "weld_throat_area"
+        ),
+        1,
+    )
+    shear_stud = welded_detail(40, failure_location="weld")
+    record(
+        "Table 11.5.1(B) welded stud shear stress-area classification",
+        int(
+            shear_stud["stress_type"] == "shear"
+            and shear_stud["stress_area_basis"] == "nominal_stud_section"
+        ),
+        1,
     )
 
     axial = run_analysis(
