@@ -133,6 +133,128 @@ def butt_weld_transition():
     return expected
 
 
+def fillet_macro_test_throat():
+    result = run_connections(
+        {
+            "check_type": "fillet_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "leg_1_mm": 6,
+            "leg_2_mm": 6,
+            "included_angle_deg": 90,
+            "root_gap_mm": 0,
+            "thickest_part_mm": 10,
+            "thinnest_part_mm": 6,
+            "edge_material_thickness_mm": 10,
+            "edge_built_out_verified": False,
+            "reinforces_butt_weld": False,
+            "overall_length_per_segment_mm": 100,
+            "segment_count": 1,
+            "intermittent_segment": False,
+            "clear_spacing_mm": 0,
+            "at_built_up_member_end": False,
+            "member_force_type": "other",
+            "forms_built_up_member": False,
+            "parallel_weld_count": 1,
+            "parallel_load_share_verified": False,
+            "transverse_weld_spacing_mm": 0,
+            "thin_rhs_longitudinal": False,
+            "lap_length_mm": 0,
+            "automatic_arc_welding_process_verified": True,
+            "production_weld_macro_test_verified": True,
+            "macro_test_required_penetration_achieved_verified": True,
+            "macro_test_record_reference": "FILLET-MACRO-BENCHMARK",
+            "macro_test_additional_penetration_mm": 4,
+            "action_kn": 0,
+        }
+    )
+    # Independent arithmetic: t_t = 6/sqrt(2) + 0.85(4), then Clause 9.6.3.10.
+    throat = 6 / (2**0.5) + 0.85 * 4
+    area = throat * 100
+    nominal = 0.6 * 490 * area / 1000
+    expected = {
+        "design_throat_mm": throat,
+        "effective_area_mm2": area,
+        "nominal_capacity_kn": nominal,
+        "design_capacity_kn": 0.8 * nominal,
+    }
+    intermediate = result["intermediate"]
+    strength = result["checks"]["weld_strength"]
+    for name, value in expected.items():
+        observed = strength[name] if name.endswith("capacity_kn") else intermediate[name]
+        expect_close(observed, value)
+    if "9.6.3.4" not in strength["clause"]:
+        raise AssertionError("Figure 9.6.3.4 was not reported for fillet macro-test throat")
+    return expected
+
+
+def plug_slot_benchmark(dimensions, expected_area):
+    result = run_connections(
+        {
+            "check_type": "plug_slot",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "permitted_shear_application": True,
+            "action_kn": 0,
+            "hole_geometry_verified": True,
+            **dimensions,
+        }
+    )
+    nominal = 0.6 * 490 * expected_area / 1000
+    expected = {
+        "effective_area_mm2": expected_area,
+        "nominal_capacity_kn": nominal,
+        "design_capacity_kn": 0.8 * nominal,
+    }
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld"]
+    expect_close(intermediate["effective_area_mm2"], expected_area)
+    expect_close(weld["nominal_capacity_kn"], nominal)
+    expect_close(weld["design_capacity_kn"], 0.8 * nominal)
+    if not result["checks"]["application"]["satisfied"]:
+        raise AssertionError("Clause 9.6.4.3 permitted application was not recorded")
+    return expected
+
+
+def plug_slot_circular_hole():
+    return plug_slot_benchmark(
+        {"hole_shape": "circular", "hole_diameter_mm": 40},
+        400 * 3.141592653589793,
+    )
+
+
+def plug_slot_round_ended_slot():
+    return plug_slot_benchmark(
+        {"hole_shape": "round_ended_slot", "slot_length_mm": 50, "slot_width_mm": 20},
+        600 + 100 * 3.141592653589793,
+    )
+
+
+def plug_slot_rectangular_slot():
+    return plug_slot_benchmark(
+        {"hole_shape": "rectangular_slot", "slot_length_mm": 50, "slot_width_mm": 20},
+        1000,
+    )
+
+
+def plug_slot_external_area():
+    result = run_connections(
+        {
+            "check_type": "plug_slot",
+            "weld_strength_mpa": 490,
+            "effective_area_mm2": 1000,
+            "quality": "SP",
+            "permitted_shear_application": True,
+            "action_kn": 0,
+        }
+    )
+    expected = {"effective_area_mm2": 1000, "nominal_capacity_kn": 294, "design_capacity_kn": 235.2}
+    expect_close(result["intermediate"]["effective_area_mm2"], expected["effective_area_mm2"])
+    expect_close(result["checks"]["weld"]["nominal_capacity_kn"], expected["nominal_capacity_kn"])
+    expect_close(result["checks"]["weld"]["design_capacity_kn"], expected["design_capacity_kn"])
+    return expected
+
+
 def stiffener(**changes):
     return {
         "operation": "load_bearing_stiffener",
@@ -1585,6 +1707,11 @@ def main():
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,
         "clause_9_6_2_6_butt_weld_transition": butt_weld_transition,
+        "clause_9_6_3_4_fillet_macro_test_throat": fillet_macro_test_throat,
+        "clause_9_6_4_2_circular_plug_weld_area": plug_slot_circular_hole,
+        "clause_9_6_4_2_round_ended_slot_weld_area": plug_slot_round_ended_slot,
+        "clause_9_6_4_2_rectangular_slot_weld_area": plug_slot_rectangular_slot,
+        "clause_9_6_4_externally_assessed_area": plug_slot_external_area,
         "mixed_stiffener_contact_and_outstand": mixed_stiffener,
         "zero_restrained_flanges": zero_restrained_flanges,
         "yield_above_690_mpa": over_scope_yield,

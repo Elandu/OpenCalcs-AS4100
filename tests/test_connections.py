@@ -1408,6 +1408,16 @@ def fillet_design(**changes):
     return run_connections(inputs)
 
 
+def fillet_macro_test_evidence(additional_penetration_mm=0):
+    return {
+        "automatic_arc_welding_process_verified": True,
+        "production_weld_macro_test_verified": True,
+        "macro_test_required_penetration_achieved_verified": True,
+        "macro_test_record_reference": "FILLET-MACRO-01",
+        "macro_test_additional_penetration_mm": additional_penetration_mm,
+    }
+
+
 def test_fillet_design_calculates_throat_effective_area_and_strength():
     result = fillet_design()
     throat = 6 / 2**0.5
@@ -1419,6 +1429,51 @@ def test_fillet_design_calculates_throat_effective_area_and_strength():
     assert result["checks"]["weld_size"]["satisfied"]
     assert result["checks"]["weld_length_and_area"]["satisfied"]
     assert result["check_type"] == "fillet_design"
+
+
+def test_fillet_design_macro_test_increases_throat_using_figure_9_6_3_4():
+    result = fillet_design(**fillet_macro_test_evidence(4), action_kn=0)
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+    expected_throat = 6 / 2**0.5 + 0.85 * 4
+
+    assert intermediate["macro_test_throat_increase"]["t_t1_mm"] == pytest.approx(6 / 2**0.5)
+    assert intermediate["macro_test_throat_increase"]["t_t2_mm"] == 4
+    assert intermediate["geometric_throat_before_length_reduction_mm"] == pytest.approx(
+        expected_throat
+    )
+    assert intermediate["design_throat_mm"] == pytest.approx(expected_throat)
+    assert intermediate["effective_area_mm2"] == pytest.approx(expected_throat * 100)
+    assert weld["nominal_capacity_kn"] == pytest.approx(0.6 * 490 * expected_throat * 100 / 1000)
+    assert weld["design_capacity_kn"] == pytest.approx(
+        0.8 * 0.6 * 490 * expected_throat * 100 / 1000
+    )
+    assert "9.6.3.4 macro-test throat" in weld["clause"]
+
+
+def test_fillet_design_macro_throat_observes_short_length_reduction():
+    result = fillet_design(
+        **fillet_macro_test_evidence(4),
+        overall_length_per_segment_mm=12,
+        action_kn=0,
+    )
+    intermediate = result["intermediate"]
+    figure_throat = 6 / 2**0.5 + 0.85 * 4
+
+    assert intermediate["macro_test_throat_increase"][
+        "figure_design_throat_before_length_reduction_mm"
+    ] == pytest.approx(figure_throat)
+    assert result["checks"]["weld_length_and_area"]["length_based_size_reduction_factor"] == 0.5
+    assert intermediate["design_throat_mm"] == pytest.approx(figure_throat * 0.5)
+
+
+def test_fillet_design_macro_test_requires_complete_verified_evidence():
+    with pytest.raises(ValueError, match="fillet macro-test throat increase requires"):
+        fillet_design(automatic_arc_welding_process_verified=True)
+    invalid_evidence = fillet_macro_test_evidence()
+    invalid_evidence["production_weld_macro_test_verified"] = False
+    with pytest.raises(ValueError):
+        fillet_design(**invalid_evidence)
 
 
 def test_fillet_design_root_gap_short_length_and_minimum_size_boundaries():
@@ -1831,18 +1886,83 @@ def test_incomplete_butt_design_applies_thin_rhs_quality_factor_route():
         incomplete_butt_design(quality="GP", thin_rhs_longitudinal=True)
 
 
-def test_plug_slot():
-    r = run_connections(
-        {
-            "check_type": "plug_slot",
-            "weld_strength_mpa": 490,
-            "effective_area_mm2": 1000,
-            "quality": "SP",
-            "permitted_shear_application": True,
-            "action_kn": 200,
-        }
-    )
+def plug_slot(**changes):
+    inputs = {
+        "check_type": "plug_slot",
+        "weld_strength_mpa": 490,
+        "quality": "SP",
+        "permitted_shear_application": True,
+        "action_kn": 0,
+    }
+    inputs.update(changes)
+    return run_connections(inputs)
+
+
+def test_plug_slot_accepts_externally_assessed_effective_area():
+    r = plug_slot(effective_area_mm2=1000, action_kn=200)
     assert r["checks"]["weld"]["design_capacity_kn"] == pytest.approx(235.2)
+
+
+@pytest.mark.parametrize(
+    ("geometry", "expected_area"),
+    [
+        ({"hole_shape": "circular", "hole_diameter_mm": 40}, 400 * pi),
+        (
+            {"hole_shape": "round_ended_slot", "slot_length_mm": 50, "slot_width_mm": 20},
+            600 + 100 * pi,
+        ),
+        ({"hole_shape": "rectangular_slot", "slot_length_mm": 50, "slot_width_mm": 20}, 1000),
+    ],
+)
+def test_plug_slot_calculates_verified_faying_plane_area(geometry, expected_area):
+    result = plug_slot(**geometry, hole_geometry_verified=True)
+    area = result["intermediate"]["effective_area_mm2"]
+
+    assert area == pytest.approx(expected_area)
+    assert result["intermediate"]["area_basis"] == "nominal_faying_plane_hole_geometry"
+    assert result["checks"]["weld"]["nominal_capacity_kn"] == pytest.approx(
+        0.6 * 490 * expected_area / 1000
+    )
+    assert result["checks"]["weld"]["design_capacity_kn"] == pytest.approx(
+        0.8 * 0.6 * 490 * expected_area / 1000
+    )
+
+
+def test_plug_slot_rejects_incomplete_unverified_and_mixed_geometry():
+    with pytest.raises(ValueError, match="requires hole_shape"):
+        plug_slot(hole_diameter_mm=40, hole_geometry_verified=True)
+    with pytest.raises(ValueError, match="incomplete.*hole_diameter_mm"):
+        plug_slot(hole_shape="circular", hole_geometry_verified=True)
+    with pytest.raises(ValueError, match="incomplete.*slot_width_mm"):
+        plug_slot(
+            hole_shape="round_ended_slot",
+            slot_length_mm=50,
+            hole_geometry_verified=True,
+        )
+    with pytest.raises(ValueError, match="hole_geometry_verified"):
+        plug_slot(hole_shape="circular", hole_diameter_mm=40)
+    with pytest.raises(ValueError, match="not include.*hole_diameter_mm"):
+        plug_slot(
+            hole_shape="rectangular_slot",
+            hole_diameter_mm=40,
+            slot_length_mm=50,
+            slot_width_mm=20,
+            hole_geometry_verified=True,
+        )
+    with pytest.raises(ValueError, match="either an assessed area or geometry"):
+        plug_slot(
+            effective_area_mm2=1000,
+            hole_shape="circular",
+            hole_diameter_mm=40,
+            hole_geometry_verified=True,
+        )
+    with pytest.raises(ValueError, match="cannot be less than its width"):
+        plug_slot(
+            hole_shape="round_ended_slot",
+            slot_length_mm=19,
+            slot_width_mm=20,
+            hole_geometry_verified=True,
+        )
 
 
 def test_layout_and_hole_deduction():

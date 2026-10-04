@@ -296,6 +296,11 @@ FIELDS = {
         "transverse_weld_spacing_mm": N,
         "thin_rhs_longitudinal": BOOL,
         "lap_length_mm": N,
+        "automatic_arc_welding_process_verified": {"const": True},
+        "production_weld_macro_test_verified": {"const": True},
+        "macro_test_required_penetration_achieved_verified": {"const": True},
+        "macro_test_record_reference": TEXT_REFERENCE,
+        "macro_test_additional_penetration_mm": N,
         "action_kn": N,
     },
     "built_up_component_end_weld": {
@@ -391,6 +396,11 @@ FIELDS = {
         "quality": QUALITY,
         "permitted_shear_application": {"const": True},
         "action_kn": N,
+        "hole_shape": {"enum": ["circular", "round_ended_slot", "rectangular_slot"]},
+        "hole_diameter_mm": P,
+        "slot_length_mm": P,
+        "slot_width_mm": P,
+        "hole_geometry_verified": {"const": True},
     },
     "layout": {
         "diameter_mm": P,
@@ -765,6 +775,21 @@ OPTIONAL_FIELDS = {
     "bolt_group_elastic_3d": FILLER_PLATE_OPTIONAL_FIELDS,
     "slip": SLIP_SURFACE_OPTIONAL_FIELDS,
     "slip_factor_test": SLIP_FACTOR_TEST_OPTIONAL_FIELDS,
+    "fillet_design": (
+        "automatic_arc_welding_process_verified",
+        "production_weld_macro_test_verified",
+        "macro_test_required_penetration_achieved_verified",
+        "macro_test_record_reference",
+        "macro_test_additional_penetration_mm",
+    ),
+    "plug_slot": (
+        "effective_area_mm2",
+        "hole_shape",
+        "hole_diameter_mm",
+        "slot_length_mm",
+        "slot_width_mm",
+        "hole_geometry_verified",
+    ),
     "butt_weld_transition": (
         "fatigue_slope_limit",
         "fatigue_slope_limit_verified",
@@ -2308,6 +2333,24 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError("Thinnest part cannot be thicker than the thickest part.")
         if d["parallel_weld_count"] == 2 and not d["parallel_load_share_verified"]:
             raise ValueError("Load sharing between the two parallel welds must be verified.")
+        macro_test_fields = {
+            "automatic_arc_welding_process_verified",
+            "production_weld_macro_test_verified",
+            "macro_test_required_penetration_achieved_verified",
+            "macro_test_record_reference",
+            "macro_test_additional_penetration_mm",
+        }
+        supplied_macro_test_fields = macro_test_fields.intersection(d)
+        macro_test_used = bool(supplied_macro_test_fields)
+        if macro_test_used and supplied_macro_test_fields != macro_test_fields:
+            raise ValueError(
+                "A fillet macro-test throat increase requires automatic arc process verification, "
+                "a production-weld macro-test record, achieved required penetration, the record "
+                "reference, and measured penetration beyond the theoretical root."
+            )
+        macro_test_extra_penetration = (
+            d["macro_test_additional_penetration_mm"] if macro_test_used else 0
+        )
         leg_1 = d["leg_1_mm"] - d["root_gap_mm"]
         leg_2 = d["leg_2_mm"] - d["root_gap_mm"]
         if min(leg_1, leg_2) <= 0:
@@ -2342,10 +2385,11 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         theta = radians(d["included_angle_deg"])
         opposite_side = sqrt(leg_1**2 + leg_2**2 - 2 * leg_1 * leg_2 * cos(theta))
         geometric_throat = leg_1 * leg_2 * sin(theta) / opposite_side
+        macro_test_throat = geometric_throat + 0.85 * macro_test_extra_penetration
         nominal_size = max(leg_1, leg_2)
         segment_length = d["overall_length_per_segment_mm"]
         length_reduction_factor = min(1, segment_length / (4 * nominal_size))
-        design_throat = geometric_throat * length_reduction_factor
+        design_throat = macro_test_throat * length_reduction_factor
         intermittent_minimum_length = max(40, 4 * nominal_size)
         total_effective_length = segment_length * d["segment_count"] * d["parallel_weld_count"]
         effective_area = design_throat * total_effective_length
@@ -2402,11 +2446,31 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         strength_check, strength_intermediate = _fillet_strength_check(
             d, design_throat, total_effective_length
         )
-        c["weld_strength"] = {"clause": "9.6.3.10", **strength_check}
+        strength_clause = "9.6.3.10; 9.6.3.4 macro-test throat" if macro_test_used else "9.6.3.10"
+        c["weld_strength"] = {**strength_check, "clause": strength_clause}
         clauses.append("9.6.3.10")
         intermediate = {
             "provided_leg_lengths_after_root_gap_mm": [leg_1, leg_2],
-            "geometric_throat_before_length_reduction_mm": geometric_throat,
+            "geometric_throat_without_macro_test_mm": geometric_throat,
+            "geometric_throat_before_length_reduction_mm": macro_test_throat,
+            "macro_test_throat_increase": {
+                "used": macro_test_used,
+                "automatic_arc_welding_process_verified": d.get(
+                    "automatic_arc_welding_process_verified", False
+                ),
+                "production_weld_macro_test_verified": d.get(
+                    "production_weld_macro_test_verified", False
+                ),
+                "required_penetration_achieved_verified": d.get(
+                    "macro_test_required_penetration_achieved_verified", False
+                ),
+                "record_reference": d.get("macro_test_record_reference"),
+                "t_t1_mm": geometric_throat if macro_test_used else None,
+                "t_t2_mm": macro_test_extra_penetration if macro_test_used else None,
+                "figure_design_throat_before_length_reduction_mm": (
+                    macro_test_throat if macro_test_used else None
+                ),
+            },
             "design_throat_mm": design_throat,
             "total_effective_length_mm": total_effective_length,
             "effective_area_mm2": effective_area,
@@ -2510,8 +2574,63 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             capacity = d["weaker_part_nominal_capacity_kn"]
             clause = "9.6.2.7(a)"
         else:
-            capacity = 0.6 * d["weld_strength_mpa"] * d["effective_area_mm2"] / 1000
+            area_fields = {"hole_shape", "hole_diameter_mm", "slot_length_mm", "slot_width_mm"}
+            supplied_geometry_fields = area_fields.intersection(d)
+            geometry_used = bool(supplied_geometry_fields)
+            if "effective_area_mm2" in d and (geometry_used or "hole_geometry_verified" in d):
+                raise ValueError("Use either an assessed area or geometry, not both.")
+            if geometry_used:
+                if "hole_shape" not in d:
+                    raise ValueError("Plug/slot geometry requires hole_shape.")
+                if "hole_geometry_verified" not in d:
+                    raise ValueError("Plug/slot geometry requires hole_geometry_verified.")
+                expected_dimension_fields = (
+                    {"hole_diameter_mm"}
+                    if d["hole_shape"] == "circular"
+                    else {"slot_length_mm", "slot_width_mm"}
+                )
+                supplied_dimension_fields = supplied_geometry_fields - {"hole_shape"}
+                missing_dimension_fields = expected_dimension_fields - supplied_dimension_fields
+                extra_dimension_fields = supplied_dimension_fields - expected_dimension_fields
+                if missing_dimension_fields:
+                    names = ", ".join(sorted(missing_dimension_fields))
+                    raise ValueError(f"Plug/slot geometry is incomplete; provide {names}.")
+                if extra_dimension_fields:
+                    names = ", ".join(sorted(extra_dimension_fields))
+                    raise ValueError(
+                        f"Plug/slot geometry for {d['hole_shape']} must not include {names}."
+                    )
+                if d["hole_shape"] == "circular":
+                    area = pi * d["hole_diameter_mm"] ** 2 / 4
+                elif d["hole_shape"] == "round_ended_slot":
+                    slot_length = d["slot_length_mm"]
+                    slot_width = d["slot_width_mm"]
+                    if slot_length < slot_width:
+                        raise ValueError("A round-ended slot length cannot be less than its width.")
+                    area = slot_width * (slot_length - slot_width) + pi * slot_width**2 / 4
+                else:
+                    area = d["slot_length_mm"] * d["slot_width_mm"]
+                area_basis = "nominal_faying_plane_hole_geometry"
+            elif "effective_area_mm2" in d and "hole_geometry_verified" not in d:
+                area = d["effective_area_mm2"]
+                area_basis = "externally_assessed_faying_plane_area"
+            else:
+                raise ValueError("Provide either effective_area_mm2 or verified hole geometry.")
+            capacity = 0.6 * d["weld_strength_mpa"] * area / 1000
             clause = "9.6.4.2"
+            c["application"] = {
+                "clause": "9.6.4.3",
+                "permitted_shear_application_verified": d["permitted_shear_application"],
+                "satisfied": True,
+            }
+            intermediate = {
+                "effective_area_mm2": area,
+                "area_basis": area_basis,
+                "hole_shape": d.get("hole_shape"),
+                "hole_diameter_mm": d.get("hole_diameter_mm"),
+                "slot_length_mm": d.get("slot_length_mm"),
+                "slot_width_mm": d.get("slot_width_mm"),
+            }
         if k != "fillet":
             c["weld"] = _check(capacity, phi, d["action_kn"], clause)
     elif k == "packing_construction":
@@ -2622,6 +2741,22 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "thickness or width change. Smoothness and the measured geometry are declared inputs. "
             "Any stricter fatigue-detail slope must be assessed externally and supplied with its "
             "reference; classification and evidence are not authenticated."
+        )
+    elif k == "fillet_design":
+        scope = (
+            "Selected Clause 9.6.3.1–10 fillet-weld geometry, detailing and strength checks. "
+            "Optional Clause 9.6.3.4 throat increases require verified automatic arc welding and "
+            "a production-weld macro-test record; declarations and measured penetration are not "
+            "authenticated. Fatigue quality and complete connection design remain separate."
+        )
+    elif k == "plug_slot":
+        scope = (
+            "Clause 9.6.4.2 effective shear area and nominal capacity for a filled plug/slot weld. "
+            "Area is calculated from verified circular, round-ended slot or rectangular slot "
+            "geometry, or supplied as an externally assessed faying-plane area. Clause 9.6.4.3 "
+            "limits use to shear transfer in lap joints, preventing buckling of lapped parts, or "
+            "joining built-up-member components. Geometry and application declarations are not "
+            "authenticated."
         )
     elif k in MINIMUM_ACTION_CHECKS:
         scope = (
