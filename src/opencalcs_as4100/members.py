@@ -398,6 +398,24 @@ INPUT_SCHEMA = {
                 "compact_rhs_shs_verified": {"const": True},
                 "compression_form_factor_one_verified": {"const": True},
                 "compression_form_factor_below_one_verified": {"const": True},
+                "compact_i_out_of_plane_alternative": {"const": True},
+                "uniform_moment_member_capacity_knm": P,
+                "uniform_moment_member_capacity_verified": {"const": True},
+                "uniform_moment_member_capacity_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                },
+                "torsion_constant_j_mm4": P,
+                "warping_constant_iw_mm6": P,
+                "section_second_moment_x_mm4": P,
+                "section_second_moment_y_mm4": P,
+                "gross_area_mm2": P,
+                "torsional_restraint_spacing_mm": P,
+                "torsional_section_properties_verified": {"const": True},
+                "beta_m": _number(-1, maximum=1),
+                "no_transverse_loads_verified": {"const": True},
+                "both_end_lateral_restraints_verified": {"const": True},
                 "compression_form_factor": {
                     "type": "number",
                     "exclusiveMinimum": 0,
@@ -420,7 +438,56 @@ INPUT_SCHEMA = {
                 "moment_x_knm",
                 "moment_y_knm",
             ],
-        ),
+        )
+        | {
+            "allOf": [
+                {
+                    "if": {
+                        "required": ["compact_i_out_of_plane_alternative"],
+                        "properties": {"compact_i_out_of_plane_alternative": {"const": True}},
+                    },
+                    "then": {
+                        "required": [
+                            "compact_doubly_symmetric_i_verified",
+                            "compression_form_factor_one_verified",
+                            "uniform_moment_member_capacity_knm",
+                            "uniform_moment_member_capacity_verified",
+                            "uniform_moment_member_capacity_reference",
+                            "torsion_constant_j_mm4",
+                            "warping_constant_iw_mm6",
+                            "section_second_moment_x_mm4",
+                            "section_second_moment_y_mm4",
+                            "gross_area_mm2",
+                            "torsional_restraint_spacing_mm",
+                            "torsional_section_properties_verified",
+                            "beta_m",
+                            "no_transverse_loads_verified",
+                            "both_end_lateral_restraints_verified",
+                        ],
+                        "properties": {"axial_mode": {"const": "compression"}},
+                    },
+                    "else": {
+                        "not": {
+                            "anyOf": [
+                                {"required": ["uniform_moment_member_capacity_knm"]},
+                                {"required": ["uniform_moment_member_capacity_verified"]},
+                                {"required": ["uniform_moment_member_capacity_reference"]},
+                                {"required": ["torsion_constant_j_mm4"]},
+                                {"required": ["warping_constant_iw_mm6"]},
+                                {"required": ["section_second_moment_x_mm4"]},
+                                {"required": ["section_second_moment_y_mm4"]},
+                                {"required": ["gross_area_mm2"]},
+                                {"required": ["torsional_restraint_spacing_mm"]},
+                                {"required": ["torsional_section_properties_verified"]},
+                                {"required": ["beta_m"]},
+                                {"required": ["no_transverse_loads_verified"]},
+                                {"required": ["both_end_lateral_restraints_verified"]},
+                            ]
+                        }
+                    },
+                }
+            ]
+        },
         _variant(
             "tension_distribution",
             {
@@ -1172,6 +1239,8 @@ def _interaction(d):
         }
     ratio = n / (phi * ns)
     mrx, mry = msx * max(0, 1 - ratio), msy * max(0, 1 - ratio)
+    compact_i_out_of_plane = d.get("compact_i_out_of_plane_alternative", False)
+    out_of_plane_alternative_values = None
     if d["axial_mode"] == "compression":
         ncx, ncy = d["member_axial_x_kn"], d["member_axial_y_kn"]
         if max(ncx, ncy) > ns:
@@ -1179,6 +1248,71 @@ def _interaction(d):
         mix = msx * max(0, 1 - n / (phi * ncx))
         miy = msy * max(0, 1 - n / (phi * ncy))
         mox = mb * max(0, 1 - n / (phi * ncy))
+        if compact_i_out_of_plane:
+            uniform_mb = d["uniform_moment_member_capacity_knm"]
+            if uniform_mb > msx:
+                raise ValueError(
+                    "Uniform-moment member capacity must not exceed section moment capacity."
+                )
+            torsional_stiffness = SHEAR_MODULUS_MPA * d["torsion_constant_j_mm4"]
+            warping_stiffness = (
+                pi**2
+                * ELASTIC_MODULUS_MPA
+                * d["warping_constant_iw_mm6"]
+                / d["torsional_restraint_spacing_mm"] ** 2
+            )
+            polar_radius_squared = (
+                d["section_second_moment_x_mm4"] + d["section_second_moment_y_mm4"]
+            ) / d["gross_area_mm2"]
+            noz = (torsional_stiffness + warping_stiffness) / polar_radius_squared / 1000
+            if not isfinite(noz) or noz <= 0:
+                raise ValueError("Clause 8.4.4.1 elastic torsional buckling capacity is invalid.")
+            compression_ratio = n / (phi * ncy)
+            torsional_ratio = n / (phi * noz)
+            inverse_alpha_bc = (1 - d["beta_m"]) / 2 + ((1 + d["beta_m"]) / 2) ** 3 * (
+                0.4 - 0.23 * compression_ratio
+            )
+            if compression_ratio >= 1 or torsional_ratio >= 1:
+                alpha_bc = None
+                unconstrained_mox = 0.0
+            else:
+                alpha_bc = 1 / inverse_alpha_bc
+                unconstrained_mox = (
+                    alpha_bc * uniform_mb * sqrt((1 - compression_ratio) * (1 - torsional_ratio))
+                )
+            compact_mrx = min(msx, max(0.0, 1.18 * msx * (1 - ratio)))
+            mox = min(unconstrained_mox, compact_mrx)
+            out_of_plane_alternative_values = {
+                "beta_m": d["beta_m"],
+                "alpha_bc": alpha_bc,
+                "uniform_moment_member_capacity_knm": uniform_mb,
+                "uniform_moment_member_capacity_reference": d[
+                    "uniform_moment_member_capacity_reference"
+                ],
+                "elastic_torsional_buckling_capacity_kn": noz,
+                "torsion_constant_j_mm4": d["torsion_constant_j_mm4"],
+                "warping_constant_iw_mm6": d["warping_constant_iw_mm6"],
+                "section_second_moment_x_mm4": d["section_second_moment_x_mm4"],
+                "section_second_moment_y_mm4": d["section_second_moment_y_mm4"],
+                "gross_area_mm2": d["gross_area_mm2"],
+                "torsional_restraint_spacing_mm": d["torsional_restraint_spacing_mm"],
+                "torsion_stiffness_nmm2": torsional_stiffness,
+                "warping_stiffness_nmm2": warping_stiffness,
+                "polar_radius_squared_mm2": polar_radius_squared,
+                "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+                "shear_modulus_mpa": SHEAR_MODULUS_MPA,
+                "compression_capacity_ratio": compression_ratio,
+                "torsional_buckling_ratio": torsional_ratio,
+                "unconstrained_out_of_plane_capacity_knm": unconstrained_mox,
+                "section_reduced_moment_capacity_knm": compact_mrx,
+                "section_capacity_limit_applied": unconstrained_mox > compact_mrx,
+                "compact_doubly_symmetric_i_verified": True,
+                "compression_form_factor_one_verified": True,
+                "uniform_moment_member_capacity_verified": True,
+                "torsional_section_properties_verified": True,
+                "no_transverse_loads_verified": True,
+                "both_end_lateral_restraints_verified": True,
+            }
         mcx = min(mix, mox)
     else:
         mix, miy = mrx, mry
@@ -1193,6 +1327,8 @@ def _interaction(d):
             my / (phi * miy) if miy else 0
         ) ** 1.4
         member_satisfied = member_util <= 1 and ratio <= 1
+    if compact_i_out_of_plane and (compression_ratio >= 1 or torsional_ratio >= 1):
+        member_satisfied = False
     checks = {
         "section_combined": {"utilisation": section_util, "satisfied": section_util <= 1},
         "member_combined": {"utilisation": member_util, "satisfied": member_satisfied},
@@ -1200,6 +1336,13 @@ def _interaction(d):
         "in_plane_y": _check(my, phi * miy),
         "out_of_plane_x": _check(mx, phi * mox),
     }
+    if compact_i_out_of_plane:
+        checks["out_of_plane_elastic_torsional_buckling"] = _check(
+            n, phi * out_of_plane_alternative_values["elastic_torsional_buckling_capacity_kn"]
+        )
+        checks["member_combined"]["satisfied"] &= checks["out_of_plane_elastic_torsional_buckling"][
+            "satisfied"
+        ]
     if d["axial_mode"] == "compression":
         checks["member_axial_x"] = _check(n, phi * d["member_axial_x_kn"])
         checks["member_axial_y"] = _check(n, phi * d["member_axial_y_kn"])
@@ -1212,7 +1355,10 @@ def _interaction(d):
         "in_plane_x_knm": mix,
         "in_plane_y_knm": miy,
         "out_of_plane_x_knm": mox,
+        "out_of_plane_method": ("compact_i_alternative" if compact_i_out_of_plane else "general"),
     }
+    if out_of_plane_alternative_values is not None:
+        values.update(out_of_plane_alternative_values)
     clauses = ["8.3.2", "8.3.3", "8.3.4", "8.4.2", "8.4.4", "8.4.5"]
     manual = [
         "Elastic analysis only; moments must satisfy 8.2 second-order requirements.",
@@ -1220,6 +1366,17 @@ def _interaction(d):
         "Compression in-plane effective-length assumptions must satisfy 8.4.2.2.",
         "Special eccentrically connected angle and plastic-analysis paths excluded.",
     ]
+    if compact_i_out_of_plane:
+        clauses.append("8.4.4.1 compact-I alternative")
+        manual.append(
+            "The compact-I out-of-plane alternative requires a verified compact doubly "
+            "symmetric I-section with kf=1.0, no transverse loads, and lateral restraint "
+            "at both ends. Verify the supplied section constants and torsional-restraint "
+            "spacing independently. This operation calculates N_oz, the Clause 8.3.2(a) "
+            "section limit and the alpha_bc interaction. The supplied M_bxo must be "
+            "calculated to Clause 5.6 with alpha_m=1 and is recorded with its reference. "
+            "Verify beta_m from the end moments; reverse curvature is positive."
+        )
     if compact_i_verified or compact_rhs_shs_verified:
         compact_mrx = mrx
         compact_x_method = "8.3.2 general"

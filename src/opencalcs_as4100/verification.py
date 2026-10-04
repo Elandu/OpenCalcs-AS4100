@@ -396,6 +396,55 @@ def verify():
         0.30779756197106134,
         1e-12,
     )
+    compact_i_out_of_plane = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 300,
+            "moment_x_knm": 45,
+            "moment_y_knm": 0,
+            "compact_doubly_symmetric_i_verified": True,
+            "compression_form_factor_one_verified": True,
+            "compact_i_out_of_plane_alternative": True,
+            "uniform_moment_member_capacity_knm": 25,
+            "uniform_moment_member_capacity_verified": True,
+            "uniform_moment_member_capacity_reference": "Clause 5.6 independent check",
+            "torsion_constant_j_mm4": 200000,
+            "warping_constant_iw_mm6": 100_000_000_000,
+            "section_second_moment_x_mm4": 100_000_000,
+            "section_second_moment_y_mm4": 20_000_000,
+            "gross_area_mm2": 2000,
+            "torsional_restraint_spacing_mm": 2000,
+            "torsional_section_properties_verified": True,
+            "beta_m": 1,
+            "no_transverse_loads_verified": True,
+            "both_end_lateral_restraints_verified": True,
+        }
+    )
+    record(
+        "Clause 8.4.4.1 compact-I alpha_bc, hand arithmetic",
+        compact_i_out_of_plane["values"]["alpha_bc"],
+        300 / 97,
+        1e-12,
+    )
+    record(
+        "Clause 8.4.4.1 elastic torsional buckling capacity, hand arithmetic",
+        compact_i_out_of_plane["values"]["elastic_torsional_buckling_capacity_kn"],
+        1089.13370009078,
+        1e-9,
+    )
+    record(
+        "Clause 8.4.4.1 compact-I nominal out-of-plane moment, hand arithmetic",
+        compact_i_out_of_plane["values"]["out_of_plane_x_knm"],
+        52.590445603195036,
+        1e-12,
+    )
     compact_kf_below_one_interaction = run_members(
         {
             "operation": "interaction",

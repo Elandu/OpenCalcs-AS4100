@@ -740,6 +740,89 @@ def test_general_interaction_independent_arithmetic():
     assert "compact_section_reduced_y_knm" not in out["values"]
 
 
+def compact_i_out_of_plane_interaction(**changes):
+    data = interaction()
+    data.update(
+        section_axial_capacity_kn=1000,
+        member_axial_x_kn=800,
+        member_axial_y_kn=1000,
+        section_moment_x_knm=100,
+        axial_action_kn=300,
+        moment_x_knm=45,
+        moment_y_knm=0,
+        compact_doubly_symmetric_i_verified=True,
+        compression_form_factor_one_verified=True,
+        compact_i_out_of_plane_alternative=True,
+        uniform_moment_member_capacity_knm=25,
+        uniform_moment_member_capacity_verified=True,
+        uniform_moment_member_capacity_reference="Clause 5.6 independent check",
+        torsion_constant_j_mm4=200000,
+        warping_constant_iw_mm6=100_000_000_000,
+        section_second_moment_x_mm4=100_000_000,
+        section_second_moment_y_mm4=20_000_000,
+        gross_area_mm2=2000,
+        torsional_restraint_spacing_mm=2000,
+        torsional_section_properties_verified=True,
+        beta_m=1,
+        no_transverse_loads_verified=True,
+        both_end_lateral_restraints_verified=True,
+    )
+    data.update(changes)
+    return data
+
+
+def test_clause_8_4_4_1_compact_i_out_of_plane_alternative_hand_arithmetic():
+    out = run_members(compact_i_out_of_plane_interaction())
+    values = out["values"]
+
+    # N*/(phi*Ncy)=1/3. Appendix-H terms give Noz=1089.1337 kN;
+    # for beta_m=1, 1/alpha_bc=0.4-0.23/3=97/300.
+    assert values["out_of_plane_method"] == "compact_i_alternative"
+    assert values["alpha_bc"] == pytest.approx(300 / 97)
+    assert values["elastic_torsional_buckling_capacity_kn"] == pytest.approx(1089.13370009078)
+    assert values["unconstrained_out_of_plane_capacity_knm"] == pytest.approx(52.590445603195036)
+    assert values["section_reduced_moment_capacity_knm"] == pytest.approx(236 / 3)
+    assert values["out_of_plane_x_knm"] == pytest.approx(52.590445603195036)
+    assert out["checks"]["out_of_plane_x"]["design_capacity"] == pytest.approx(47.331401042875534)
+    assert out["checks"]["out_of_plane_elastic_torsional_buckling"]["satisfied"]
+    assert all(check["satisfied"] for check in out["checks"].values())
+    assert {"clause": "8.4.4.1 compact-I alternative"} in out["trace"]
+
+
+def test_clause_8_4_4_1_caps_compact_i_capacity_at_reduced_section_capacity():
+    out = run_members(
+        compact_i_out_of_plane_interaction(
+            uniform_moment_member_capacity_knm=60,
+        )
+    )
+    values = out["values"]
+    assert values["section_capacity_limit_applied"]
+    assert values["out_of_plane_x_knm"] == pytest.approx(236 / 3)
+
+
+def test_clause_8_4_4_1_does_not_return_capacity_beyond_torsional_buckling():
+    out = run_members(compact_i_out_of_plane_interaction(axial_action_kn=1900))
+    assert out["values"]["out_of_plane_x_knm"] == 0
+    assert out["values"]["alpha_bc"] is None
+    assert not out["checks"]["out_of_plane_elastic_torsional_buckling"]["satisfied"]
+    assert not out["checks"]["member_combined"]["satisfied"]
+
+
+def test_clause_8_4_4_1_requires_all_compact_i_applicability_inputs():
+    incomplete = compact_i_out_of_plane_interaction()
+    del incomplete["torsion_constant_j_mm4"]
+    with pytest.raises(ValueError):
+        run_members(incomplete)
+
+    ineligible = compact_i_out_of_plane_interaction(both_end_lateral_restraints_verified=False)
+    with pytest.raises(ValueError):
+        run_members(ineligible)
+
+    tension = compact_i_out_of_plane_interaction(axial_mode="tension")
+    with pytest.raises(ValueError):
+        run_members(tension)
+
+
 def test_amendment_1_clause_8_4_5_2_uses_powered_biaxial_member_interaction():
     d = interaction("tension")
     d.update(axial_action_kn=90, moment_x_knm=45, moment_y_knm=22.5)

@@ -235,6 +235,27 @@
       "passed": true
     },
     {
+      "name": "Clause 8.4.4.1 compact-I alpha_bc, hand arithmetic",
+      "actual": 3.092783505154639,
+      "expected": 3.0927835051546393,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.4.1 elastic torsional buckling capacity, hand arithmetic",
+      "actual": 1089.13370009078,
+      "expected": 1089.13370009078,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.4.1 compact-I nominal out-of-plane moment, hand arithmetic",
+      "actual": 52.590445603195036,
+      "expected": 52.590445603195036,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
       "name": "Clause 6.2.3 web element slenderness, hand arithmetic",
       "actual": 65.0,
       "expected": 65,
