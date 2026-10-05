@@ -410,10 +410,20 @@ def _buckling_analysis_bending_schema():
         "varying_section_buckling_model_verified": VERIFIED,
         "buckling_analysis_reference": {"type": "string", "minLength": 1, "maxLength": 128},
     }
+    unequal_flange_i = {
+        **common,
+        "analysis_scope": {"const": "unequal_flange_i"},
+        "end_configuration": {"const": "both_restrained"},
+        "unequal_flange_i_applicability_verified": VERIFIED,
+        "constant_cross_section_verified": VERIFIED,
+        "unequal_flange_buckling_model_verified": VERIFIED,
+        "buckling_analysis_reference": {"type": "string", "minLength": 1, "maxLength": 128},
+    }
     return {
         "oneOf": [
             object_schema(common),
             object_schema(varying_section),
+            object_schema(unequal_flange_i),
         ]
     }
 
@@ -1610,6 +1620,37 @@ def run_advanced_members(inputs):
                     "satisfied": d["varying_section_buckling_model_verified"],
                 },
             ]
+        elif analysis_scope == "unequal_flange_i":
+            analysis_reference = d["buckling_analysis_reference"].strip()
+            if not analysis_reference:
+                raise ValueError("Buckling-analysis reference must not be blank.")
+            clauses = ["5.6.1.2(b)", "5.6.1.1(a)", "5.6.4"]
+            capacity_clause = "5.6.1.2(b)"
+            values = {
+                "analysis_scope": analysis_scope,
+                "unequal_flange_i_applicability_verified": d[
+                    "unequal_flange_i_applicability_verified"
+                ],
+                "constant_cross_section_verified": d["constant_cross_section_verified"],
+                "unequal_flange_buckling_model_verified": d[
+                    "unequal_flange_buckling_model_verified"
+                ],
+                "buckling_analysis_reference": analysis_reference,
+            }
+            checks = [
+                {
+                    "clause": "5.6.1.2(b) unequal-flange I-section applicability",
+                    "satisfied": d["unequal_flange_i_applicability_verified"],
+                },
+                {
+                    "clause": "5.6.1.2(b) constant cross-section",
+                    "satisfied": d["constant_cross_section_verified"],
+                },
+                {
+                    "clause": "5.6.1.2(b) buckling model represents the section",
+                    "satisfied": d["unequal_flange_buckling_model_verified"],
+                },
+            ]
         elif d["end_configuration"] == "one_unrestrained":
             clauses = ["5.6.2(ii)", "5.6.4"]
             capacity_clause = "5.6.2(ii)"
@@ -1648,6 +1689,15 @@ def run_advanced_members(inputs):
                     "The buckling model must represent actual section variation and the supplied "
                     "section capacity must match the critical section selected under Clause 5.3.3.",
                     "Buckling-analysis evidence and its reference are not authenticated here.",
+                ]
+            )
+        elif analysis_scope == "unequal_flange_i":
+            limitations.extend(
+                [
+                    "This route applies to a constant unequal-flange I-section with both ends "
+                    "restrained; verify the supplied nominal section capacity under Clause 5.2.",
+                    "The buckling model must represent the actual section and the recorded "
+                    "analysis reference is not authenticated here.",
                 ]
             )
         return result(

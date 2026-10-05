@@ -48,6 +48,12 @@ capacity must correspond to the critical cross-section selected under Clause
 5.3.3. The analysis model and critical-section evidence remain externally
 verified.
 
+For Clause 5.6.1.2(b), `advanced_members.buckling_analysis_bending` also
+provides the buckling-analysis route for a constant unequal-flange I-section
+with both ends restrained. The supplied section capacity, section applicability
+and analysis model are evidence-gated; the model and its reference are not
+independently authenticated.
+
 | Section | Calculated or compared in this release | Assessed externally; remaining gaps |
 | --- | --- | --- |
 | 1 — Scope and general | No normative design check. `design_review` records scope evidence. | Applicability, exclusions, edition, referenced standards and project basis; no automatic scope decision. |

@@ -3236,6 +3236,32 @@ def verify():
         72.16638301017798,
         1e-10,
     )
+    unequal_flange_buckling = run_advanced_members(
+        {
+            "operation": "buckling_analysis_bending",
+            "analysis_scope": "unequal_flange_i",
+            "section_capacity_knm": 100,
+            "elastic_buckling_moment_knm": 125,
+            "moment_factor": 1.25,
+            "end_configuration": "both_restrained",
+            "restraint_and_load_model_verified": True,
+            "unequal_flange_i_applicability_verified": True,
+            "constant_cross_section_verified": True,
+            "unequal_flange_buckling_model_verified": True,
+            "buckling_analysis_reference": "VERIFY-UNEQUAL-FLANGE-01",
+            "action_knm": 60,
+        }
+    )
+    record(
+        "Clause 5.6.1.2(b) reference analysis moment, hand arithmetic",
+        unequal_flange_buckling["values"]["reference_analysis_moment_knm"],
+        100,
+    )
+    record(
+        "Clause 5.6.1.2(b) unequal-flange member moment capacity, hand arithmetic",
+        unequal_flange_buckling["values"]["member_capacity_knm"],
+        75,
+    )
     effective_length = run_advanced_members(
         {
             "operation": "lateral_buckling_effective_length",

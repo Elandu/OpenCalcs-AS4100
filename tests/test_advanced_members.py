@@ -212,6 +212,50 @@ def test_clause_5_6_1_1_b_iii_requires_verified_variable_section_analysis(change
         run_advanced_members(varying_section_buckling_analysis_inputs(**changes))
 
 
+def unequal_flange_buckling_analysis_inputs(**changes):
+    return {
+        "operation": "buckling_analysis_bending",
+        "analysis_scope": "unequal_flange_i",
+        "section_capacity_knm": 100,
+        "elastic_buckling_moment_knm": 125,
+        "moment_factor": 1.25,
+        "end_configuration": "both_restrained",
+        "restraint_and_load_model_verified": True,
+        "unequal_flange_i_applicability_verified": True,
+        "constant_cross_section_verified": True,
+        "unequal_flange_buckling_model_verified": True,
+        "buckling_analysis_reference": "BUCKLING-ANALYSIS-UI-01",
+        "action_knm": 60,
+        **changes,
+    }
+
+
+def test_clause_5_6_1_2_b_unequal_flange_i_section_buckling_analysis():
+    out = run_advanced_members(unequal_flange_buckling_analysis_inputs())
+    assert out["values"]["reference_analysis_moment_knm"] == 100
+    assert out["values"]["reduction"] == pytest.approx(0.6)
+    assert out["values"]["member_capacity_knm"] == pytest.approx(75)
+    assert out["clauses"] == ["5.6.1.2(b)", "5.6.1.1(a)", "5.6.4"]
+    assert [check["satisfied"] for check in out["checks"]] == [True, True, True, True]
+    assert out["values"]["buckling_analysis_reference"] == "BUCKLING-ANALYSIS-UI-01"
+    assert out["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"unequal_flange_i_applicability_verified": False},
+        {"constant_cross_section_verified": False},
+        {"unequal_flange_buckling_model_verified": False},
+        {"buckling_analysis_reference": " "},
+        {"end_configuration": "one_unrestrained"},
+    ],
+)
+def test_clause_5_6_1_2_b_requires_verified_unequal_flange_analysis(changes):
+    with pytest.raises(ValueError):
+        run_advanced_members(unequal_flange_buckling_analysis_inputs(**changes))
+
+
 @pytest.mark.parametrize(
     "distribution,factor,expected_capacity",
     [

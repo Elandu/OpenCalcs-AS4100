@@ -2113,6 +2113,36 @@ def clause_5_6_1_1_b_iii_varying_section_buckling():
     }
 
 
+def clause_5_6_1_2_b_unequal_flange_buckling():
+    result = run_advanced_members(
+        {
+            "operation": "buckling_analysis_bending",
+            "analysis_scope": "unequal_flange_i",
+            "section_capacity_knm": 100,
+            "elastic_buckling_moment_knm": 125,
+            "moment_factor": 1.25,
+            "end_configuration": "both_restrained",
+            "restraint_and_load_model_verified": True,
+            "unequal_flange_i_applicability_verified": True,
+            "constant_cross_section_verified": True,
+            "unequal_flange_buckling_model_verified": True,
+            "buckling_analysis_reference": "BENCHMARK-UNEQUAL-FLANGE-01",
+            "action_knm": 60,
+        }
+    )
+    values = result["values"]
+    expect_close(values["reference_analysis_moment_knm"], 100)
+    expect_close(values["reduction"], 0.6)
+    expect_close(values["member_capacity_knm"], 75)
+    if result["clauses"] != ["5.6.1.2(b)", "5.6.1.1(a)", "5.6.4"]:
+        raise AssertionError("Unequal-flange buckling route reported incorrect clauses")
+    return {
+        "reference_analysis_moment_knm": values["reference_analysis_moment_knm"],
+        "reduction": values["reduction"],
+        "member_capacity_knm": values["member_capacity_knm"],
+    }
+
+
 def clause_5_6_1_1_a_iii_moment_factor():
     result = run_advanced_members(
         {
@@ -2779,6 +2809,7 @@ def main():
         "clause_5_6_1_1_b_iii_varying_section_buckling": (
             clause_5_6_1_1_b_iii_varying_section_buckling
         ),
+        "clause_5_6_1_2_b_unequal_flange_buckling": (clause_5_6_1_2_b_unequal_flange_buckling),
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,

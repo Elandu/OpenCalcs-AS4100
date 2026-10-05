@@ -1621,6 +1621,20 @@
       "passed": true
     },
     {
+      "name": "Clause 5.6.1.2(b) reference analysis moment, hand arithmetic",
+      "actual": 100.0,
+      "expected": 100,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2(b) unequal-flange member moment capacity, hand arithmetic",
+      "actual": 75.0,
+      "expected": 75,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Table 5.6.3 twist_restraint_factor",
       "actual": 1.2,
       "expected": 1.2,
