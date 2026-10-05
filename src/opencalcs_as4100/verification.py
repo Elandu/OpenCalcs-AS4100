@@ -3262,6 +3262,55 @@ def verify():
         unequal_flange_buckling["values"]["member_capacity_knm"],
         75,
     )
+    hollow_bending = run_advanced_members(
+        {
+            "operation": "hollow_section_bending_capacity",
+            "section_type": "rhs",
+            "section_capacity_knm": 100,
+            "iy_mm4": 50_000_000,
+            "torsion_constant_mm4": 200_000,
+            "effective_length_mm": 15_000,
+            "moment_factor": 1,
+            "action_knm": 45,
+            "hollow_section_applicability_verified": True,
+            "section_properties_verified": True,
+            "section_capacity_verified": True,
+            "constant_cross_section_verified": True,
+            "effective_length_verified": True,
+            "moment_factor_verified": True,
+            "segment_without_full_lateral_restraint_verified": True,
+            "both_ends_restrained_verified": True,
+        }
+    )
+    record(
+        "Clause 5.6.1.4 RHS reference buckling moment with Iw=0, hand arithmetic",
+        hollow_bending["values"]["reference_buckling_moment_knm"],
+        83.77580409572782,
+        1e-12,
+    )
+    record(
+        "Clause 5.6.1.4 RHS slenderness reduction, hand arithmetic",
+        hollow_bending["values"]["slenderness_reduction_alpha_s"],
+        0.5459194274720188,
+        1e-12,
+    )
+    record(
+        "Clause 5.6.1.4 RHS nominal member moment capacity, hand arithmetic",
+        hollow_bending["values"]["nominal_member_moment_capacity_mb_knm"],
+        54.591942747201884,
+        1e-12,
+    )
+    record(
+        "Clause 5.6.1.4 RHS design moment capacity at phi=0.9, hand arithmetic",
+        hollow_bending["checks"][0]["design_capacity"],
+        49.1327484724817,
+        1e-12,
+    )
+    record(
+        "Clause 5.6.1.4 sets warping constant to zero",
+        hollow_bending["values"]["warping_constant_used_mm6"],
+        0,
+    )
     effective_length = run_advanced_members(
         {
             "operation": "lateral_buckling_effective_length",

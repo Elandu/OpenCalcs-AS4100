@@ -2143,6 +2143,42 @@ def clause_5_6_1_2_b_unequal_flange_buckling():
     }
 
 
+def clause_5_6_1_4_hollow_section_bending():
+    result = run_advanced_members(
+        {
+            "operation": "hollow_section_bending_capacity",
+            "section_type": "rhs",
+            "section_capacity_knm": 100,
+            "iy_mm4": 50_000_000,
+            "torsion_constant_mm4": 200_000,
+            "effective_length_mm": 15_000,
+            "moment_factor": 1,
+            "action_knm": 45,
+            "hollow_section_applicability_verified": True,
+            "section_properties_verified": True,
+            "section_capacity_verified": True,
+            "constant_cross_section_verified": True,
+            "effective_length_verified": True,
+            "moment_factor_verified": True,
+            "segment_without_full_lateral_restraint_verified": True,
+            "both_ends_restrained_verified": True,
+        }
+    )
+    values = result["values"]
+    expect_close(values["reference_buckling_moment_knm"], 83.77580409572782)
+    expect_close(values["slenderness_reduction_alpha_s"], 0.5459194274720188)
+    expect_close(values["nominal_member_moment_capacity_mb_knm"], 54.591942747201884)
+    expect_close(result["checks"][0]["design_capacity"], 49.1327484724817)
+    if not result["checks"][0]["satisfied"] or values["warping_constant_used_mm6"] != 0:
+        raise AssertionError("Clause 5.6.1.4 hollow-section capacity check failed")
+    return {
+        "reference_buckling_moment_knm": values["reference_buckling_moment_knm"],
+        "nominal_member_moment_capacity_knm": values["nominal_member_moment_capacity_mb_knm"],
+        "design_capacity_knm": result["checks"][0]["design_capacity"],
+        "capacity_check_satisfied": result["checks"][0]["satisfied"],
+    }
+
+
 def clause_5_6_1_1_a_iii_moment_factor():
     result = run_advanced_members(
         {
@@ -2810,6 +2846,7 @@ def main():
             clause_5_6_1_1_b_iii_varying_section_buckling
         ),
         "clause_5_6_1_2_b_unequal_flange_buckling": (clause_5_6_1_2_b_unequal_flange_buckling),
+        "clause_5_6_1_4_hollow_section_bending": clause_5_6_1_4_hollow_section_bending,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,

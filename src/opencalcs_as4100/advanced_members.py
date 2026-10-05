@@ -857,6 +857,26 @@ SCHEMAS = {
             "side_by_side_i_sections_or_channels_verified": VERIFIED,
         },
     ),
+    "hollow_section_bending_capacity": _schema(
+        "hollow_section_bending_capacity",
+        {
+            "section_type": {"enum": ["rhs", "shs", "chs"]},
+            "section_capacity_knm": P,
+            "iy_mm4": P,
+            "torsion_constant_mm4": P,
+            "effective_length_mm": P,
+            "moment_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 2.5},
+            "action_knm": N,
+            "hollow_section_applicability_verified": VERIFIED,
+            "section_properties_verified": VERIFIED,
+            "section_capacity_verified": VERIFIED,
+            "constant_cross_section_verified": VERIFIED,
+            "effective_length_verified": VERIFIED,
+            "moment_factor_verified": VERIFIED,
+            "segment_without_full_lateral_restraint_verified": VERIFIED,
+            "both_ends_restrained_verified": VERIFIED,
+        },
+    ),
     "angle_section_bending_capacity": _angle_section_bending_schema(),
     "angle_compression_capacity": _angle_compression_capacity_schema(),
     "angle_bending_capacity": _angle_bending_capacity_schema(),
@@ -2425,6 +2445,43 @@ def run_advanced_members(inputs):
                 "Only the 5.8 minimum transverse force is shared equally. External "
                 "force distribution, resulting shear and device capacities require "
                 "separate design.",
+            ],
+        )
+    if op == "hollow_section_bending_capacity":
+        ms = d["section_capacity_knm"]
+        elastic_term = pi**2 * ELASTIC_MODULUS_MPA * d["iy_mm4"] / d["effective_length_mm"] ** 2
+        mo = sqrt(elastic_term * SHEAR_MODULUS_MPA * d["torsion_constant_mm4"]) / 1e6
+        if not isfinite(mo) or mo <= 0:
+            raise ValueError(
+                "Clause 5.6.1.4 reference buckling moment must be positive and finite."
+            )
+        ratio = ms / mo
+        alpha_s = 0.6 * (sqrt(ratio**2 + 3) - ratio)
+        alpha_m = d["moment_factor"]
+        mb = min(ms, alpha_m * alpha_s * ms)
+        return result(
+            op,
+            ["5.6.1.1(a)(1)", "5.6.1.1(a)(2)", "5.6.1.1(a)(3)", "5.6.1.4"],
+            {
+                "section_type": d["section_type"],
+                "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+                "shear_modulus_mpa": SHEAR_MODULUS_MPA,
+                "reference_buckling_moment_knm": mo,
+                "slenderness_reduction_alpha_s": alpha_s,
+                "moment_factor_alpha_m": alpha_m,
+                "nominal_member_moment_capacity_mb_knm": mb,
+                "warping_constant_used_mm6": 0,
+            },
+            [capacity_check("5.6.1.4", mb, d["action_knm"])],
+            [
+                "Applies to a constant-section RHS, SHS or CHS segment without full lateral "
+                "restraint, with both ends restrained as verified under Clause 5.6.1.",
+                "Clause 5.6.1.4 specifies Iw=0. Supply gross-section Ms from Clause 5.2 and "
+                "verified Iy, J and effective length from the applicable Clause 5.6.3 route.",
+                "The supplied moment factor must be established under Clause 5.6.1.1(a). "
+                "The operation does not verify the moment-distribution or restraint assessment.",
+                "This operation calculates and checks the Clause 5.6.1.4 nominal member moment "
+                "capacity only; it does not establish full-standard compliance.",
             ],
         )
     if op == "angle_section_bending_capacity":

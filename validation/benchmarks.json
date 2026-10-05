@@ -1635,6 +1635,41 @@
       "passed": true
     },
     {
+      "name": "Clause 5.6.1.4 RHS reference buckling moment with Iw=0, hand arithmetic",
+      "actual": 83.77580409572782,
+      "expected": 83.77580409572782,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.4 RHS slenderness reduction, hand arithmetic",
+      "actual": 0.5459194274720188,
+      "expected": 0.5459194274720188,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.4 RHS nominal member moment capacity, hand arithmetic",
+      "actual": 54.591942747201884,
+      "expected": 54.591942747201884,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.4 RHS design moment capacity at phi=0.9, hand arithmetic",
+      "actual": 49.132748472481694,
+      "expected": 49.1327484724817,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.4 sets warping constant to zero",
+      "actual": 0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Table 5.6.3 twist_restraint_factor",
       "actual": 1.2,
       "expected": 1.2,

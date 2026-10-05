@@ -1806,6 +1806,77 @@ def test_clause_5_6_1_3_requires_restraint_conditions_at_both_ends():
         run_advanced_members(angle_section_bending_inputs(both_ends_restrained_verified=False))
 
 
+def hollow_section_bending_inputs(**updates):
+    return {
+        "operation": "hollow_section_bending_capacity",
+        "section_type": "rhs",
+        "section_capacity_knm": 100,
+        "iy_mm4": 50_000_000,
+        "torsion_constant_mm4": 200_000,
+        "effective_length_mm": 15_000,
+        "moment_factor": 1,
+        "action_knm": 45,
+        "hollow_section_applicability_verified": True,
+        "section_properties_verified": True,
+        "section_capacity_verified": True,
+        "constant_cross_section_verified": True,
+        "effective_length_verified": True,
+        "moment_factor_verified": True,
+        "segment_without_full_lateral_restraint_verified": True,
+        "both_ends_restrained_verified": True,
+        **updates,
+    }
+
+
+@pytest.mark.parametrize("section_type", ["rhs", "shs", "chs"])
+def test_clause_5_6_1_4_hollow_section_bending_uses_iw_zero_and_checks_action(section_type):
+    out = run_advanced_members(hollow_section_bending_inputs(section_type=section_type))
+    values = out["values"]
+    assert values["section_type"] == section_type
+    assert values["warping_constant_used_mm6"] == 0
+    assert values["reference_buckling_moment_knm"] == pytest.approx(83.77580409572782)
+    assert values["slenderness_reduction_alpha_s"] == pytest.approx(0.5459194274720188)
+    assert values["nominal_member_moment_capacity_mb_knm"] == pytest.approx(54.591942747201884)
+    assert out["clauses"] == ["5.6.1.1(a)(1)", "5.6.1.1(a)(2)", "5.6.1.1(a)(3)", "5.6.1.4"]
+    assert out["checks"][0]["design_capacity"] == pytest.approx(49.1327484724817)
+    assert out["checks"][0]["satisfied"]
+    assert out["full_standard_compliance"] is False
+
+
+def test_clause_5_6_1_4_caps_member_capacity_at_section_capacity():
+    out = run_advanced_members(
+        hollow_section_bending_inputs(section_capacity_knm=20, moment_factor=2.5, action_knm=18)
+    )
+    assert out["values"]["nominal_member_moment_capacity_mb_knm"] == 20
+    assert out["checks"][0]["satisfied"]
+
+
+def test_clause_5_6_1_4_rejects_action_above_design_capacity():
+    out = run_advanced_members(hollow_section_bending_inputs(action_knm=50))
+    assert out["checks"][0]["design_capacity"] == pytest.approx(49.1327484724817)
+    assert not out["checks"][0]["satisfied"]
+    assert not out["checked_conditions_satisfied"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"hollow_section_applicability_verified": False},
+        {"section_properties_verified": False},
+        {"section_capacity_verified": False},
+        {"constant_cross_section_verified": False},
+        {"effective_length_verified": False},
+        {"moment_factor_verified": False},
+        {"segment_without_full_lateral_restraint_verified": False},
+        {"both_ends_restrained_verified": False},
+        {"section_type": "i_section"},
+    ],
+)
+def test_clause_5_6_1_4_requires_verified_hollow_section_scope(changes):
+    with pytest.raises(ValueError):
+        run_advanced_members(hollow_section_bending_inputs(**changes))
+
+
 def equal_angle_compression_inputs(**updates):
     return {
         "operation": "angle_compression_capacity",
