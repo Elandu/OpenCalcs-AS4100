@@ -3862,6 +3862,87 @@ def verify():
         block_shear_paths["checks"]["block_shear_path_set"]["design_capacity_kn"],
         342,
     )
+    block_shear_grid = run_connections(
+        {
+            "check_type": "block_shear_grid",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 440,
+            "plate_length_mm": 180,
+            "plate_width_mm": 150,
+            "thickness_mm": 10,
+            "holes": [
+                {
+                    "hole_id": f"row-{row}-column-{column}",
+                    "longitudinal_mm": row,
+                    "transverse_mm": column,
+                    "gross_hole_diameter_mm": 22,
+                }
+                for row in (40, 100)
+                for column in (60, 120)
+            ],
+            "complete_hole_layout_verified": True,
+            "block_shear_topology_verified": True,
+            "load_introduction_edge": "longitudinal_start",
+            "loaded_edge_and_action_direction_verified": True,
+            "uniform_tension": False,
+            "tension_stress_distribution_verified": True,
+            "action_kn": 100,
+        }
+    )
+    grid_summary = block_shear_grid["checks"]["block_shear_grid_path_set"]
+    grid_first_path = grid_summary["paths"][0]
+    record(
+        "Clause 9.1.9(e) grid path gross shear area, hand geometry",
+        grid_first_path["gross_shear_area_mm2"],
+        800,
+    )
+    record(
+        "Clause 9.1.9(e) grid path net shear area, two 22 mm holes",
+        grid_first_path["net_shear_area_mm2"],
+        360,
+    )
+    record(
+        "Clause 9.1.9(e) grid path net tension area, two 22 mm holes",
+        grid_first_path["net_tension_area_mm2"],
+        160,
+    )
+    record(
+        "Clause 9.1.9(e) grid path design resistance, kbs=0.5 and phi=0.75",
+        grid_summary["design_capacity_kn"],
+        97.68,
+    )
+    block_shear_grid_uniform = run_connections(
+        {
+            "check_type": "block_shear_grid",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 440,
+            "plate_length_mm": 180,
+            "plate_width_mm": 150,
+            "thickness_mm": 10,
+            "holes": [
+                {
+                    "hole_id": f"row-{row}-column-{column}",
+                    "longitudinal_mm": row,
+                    "transverse_mm": column,
+                    "gross_hole_diameter_mm": 22,
+                }
+                for row in (40, 100)
+                for column in (60, 120)
+            ],
+            "complete_hole_layout_verified": True,
+            "block_shear_topology_verified": True,
+            "load_introduction_edge": "longitudinal_start",
+            "loaded_edge_and_action_direction_verified": True,
+            "uniform_tension": True,
+            "tension_stress_distribution_verified": True,
+            "action_kn": 100,
+        }
+    )
+    record(
+        "Clause 9.1.9(e) grid path design resistance, kbs=1.0 and phi=0.75",
+        block_shear_grid_uniform["checks"]["block_shear_grid_path_set"]["design_capacity_kn"],
+        124.08,
+    )
     beam_connection_shear = run_connections(
         {
             "check_type": "minimum_beam_shear_action",

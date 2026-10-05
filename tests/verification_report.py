@@ -4049,6 +4049,64 @@ def clause_9_1_9e_block_shear_path_set():
     }
 
 
+def clause_9_1_9e_block_shear_grid():
+    holes = [
+        {
+            "hole_id": f"row-{row}-column-{column}",
+            "longitudinal_mm": row,
+            "transverse_mm": column,
+            "gross_hole_diameter_mm": 22,
+        }
+        for row in (40, 100)
+        for column in (60, 120)
+    ]
+    result = run_connections(
+        {
+            "check_type": "block_shear_grid",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 440,
+            "plate_length_mm": 180,
+            "plate_width_mm": 150,
+            "thickness_mm": 10,
+            "holes": holes,
+            "complete_hole_layout_verified": True,
+            "block_shear_topology_verified": True,
+            "load_introduction_edge": "longitudinal_start",
+            "loaded_edge_and_action_direction_verified": True,
+            "uniform_tension": False,
+            "tension_stress_distribution_verified": True,
+            "action_kn": 100,
+        }
+    )
+    summary = result["checks"]["block_shear_grid_path_set"]
+    first_path = summary["paths"][0]
+    second_path = summary["paths"][1]
+
+    # Independent dimensional arithmetic: A_gv=2(40)(10), A_nv=[2(40)-2(22)](10),
+    # A_nt=(60-2(22))(10), then phi min(0.6 fu A_nv + 0.5 fu A_nt,
+    # 0.6 fy A_gv + 0.5 fu A_nt) = 97.68 kN.
+    if first_path["gross_shear_area_mm2"] != 800:
+        raise AssertionError("Grid path gross shear area did not match hand arithmetic")
+    if first_path["net_shear_area_mm2"] != 360:
+        raise AssertionError("Grid path net shear area did not match hand arithmetic")
+    if first_path["net_tension_area_mm2"] != 160:
+        raise AssertionError("Grid path net tension area did not match hand arithmetic")
+    if abs(summary["design_capacity_kn"] - 97.68) > 1e-9:
+        raise AssertionError("Grid path resistance did not match hand arithmetic")
+    if second_path["gross_shear_area_mm2"] != 2000 or second_path["net_shear_area_mm2"] != 1120:
+        raise AssertionError("Second terminal-row areas did not match hand arithmetic")
+    return {
+        "path_count": len(summary["paths"]),
+        "governing_path_id": summary["controlling_path_id"],
+        "governing_design_capacity_kn": round(summary["design_capacity_kn"], 2),
+        "first_path_areas_mm2": {
+            "gross_shear": first_path["gross_shear_area_mm2"],
+            "net_shear": first_path["net_shear_area_mm2"],
+            "net_tension": first_path["net_tension_area_mm2"],
+        },
+    }
+
+
 def clause_9_1_10_coordinate_hole_deduction():
     result = run_connections(
         {
@@ -4521,6 +4579,7 @@ def main():
         ),
         "clause_7_4_3_back_to_back_connection_layout": clause_7_4_3_back_to_back_connection_layout,
         "clause_9_1_9e_block_shear_path_set": clause_9_1_9e_block_shear_path_set,
+        "clause_9_1_9e_block_shear_grid": clause_9_1_9e_block_shear_grid,
         "clause_9_3_1_bolt_group_ply_bearing": clause_9_3_1_bolt_group_ply_bearing,
         "clause_9_4_4_pin_ply_bearing": clause_9_4_4_pin_ply_bearing,
         "clause_9_1_10_coordinate_hole_deduction": clause_9_1_10_coordinate_hole_deduction,

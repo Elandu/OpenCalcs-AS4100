@@ -311,6 +311,41 @@ FIELDS = {
         "rupture_paths_complete_and_net_lengths_verified": {"const": True},
         "action_kn": N,
     },
+    "block_shear_grid": {
+        "yield_strength_mpa": P,
+        "ultimate_strength_mpa": P,
+        "plate_length_mm": P,
+        "plate_width_mm": P,
+        "thickness_mm": P,
+        "holes": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 36,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "hole_id",
+                    "longitudinal_mm",
+                    "transverse_mm",
+                    "gross_hole_diameter_mm",
+                ],
+                "properties": {
+                    "hole_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "longitudinal_mm": P,
+                    "transverse_mm": N,
+                    "gross_hole_diameter_mm": P,
+                },
+            },
+        },
+        "complete_hole_layout_verified": {"const": True},
+        "block_shear_topology_verified": {"const": True},
+        "load_introduction_edge": {"enum": ["longitudinal_start", "longitudinal_end"]},
+        "loaded_edge_and_action_direction_verified": {"const": True},
+        "uniform_tension": BOOL,
+        "tension_stress_distribution_verified": {"const": True},
+        "action_kn": N,
+    },
     "pin": {
         "yield_strength_mpa": P,
         "diameter_mm": P,
@@ -1383,6 +1418,195 @@ def _hole_deduction_layout(d):
             "net_area_mm2": net_area,
         },
     )
+
+
+def _block_shear_grid_paths(d):
+    fy, fu = d["yield_strength_mpa"], d["ultimate_strength_mpa"]
+    if fu < fy:
+        raise ValueError("Ultimate strength cannot be below yield strength.")
+
+    holes = d["holes"]
+    hole_ids = [hole["hole_id"] for hole in holes]
+    positions = [(hole["longitudinal_mm"], hole["transverse_mm"]) for hole in holes]
+    if len(set(hole_ids)) != len(hole_ids):
+        raise ValueError("Block-shear grid hole IDs must be unique.")
+    if len(set(positions)) != len(positions):
+        raise ValueError("Block-shear grid hole centres must be distinct.")
+
+    for hole in holes:
+        radius = hole["gross_hole_diameter_mm"] / 2
+        if (
+            hole["longitudinal_mm"] < radius
+            or hole["longitudinal_mm"] + radius > d["plate_length_mm"]
+            or hole["transverse_mm"] < radius
+            or hole["transverse_mm"] + radius > d["plate_width_mm"]
+        ):
+            raise ValueError("Every circular hole must fit within the plate edges.")
+    for index, first in enumerate(holes):
+        for second in holes[index + 1 :]:
+            centre_distance = hypot(
+                first["longitudinal_mm"] - second["longitudinal_mm"],
+                first["transverse_mm"] - second["transverse_mm"],
+            )
+            minimum_distance = (
+                first["gross_hole_diameter_mm"] + second["gross_hole_diameter_mm"]
+            ) / 2
+            if centre_distance < minimum_distance - 1e-9:
+                raise ValueError("Circular fastener holes must not overlap.")
+
+    rows = sorted({hole["longitudinal_mm"] for hole in holes})
+    load_edge = d["load_introduction_edge"]
+    ordered_rows = sorted(
+        rows,
+        key=lambda row: row if load_edge == "longitudinal_start" else d["plate_length_mm"] - row,
+    )
+    columns = sorted({hole["transverse_mm"] for hole in holes})
+    if len(columns) < 2:
+        raise ValueError("A block-shear grid requires at least two transverse hole columns.")
+
+    holes_by_position = {(hole["longitudinal_mm"], hole["transverse_mm"]): hole for hole in holes}
+    if len(holes) != len(rows) * len(columns) or any(
+        (row, column) not in holes_by_position for row in rows for column in columns
+    ):
+        raise ValueError("Hole layout must be a complete rectangular grid without staggered rows.")
+
+    candidate_paths = []
+    for left_index, left_column in enumerate(columns[:-1]):
+        for right_index in range(left_index + 1, len(columns)):
+            right_column = columns[right_index]
+            for terminal_index, terminal_row in enumerate(ordered_rows):
+                terminal_distance = (
+                    terminal_row
+                    if load_edge == "longitudinal_start"
+                    else d["plate_length_mm"] - terminal_row
+                )
+                shear_holes = [
+                    holes_by_position[(row, column)]
+                    for row in ordered_rows[: terminal_index + 1]
+                    for column in (left_column, right_column)
+                ]
+                tension_holes = [
+                    holes_by_position[(terminal_row, column)]
+                    for column in columns[left_index : right_index + 1]
+                ]
+                gross_shear_length = 2 * terminal_distance
+                net_shear_length = gross_shear_length - fsum(
+                    hole["gross_hole_diameter_mm"] for hole in shear_holes
+                )
+                gross_tension_length = right_column - left_column
+                net_tension_length = gross_tension_length - fsum(
+                    hole["gross_hole_diameter_mm"] for hole in tension_holes
+                )
+                path_id = (
+                    f"{load_edge}-columns-{left_index + 1}-{right_index + 1}-"
+                    f"terminal-row-{terminal_index + 1}"
+                )
+                if net_shear_length <= 0 or net_tension_length <= 0:
+                    raise ValueError(
+                        f"Block-shear path {path_id} must retain positive net shear and "
+                        "tension areas."
+                    )
+                candidate_paths.append(
+                    {
+                        "path_id": path_id,
+                        "terminal_row_mm": terminal_row,
+                        "terminal_distance_from_load_edge_mm": terminal_distance,
+                        "gross_shear_length_mm": gross_shear_length,
+                        "net_shear_length_mm": net_shear_length,
+                        "gross_tension_length_mm": gross_tension_length,
+                        "net_tension_length_mm": net_tension_length,
+                        "uniform_tension": d["uniform_tension"],
+                    }
+                )
+
+    if len(candidate_paths) > 100:
+        raise ValueError("Rectangular layout produces more than 100 block-shear candidates.")
+    return candidate_paths, {
+        "path_generation_model": "all_column_pairs_and_terminal_rows",
+        "path_set_complete_for_declared_grid_model": True,
+        "row_count": len(rows),
+        "column_count": len(columns),
+        "rows_mm": rows,
+        "columns_mm": columns,
+        "hole_count": len(holes),
+        "candidate_path_count": len(candidate_paths),
+        "load_introduction_edge": load_edge,
+        "terminal_rows_in_load_order_mm": ordered_rows,
+        "generated_candidate_paths": candidate_paths,
+    }
+
+
+def _evaluate_block_shear_paths(d, paths, result_key):
+    fy, fu, thickness = d["yield_strength_mpa"], d["ultimate_strength_mpa"], d["thickness_mm"]
+    if fu < fy:
+        raise ValueError("Ultimate strength cannot be below yield strength.")
+    path_ids = [path["path_id"] for path in paths]
+    if len(set(path_ids)) != len(path_ids):
+        raise ValueError("Block-shear path IDs must be unique.")
+
+    evaluated_paths = []
+    for path in paths:
+        gross_length = path["gross_shear_length_mm"]
+        net_length = path["net_shear_length_mm"]
+        if net_length > gross_length:
+            raise ValueError("Net shear length cannot exceed gross shear length.")
+        gross_area = thickness * gross_length
+        net_shear_area = thickness * net_length
+        net_tension_area = thickness * path["net_tension_length_mm"]
+        kbs = 1.0 if path["uniform_tension"] else 0.5
+        tension_term_kn = kbs * fu * net_tension_area / 1000
+        nominal_rupture_kn = 0.6 * fu * net_shear_area / 1000 + tension_term_kn
+        nominal_yielding_kn = 0.6 * fy * gross_area / 1000 + tension_term_kn
+        nominal_capacity_kn = min(nominal_rupture_kn, nominal_yielding_kn)
+        governing_mode = (
+            "shear_rupture_plus_tension_rupture"
+            if nominal_rupture_kn <= nominal_yielding_kn
+            else "shear_yielding_plus_tension_rupture"
+        )
+        capacity_check = _check(nominal_capacity_kn, 0.75, d["action_kn"], "9.1.9(e)")
+        evaluated_paths.append(
+            {
+                "path_id": path["path_id"],
+                "gross_shear_length_mm": gross_length,
+                "net_shear_length_mm": net_length,
+                **(
+                    {"gross_tension_length_mm": path["gross_tension_length_mm"]}
+                    if "gross_tension_length_mm" in path
+                    else {}
+                ),
+                "net_tension_length_mm": path["net_tension_length_mm"],
+                "gross_shear_area_mm2": gross_area,
+                "net_shear_area_mm2": net_shear_area,
+                "net_tension_area_mm2": net_tension_area,
+                "eccentricity_factor_kbs": kbs,
+                "nominal_tension_term_kn": tension_term_kn,
+                "nominal_shear_rupture_mode_capacity_kn": nominal_rupture_kn,
+                "nominal_shear_yielding_mode_capacity_kn": nominal_yielding_kn,
+                "governing_mode": governing_mode,
+                **capacity_check,
+            }
+        )
+
+    controlling_path = min(evaluated_paths, key=lambda item: item["nominal_capacity_kn"])
+    checks = {
+        result_key: {
+            "paths": evaluated_paths,
+            "controlling_path_id": controlling_path["path_id"],
+            "nominal_capacity_kn": controlling_path["nominal_capacity_kn"],
+            "design_capacity_kn": controlling_path["design_capacity_kn"],
+            "capacity_factor": 0.75,
+            "utilisation": controlling_path["utilisation"],
+            "satisfied": controlling_path["satisfied"],
+            "clause": "9.1.9(e)",
+        }
+    }
+    intermediate = {
+        "thickness_mm": thickness,
+        "yield_strength_mpa": fy,
+        "ultimate_strength_mpa": fu,
+        "action_kn": d["action_kn"],
+    }
+    return checks, intermediate
 
 
 def _angle_hole_deduction(d):
@@ -3363,70 +3587,21 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         c["block_shear"] = _check(min(modes), 0.75, d["action_kn"], "9.1.9(e)")
         intermediate = {"eccentricity_factor": kb, "nominal_modes_kn": modes}
     elif k == "block_shear_paths":
-        fy, fu, thickness = (
-            d["yield_strength_mpa"],
-            d["ultimate_strength_mpa"],
-            d["thickness_mm"],
+        c, intermediate = _evaluate_block_shear_paths(
+            d, d["candidate_paths"], "block_shear_path_set"
         )
-        if fu < fy:
-            raise ValueError("Ultimate strength cannot be below yield strength.")
-        paths = d["candidate_paths"]
-        path_ids = [path["path_id"] for path in paths]
-        if len(set(path_ids)) != len(path_ids):
-            raise ValueError("Block-shear path IDs must be unique.")
-        evaluated_paths = []
-        for path in paths:
-            gross_length = path["gross_shear_length_mm"]
-            net_length = path["net_shear_length_mm"]
-            if net_length > gross_length:
-                raise ValueError("Net shear length cannot exceed gross shear length.")
-            gross_area = thickness * gross_length
-            net_shear_area = thickness * net_length
-            net_tension_area = thickness * path["net_tension_length_mm"]
-            kbs = 1.0 if path["uniform_tension"] else 0.5
-            tension_term_kn = kbs * fu * net_tension_area / 1000
-            nominal_rupture_kn = 0.6 * fu * net_shear_area / 1000 + tension_term_kn
-            nominal_yielding_kn = 0.6 * fy * gross_area / 1000 + tension_term_kn
-            nominal_capacity_kn = min(nominal_rupture_kn, nominal_yielding_kn)
-            governing_mode = (
-                "shear_rupture_plus_tension_rupture"
-                if nominal_rupture_kn <= nominal_yielding_kn
-                else "shear_yielding_plus_tension_rupture"
-            )
-            capacity_check = _check(nominal_capacity_kn, 0.75, d["action_kn"], "9.1.9(e)")
-            evaluated_paths.append(
-                {
-                    "path_id": path["path_id"],
-                    "gross_shear_area_mm2": gross_area,
-                    "net_shear_area_mm2": net_shear_area,
-                    "net_tension_area_mm2": net_tension_area,
-                    "eccentricity_factor_kbs": kbs,
-                    "nominal_tension_term_kn": tension_term_kn,
-                    "nominal_shear_rupture_mode_capacity_kn": nominal_rupture_kn,
-                    "nominal_shear_yielding_mode_capacity_kn": nominal_yielding_kn,
-                    "governing_mode": governing_mode,
-                    **capacity_check,
-                }
-            )
-        controlling_path = min(evaluated_paths, key=lambda item: item["nominal_capacity_kn"])
-        c["block_shear_path_set"] = {
-            "paths": evaluated_paths,
-            "controlling_path_id": controlling_path["path_id"],
-            "nominal_capacity_kn": controlling_path["nominal_capacity_kn"],
-            "design_capacity_kn": controlling_path["design_capacity_kn"],
-            "capacity_factor": 0.75,
-            "utilisation": controlling_path["utilisation"],
-            "satisfied": controlling_path["satisfied"],
-            "clause": "9.1.9(e)",
-        }
-        intermediate = {
-            "thickness_mm": thickness,
-            "yield_strength_mpa": fy,
-            "ultimate_strength_mpa": fu,
-            "action_kn": d["action_kn"],
-            "rupture_path_set_completeness_and_net_length_basis_verified": True,
-            "clause": "9.1.9(e); 9.1.10",
-        }
+        intermediate.update(
+            rupture_path_set_completeness_and_net_length_basis_verified=True,
+            clause="9.1.9(e); 9.1.10",
+        )
+    elif k == "block_shear_grid":
+        paths, grid_details = _block_shear_grid_paths(d)
+        c, intermediate = _evaluate_block_shear_paths(d, paths, "block_shear_grid_path_set")
+        intermediate.update(grid_details)
+        intermediate.update(
+            rupture_path_set_completeness_and_net_length_basis_verified=True,
+            clause="9.1.9(e); 9.1.10",
+        )
     elif k == "pin":
         fy, dia = d["yield_strength_mpa"], d["diameter_mm"]
         plies = d["connected_plies"]
@@ -4293,6 +4468,19 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "recognized method supported by experimental evidence. This operation does not "
             "calculate prying force; verify eccentricity, plate flexibility and connection "
             "geometry separately."
+        )
+    elif k == "block_shear_grid":
+        scope = (
+            "Clause 9.1.9(e) block-shear resistance and Clause 9.1.10 hole deductions for a "
+            "complete rectangular grid of circular holes in a flat plate. The operation "
+            "enumerates every pair of transverse hole columns at each terminal row, from the "
+            "declared longitudinal load-introduction edge, derives two shear paths and the "
+            "terminal-row tension path, and selects the least capacity. Verify the complete "
+            "hole layout, action direction, load edge, block-shear topology and uniform/non-"
+            "uniform tension basis. "
+            "Staggered or incomplete grids, non-circular holes, other section geometries and "
+            "local hollow-section effects require separate assessment; detailing under "
+            "Clauses 9.5 and complete connection design remain separate."
         )
     elif k == "block_shear_paths":
         scope = (

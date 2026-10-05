@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.40",
+  "package_version": "0.7.41",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1890,6 +1890,41 @@
       "name": "Clause 9.1.9(e) minimum across candidate paths, phi=0.75",
       "actual": 342.0,
       "expected": 342,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.9(e) grid path gross shear area, hand geometry",
+      "actual": 800,
+      "expected": 800,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.9(e) grid path net shear area, two 22 mm holes",
+      "actual": 360.0,
+      "expected": 360,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.9(e) grid path net tension area, two 22 mm holes",
+      "actual": 160.0,
+      "expected": 160,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.9(e) grid path design resistance, kbs=0.5 and phi=0.75",
+      "actual": 97.68,
+      "expected": 97.68,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.9(e) grid path design resistance, kbs=1.0 and phi=0.75",
+      "actual": 124.08,
+      "expected": 124.08,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

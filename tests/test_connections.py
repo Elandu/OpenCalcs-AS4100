@@ -1407,6 +1407,127 @@ def test_block_shear_path_set_selects_lowest_capacity_from_independent_arithmeti
     assert summary["satisfied"]
 
 
+def _block_shear_grid_inputs(**changes):
+    result = {
+        "check_type": "block_shear_grid",
+        "yield_strength_mpa": 300,
+        "ultimate_strength_mpa": 440,
+        "plate_length_mm": 180,
+        "plate_width_mm": 150,
+        "thickness_mm": 10,
+        "holes": [
+            {
+                "hole_id": f"row-{row}-column-{column}",
+                "longitudinal_mm": row,
+                "transverse_mm": column,
+                "gross_hole_diameter_mm": 22,
+            }
+            for row in (40, 100)
+            for column in (60, 120)
+        ],
+        "complete_hole_layout_verified": True,
+        "block_shear_topology_verified": True,
+        "load_introduction_edge": "longitudinal_start",
+        "loaded_edge_and_action_direction_verified": True,
+        "uniform_tension": False,
+        "tension_stress_distribution_verified": True,
+        "action_kn": 100,
+    }
+    result.update(changes)
+    return result
+
+
+def test_block_shear_grid_derives_path_areas_and_selects_lowest_capacity():
+    result = run_connections(_block_shear_grid_inputs())
+    summary = result["checks"]["block_shear_grid_path_set"]
+
+    assert [path["gross_shear_area_mm2"] for path in summary["paths"]] == [800, 2000]
+    assert [path["net_shear_area_mm2"] for path in summary["paths"]] == [360, 1120]
+    assert [path["net_tension_area_mm2"] for path in summary["paths"]] == [160, 160]
+    assert [path["design_capacity_kn"] for path in summary["paths"]] == pytest.approx(
+        [97.68, 248.16]
+    )
+    assert summary["controlling_path_id"] == ("longitudinal_start-columns-1-2-terminal-row-1")
+    assert summary["design_capacity_kn"] == pytest.approx(97.68)
+    assert result["intermediate"]["candidate_path_count"] == 2
+    assert result["intermediate"]["path_generation_model"] == ("all_column_pairs_and_terminal_rows")
+
+
+def test_block_shear_grid_includes_nonadjacent_column_pairs():
+    holes = [
+        {
+            "hole_id": f"row-{row}-column-{column}",
+            "longitudinal_mm": row,
+            "transverse_mm": column,
+            "gross_hole_diameter_mm": 22,
+        }
+        for row in (40, 100)
+        for column in (40, 100, 160)
+    ]
+    result = run_connections(_block_shear_grid_inputs(holes=holes, plate_width_mm=200))
+
+    paths = result["intermediate"]["generated_candidate_paths"]
+    assert len(paths) == 6
+    assert any(path["path_id"] == "longitudinal_start-columns-1-3-terminal-row-1" for path in paths)
+
+
+def test_block_shear_grid_uniform_tension_factor_and_opposite_loaded_edge():
+    uniform = run_connections(_block_shear_grid_inputs(uniform_tension=True))
+    assert uniform["checks"]["block_shear_grid_path_set"]["design_capacity_kn"] == pytest.approx(
+        124.08
+    )
+
+    reverse_edge = run_connections(
+        _block_shear_grid_inputs(load_introduction_edge="longitudinal_end")
+    )
+    paths = reverse_edge["intermediate"]["generated_candidate_paths"]
+    assert [path["terminal_row_mm"] for path in paths] == [100, 40]
+    assert [path["terminal_distance_from_load_edge_mm"] for path in paths] == [80, 140]
+    assert [path["gross_shear_length_mm"] for path in paths] == [160, 280]
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"holes": _block_shear_grid_inputs()["holes"][:-1]}, "complete rectangular grid"),
+        (
+            {
+                "holes": [
+                    *_block_shear_grid_inputs()["holes"][:1],
+                    {
+                        **_block_shear_grid_inputs()["holes"][1],
+                        "transverse_mm": 70,
+                    },
+                    *_block_shear_grid_inputs()["holes"][2:],
+                ]
+            },
+            "must not overlap",
+        ),
+        (
+            {
+                "holes": [
+                    {**hole, "gross_hole_diameter_mm": 32}
+                    for hole in _block_shear_grid_inputs()["holes"]
+                ]
+            },
+            "positive net shear and tension areas",
+        ),
+        (
+            {
+                "holes": [
+                    {**hole, "longitudinal_mm": 11 if hole["longitudinal_mm"] == 40 else 50}
+                    for hole in _block_shear_grid_inputs()["holes"]
+                ]
+            },
+            "positive net shear and tension areas",
+        ),
+    ],
+)
+def test_block_shear_grid_rejects_incomplete_or_nonphysical_path_sets(changes, message):
+    with pytest.raises(ValueError, match=message):
+        run_connections(_block_shear_grid_inputs(**changes))
+
+
 @pytest.mark.parametrize(
     ("path_changes", "message"),
     [
