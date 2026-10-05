@@ -25,6 +25,139 @@
       "passed": true
     },
     {
+      "name": "Table 11.5.1(A) rolled and extruded products detail category",
+      "actual": 160,
+      "expected": 160,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(A) 8.8/TF bolted connection stress area",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(A) gas-cut edge detail category",
+      "actual": 125,
+      "expected": 125,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(C) 8.8/TB shear-bolt category",
+      "actual": 100,
+      "expected": 100,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(C) tension-bolt category",
+      "actual": 36,
+      "expected": 36,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(D) continuous automatic longitudinal weld category",
+      "actual": 140,
+      "expected": 140,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(D) CHS butt-weld thickness boundary at 8 mm",
+      "actual": 90,
+      "expected": 90,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(D) RHS intermediate-plate fillet weld below 8 mm",
+      "actual": 36,
+      "expected": 36,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(D) non-load-carrying attachment width limit",
+      "actual": 71,
+      "expected": 71,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) automatic two-sided longitudinal weld category",
+      "actual": 125,
+      "expected": 125,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) manual longitudinal weld category",
+      "actual": 100,
+      "expected": 100,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) transverse splice with unfilled cope hole",
+      "actual": 71,
+      "expected": 71,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) butt-weld taper upper boundary",
+      "actual": 80,
+      "expected": 80,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) cruciform misalignment below 0.15t",
+      "actual": 71,
+      "expected": 71,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) longitudinal attachment length at 100 mm",
+      "actual": 71,
+      "expected": 71,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) gusset transition radius ratio at 1/6",
+      "actual": 71,
+      "expected": 71,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) cover plate with flange and plate at 25 mm",
+      "actual": 50,
+      "expected": 50,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) shear weld detail stress-area classification",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 11.5.1(B) welded stud shear stress-area classification",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "7.2 axial tension, hand arithmetic",
       "actual": 367.20000000000005,
       "expected": 367.2,
@@ -365,6 +498,188 @@
       "actual": 986.9604401089358,
       "expected": 986.9604401089358,
       "absolute_tolerance": 1e-08,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.6.3.2 idealized restraint factor: braced_fixed_fixed",
+      "actual": 0.7,
+      "expected": 0.7,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.6.3.2 idealized restraint factor: braced_top_pinned_bottom_fixed",
+      "actual": 0.85,
+      "expected": 0.85,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.6.3.2 idealized restraint factor: braced_pinned_pinned",
+      "actual": 1.0,
+      "expected": 1.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.6.3.2 idealized restraint factor: sway_top_fixed_bottom_fixed",
+      "actual": 1.2,
+      "expected": 1.2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.6.3.2 idealized restraint factor: sway_top_free_bottom_fixed",
+      "actual": 2.2,
+      "expected": 2.2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.6.3.2 idealized restraint factor: sway_top_fixed_bottom_pinned",
+      "actual": 2.2,
+      "expected": 2.2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clauses 4.6.2/4.6.3.2 fixed-fixed Euler load, hand arithmetic",
+      "actual": 2014.2049798141545,
+      "expected": 2014.2049798141545,
+      "absolute_tolerance": 1e-08,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 global force equilibrium, three axes",
+      "actual": 0.0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 global moment equilibrium with position cross force",
+      "actual": 0.0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 boundary-condition evidence gate",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 joint force equilibrium, three axes",
+      "actual": 0.0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 joint moment equilibrium including position offsets",
+      "actual": 0.0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 member-end and action-completeness evidence gates",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 member span force equilibrium, three axes",
+      "actual": 0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 member span moment equilibrium with position cross force",
+      "actual": 0.0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 member geometry and complete-list evidence gates",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 support translation residual at inclusive tolerance",
+      "actual": 0.01,
+      "expected": 0.01,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 support rotation residual at inclusive tolerance",
+      "actual": 0.001,
+      "expected": 0.001,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 support and restrained-DOF evidence gates",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.2 alternative-route member rotation demand ratio",
+      "actual": 0.8999999999999999,
+      "expected": 0.9,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.2 alternative-route connection rotation boundary",
+      "actual": 1.0,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.2 alternative-route analysis and evidence gates",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.2(b)(ii) tensile-to-yield strength ratio boundary",
+      "actual": 1.2,
+      "expected": 1.2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.2 prescriptive limits at table boundaries",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.3 full-strength connection capacity boundary",
+      "actual": 1.0,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.3 hinge rotation capacity boundary",
+      "actual": 1.0,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
       "passed": true
     },
     {

@@ -10,6 +10,14 @@ _BOOL = {"type": "boolean"}
 _REFERENCE = {"type": "string", "minLength": 1, "maxLength": 160}
 _YIELD_STRESS = {"type": "number", "exclusiveMinimum": 0, "maximum": 690}
 _VECTOR3 = {"type": "array", "minItems": 3, "maxItems": 3, "items": SIGNED}
+_IDEALIZED_END_RESTRAINT_FACTORS = {
+    "braced_fixed_fixed": 0.7,
+    "braced_top_pinned_bottom_fixed": 0.85,
+    "braced_pinned_pinned": 1.0,
+    "sway_top_fixed_bottom_fixed": 1.2,
+    "sway_top_free_bottom_fixed": 2.2,
+    "sway_top_fixed_bottom_pinned": 2.2,
+}
 
 _PLASTIC_MATERIAL = object_schema(
     {
@@ -94,6 +102,32 @@ _JOINT_ACTION = object_schema(
         "evidence_reference": _REFERENCE,
     }
 )
+_PLASTIC_SPAN_LOAD = object_schema(
+    {
+        "action_id": _REFERENCE,
+        "force_kn": _VECTOR3,
+        "moment_knm": _VECTOR3,
+        "position_offset_mm": _VECTOR3,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_PLASTIC_MEMBER_SPAN = object_schema(
+    {
+        "member_id": _REFERENCE,
+        "member_vector_mm": _VECTOR3,
+        "member_geometry_verified": _BOOL,
+        "member_geometry_evidence_reference": _REFERENCE,
+        "start_end_force_kn": _VECTOR3,
+        "start_end_moment_knm": _VECTOR3,
+        "start_end_evidence_reference": _REFERENCE,
+        "end_end_force_kn": _VECTOR3,
+        "end_end_moment_knm": _VECTOR3,
+        "end_end_evidence_reference": _REFERENCE,
+        "span_actions": {"type": "array", "items": _PLASTIC_SPAN_LOAD},
+        "span_actions_complete_verified": _BOOL,
+        "span_actions_evidence_reference": _REFERENCE,
+    }
+)
 _PLASTIC_JOINT = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -138,6 +172,20 @@ SCHEMAS = {
             "second_moment_mm4": POSITIVE,
             "member_length_mm": POSITIVE,
             "effective_length_factor": POSITIVE,
+        }
+    ),
+    "idealized_member_buckling": object_schema(
+        {
+            "operation": {"const": "idealized_member_buckling"},
+            "second_moment_mm4": POSITIVE,
+            "member_length_mm": POSITIVE,
+            "idealized_end_restraint_case": {
+                "enum": list(_IDEALIZED_END_RESTRAINT_FACTORS)
+            },
+            "idealized_end_restraint_verified": _BOOL,
+            "end_restraint_evidence_reference": _REFERENCE,
+            "member_length_centre_to_centre_verified": _BOOL,
+            "member_length_evidence_reference": _REFERENCE,
         }
     ),
     "moment_amplification": object_schema(
@@ -232,6 +280,16 @@ SCHEMAS = {
             "moment_tolerance_knm": NONNEGATIVE,
         }
     ),
+    "plastic_member_span_equilibrium": object_schema(
+        {
+            "operation": {"const": "plastic_member_span_equilibrium"},
+            "members": {"type": "array", "minItems": 1, "items": _PLASTIC_MEMBER_SPAN},
+            "force_tolerance_kn": NONNEGATIVE,
+            "moment_tolerance_knm": NONNEGATIVE,
+            "all_members_listed_verified": _BOOL,
+            "member_list_evidence_reference": _REFERENCE,
+        }
+    ),
     "plastic_support_boundary_conditions": object_schema(
         {
             "operation": {"const": "plastic_support_boundary_conditions"},
@@ -277,25 +335,78 @@ def _moment_from_position_mm(position_mm, force_kn):
     ]
 
 
+def _elastic_buckling_load(second_moment_mm4, member_length_mm, effective_length_factor):
+    load = (
+        pi**2
+        * ELASTIC_MODULUS_MPA
+        * second_moment_mm4
+        / (effective_length_factor * member_length_mm) ** 2
+        / 1000
+    )
+    if not isfinite(load) or load <= 0:
+        raise ValueError("Invalid elastic buckling load.")
+    return load
+
+
 def run_design_actions(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
     if op == "euler_buckling":
-        load = (
-            pi**2
-            * d["elastic_modulus_mpa"]
-            * d["second_moment_mm4"]
-            / (d["effective_length_factor"] * d["member_length_mm"]) ** 2
-            / 1000
+        load = _elastic_buckling_load(
+            d["second_moment_mm4"],
+            d["member_length_mm"],
+            d["effective_length_factor"],
         )
-        if not isfinite(load) or load <= 0:
-            raise ValueError("Invalid elastic buckling load.")
         return result(
             op,
             ["4.6.2"],
             {"elastic_buckling_load_kn": load},
             limitations=[
                 "Effective length factor requires restraint/frame assessment under 4.6.3.",
+            ],
+        )
+    if op == "idealized_member_buckling":
+        effective_length_factor = _IDEALIZED_END_RESTRAINT_FACTORS[
+            d["idealized_end_restraint_case"]
+        ]
+        elastic_buckling_load = _elastic_buckling_load(
+            d["second_moment_mm4"],
+            d["member_length_mm"],
+            effective_length_factor,
+        )
+        return result(
+            op,
+            ["4.6.2", "4.6.3.2"],
+            {
+                "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+                "second_moment_mm4": d["second_moment_mm4"],
+                "member_length_mm": d["member_length_mm"],
+                "idealized_end_restraint_case": d["idealized_end_restraint_case"],
+                "effective_length_factor": effective_length_factor,
+                "effective_length_mm": effective_length_factor * d["member_length_mm"],
+                "elastic_buckling_load_kn": elastic_buckling_load,
+            },
+            [
+                {
+                    "clause": "4.6.3.2",
+                    "condition": "idealized end-restraint case is verified against Figure 4.6.3.2",
+                    "satisfied": d["idealized_end_restraint_verified"],
+                    "evidence_reference": d["end_restraint_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.2",
+                    "condition": "member length is verified centre-to-centre between "
+                    "supporting members",
+                    "satisfied": d["member_length_centre_to_centre_verified"],
+                    "evidence_reference": d["member_length_evidence_reference"],
+                },
+            ],
+            limitations=[
+                "Figure 4.6.3.2 supplies idealized end-restraint cases only; actual restraint "
+                "classification and the selected buckling axis require engineering assessment.",
+                "The elastic buckling load uses the supplied section second moment and verified "
+                "centre-to-centre member length. It is not a Clause 6.3 design capacity or a "
+                "frame stability analysis.",
             ],
         )
     if op == "moment_amplification":
@@ -882,6 +993,144 @@ def run_design_actions(inputs):
                 "convention; position offsets are measured from each joint.",
                 "The completeness declaration is supplied evidence. The operation does not "
                 "verify member-span equilibrium, boundary conditions or analysis validity.",
+            ],
+        )
+    if op == "plastic_member_span_equilibrium":
+        member_results = []
+        checks = []
+        member_ids = [member["member_id"] for member in d["members"]]
+        unique_member_ids = len(member_ids) == len(set(member_ids))
+        for member in d["members"]:
+            member_vector = member["member_vector_mm"]
+            if not any(component != 0 for component in member_vector):
+                raise ValueError(f"Member {member['member_id']} must have nonzero length.")
+
+            force_resultant = [
+                member["start_end_force_kn"][axis] + member["end_end_force_kn"][axis]
+                for axis in range(3)
+            ]
+            end_lever_moment = _moment_from_position_mm(
+                member_vector,
+                member["end_end_force_kn"],
+            )
+            moment_resultant = [
+                member["start_end_moment_knm"][axis]
+                + member["end_end_moment_knm"][axis]
+                + end_lever_moment[axis]
+                for axis in range(3)
+            ]
+            span_action_ids = [action["action_id"] for action in member["span_actions"]]
+            unique_span_action_ids = len(span_action_ids) == len(set(span_action_ids))
+            for action in member["span_actions"]:
+                lever_moment = _moment_from_position_mm(
+                    action["position_offset_mm"],
+                    action["force_kn"],
+                )
+                for axis in range(3):
+                    force_resultant[axis] += action["force_kn"][axis]
+                    moment_resultant[axis] += action["moment_knm"][axis] + lever_moment[axis]
+
+            force_satisfied = all(
+                abs(component) <= d["force_tolerance_kn"] for component in force_resultant
+            )
+            moment_satisfied = all(
+                abs(component) <= d["moment_tolerance_knm"]
+                for component in moment_resultant
+            )
+            member_equilibrium_satisfied = force_satisfied and moment_satisfied
+            member_results.append(
+                {
+                    "member_id": member["member_id"],
+                    "member_vector_mm": member_vector,
+                    "span_action_count": len(member["span_actions"]),
+                    "force_resultant_kn": force_resultant,
+                    "moment_resultant_about_start_knm": moment_resultant,
+                    "member_equilibrium_satisfied": member_equilibrium_satisfied,
+                }
+            )
+            checks.extend(
+                [
+                    {
+                        "clause": "4.5.1",
+                        "member_id": member["member_id"],
+                        "condition": "member force equilibrium",
+                        "resultant_force_kn": force_resultant,
+                        "maximum_component_residual_kn": max(
+                            abs(value) for value in force_resultant
+                        ),
+                        "tolerance_kn": d["force_tolerance_kn"],
+                        "satisfied": force_satisfied,
+                    },
+                    {
+                        "clause": "4.5.1",
+                        "member_id": member["member_id"],
+                        "condition": "member moment equilibrium about its start end",
+                        "resultant_moment_knm": moment_resultant,
+                        "maximum_component_residual_knm": max(
+                            abs(value) for value in moment_resultant
+                        ),
+                        "tolerance_knm": d["moment_tolerance_knm"],
+                        "satisfied": moment_satisfied,
+                    },
+                    {
+                        "clause": "4.5.1",
+                        "member_id": member["member_id"],
+                        "condition": "member geometry is verified",
+                        "satisfied": member["member_geometry_verified"],
+                        "evidence_reference": member["member_geometry_evidence_reference"],
+                    },
+                    {
+                        "clause": "4.5.1",
+                        "member_id": member["member_id"],
+                        "condition": "span action resultants are complete",
+                        "span_action_count": len(member["span_actions"]),
+                        "satisfied": member["span_actions_complete_verified"],
+                        "evidence_reference": member["span_actions_evidence_reference"],
+                    },
+                    {
+                        "clause": "4.5.1",
+                        "member_id": member["member_id"],
+                        "condition": "span action identifiers are unique",
+                        "satisfied": unique_span_action_ids,
+                    },
+                ]
+            )
+
+        checks.extend(
+            [
+                {
+                    "clause": "4.5.1",
+                    "condition": "member identifiers are unique",
+                    "satisfied": unique_member_ids,
+                },
+                {
+                    "clause": "4.5.1",
+                    "condition": "all analyzed member spans are listed",
+                    "satisfied": d["all_members_listed_verified"],
+                    "evidence_reference": d["member_list_evidence_reference"],
+                },
+            ]
+        )
+        return result(
+            op,
+            ["4.5.1"],
+            {
+                "members": member_results,
+                "all_member_equilibria_satisfied": all(
+                    member["member_equilibrium_satisfied"] for member in member_results
+                ),
+                "unique_member_identifiers": unique_member_ids,
+            },
+            checks,
+            limitations=[
+                "End actions act on each member; forces use the stated global axes, end moments "
+                "are about their respective ends, and span action offsets are measured from the "
+                "member start.",
+                "Span actions must include the equivalent resultant and couple of every applied "
+                "point or distributed load. Completeness, geometry and source records are supplied "
+                "evidence and are not authenticated.",
+                "This checks the listed member free-body resultants only; it does not derive load "
+                "resultants, check joints or the whole structure, or validate the analysis model.",
             ],
         )
     if op == "plastic_support_boundary_conditions":

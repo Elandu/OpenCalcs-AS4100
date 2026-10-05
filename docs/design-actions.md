@@ -5,6 +5,30 @@
 otherwise. Evidence references identify supporting project records; the plugin
 does not authenticate those records.
 
+## Idealized member buckling
+
+`idealized_member_buckling` combines the Clause 4.6.3.2 effective-length
+factors from Figure 4.6.3.2 with the Clause 4.6.2 Euler elastic buckling load.
+`member_length_mm` is the verified centre-to-centre length between supporting
+members, and `second_moment_mm4` is the supplied section property about the
+assessed buckling axis.
+
+The case identifiers correspond to the figure as follows:
+
+| Case | End restraints shown in Figure 4.6.3.2 | `k_e` |
+| --- | --- | ---: |
+| `braced_fixed_fixed` | Both ends rotation-fixed and translation-fixed | 0.70 |
+| `braced_top_pinned_bottom_fixed` | Top rotation-free/translation-fixed; bottom rotation-fixed/translation-fixed | 0.85 |
+| `braced_pinned_pinned` | Both ends rotation-free and translation-fixed | 1.00 |
+| `sway_top_fixed_bottom_fixed` | Top rotation-fixed/translation-free; bottom rotation-fixed/translation-fixed | 1.20 |
+| `sway_top_free_bottom_fixed` | Top rotation-free/translation-free; bottom rotation-fixed/translation-fixed | 2.20 |
+| `sway_top_fixed_bottom_pinned` | Top rotation-fixed/translation-free; bottom rotation-free/translation-fixed | 2.20 |
+
+The case and centre-to-centre length each require a verified declaration and
+evidence reference. These are the figure's idealized cases; the operation does
+not determine actual restraint stiffness, select the buckling axis, analyse the
+frame, or calculate a Clause 6.3 design capacity.
+
 ## Global plastic-analysis equilibrium
 
 `plastic_global_equilibrium` checks the three components of total force and
@@ -45,6 +69,24 @@ member connectivity, check member-span equilibrium, verify support conditions,
 or validate the structural analysis. The separate
 `plastic_support_boundary_conditions` operation compares listed support
 restraints against supplied analysis values.
+
+## Member-span equilibrium
+
+`plastic_member_span_equilibrium` checks the force and moment resultants for
+each listed member under Clause 4.5.1. Enter the member vector from its start
+end to its end end in global axes. End forces act on the member; the start-end
+moment is about the start, and the end-end moment is about the end. Span action
+forces and free couples use the same global axes, with each position offset
+measured from the member start. This lets a distributed load be represented by
+its equivalent resultant and couple, or individual applied loads be entered
+separately. The calculation reports the residual moments about the member
+start, adding each force's position cross force contribution.
+
+Supply the complete span action list, member geometry and evidence references.
+The geometry, member list, load resultants, and completeness declarations are
+not authenticated. Tolerances are project-selected. This checks the listed
+member free-body resultants; it does not derive distributed-load resultants,
+check joint or whole-structure equilibrium, or validate the structural model.
 
 ## Support boundary-condition checks
 

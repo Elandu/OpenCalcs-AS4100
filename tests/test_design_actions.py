@@ -32,6 +32,65 @@ def test_euler_buckling_uses_clause_2_2_4_elastic_modulus():
         )
 
 
+@pytest.mark.parametrize(
+    ("end_restraint_case", "expected_factor"),
+    [
+        ("braced_fixed_fixed", 0.7),
+        ("braced_top_pinned_bottom_fixed", 0.85),
+        ("braced_pinned_pinned", 1.0),
+        ("sway_top_fixed_bottom_fixed", 1.2),
+        ("sway_top_free_bottom_fixed", 2.2),
+        ("sway_top_fixed_bottom_pinned", 2.2),
+    ],
+)
+def test_idealized_end_restraint_cases_feed_euler_buckling(
+    end_restraint_case, expected_factor
+):
+    r = run(
+        {
+            "operation": "idealized_member_buckling",
+            "second_moment_mm4": 8e6,
+            "member_length_mm": 4000,
+            "idealized_end_restraint_case": end_restraint_case,
+            "idealized_end_restraint_verified": True,
+            "end_restraint_evidence_reference": "FIGURE-4-6-3-2-REVIEW",
+            "member_length_centre_to_centre_verified": True,
+            "member_length_evidence_reference": "MEMBER-GEOMETRY-01",
+        }
+    )
+    values = r["values"]
+    assert r["checked_conditions_satisfied"]
+    assert values["effective_length_factor"] == expected_factor
+    assert values["effective_length_mm"] == expected_factor * 4000
+    assert values["elastic_buckling_load_kn"] == pytest.approx(
+        pi**2 * 200000 * 8e6 / (expected_factor * 4000) ** 2 / 1000
+    )
+    assert r["clauses"] == ["4.6.2", "4.6.3.2"]
+    assert r["full_standard_compliance"] is False
+
+
+def test_idealized_member_buckling_requires_verified_case_and_member_length():
+    inputs = {
+        "operation": "idealized_member_buckling",
+        "second_moment_mm4": 8e6,
+        "member_length_mm": 4000,
+        "idealized_end_restraint_case": "braced_fixed_fixed",
+        "idealized_end_restraint_verified": False,
+        "end_restraint_evidence_reference": "RESTRAINT-REVIEW-01",
+        "member_length_centre_to_centre_verified": False,
+        "member_length_evidence_reference": "MEMBER-MEASURE-01",
+    }
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert r["values"]["elastic_buckling_load_kn"] > 0
+    assert not r["checks"][0]["satisfied"]
+    assert not r["checks"][1]["satisfied"]
+
+    inputs["idealized_end_restraint_case"] = "unlisted_case"
+    with pytest.raises(ValueError):
+        run(inputs)
+
+
 def test_moment_amplification_and_instability_gate():
     d = {
         "operation": "moment_amplification",
@@ -527,6 +586,96 @@ def test_plastic_joint_equilibrium_inclusive_tolerance_and_evidence_gates():
     assert not r["checked_conditions_satisfied"]
     assert r["values"]["all_joint_equilibria_satisfied"]
     assert not r["checks"][2]["satisfied"]
+
+
+def plastic_member_span_equilibrium(**overrides):
+    inputs = {
+        "operation": "plastic_member_span_equilibrium",
+        "members": [
+            {
+                "member_id": "BEAM-01",
+                "member_vector_mm": [4000, 0, 0],
+                "member_geometry_verified": True,
+                "member_geometry_evidence_reference": "BEAM-01-MODEL",
+                "start_end_force_kn": [0, 20, -7.5],
+                "start_end_moment_knm": [0, 0, 0],
+                "start_end_evidence_reference": "BEAM-01-START-ACTIONS",
+                "end_end_force_kn": [0, 20, -7.5],
+                "end_end_moment_knm": [-1, 2, -3],
+                "end_end_evidence_reference": "BEAM-01-END-ACTIONS",
+                "span_actions": [
+                    {
+                        "action_id": "UDL-01",
+                        "force_kn": [0, -40, 15],
+                        "moment_knm": [0, 0, 0],
+                        "position_offset_mm": [2000, 0, 0],
+                        "evidence_reference": "BEAM-01-LOAD-RESULTANT",
+                    },
+                    {
+                        "action_id": "COUPLE-01",
+                        "force_kn": [0, 0, 0],
+                        "moment_knm": [1, -2, 3],
+                        "position_offset_mm": [2000, 0, 0],
+                        "evidence_reference": "BEAM-01-APPLIED-COUPLE",
+                    },
+                ],
+                "span_actions_complete_verified": True,
+                "span_actions_evidence_reference": "BEAM-01-LOAD-REGISTER",
+            }
+        ],
+        "force_tolerance_kn": 0,
+        "moment_tolerance_knm": 0,
+        "all_members_listed_verified": True,
+        "member_list_evidence_reference": "MODEL-MEMBER-LIST",
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_plastic_member_span_equilibrium_three_axis_hand_benchmark():
+    r = run(plastic_member_span_equilibrium())
+    member = r["values"]["members"][0]
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["all_member_equilibria_satisfied"]
+    assert member["force_resultant_kn"] == [0, 0, 0]
+    assert member["moment_resultant_about_start_knm"] == [0, 0, 0]
+    assert member["span_action_count"] == 2
+    assert r["full_standard_compliance"] is False
+
+
+def test_plastic_member_span_equilibrium_residuals_tolerances_and_evidence():
+    inputs = plastic_member_span_equilibrium(force_tolerance_kn=1, moment_tolerance_knm=2)
+    inputs["members"][0]["end_end_force_kn"] = [0, 19, -7.5]
+    inputs["members"][0]["end_end_moment_knm"] = [-1, 2, -1]
+    inputs["members"][0]["span_actions"][1]["moment_knm"] = [1, -2, 3]
+    r = run(inputs)
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["members"][0]["force_resultant_kn"] == [0, -1, 0]
+    assert r["values"]["members"][0]["moment_resultant_about_start_knm"] == [0, 0, -2]
+
+    inputs = plastic_member_span_equilibrium()
+    inputs["members"][0]["span_actions_complete_verified"] = False
+    inputs["members"][0]["member_geometry_verified"] = False
+    inputs["all_members_listed_verified"] = False
+    r = run(inputs)
+    assert r["values"]["all_member_equilibria_satisfied"]
+    assert not r["checked_conditions_satisfied"]
+    assert not r["checks"][2]["satisfied"]
+    assert not r["checks"][3]["satisfied"]
+    assert not r["checks"][-1]["satisfied"]
+
+
+def test_plastic_member_span_equilibrium_rejects_zero_length_and_duplicate_identifiers():
+    inputs = plastic_member_span_equilibrium()
+    inputs["members"][0]["member_vector_mm"] = [0, 0, 0]
+    with pytest.raises(ValueError, match="nonzero length"):
+        run(inputs)
+
+    inputs = plastic_member_span_equilibrium()
+    inputs["members"].append(dict(inputs["members"][0]))
+    r = run(inputs)
+    assert not r["values"]["unique_member_identifiers"]
+    assert not r["checked_conditions_satisfied"]
 
 
 def plastic_support_boundary_conditions(**overrides):

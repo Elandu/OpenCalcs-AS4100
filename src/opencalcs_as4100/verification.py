@@ -879,6 +879,41 @@ def verify():
         986.9604401089358,
         1e-8,
     )
+    idealized_restraint_cases = {
+        "braced_fixed_fixed": 0.7,
+        "braced_top_pinned_bottom_fixed": 0.85,
+        "braced_pinned_pinned": 1.0,
+        "sway_top_fixed_bottom_fixed": 1.2,
+        "sway_top_free_bottom_fixed": 2.2,
+        "sway_top_fixed_bottom_pinned": 2.2,
+    }
+    idealized_fixed_fixed = None
+    for case, expected_factor in idealized_restraint_cases.items():
+        idealized_result = run_design_actions(
+            {
+                "operation": "idealized_member_buckling",
+                "second_moment_mm4": 8e6,
+                "member_length_mm": 4000,
+                "idealized_end_restraint_case": case,
+                "idealized_end_restraint_verified": True,
+                "end_restraint_evidence_reference": "VERIFY-FIGURE-4-6-3-2",
+                "member_length_centre_to_centre_verified": True,
+                "member_length_evidence_reference": "VERIFY-MEMBER-LENGTH-01",
+            }
+        )
+        record(
+            f"Figure 4.6.3.2 idealized restraint factor: {case}",
+            idealized_result["values"]["effective_length_factor"],
+            expected_factor,
+        )
+        if case == "braced_fixed_fixed":
+            idealized_fixed_fixed = idealized_result
+    record(
+        "Clauses 4.6.2/4.6.3.2 fixed-fixed Euler load, hand arithmetic",
+        idealized_fixed_fixed["values"]["elastic_buckling_load_kn"],
+        2014.2049798141545,
+        1e-8,
+    )
     plastic_equilibrium = run_design_actions(
         {
             "operation": "plastic_global_equilibrium",
@@ -977,6 +1012,70 @@ def verify():
         int(
             plastic_joint_equilibrium["checks"][2]["satisfied"]
             and plastic_joint_equilibrium["checks"][3]["satisfied"]
+        ),
+        1,
+    )
+    plastic_member_span = run_design_actions(
+        {
+            "operation": "plastic_member_span_equilibrium",
+            "members": [
+                {
+                    "member_id": "BEAM-01",
+                    "member_vector_mm": [4000, 0, 0],
+                    "member_geometry_verified": True,
+                    "member_geometry_evidence_reference": "VERIFY-BEAM-GEOMETRY-01",
+                    "start_end_force_kn": [0, 20, -7.5],
+                    "start_end_moment_knm": [0, 0, 0],
+                    "start_end_evidence_reference": "VERIFY-BEAM-START-01",
+                    "end_end_force_kn": [0, 20, -7.5],
+                    "end_end_moment_knm": [-1, 2, -3],
+                    "end_end_evidence_reference": "VERIFY-BEAM-END-01",
+                    "span_actions": [
+                        {
+                            "action_id": "UDL-01",
+                            "force_kn": [0, -40, 15],
+                            "moment_knm": [0, 0, 0],
+                            "position_offset_mm": [2000, 0, 0],
+                            "evidence_reference": "VERIFY-UDL-RESULTANT-01",
+                        },
+                        {
+                            "action_id": "COUPLE-01",
+                            "force_kn": [0, 0, 0],
+                            "moment_knm": [1, -2, 3],
+                            "position_offset_mm": [2000, 0, 0],
+                            "evidence_reference": "VERIFY-SPAN-COUPLE-01",
+                        },
+                    ],
+                    "span_actions_complete_verified": True,
+                    "span_actions_evidence_reference": "VERIFY-BEAM-LOAD-LIST-01",
+                }
+            ],
+            "force_tolerance_kn": 0,
+            "moment_tolerance_knm": 0,
+            "all_members_listed_verified": True,
+            "member_list_evidence_reference": "VERIFY-MEMBER-LIST-01",
+        }
+    )
+    member_span_values = plastic_member_span["values"]["members"][0]
+    record(
+        "Clause 4.5.1 member span force equilibrium, three axes",
+        max(abs(component) for component in member_span_values["force_resultant_kn"]),
+        0,
+    )
+    record(
+        "Clause 4.5.1 member span moment equilibrium with position cross force",
+        max(
+            abs(component)
+            for component in member_span_values["moment_resultant_about_start_knm"]
+        ),
+        0,
+    )
+    record(
+        "Clause 4.5.1 member geometry and complete-list evidence gates",
+        int(
+            plastic_member_span["checks"][2]["satisfied"]
+            and plastic_member_span["checks"][3]["satisfied"]
+            and plastic_member_span["checks"][-1]["satisfied"]
         ),
         1,
     )

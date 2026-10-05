@@ -59,6 +59,62 @@ def fatigue_welded_coped_splice():
     return {"detail_category_mpa": result["detail_category_mpa"]}
 
 
+def clause_4_6_3_2_idealized_member_buckling():
+    cases = {
+        "braced_fixed_fixed": 0.7,
+        "braced_top_pinned_bottom_fixed": 0.85,
+        "braced_pinned_pinned": 1.0,
+        "sway_top_fixed_bottom_fixed": 1.2,
+        "sway_top_free_bottom_fixed": 2.2,
+        "sway_top_fixed_bottom_pinned": 2.2,
+    }
+    factors = {}
+    for case, expected_factor in cases.items():
+        result = run_design_actions(
+            {
+                "operation": "idealized_member_buckling",
+                "second_moment_mm4": 8e6,
+                "member_length_mm": 4000,
+                "idealized_end_restraint_case": case,
+                "idealized_end_restraint_verified": True,
+                "end_restraint_evidence_reference": "BENCHMARK-FIGURE-4-6-3-2",
+                "member_length_centre_to_centre_verified": True,
+                "member_length_evidence_reference": "BENCHMARK-MEMBER-LENGTH-01",
+            }
+        )
+        if not result["checked_conditions_satisfied"]:
+            raise AssertionError(f"Figure 4.6.3.2 restraint case {case} failed its evidence gates")
+        factor = result["values"]["effective_length_factor"]
+        if factor != expected_factor:
+            raise AssertionError(f"Figure 4.6.3.2 case {case} should give k_e={expected_factor}")
+        factors[case] = factor
+
+    reference = run_design_actions(
+        {
+            "operation": "idealized_member_buckling",
+            "second_moment_mm4": 8e6,
+            "member_length_mm": 4000,
+            "idealized_end_restraint_case": "braced_fixed_fixed",
+            "idealized_end_restraint_verified": True,
+            "end_restraint_evidence_reference": "BENCHMARK-FIGURE-4-6-3-2",
+            "member_length_centre_to_centre_verified": True,
+            "member_length_evidence_reference": "BENCHMARK-MEMBER-LENGTH-01",
+        }
+    )
+    expected_load = 2014.2049798141545
+    if not isclose(
+        reference["values"]["elastic_buckling_load_kn"],
+        expected_load,
+        rel_tol=0,
+        abs_tol=1e-9,
+    ):
+        raise AssertionError("Clauses 4.6.2/4.6.3.2 Euler load does not match the hand calculation")
+    return {
+        "effective_length_factors": factors,
+        "elastic_buckling_load_kn": reference["values"]["elastic_buckling_load_kn"],
+    }
+
+
 def clause_4_5_1_global_equilibrium():
     result = run_design_actions(
         {
@@ -152,6 +208,62 @@ def clause_4_5_1_joint_equilibrium():
         "force_resultant_kn": joint["force_resultant_kn"],
         "moment_resultant_knm": joint["moment_resultant_knm"],
         "actions_verified_complete": result["checks"][3]["satisfied"],
+    }
+
+
+def clause_4_5_1_member_span_equilibrium():
+    result = run_design_actions(
+        {
+            "operation": "plastic_member_span_equilibrium",
+            "members": [
+                {
+                    "member_id": "BEAM-01",
+                    "member_vector_mm": [4000, 0, 0],
+                    "member_geometry_verified": True,
+                    "member_geometry_evidence_reference": "BENCHMARK-BEAM-GEOMETRY-01",
+                    "start_end_force_kn": [0, 20, -7.5],
+                    "start_end_moment_knm": [0, 0, 0],
+                    "start_end_evidence_reference": "BENCHMARK-BEAM-START-01",
+                    "end_end_force_kn": [0, 20, -7.5],
+                    "end_end_moment_knm": [-1, 2, -3],
+                    "end_end_evidence_reference": "BENCHMARK-BEAM-END-01",
+                    "span_actions": [
+                        {
+                            "action_id": "UDL-01",
+                            "force_kn": [0, -40, 15],
+                            "moment_knm": [0, 0, 0],
+                            "position_offset_mm": [2000, 0, 0],
+                            "evidence_reference": "BENCHMARK-UDL-RESULTANT-01",
+                        },
+                        {
+                            "action_id": "COUPLE-01",
+                            "force_kn": [0, 0, 0],
+                            "moment_knm": [1, -2, 3],
+                            "position_offset_mm": [2000, 0, 0],
+                            "evidence_reference": "BENCHMARK-SPAN-COUPLE-01",
+                        },
+                    ],
+                    "span_actions_complete_verified": True,
+                    "span_actions_evidence_reference": "BENCHMARK-BEAM-LOAD-LIST-01",
+                }
+            ],
+            "force_tolerance_kn": 0,
+            "moment_tolerance_knm": 0,
+            "all_members_listed_verified": True,
+            "member_list_evidence_reference": "BENCHMARK-MEMBER-LIST-01",
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.5.1 member-span equilibrium benchmark failed")
+    member = result["values"]["members"][0]
+    if member["force_resultant_kn"] != [0.0, 0.0, 0.0]:
+        raise AssertionError("Clause 4.5.1 member force resultants should balance")
+    if member["moment_resultant_about_start_knm"] != [0.0, 0.0, 0.0]:
+        raise AssertionError("Clause 4.5.1 member moments should balance about the start end")
+    return {
+        "force_resultant_kn": member["force_resultant_kn"],
+        "moment_resultant_about_start_knm": member["moment_resultant_about_start_knm"],
+        "span_action_count": member["span_action_count"],
     }
 
 
@@ -2099,8 +2211,12 @@ def main():
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
+        "clause_4_6_3_2_idealized_member_buckling": (
+            clause_4_6_3_2_idealized_member_buckling
+        ),
         "clause_4_5_1_global_equilibrium": clause_4_5_1_global_equilibrium,
         "clause_4_5_1_joint_equilibrium": clause_4_5_1_joint_equilibrium,
+        "clause_4_5_1_member_span_equilibrium": clause_4_5_1_member_span_equilibrium,
         "clause_4_5_1_support_boundary_conditions": clause_4_5_1_support_boundary_conditions,
         "clause_4_5_2_alternative_ductility_assessment": (
             clause_4_5_2_alternative_ductility_assessment
