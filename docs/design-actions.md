@@ -25,6 +25,23 @@ equilibrium, or perform or validate the structural analysis and plastic action
 distribution. A passing result is limited to the reported global resultants and
 the declared boundary-condition evidence.
 
+## Joint action-distribution equilibrium
+
+`plastic_joint_equilibrium` checks the three force and three moment residuals
+at each supplied joint under Clause 4.5.1. At least two actions must be listed
+at each joint, including at least one member-end action. Enter member-end
+actions, nodal loads and support reactions using consistent signs in one
+coordinate system. Forces are in kN, supplied moments in kN·m, and
+`position_offset_mm` is measured from the joint; the operation converts offsets
+to metres and adds `position offset × force` to each supplied moment vector.
+
+Force and moment residuals are compared component by component with the
+project-selected tolerances. `joint_actions_complete_verified` and its evidence
+reference record the user's declaration that the listed joint actions are
+complete. The calculation does not authenticate that declaration, confirm
+member connectivity, check member-span equilibrium, verify support conditions,
+or validate the structural analysis.
+
 ## Plastic-analysis limits
 
 `plastic_analysis_limits` checks the prescriptive Clause 4.5.2 route. Supply one

@@ -74,6 +74,24 @@ _GLOBAL_ACTION = object_schema(
         "evidence_reference": _REFERENCE,
     }
 )
+_JOINT_ACTION = object_schema(
+    {
+        "action_id": _REFERENCE,
+        "action_type": {"enum": ["member_end_action", "applied_load", "support_reaction"]},
+        "force_kn": _VECTOR3,
+        "moment_knm": _VECTOR3,
+        "position_offset_mm": _VECTOR3,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_PLASTIC_JOINT = object_schema(
+    {
+        "joint_id": _REFERENCE,
+        "actions": {"type": "array", "minItems": 2, "items": _JOINT_ACTION},
+        "joint_actions_complete_verified": _BOOL,
+        "joint_actions_evidence_reference": _REFERENCE,
+    }
+)
 
 SCHEMAS = {
     "euler_buckling": object_schema(
@@ -146,6 +164,14 @@ SCHEMAS = {
             "boundary_conditions_evidence_reference": _REFERENCE,
         }
     ),
+    "plastic_joint_equilibrium": object_schema(
+        {
+            "operation": {"const": "plastic_joint_equilibrium"},
+            "joints": {"type": "array", "minItems": 1, "items": _PLASTIC_JOINT},
+            "force_tolerance_kn": NONNEGATIVE,
+            "moment_tolerance_knm": NONNEGATIVE,
+        }
+    ),
     "notional_horizontal_load": object_schema(
         {
             "operation": {"const": "notional_horizontal_load"},
@@ -171,6 +197,16 @@ SCHEMAS = {
 }
 INPUT_SCHEMA = {"oneOf": list(SCHEMAS.values())}
 OUTPUT_SCHEMA = {"type": "object"}
+
+
+def _moment_from_position_mm(position_mm, force_kn):
+    x, y, z = (coordinate / 1000 for coordinate in position_mm)
+    force_x, force_y, force_z = force_kn
+    return [
+        y * force_z - z * force_y,
+        z * force_x - x * force_z,
+        x * force_y - y * force_x,
+    ]
 
 
 def run_design_actions(inputs):
@@ -536,13 +572,8 @@ def run_design_actions(inputs):
         for action in d["actions"]:
             action_counts[action["action_type"]] += 1
             force = action["force_kn"]
-            position = [coordinate / 1000 for coordinate in action["position_mm"]]
             couple = action["moment_knm"]
-            lever_moment = [
-                position[1] * force[2] - position[2] * force[1],
-                position[2] * force[0] - position[0] * force[2],
-                position[0] * force[1] - position[1] * force[0],
-            ]
+            lever_moment = _moment_from_position_mm(action["position_mm"], force)
             for axis in range(3):
                 force_resultant[axis] += force[axis]
                 moment_resultant[axis] += couple[axis] + lever_moment[axis]
@@ -601,6 +632,99 @@ def run_design_actions(inputs):
                 "applied loads and support reactions with consistent signs and coordinates.",
                 "This does not check member/joint equilibrium, the plastic action distribution, or "
                 "the underlying structural analysis. Boundary conditions remain supplied evidence.",
+            ],
+        )
+    if op == "plastic_joint_equilibrium":
+        joint_results = []
+        checks = []
+        for joint in d["joints"]:
+            force_resultant = [0.0, 0.0, 0.0]
+            moment_resultant = [0.0, 0.0, 0.0]
+            action_counts = {
+                "member_end_action": 0,
+                "applied_load": 0,
+                "support_reaction": 0,
+            }
+            for action in joint["actions"]:
+                action_counts[action["action_type"]] += 1
+                force = action["force_kn"]
+                couple = action["moment_knm"]
+                lever_moment = _moment_from_position_mm(action["position_offset_mm"], force)
+                for axis in range(3):
+                    force_resultant[axis] += force[axis]
+                    moment_resultant[axis] += couple[axis] + lever_moment[axis]
+
+            force_satisfied = all(
+                abs(component) <= d["force_tolerance_kn"] for component in force_resultant
+            )
+            moment_satisfied = all(
+                abs(component) <= d["moment_tolerance_knm"] for component in moment_resultant
+            )
+            member_end_action_present = action_counts["member_end_action"] > 0
+            joint_results.append(
+                {
+                    "joint_id": joint["joint_id"],
+                    "force_resultant_kn": force_resultant,
+                    "moment_resultant_knm": moment_resultant,
+                    "action_counts": action_counts,
+                    "joint_equilibrium_satisfied": force_satisfied and moment_satisfied,
+                }
+            )
+            checks.extend(
+                [
+                    {
+                        "clause": "4.5.1",
+                        "joint_id": joint["joint_id"],
+                        "condition": "joint force equilibrium",
+                        "resultant_force_kn": force_resultant,
+                        "maximum_component_residual_kn": max(
+                            abs(value) for value in force_resultant
+                        ),
+                        "tolerance_kn": d["force_tolerance_kn"],
+                        "satisfied": force_satisfied,
+                    },
+                    {
+                        "clause": "4.5.1",
+                        "joint_id": joint["joint_id"],
+                        "condition": "joint moment equilibrium",
+                        "resultant_moment_knm": moment_resultant,
+                        "maximum_component_residual_knm": max(
+                            abs(value) for value in moment_resultant
+                        ),
+                        "tolerance_knm": d["moment_tolerance_knm"],
+                        "satisfied": moment_satisfied,
+                    },
+                    {
+                        "clause": "4.5.1",
+                        "joint_id": joint["joint_id"],
+                        "condition": "at least one member-end action is supplied",
+                        "action_counts": action_counts,
+                        "satisfied": member_end_action_present,
+                    },
+                    {
+                        "clause": "4.5.1",
+                        "joint_id": joint["joint_id"],
+                        "condition": "joint action completeness is verified",
+                        "satisfied": joint["joint_actions_complete_verified"],
+                        "evidence_reference": joint["joint_actions_evidence_reference"],
+                    },
+                ]
+            )
+        return result(
+            op,
+            ["4.5.1"],
+            {
+                "joints": joint_results,
+                "all_joint_equilibria_satisfied": all(
+                    joint["joint_equilibrium_satisfied"] for joint in joint_results
+                ),
+            },
+            checks,
+            limitations=[
+                "Supply member-end actions, nodal loads and support reactions using one sign "
+                "convention; position offsets are measured from each joint.",
+                "The completeness declaration is supplied evidence. The operation does not "
+                "verify member-span equilibrium, boundary conditions or analysis validity.",
             ],
         )
     if op == "notional_horizontal_load":

@@ -378,6 +378,81 @@ def test_plastic_global_equilibrium_checks_moments_and_boundary_evidence():
     assert not r["checks"][3]["satisfied"]
 
 
+def plastic_joint_equilibrium(**overrides):
+    inputs = {
+        "operation": "plastic_joint_equilibrium",
+        "joints": [
+            {
+                "joint_id": "JOINT-01",
+                "actions": [
+                    {
+                        "action_id": "MEMBER-END-01",
+                        "action_type": "member_end_action",
+                        "force_kn": [0, 2, 3],
+                        "moment_knm": [0, 0, 0],
+                        "position_offset_mm": [1000, 0, 0],
+                        "evidence_reference": "MEMBER-END-01-ACTIONS",
+                    },
+                    {
+                        "action_id": "MEMBER-END-02",
+                        "action_type": "member_end_action",
+                        "force_kn": [4, 0, -3],
+                        "moment_knm": [0, 0, 0],
+                        "position_offset_mm": [0, 1000, 0],
+                        "evidence_reference": "MEMBER-END-02-ACTIONS",
+                    },
+                    {
+                        "action_id": "LOAD-01",
+                        "action_type": "applied_load",
+                        "force_kn": [-4, -2, 0],
+                        "moment_knm": [3, 3, 2],
+                        "position_offset_mm": [0, 0, 0],
+                        "evidence_reference": "NODE-LOAD-01",
+                    },
+                ],
+                "joint_actions_complete_verified": True,
+                "joint_actions_evidence_reference": "JOINT-01-ACTION-LIST",
+            }
+        ],
+        "force_tolerance_kn": 0,
+        "moment_tolerance_knm": 0,
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_plastic_joint_equilibrium_three_axis_hand_benchmark():
+    r = run(plastic_joint_equilibrium())
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["all_joint_equilibria_satisfied"]
+    assert r["values"]["joints"][0]["force_resultant_kn"] == [0, 0, 0]
+    assert r["values"]["joints"][0]["moment_resultant_knm"] == [0, 0, 0]
+    assert r["full_standard_compliance"] is False
+
+
+def test_plastic_joint_equilibrium_inclusive_tolerance_and_evidence_gates():
+    inputs = plastic_joint_equilibrium(moment_tolerance_knm=0.5)
+    inputs["joints"][0]["actions"][2]["moment_knm"] = [3, 3, 1.5]
+    r = run(inputs)
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["joints"][0]["moment_resultant_knm"] == [0, 0, -0.5]
+
+    inputs = plastic_joint_equilibrium()
+    inputs["joints"][0]["joint_actions_complete_verified"] = False
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert r["values"]["all_joint_equilibria_satisfied"]
+    assert not r["checks"][3]["satisfied"]
+
+    inputs = plastic_joint_equilibrium()
+    for action in inputs["joints"][0]["actions"]:
+        action["action_type"] = "applied_load"
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert r["values"]["all_joint_equilibria_satisfied"]
+    assert not r["checks"][2]["satisfied"]
+
+
 def test_notional_and_stability_checks():
     assert (
         run({"operation": "notional_horizontal_load", "floor_vertical_design_load_kn": 1000})[

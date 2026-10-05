@@ -100,6 +100,61 @@ def clause_4_5_1_global_equilibrium():
     }
 
 
+def clause_4_5_1_joint_equilibrium():
+    result = run_design_actions(
+        {
+            "operation": "plastic_joint_equilibrium",
+            "joints": [
+                {
+                    "joint_id": "JOINT-01",
+                    "actions": [
+                        {
+                            "action_id": "MEMBER-END-01",
+                            "action_type": "member_end_action",
+                            "force_kn": [0, 2, 3],
+                            "moment_knm": [0, 0, 0],
+                            "position_offset_mm": [1000, 0, 0],
+                            "evidence_reference": "BENCHMARK-MEMBER-END-01",
+                        },
+                        {
+                            "action_id": "MEMBER-END-02",
+                            "action_type": "member_end_action",
+                            "force_kn": [4, 0, -3],
+                            "moment_knm": [0, 0, 0],
+                            "position_offset_mm": [0, 1000, 0],
+                            "evidence_reference": "BENCHMARK-MEMBER-END-02",
+                        },
+                        {
+                            "action_id": "LOAD-01",
+                            "action_type": "applied_load",
+                            "force_kn": [-4, -2, 0],
+                            "moment_knm": [3, 3, 2],
+                            "position_offset_mm": [0, 0, 0],
+                            "evidence_reference": "BENCHMARK-NODE-LOAD-01",
+                        },
+                    ],
+                    "joint_actions_complete_verified": True,
+                    "joint_actions_evidence_reference": "BENCHMARK-JOINT-ACTIONS-01",
+                }
+            ],
+            "force_tolerance_kn": 0,
+            "moment_tolerance_knm": 0,
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.5.1 joint equilibrium benchmark failed")
+    joint = result["values"]["joints"][0]
+    if joint["force_resultant_kn"] != [0.0, 0.0, 0.0]:
+        raise AssertionError("Clause 4.5.1 joint force resultants should balance")
+    if joint["moment_resultant_knm"] != [0.0, 0.0, 0.0]:
+        raise AssertionError("Clause 4.5.1 joint moment resultants should balance")
+    return {
+        "force_resultant_kn": joint["force_resultant_kn"],
+        "moment_resultant_knm": joint["moment_resultant_knm"],
+        "actions_verified_complete": result["checks"][3]["satisfied"],
+    }
+
+
 def clause_4_5_2_plastic_analysis_limits():
     result = run_design_actions(
         {
@@ -1944,6 +1999,7 @@ def main():
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_4_5_1_global_equilibrium": clause_4_5_1_global_equilibrium,
+        "clause_4_5_1_joint_equilibrium": clause_4_5_1_joint_equilibrium,
         "clause_4_5_2_plastic_analysis_limits": clause_4_5_2_plastic_analysis_limits,
         "clause_4_5_3_plastic_connections": clause_4_5_3_plastic_connections,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,

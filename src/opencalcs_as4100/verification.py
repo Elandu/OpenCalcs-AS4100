@@ -921,6 +921,65 @@ def verify():
         int(plastic_equilibrium["checks"][2]["satisfied"]),
         1,
     )
+    plastic_joint_equilibrium = run_design_actions(
+        {
+            "operation": "plastic_joint_equilibrium",
+            "joints": [
+                {
+                    "joint_id": "JOINT-01",
+                    "actions": [
+                        {
+                            "action_id": "MEMBER-END-01",
+                            "action_type": "member_end_action",
+                            "force_kn": [0, 2, 3],
+                            "moment_knm": [0, 0, 0],
+                            "position_offset_mm": [1000, 0, 0],
+                            "evidence_reference": "VERIFY-MEMBER-END-01",
+                        },
+                        {
+                            "action_id": "MEMBER-END-02",
+                            "action_type": "member_end_action",
+                            "force_kn": [4, 0, -3],
+                            "moment_knm": [0, 0, 0],
+                            "position_offset_mm": [0, 1000, 0],
+                            "evidence_reference": "VERIFY-MEMBER-END-02",
+                        },
+                        {
+                            "action_id": "LOAD-01",
+                            "action_type": "applied_load",
+                            "force_kn": [-4, -2, 0],
+                            "moment_knm": [3, 3, 2],
+                            "position_offset_mm": [0, 0, 0],
+                            "evidence_reference": "VERIFY-NODE-LOAD-01",
+                        },
+                    ],
+                    "joint_actions_complete_verified": True,
+                    "joint_actions_evidence_reference": "VERIFY-JOINT-ACTIONS-01",
+                }
+            ],
+            "force_tolerance_kn": 0,
+            "moment_tolerance_knm": 0,
+        }
+    )
+    joint_values = plastic_joint_equilibrium["values"]["joints"][0]
+    record(
+        "Clause 4.5.1 joint force equilibrium, three axes",
+        max(abs(component) for component in joint_values["force_resultant_kn"]),
+        0,
+    )
+    record(
+        "Clause 4.5.1 joint moment equilibrium including position offsets",
+        max(abs(component) for component in joint_values["moment_resultant_knm"]),
+        0,
+    )
+    record(
+        "Clause 4.5.1 member-end and action-completeness evidence gates",
+        int(
+            plastic_joint_equilibrium["checks"][2]["satisfied"]
+            and plastic_joint_equilibrium["checks"][3]["satisfied"]
+        ),
+        1,
+    )
     plastic_limits = run_design_actions(
         {
             "operation": "plastic_analysis_limits",
