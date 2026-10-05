@@ -1036,6 +1036,54 @@ def verify():
         ),
         1,
     )
+    alternative_ductility = run_design_actions(
+        {
+            "operation": "plastic_alternative_ductility_assessment",
+            "members": [
+                {
+                    "component_id": "MEMBER-01",
+                    "rotation_demand_rad": 0.018,
+                    "rotation_capacity_rad": 0.02,
+                    "rotation_demand_assessment_verified": True,
+                    "rotation_capacity_assessment_verified": True,
+                    "evidence_reference": "VERIFY-MEMBER-ROTATION-01",
+                }
+            ],
+            "connections": [
+                {
+                    "component_id": "CONNECTION-01",
+                    "rotation_demand_rad": 0.015,
+                    "rotation_capacity_rad": 0.015,
+                    "rotation_demand_assessment_verified": True,
+                    "rotation_capacity_assessment_verified": True,
+                    "evidence_reference": "VERIFY-CONNECTION-ROTATION-01",
+                }
+            ],
+            "all_members_listed_verified": True,
+            "member_list_evidence_reference": "VERIFY-MEMBER-LIST-01",
+            "all_connections_listed_verified": True,
+            "connection_list_evidence_reference": "VERIFY-CONNECTION-LIST-01",
+            "structure_ductility_assessment_verified": True,
+            "structure_ductility_evidence_reference": "VERIFY-STRUCTURE-DUCTILITY-01",
+            "analysis_under_design_loading_verified": True,
+            "analysis_evidence_reference": "VERIFY-DESIGN-LOAD-ANALYSIS-01",
+        }
+    )
+    record(
+        "Clause 4.5.2 alternative-route member rotation demand ratio",
+        alternative_ductility["values"]["members"][0]["rotation_demand_to_capacity_ratio"],
+        0.9,
+    )
+    record(
+        "Clause 4.5.2 alternative-route connection rotation boundary",
+        alternative_ductility["values"]["connections"][0]["rotation_demand_to_capacity_ratio"],
+        1,
+    )
+    record(
+        "Clause 4.5.2 alternative-route analysis and evidence gates",
+        int(alternative_ductility["checked_conditions_satisfied"]),
+        1,
+    )
     plastic_limits = run_design_actions(
         {
             "operation": "plastic_analysis_limits",

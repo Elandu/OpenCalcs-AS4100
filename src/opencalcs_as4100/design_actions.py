@@ -64,6 +64,16 @@ _PLASTIC_HINGE = object_schema(
         "evidence_reference": _REFERENCE,
     }
 )
+_PLASTIC_DUCTILITY_COMPONENT = object_schema(
+    {
+        "component_id": _REFERENCE,
+        "rotation_demand_rad": NONNEGATIVE,
+        "rotation_capacity_rad": POSITIVE,
+        "rotation_demand_assessment_verified": _BOOL,
+        "rotation_capacity_assessment_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
 _GLOBAL_ACTION = object_schema(
     {
         "action_id": _REFERENCE,
@@ -168,6 +178,29 @@ SCHEMAS = {
             "operation": {"const": "plastic_analysis_limits"},
             "materials": {"type": "array", "minItems": 1, "items": _PLASTIC_MATERIAL},
             "members": {"type": "array", "minItems": 1, "items": _PLASTIC_MEMBER},
+        }
+    ),
+    "plastic_alternative_ductility_assessment": object_schema(
+        {
+            "operation": {"const": "plastic_alternative_ductility_assessment"},
+            "members": {
+                "type": "array",
+                "minItems": 1,
+                "items": _PLASTIC_DUCTILITY_COMPONENT,
+            },
+            "connections": {
+                "type": "array",
+                "minItems": 1,
+                "items": _PLASTIC_DUCTILITY_COMPONENT,
+            },
+            "all_members_listed_verified": _BOOL,
+            "member_list_evidence_reference": _REFERENCE,
+            "all_connections_listed_verified": _BOOL,
+            "connection_list_evidence_reference": _REFERENCE,
+            "structure_ductility_assessment_verified": _BOOL,
+            "structure_ductility_evidence_reference": _REFERENCE,
+            "analysis_under_design_loading_verified": _BOOL,
+            "analysis_evidence_reference": _REFERENCE,
         }
     ),
     "plastic_analysis_connections": object_schema(
@@ -485,6 +518,95 @@ def run_design_actions(inputs):
                 "connection strength and plastic-rotation capacity remain separate assessments.",
                 "No plastic frame analysis, hinge sequence or design action effects are "
                 "calculated.",
+            ],
+        )
+    if op == "plastic_alternative_ductility_assessment":
+        checks = []
+        component_results = {"members": [], "connections": []}
+        all_rotation_conditions_satisfied = True
+        for component_type in ("members", "connections"):
+            component_ids = []
+            for component in d[component_type]:
+                component_ids.append(component["component_id"])
+                demand = component["rotation_demand_rad"]
+                capacity = component["rotation_capacity_rad"]
+                demand_verified = component["rotation_demand_assessment_verified"]
+                capacity_verified = component["rotation_capacity_assessment_verified"]
+                rotation_satisfied = demand <= capacity and demand_verified and capacity_verified
+                all_rotation_conditions_satisfied = (
+                    all_rotation_conditions_satisfied and rotation_satisfied
+                )
+                checks.append(
+                    {
+                        "clause": "4.5.2",
+                        "component_type": component_type[:-1],
+                        "component_id": component["component_id"],
+                        "rotation_demand_rad": demand,
+                        "rotation_capacity_rad": capacity,
+                        "rotation_demand_assessment_verified": demand_verified,
+                        "rotation_capacity_assessment_verified": capacity_verified,
+                        "rotation_demand_to_capacity_ratio": demand / capacity,
+                        "evidence_reference": component["evidence_reference"],
+                        "satisfied": rotation_satisfied,
+                    }
+                )
+                component_results[component_type].append(
+                    {
+                        "component_id": component["component_id"],
+                        "rotation_demand_to_capacity_ratio": demand / capacity,
+                        "checks_satisfied": rotation_satisfied,
+                    }
+                )
+            unique_component_ids = len(component_ids) == len(set(component_ids))
+            list_flag = f"all_{component_type}_listed_verified"
+            list_reference = f"{component_type[:-1]}_list_evidence_reference"
+            checks.extend(
+                [
+                    {
+                        "clause": "4.5.2",
+                        "component_type": component_type[:-1],
+                        "condition": "component identifiers are unique",
+                        "satisfied": unique_component_ids,
+                    },
+                    {
+                        "clause": "4.5.2",
+                        "component_type": component_type[:-1],
+                        "condition": "all required components are listed",
+                        "satisfied": d[list_flag],
+                        "evidence_reference": d[list_reference],
+                    },
+                ]
+            )
+        checks.extend(
+            [
+                {
+                    "clause": "4.5.2",
+                    "condition": "structure-level ductility assessment is verified",
+                    "satisfied": d["structure_ductility_assessment_verified"],
+                    "evidence_reference": d["structure_ductility_evidence_reference"],
+                },
+                {
+                    "clause": "4.5.2",
+                    "condition": "analysis covers the design loading conditions",
+                    "satisfied": d["analysis_under_design_loading_verified"],
+                    "evidence_reference": d["analysis_evidence_reference"],
+                },
+            ]
+        )
+        return result(
+            op,
+            ["4.5.2"],
+            {
+                **component_results,
+                "all_component_rotation_conditions_satisfied": all_rotation_conditions_satisfied,
+            },
+            checks,
+            limitations=[
+                "Rotation demands, capacities, structure-level ductility, design loading and "
+                "component-list completeness are supplied assessments; only listed demand-to-"
+                "capacity comparisons are calculated.",
+                "A passing result does not independently establish adequate structural ductility "
+                "or complete member and connection design.",
             ],
         )
     if op == "plastic_analysis_connections":

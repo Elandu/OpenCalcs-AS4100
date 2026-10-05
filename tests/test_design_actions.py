@@ -299,6 +299,82 @@ def test_plastic_analysis_connection_and_hinge_failures(
     assert any(check["clause"] == clause and not check["satisfied"] for check in r["checks"])
 
 
+def plastic_alternative_ductility_assessment(**overrides):
+    component = {
+        "rotation_demand_rad": 0.018,
+        "rotation_capacity_rad": 0.02,
+        "rotation_demand_assessment_verified": True,
+        "rotation_capacity_assessment_verified": True,
+        "evidence_reference": "ROTATION-ASSESSMENT-01",
+    }
+    inputs = {
+        "operation": "plastic_alternative_ductility_assessment",
+        "members": [
+            {**component, "component_id": "MEMBER-01"},
+            {
+                **component,
+                "component_id": "MEMBER-02",
+                "rotation_demand_rad": 0.025,
+                "rotation_capacity_rad": 0.025,
+            },
+        ],
+        "connections": [
+            {
+                **component,
+                "component_id": "CONNECTION-01",
+                "rotation_demand_rad": 0.0125,
+                "rotation_capacity_rad": 0.015,
+            }
+        ],
+        "all_members_listed_verified": True,
+        "member_list_evidence_reference": "MEMBER-LIST-01",
+        "all_connections_listed_verified": True,
+        "connection_list_evidence_reference": "CONNECTION-LIST-01",
+        "structure_ductility_assessment_verified": True,
+        "structure_ductility_evidence_reference": "STRUCTURE-DUCTILITY-01",
+        "analysis_under_design_loading_verified": True,
+        "analysis_evidence_reference": "PLASTIC-ANALYSIS-01",
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_plastic_alternative_ductility_rotation_boundaries():
+    r = run(plastic_alternative_ductility_assessment())
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["all_component_rotation_conditions_satisfied"]
+    assert [
+        item["rotation_demand_to_capacity_ratio"] for item in r["values"]["members"]
+    ] == pytest.approx([0.9, 1.0])
+    assert r["values"]["connections"][0]["rotation_demand_to_capacity_ratio"] == pytest.approx(
+        5 / 6
+    )
+    assert r["full_standard_compliance"] is False
+
+
+def test_plastic_alternative_ductility_failures_and_evidence_gates():
+    inputs = plastic_alternative_ductility_assessment()
+    inputs["members"][0]["rotation_demand_rad"] = 0.0201
+    inputs["connections"][0]["rotation_capacity_assessment_verified"] = False
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not r["checks"][0]["satisfied"]
+    assert not r["checks"][4]["satisfied"]
+
+    inputs = plastic_alternative_ductility_assessment()
+    inputs["all_members_listed_verified"] = False
+    inputs["all_connections_listed_verified"] = False
+    inputs["structure_ductility_assessment_verified"] = False
+    inputs["analysis_under_design_loading_verified"] = False
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert r["values"]["all_component_rotation_conditions_satisfied"]
+    assert not r["checks"][3]["satisfied"]
+    assert not r["checks"][6]["satisfied"]
+    assert not r["checks"][7]["satisfied"]
+    assert not r["checks"][8]["satisfied"]
+
+
 def plastic_global_equilibrium(**overrides):
     actions = [
         {

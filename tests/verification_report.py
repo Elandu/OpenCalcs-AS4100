@@ -207,6 +207,55 @@ def clause_4_5_1_support_boundary_conditions():
     }
 
 
+def clause_4_5_2_alternative_ductility_assessment():
+    result = run_design_actions(
+        {
+            "operation": "plastic_alternative_ductility_assessment",
+            "members": [
+                {
+                    "component_id": "MEMBER-01",
+                    "rotation_demand_rad": 0.018,
+                    "rotation_capacity_rad": 0.02,
+                    "rotation_demand_assessment_verified": True,
+                    "rotation_capacity_assessment_verified": True,
+                    "evidence_reference": "BENCHMARK-MEMBER-ROTATION-01",
+                }
+            ],
+            "connections": [
+                {
+                    "component_id": "CONNECTION-01",
+                    "rotation_demand_rad": 0.015,
+                    "rotation_capacity_rad": 0.015,
+                    "rotation_demand_assessment_verified": True,
+                    "rotation_capacity_assessment_verified": True,
+                    "evidence_reference": "BENCHMARK-CONNECTION-ROTATION-01",
+                }
+            ],
+            "all_members_listed_verified": True,
+            "member_list_evidence_reference": "BENCHMARK-MEMBER-LIST-01",
+            "all_connections_listed_verified": True,
+            "connection_list_evidence_reference": "BENCHMARK-CONNECTION-LIST-01",
+            "structure_ductility_assessment_verified": True,
+            "structure_ductility_evidence_reference": "BENCHMARK-STRUCTURE-DUCTILITY-01",
+            "analysis_under_design_loading_verified": True,
+            "analysis_evidence_reference": "BENCHMARK-DESIGN-LOAD-ANALYSIS-01",
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.5.2 alternate ductility assessment benchmark failed")
+    member_ratio = result["values"]["members"][0]["rotation_demand_to_capacity_ratio"]
+    connection_ratio = result["values"]["connections"][0]["rotation_demand_to_capacity_ratio"]
+    if not isclose(member_ratio, 0.9, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 4.5.2 member rotation ratio should be 0.9")
+    if not isclose(connection_ratio, 1, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 4.5.2 connection rotation boundary should be 1")
+    return {
+        "member_rotation_demand_to_capacity_ratio": member_ratio,
+        "connection_rotation_demand_to_capacity_ratio": connection_ratio,
+        "external_ductility_and_analysis_gates_satisfied": result["checked_conditions_satisfied"],
+    }
+
+
 def clause_4_5_2_plastic_analysis_limits():
     result = run_design_actions(
         {
@@ -2053,6 +2102,9 @@ def main():
         "clause_4_5_1_global_equilibrium": clause_4_5_1_global_equilibrium,
         "clause_4_5_1_joint_equilibrium": clause_4_5_1_joint_equilibrium,
         "clause_4_5_1_support_boundary_conditions": clause_4_5_1_support_boundary_conditions,
+        "clause_4_5_2_alternative_ductility_assessment": (
+            clause_4_5_2_alternative_ductility_assessment
+        ),
         "clause_4_5_2_plastic_analysis_limits": clause_4_5_2_plastic_analysis_limits,
         "clause_4_5_3_plastic_connections": clause_4_5_3_plastic_connections,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,

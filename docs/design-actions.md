@@ -23,7 +23,9 @@ recorded as supplied evidence. The operation does not authenticate support
 conditions, determine whether the action list is complete, check member or joint
 equilibrium, or perform or validate the structural analysis and plastic action
 distribution. A passing result is limited to the reported global resultants and
-the declared boundary-condition evidence.
+the declared boundary-condition evidence. Use
+`plastic_support_boundary_conditions` to compare supplied analysis translations
+and rotations with prescribed values at listed support degrees of freedom.
 
 ## Joint action-distribution equilibrium
 
@@ -40,7 +42,9 @@ project-selected tolerances. `joint_actions_complete_verified` and its evidence
 reference record the user's declaration that the listed joint actions are
 complete. The calculation does not authenticate that declaration, confirm
 member connectivity, check member-span equilibrium, verify support conditions,
-or validate the structural analysis.
+or validate the structural analysis. The separate
+`plastic_support_boundary_conditions` operation compares listed support
+restraints against supplied analysis values.
 
 ## Support boundary-condition checks
 
@@ -71,6 +75,23 @@ The stress-strain curve, material certificate, member form and compactness are
 supplied assessments linked by evidence reference. The operation does not
 evaluate the alternate Clause 4.5.2 ductility route or design-load rotation
 capacity.
+
+## Alternative ductility assessment
+
+`plastic_alternative_ductility_assessment` provides a bounded assessment record
+for the Clause 4.5.2 alternative. List each required member and connection with
+its design-loading rotation demand and assessed plastic rotation capacity, in
+radians. The operation calculates each demand-to-capacity ratio and checks that
+the demand does not exceed capacity. It also requires verified declarations
+that the member and connection lists are complete, the analysis covers the
+design loading conditions, and the structure-level ductility assessment is
+complete, each with an evidence reference.
+
+Rotation demands, capacities and adequate structure-level ductility are not
+derived by the operation. The evidence declarations and assessed values are
+not authenticated. A passing result means the supplied comparisons and gates
+pass; it does not independently demonstrate adequate structural ductility or
+full Clause 4.5.2 compliance.
 
 ## Connection and hinge conditions
 
