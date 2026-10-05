@@ -135,6 +135,32 @@ def table_10_4_4_grade_selection():
     return {"steel_type": result["results"]["steel_type"]}
 
 
+def clause_10_5_fracture_assessment_evidence():
+    result = run_durability(
+        {
+            "check_type": "fracture_assessment_evidence",
+            "selected_steel_grade": "300L15",
+            "selected_steel_type": "3",
+            "assessment_method": "BS 7910",
+            "assessment_report_reference": "BENCHMARK-FRACTURE-ASSESSMENT-01",
+            "parent_steel_toughness_reference": "BENCHMARK-PARENT-TOUGHNESS-01",
+            "weld_metal_toughness_reference": "BENCHMARK-WELD-TOUGHNESS-01",
+            "heat_affected_zone_toughness_reference": "BENCHMARK-HAZ-TOUGHNESS-01",
+            "weld_nondestructive_examination_reference": "BENCHMARK-WELD-NDE-01",
+            "heat_affected_zone_nondestructive_examination_reference": "BENCHMARK-HAZ-NDE-01",
+            "selected_grade_matches_assessed_material_verified": True,
+            "all_relevant_welds_and_haz_zones_included_verified": True,
+            "assessment_result": "acceptable",
+        }
+    )
+    values = result["results"]
+    if result["clauses"] != ["10.5"] or not values["check_satisfied"]:
+        raise AssertionError("Clause 10.5 complete accepted evidence was not recorded")
+    if values["fracture_mechanics_calculated_by_plugin"]:
+        raise AssertionError("Clause 10.5 evidence operation must not claim fracture calculations")
+    return {"evidence_complete": values["evidence_complete"], "check_satisfied": True}
+
+
 def fillet(length):
     return run_connections(
         {
@@ -3143,6 +3169,7 @@ def main():
             clause_10_4_3_4_specified_impact_properties
         ),
         "table_10_4_4_grade_selection": table_10_4_4_grade_selection,
+        "clause_10_5_fracture_assessment_evidence": clause_10_5_fracture_assessment_evidence,
         "fillet_lap_1700_mm": lambda: expect_close(fillet(1700), 98.784),
         "fillet_lap_8000_mm": lambda: expect_close(fillet(8000), 61.24608),
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),

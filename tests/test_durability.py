@@ -1555,6 +1555,58 @@ def test_clause_10_4_4_grade_that_maps_to_another_type_fails_selection():
     assert not response["results"]["grade_selection_satisfied"]
 
 
+def fracture_assessment_evidence(**changes):
+    return {
+        "check_type": "fracture_assessment_evidence",
+        "selected_steel_grade": "300L15",
+        "selected_steel_type": "3",
+        "assessment_method": "BS 7910",
+        "assessment_report_reference": "FRACTURE-ANALYSIS-REPORT-01",
+        "parent_steel_toughness_reference": "PARENT-STEEL-TOUGHNESS-01",
+        "weld_metal_toughness_reference": "WELD-METAL-TOUGHNESS-01",
+        "heat_affected_zone_toughness_reference": "HAZ-TOUGHNESS-01",
+        "weld_nondestructive_examination_reference": "WELD-NDE-REPORT-01",
+        "heat_affected_zone_nondestructive_examination_reference": "HAZ-NDE-REPORT-01",
+        "selected_grade_matches_assessed_material_verified": True,
+        "all_relevant_welds_and_haz_zones_included_verified": True,
+        "assessment_result": "acceptable",
+        **changes,
+    }
+
+
+def test_clause_10_5_records_complete_fracture_assessment_evidence():
+    response = run_durability(fracture_assessment_evidence())
+    values = response["results"]
+    assert response["clauses"] == ["10.5"]
+    assert values["selected_steel_grade"] == "300L15"
+    assert values["parent_steel_toughness_reference"] == "PARENT-STEEL-TOUGHNESS-01"
+    assert values["weld_metal_toughness_reference"] == "WELD-METAL-TOUGHNESS-01"
+    assert values["heat_affected_zone_toughness_reference"] == "HAZ-TOUGHNESS-01"
+    assert values["weld_nondestructive_examination_reference"] == "WELD-NDE-REPORT-01"
+    assert values["heat_affected_zone_nondestructive_examination_reference"] == "HAZ-NDE-REPORT-01"
+    assert values["evidence_complete"]
+    assert values["check_satisfied"]
+    assert not values["fracture_mechanics_calculated_by_plugin"]
+
+
+@pytest.mark.parametrize("assessment_result", ["unacceptable", "inconclusive"])
+def test_clause_10_5_external_nonacceptable_result_does_not_pass(assessment_result):
+    values = run_durability(fracture_assessment_evidence(assessment_result=assessment_result))[
+        "results"
+    ]
+    assert values["evidence_complete"]
+    assert not values["check_satisfied"]
+
+
+def test_clause_10_5_requires_nde_evidence_for_weld_and_heat_affected_zone():
+    with pytest.raises(ValueError):
+        run_durability(
+            fracture_assessment_evidence(
+                heat_affected_zone_nondestructive_examination_reference=None
+            )
+        )
+
+
 def nonconforming_steel_impact_test(**changes):
     return {
         "check_type": "nonconforming_steel_impact_test",

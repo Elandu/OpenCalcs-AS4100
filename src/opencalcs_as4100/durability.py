@@ -919,6 +919,43 @@ INPUT_SCHEMA = {
             },
         ),
         _operation(
+            "fracture_assessment_evidence",
+            {
+                "selected_steel_grade": {"type": "string", "minLength": 1, "maxLength": 100},
+                "selected_steel_type": {"enum": _STEEL_TYPES},
+                "assessment_method": {"type": "string", "minLength": 1, "maxLength": 100},
+                "assessment_report_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+                "parent_steel_toughness_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                },
+                "weld_metal_toughness_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                },
+                "heat_affected_zone_toughness_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                },
+                "weld_nondestructive_examination_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                },
+                "heat_affected_zone_nondestructive_examination_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                },
+                "selected_grade_matches_assessed_material_verified": {"const": True},
+                "all_relevant_welds_and_haz_zones_included_verified": {"const": True},
+                "assessment_result": {"enum": ["acceptable", "unacceptable", "inconclusive"]},
+            },
+        ),
+        _operation(
             "nonconforming_steel_impact_test",
             {
                 "plate_thickness_mm": _POS,
@@ -1493,6 +1530,43 @@ _RESULT_SCHEMAS = {
             "required_steel_type": {"enum": _STEEL_TYPES},
             "steel_type": {"enum": _STEEL_TYPES},
             "grade_selection_satisfied": _BOOL,
+        }
+    ),
+    "fracture_assessment_evidence": _result_schema(
+        {
+            "selected_steel_grade": {"type": "string", "minLength": 1, "maxLength": 100},
+            "selected_steel_type": {"enum": _STEEL_TYPES},
+            "assessment_method": {"type": "string", "minLength": 1, "maxLength": 100},
+            "assessment_report_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "parent_steel_toughness_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "weld_metal_toughness_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "heat_affected_zone_toughness_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "weld_nondestructive_examination_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "heat_affected_zone_nondestructive_examination_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "assessment_result": {"enum": ["acceptable", "unacceptable", "inconclusive"]},
+            "evidence_complete": _BOOL,
+            "fracture_mechanics_calculated_by_plugin": {"const": False},
+            "check_satisfied": _BOOL,
         }
     ),
     "nonconforming_steel_impact_test": _result_schema(
@@ -2906,6 +2980,41 @@ def _check_steel_grade(d):
     )
 
 
+def _record_fracture_assessment_evidence(d):
+    assessment_acceptable = d["assessment_result"] == "acceptable"
+    return (
+        {
+            "selected_steel_grade": d["selected_steel_grade"],
+            "selected_steel_type": d["selected_steel_type"],
+            "assessment_method": d["assessment_method"],
+            "assessment_report_reference": d["assessment_report_reference"],
+            "parent_steel_toughness_reference": d["parent_steel_toughness_reference"],
+            "weld_metal_toughness_reference": d["weld_metal_toughness_reference"],
+            "heat_affected_zone_toughness_reference": d[
+                "heat_affected_zone_toughness_reference"
+            ],
+            "weld_nondestructive_examination_reference": d[
+                "weld_nondestructive_examination_reference"
+            ],
+            "heat_affected_zone_nondestructive_examination_reference": d[
+                "heat_affected_zone_nondestructive_examination_reference"
+            ],
+            "assessment_result": d["assessment_result"],
+            "evidence_complete": True,
+            "fracture_mechanics_calculated_by_plugin": False,
+            "check_satisfied": assessment_acceptable,
+        },
+        ["10.5"],
+        [
+            "This operation records the Clause 10.5 reports and externally assessed outcome; "
+            "it does not calculate fracture mechanics.",
+            "Verify the selected material, toughness measurements, complete weld/HAZ population, "
+            "NDE records and assessment method independently. AS 4100 refers to BS 7910 and "
+            "WTIA Technical Note 10 for fracture-assessment methods.",
+        ],
+    )
+
+
 def _nonconforming_steel_impact_test(d):
     plate_thickness = d["plate_thickness_mm"]
     specimen_thickness = d["specimen_thickness_mm"]
@@ -3386,6 +3495,8 @@ def _run_durability(inputs):
         result, clauses, warnings = _brittle(d)
     elif op == "steel_grade_selection":
         result, clauses, warnings = _check_steel_grade(d)
+    elif op == "fracture_assessment_evidence":
+        result, clauses, warnings = _record_fracture_assessment_evidence(d)
     else:
         mu, sp = _SEISMIC[d["structural_system"]]
         result = {

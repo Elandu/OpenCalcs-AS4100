@@ -147,6 +147,28 @@ def verify():
         int(grade_selection["results"]["grade_selection_satisfied"]),
         1,
     )
+    fracture_evidence = run_durability(
+        {
+            "check_type": "fracture_assessment_evidence",
+            "selected_steel_grade": "300L15",
+            "selected_steel_type": "3",
+            "assessment_method": "BS 7910",
+            "assessment_report_reference": "BENCHMARK-FRACTURE-ASSESSMENT-01",
+            "parent_steel_toughness_reference": "BENCHMARK-PARENT-TOUGHNESS-01",
+            "weld_metal_toughness_reference": "BENCHMARK-WELD-TOUGHNESS-01",
+            "heat_affected_zone_toughness_reference": "BENCHMARK-HAZ-TOUGHNESS-01",
+            "weld_nondestructive_examination_reference": "BENCHMARK-WELD-NDE-01",
+            "heat_affected_zone_nondestructive_examination_reference": "BENCHMARK-HAZ-NDE-01",
+            "selected_grade_matches_assessed_material_verified": True,
+            "all_relevant_welds_and_haz_zones_included_verified": True,
+            "assessment_result": "acceptable",
+        }
+    )["results"]
+    record(
+        "Clause 10.5 complete externally assessed fracture evidence record",
+        int(fracture_evidence["evidence_complete"] and fracture_evidence["check_satisfied"]),
+        1,
+    )
 
     truss_stress_range = run_durability(
         {

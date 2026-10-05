@@ -150,6 +150,13 @@ page images are not included in this package.
   type under Clauses 10.4.1–10.4.3 first. Confirm the certified product
   standard and grade; this check does not establish material conformity,
   strength, thickness availability or impact-test minima.
+- `fracture_assessment_evidence`: Records the Clause 10.5 external fracture-
+  mechanics report, toughness measurement references for parent steel, weld
+  metal and HAZ, NDE references for welds and HAZ, the selected material and
+  the externally reported result. The operation requires declarations that
+  the selected grade matches the assessed material and the relevant weld/HAZ
+  population is included. It does not calculate fracture mechanics or
+  authenticate reports, tests, examinations or coverage declarations.
 - `nonconforming_steel_impact_test`: For steel whose Table 10.4.1 permissible
   temperature is unknown or warmer than design, Clause 10.4.3.4(d) checks the
   27 J mean and 20 J individual Charpy energy limits for grades whose product
