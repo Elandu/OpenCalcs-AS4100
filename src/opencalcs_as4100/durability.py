@@ -2990,9 +2990,7 @@ def _record_fracture_assessment_evidence(d):
             "assessment_report_reference": d["assessment_report_reference"],
             "parent_steel_toughness_reference": d["parent_steel_toughness_reference"],
             "weld_metal_toughness_reference": d["weld_metal_toughness_reference"],
-            "heat_affected_zone_toughness_reference": d[
-                "heat_affected_zone_toughness_reference"
-            ],
+            "heat_affected_zone_toughness_reference": d["heat_affected_zone_toughness_reference"],
             "weld_nondestructive_examination_reference": d[
                 "weld_nondestructive_examination_reference"
             ],
