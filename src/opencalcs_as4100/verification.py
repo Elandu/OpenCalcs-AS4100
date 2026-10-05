@@ -2,7 +2,7 @@
 
 import argparse
 import json
-from math import isclose, sqrt, tan
+from math import isclose, pi, sqrt, tan
 from pathlib import Path
 
 from . import __version__
@@ -1311,6 +1311,50 @@ def verify():
         compact_i_out_of_plane["values"]["out_of_plane_x_knm"],
         52.590445603195036,
         1e-12,
+    )
+    compact_i_derived_uniform_moment = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 300,
+            "moment_x_knm": 45,
+            "moment_y_knm": 0,
+            "compact_doubly_symmetric_i_verified": True,
+            "compression_form_factor_one_verified": True,
+            "compact_i_out_of_plane_alternative": True,
+            "derive_uniform_moment_capacity_from_section_properties": True,
+            "uniform_moment_effective_length_mm": 1000 * pi,
+            "uniform_moment_lateral_buckling_model_verified": True,
+            "uniform_moment_lateral_buckling_reference": "Clause 5.6.1.1 hand example",
+            "torsion_constant_j_mm4": 100_000,
+            "warping_constant_iw_mm6": 100_000_000_000,
+            "section_second_moment_x_mm4": 100_000_000,
+            "section_second_moment_y_mm4": 10_000_000,
+            "gross_area_mm2": 2000,
+            "torsional_restraint_spacing_mm": 2000,
+            "torsional_section_properties_verified": True,
+            "beta_m": 1,
+            "no_transverse_loads_verified": True,
+            "both_end_lateral_restraints_verified": True,
+        }
+    )
+    record(
+        "Clause 5.6.1.1 equal-flanged uniform-moment reference buckling moment",
+        compact_i_derived_uniform_moment["values"]["uniform_moment_reference_buckling_moment_knm"],
+        236.643191323985,
+        1e-9,
+    )
+    record(
+        "Clause 8.4.4.1 internally derived uniform-moment capacity from Clause 5.6",
+        compact_i_derived_uniform_moment["values"]["uniform_moment_member_capacity_knm"],
+        81.616663566848,
+        1e-9,
     )
     compact_kf_below_one_interaction = run_members(
         {

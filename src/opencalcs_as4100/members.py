@@ -532,6 +532,14 @@ INPUT_SCHEMA = {
                     "minLength": 1,
                     "maxLength": 2000,
                 },
+                "derive_uniform_moment_capacity_from_section_properties": {"const": True},
+                "uniform_moment_effective_length_mm": P,
+                "uniform_moment_lateral_buckling_model_verified": {"const": True},
+                "uniform_moment_lateral_buckling_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                },
                 "torsion_constant_j_mm4": P,
                 "warping_constant_iw_mm6": P,
                 "section_second_moment_x_mm4": P,
@@ -576,9 +584,6 @@ INPUT_SCHEMA = {
                         "required": [
                             "compact_doubly_symmetric_i_verified",
                             "compression_form_factor_one_verified",
-                            "uniform_moment_member_capacity_knm",
-                            "uniform_moment_member_capacity_verified",
-                            "uniform_moment_member_capacity_reference",
                             "torsion_constant_j_mm4",
                             "warping_constant_iw_mm6",
                             "section_second_moment_x_mm4",
@@ -590,6 +595,64 @@ INPUT_SCHEMA = {
                             "no_transverse_loads_verified",
                             "both_end_lateral_restraints_verified",
                         ],
+                        "allOf": [
+                            {
+                                "if": {
+                                    "required": [
+                                        "derive_uniform_moment_capacity_from_section_properties"
+                                    ],
+                                    "properties": {
+                                        "derive_uniform_moment_capacity_from_section_properties": {
+                                            "const": True
+                                        }
+                                    },
+                                },
+                                "then": {
+                                    "required": [
+                                        "uniform_moment_effective_length_mm",
+                                        "uniform_moment_lateral_buckling_model_verified",
+                                        "uniform_moment_lateral_buckling_reference",
+                                    ],
+                                    "not": {
+                                        "anyOf": [
+                                            {"required": ["uniform_moment_member_capacity_knm"]},
+                                            {
+                                                "required": [
+                                                    "uniform_moment_member_capacity_verified"
+                                                ]
+                                            },
+                                            {
+                                                "required": [
+                                                    "uniform_moment_member_capacity_reference"
+                                                ]
+                                            },
+                                        ]
+                                    },
+                                },
+                                "else": {
+                                    "required": [
+                                        "uniform_moment_member_capacity_knm",
+                                        "uniform_moment_member_capacity_verified",
+                                        "uniform_moment_member_capacity_reference",
+                                    ],
+                                    "not": {
+                                        "anyOf": [
+                                            {"required": ["uniform_moment_effective_length_mm"]},
+                                            {
+                                                "required": [
+                                                    "uniform_moment_lateral_buckling_model_verified"
+                                                ]
+                                            },
+                                            {
+                                                "required": [
+                                                    "uniform_moment_lateral_buckling_reference"
+                                                ]
+                                            },
+                                        ]
+                                    },
+                                },
+                            }
+                        ],
                         "properties": {"axial_mode": {"const": "compression"}},
                     },
                     "else": {
@@ -598,6 +661,14 @@ INPUT_SCHEMA = {
                                 {"required": ["uniform_moment_member_capacity_knm"]},
                                 {"required": ["uniform_moment_member_capacity_verified"]},
                                 {"required": ["uniform_moment_member_capacity_reference"]},
+                                {
+                                    "required": [
+                                        "derive_uniform_moment_capacity_from_section_properties"
+                                    ]
+                                },
+                                {"required": ["uniform_moment_effective_length_mm"]},
+                                {"required": ["uniform_moment_lateral_buckling_model_verified"]},
+                                {"required": ["uniform_moment_lateral_buckling_reference"]},
                                 {"required": ["torsion_constant_j_mm4"]},
                                 {"required": ["warping_constant_iw_mm6"]},
                                 {"required": ["section_second_moment_x_mm4"]},
@@ -1516,7 +1587,31 @@ def _interaction(d):
         miy = msy * max(0, 1 - n / (phi * ncy))
         mox = mb * max(0, 1 - n / (phi * ncy))
         if compact_i_out_of_plane:
-            uniform_mb = d["uniform_moment_member_capacity_knm"]
+            uniform_ltb_values = None
+            derive_uniform_mb = d.get(
+                "derive_uniform_moment_capacity_from_section_properties", False
+            )
+            if derive_uniform_mb:
+                uniform_ltb_values, _, _, _ = _bending(
+                    {
+                        "section_capacity_knm": msx,
+                        "iy_mm4": d["section_second_moment_y_mm4"],
+                        "torsion_constant_mm4": d["torsion_constant_j_mm4"],
+                        "warping_constant_mm6": d["warping_constant_iw_mm6"],
+                        "effective_length_mm": d["uniform_moment_effective_length_mm"],
+                        "moment_factor": 1.0,
+                        "action_knm": 0.0,
+                    }
+                )
+                uniform_mb = uniform_ltb_values["member_capacity_knm"]
+                uniform_mb_reference = d["uniform_moment_lateral_buckling_reference"].strip()
+                if not uniform_mb_reference:
+                    raise ValueError(
+                        "Uniform-moment buckling-analysis reference must not be blank."
+                    )
+            else:
+                uniform_mb = d["uniform_moment_member_capacity_knm"]
+                uniform_mb_reference = d["uniform_moment_member_capacity_reference"].strip()
             if uniform_mb > msx:
                 raise ValueError(
                     "Uniform-moment member capacity must not exceed section moment capacity."
@@ -1553,9 +1648,12 @@ def _interaction(d):
                 "beta_m": d["beta_m"],
                 "alpha_bc": alpha_bc,
                 "uniform_moment_member_capacity_knm": uniform_mb,
-                "uniform_moment_member_capacity_reference": d[
-                    "uniform_moment_member_capacity_reference"
-                ],
+                "uniform_moment_member_capacity_method": (
+                    "calculated_clause_5_6_equal_flanged_open"
+                    if derive_uniform_mb
+                    else "externally_verified_clause_5_6"
+                ),
+                "uniform_moment_member_capacity_reference": uniform_mb_reference,
                 "elastic_torsional_buckling_capacity_kn": noz,
                 "torsion_constant_j_mm4": d["torsion_constant_j_mm4"],
                 "warping_constant_iw_mm6": d["warping_constant_iw_mm6"],
@@ -1579,6 +1677,24 @@ def _interaction(d):
                 "torsional_section_properties_verified": True,
                 "no_transverse_loads_verified": True,
                 "both_end_lateral_restraints_verified": True,
+                **(
+                    {
+                        "uniform_moment_effective_length_mm": d[
+                            "uniform_moment_effective_length_mm"
+                        ],
+                        "uniform_moment_lateral_buckling_model_verified": d[
+                            "uniform_moment_lateral_buckling_model_verified"
+                        ],
+                        "uniform_moment_reference_buckling_moment_knm": uniform_ltb_values[
+                            "reference_buckling_moment_knm"
+                        ],
+                        "uniform_moment_slenderness_reduction": uniform_ltb_values[
+                            "slenderness_reduction"
+                        ],
+                    }
+                    if derive_uniform_mb
+                    else {}
+                ),
             }
         mcx = min(mix, mox)
     else:
@@ -1635,13 +1751,17 @@ def _interaction(d):
     ]
     if compact_i_out_of_plane:
         clauses.append("8.4.4.1 compact-I alternative")
+        if d.get("derive_uniform_moment_capacity_from_section_properties", False):
+            clauses.extend(["5.6.1.1", "5.6.3"])
         manual.append(
             "The compact-I out-of-plane alternative requires a verified compact doubly "
             "symmetric I-section with kf=1.0, no transverse loads, and lateral restraint "
             "at both ends. Verify the supplied section constants and torsional-restraint "
             "spacing independently. This operation calculates N_oz, the Clause 8.3.2(a) "
-            "section limit and the alpha_bc interaction. The supplied M_bxo must be "
-            "calculated to Clause 5.6 with alpha_m=1 and is recorded with its reference. "
+            "section limit and the alpha_bc interaction. Supply M_bxo with its Clause 5.6 "
+            "reference or derive it for the bounded equal-flanged open-section uniform-"
+            "moment case using Clause 5.6.1.1 and an assessed Clause 5.6.3 effective length. "
+            "The derived route does not replace a general Clause 5.6.4 buckling analysis. "
             "Verify beta_m from the end moments; reverse curvature is positive."
         )
     if compact_i_verified or compact_rhs_shs_verified:

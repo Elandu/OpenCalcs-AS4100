@@ -1,5 +1,7 @@
 """Independent arithmetic and published table checks for member primitives."""
 
+from math import pi
+
 import pytest
 
 from opencalcs_as4100.connections import run_connections
@@ -1047,6 +1049,81 @@ def test_clause_8_4_4_1_compact_i_out_of_plane_alternative_hand_arithmetic():
     assert out["checks"]["out_of_plane_elastic_torsional_buckling"]["satisfied"]
     assert all(check["satisfied"] for check in out["checks"].values())
     assert {"clause": "8.4.4.1 compact-I alternative"} in out["trace"]
+
+
+def test_clause_8_4_4_1_derives_uniform_moment_capacity_under_clause_5_6():
+    data = compact_i_out_of_plane_interaction()
+    for field in (
+        "uniform_moment_member_capacity_knm",
+        "uniform_moment_member_capacity_verified",
+        "uniform_moment_member_capacity_reference",
+    ):
+        data.pop(field)
+    data.update(
+        torsion_constant_j_mm4=100_000,
+        warping_constant_iw_mm6=100_000_000_000,
+        section_second_moment_y_mm4=10_000_000,
+        derive_uniform_moment_capacity_from_section_properties=True,
+        uniform_moment_effective_length_mm=1000 * pi,
+        uniform_moment_lateral_buckling_model_verified=True,
+        uniform_moment_lateral_buckling_reference="Clause 5.6.1.1 equal-flanged I calculation",
+    )
+
+    out = run_members(data)
+    values = out["values"]
+
+    # For le=1000*pi mm, the reference elastic buckling moment is
+    # sqrt(2.0e6 * 28.0e9) N.mm = 236.6431913 kN.m.
+    assert values["uniform_moment_reference_buckling_moment_knm"] == pytest.approx(236.643191323985)
+    assert values["uniform_moment_slenderness_reduction"] == pytest.approx(0.816166635668475)
+    assert values["uniform_moment_member_capacity_knm"] == pytest.approx(81.6166635668)
+    assert values["uniform_moment_member_capacity_method"] == (
+        "calculated_clause_5_6_equal_flanged_open"
+    )
+    assert values["uniform_moment_effective_length_mm"] == pytest.approx(1000 * pi)
+    assert values["uniform_moment_member_capacity_reference"] == (
+        "Clause 5.6.1.1 equal-flanged I calculation"
+    )
+    assert {"clause": "5.6.1.1"} in out["trace"]
+    assert {"clause": "5.6.3"} in out["trace"]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "uniform_moment_effective_length_mm",
+        "uniform_moment_lateral_buckling_model_verified",
+        "uniform_moment_lateral_buckling_reference",
+    ],
+)
+def test_clause_8_4_4_1_derived_uniform_capacity_requires_buckling_evidence(field):
+    data = compact_i_out_of_plane_interaction()
+    for external_field in (
+        "uniform_moment_member_capacity_knm",
+        "uniform_moment_member_capacity_verified",
+        "uniform_moment_member_capacity_reference",
+    ):
+        data.pop(external_field)
+    data.update(
+        derive_uniform_moment_capacity_from_section_properties=True,
+        uniform_moment_effective_length_mm=2500,
+        uniform_moment_lateral_buckling_model_verified=True,
+        uniform_moment_lateral_buckling_reference="Clause 5.6.1.1 review",
+    )
+    data.pop(field)
+    with pytest.raises(ValueError):
+        run_members(data)
+
+
+def test_clause_8_4_4_1_rejects_mixed_uniform_capacity_sources():
+    data = compact_i_out_of_plane_interaction(
+        derive_uniform_moment_capacity_from_section_properties=True,
+        uniform_moment_effective_length_mm=2500,
+        uniform_moment_lateral_buckling_model_verified=True,
+        uniform_moment_lateral_buckling_reference="Clause 5.6.1.1 review",
+    )
+    with pytest.raises(ValueError):
+        run_members(data)
 
 
 def test_clause_8_4_4_1_caps_compact_i_capacity_at_reduced_section_capacity():

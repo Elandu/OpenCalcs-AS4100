@@ -1948,6 +1948,58 @@ def clause_16_existing_structure_modification():
     }
 
 
+def clause_8_4_4_1_uniform_moment_member_capacity():
+    result = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 300,
+            "moment_x_knm": 45,
+            "moment_y_knm": 0,
+            "compact_doubly_symmetric_i_verified": True,
+            "compression_form_factor_one_verified": True,
+            "compact_i_out_of_plane_alternative": True,
+            "derive_uniform_moment_capacity_from_section_properties": True,
+            "uniform_moment_effective_length_mm": 1000 * pi,
+            "uniform_moment_lateral_buckling_model_verified": True,
+            "uniform_moment_lateral_buckling_reference": "Clause 5.6.1.1 independent example",
+            "torsion_constant_j_mm4": 100_000,
+            "warping_constant_iw_mm6": 100_000_000_000,
+            "section_second_moment_x_mm4": 100_000_000,
+            "section_second_moment_y_mm4": 10_000_000,
+            "gross_area_mm2": 2000,
+            "torsional_restraint_spacing_mm": 2000,
+            "torsional_section_properties_verified": True,
+            "beta_m": 1,
+            "no_transverse_loads_verified": True,
+            "both_end_lateral_restraints_verified": True,
+        }
+    )
+    values = result["values"]
+    if not isclose(
+        values["uniform_moment_reference_buckling_moment_knm"],
+        236.643191323985,
+        rel_tol=0,
+        abs_tol=1e-9,
+    ):
+        raise AssertionError("Clause 5.6 reference buckling moment did not match hand arithmetic")
+    if not isclose(
+        values["uniform_moment_member_capacity_knm"], 81.616663566848, rel_tol=0, abs_tol=1e-9
+    ):
+        raise AssertionError("Clause 5.6 uniform-moment capacity did not match hand arithmetic")
+    return {
+        "reference_buckling_moment_knm": values["uniform_moment_reference_buckling_moment_knm"],
+        "uniform_moment_member_capacity_knm": values["uniform_moment_member_capacity_knm"],
+        "capacity_source": values["uniform_moment_member_capacity_method"],
+    }
+
+
 def clause_8_4_6_amended_angle_interaction():
     passed = run_advanced_members(
         {
@@ -4518,6 +4570,9 @@ def main():
         "clause_17_test_scope_and_prototype": clause_17_test_scope_and_prototype,
         "clause_16_existing_structure_modification": clause_16_existing_structure_modification,
         "clause_8_4_6_amended_angle_interaction": clause_8_4_6_amended_angle_interaction,
+        "clause_8_4_4_1_uniform_moment_member_capacity": (
+            clause_8_4_4_1_uniform_moment_member_capacity
+        ),
         "clause_6_3_3_c_amended_lambda_20_row": clause_6_3_3_c_amended_lambda_20_row,
         "clause_6_3_4_varying_compression_both_axes": clause_6_3_4_varying_compression_both_axes,
         "clause_6_3_4_stepped_member_elastic_buckling": (

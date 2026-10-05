@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.41",
+  "package_version": "0.7.42",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -680,6 +680,20 @@
       "actual": 52.590445603195036,
       "expected": 52.590445603195036,
       "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.1 equal-flanged uniform-moment reference buckling moment",
+      "actual": 236.64319132398467,
+      "expected": 236.643191323985,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.4.1 internally derived uniform-moment capacity from Clause 5.6",
+      "actual": 81.61666356684752,
+      "expected": 81.616663566848,
+      "absolute_tolerance": 1e-09,
       "passed": true
     },
     {
