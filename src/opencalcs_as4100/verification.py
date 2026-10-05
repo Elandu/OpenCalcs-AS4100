@@ -3644,6 +3644,44 @@ def verify():
         fillet_weld["checks"]["weld_strength"]["design_capacity_kn"],
         0.8 * 0.6 * 490 * fillet_throat * 100 / 1000,
     )
+    compound_weld = run_connections(
+        {
+            "check_type": "incomplete_compound_weld_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "incomplete_butt_root_point_mm": [2, 2],
+            "fillet_face_start_point_mm": [10, 0],
+            "fillet_face_end_point_mm": [0, 10],
+            "butting_part_thickness_mm": 10,
+            "continuous_full_size_weld_length_mm": 200,
+            "as1101_3_compound_weld_classification_verified": True,
+            "compound_weld_classification_reference": "COMPOUND-WELD-INDEPENDENT-BENCHMARK",
+            "action_kn": 190,
+        }
+    )
+    compound_throat = 6 / 2**0.5
+    compound_area = compound_throat * 200
+    compound_nominal_capacity = 0.6 * 490 * compound_area / 1000
+    record(
+        "Clause 9.6.5.2(b) compound-weld throat from root-to-face distance",
+        compound_weld["intermediate"]["design_throat_mm"],
+        compound_throat,
+    )
+    record(
+        "Clause 9.6.5.2(b) compound-weld effective area",
+        compound_weld["intermediate"]["effective_area_mm2"],
+        compound_area,
+    )
+    record(
+        "Clause 9.6.5.3 compound-weld nominal capacity, hand arithmetic",
+        compound_weld["checks"]["weld_strength"]["nominal_capacity_kn"],
+        compound_nominal_capacity,
+    )
+    record(
+        "Clause 9.6.5.3 compound-weld design capacity, hand arithmetic",
+        compound_weld["checks"]["weld_strength"]["design_capacity_kn"],
+        0.8 * compound_nominal_capacity,
+    )
     built_up_end_weld = run_connections(
         {
             "check_type": "built_up_component_end_weld",

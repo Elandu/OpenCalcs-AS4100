@@ -1597,6 +1597,87 @@ def fillet_macro_test_evidence(additional_penetration_mm=0):
     }
 
 
+def incomplete_compound_weld_design(**changes):
+    inputs = {
+        "check_type": "incomplete_compound_weld_design",
+        "weld_strength_mpa": 490,
+        "quality": "SP",
+        "incomplete_butt_root_point_mm": [2, 2],
+        "fillet_face_start_point_mm": [10, 0],
+        "fillet_face_end_point_mm": [0, 10],
+        "butting_part_thickness_mm": 10,
+        "continuous_full_size_weld_length_mm": 200,
+        "as1101_3_compound_weld_classification_verified": True,
+        "compound_weld_classification_reference": "DETAIL-CW-01",
+        "action_kn": 190,
+    }
+    inputs.update(changes)
+    return run_connections(inputs)
+
+
+def test_clause_9_6_5_compound_weld_throat_and_capacity_from_geometry():
+    result = incomplete_compound_weld_design()
+    throat = 6 / 2**0.5
+    area = throat * 200
+    nominal = 0.6 * 490 * area / 1000
+    design = 0.8 * nominal
+
+    assert result["intermediate"]["perpendicular_projection_point_mm"] == pytest.approx([5, 5])
+    assert result["intermediate"]["root_to_fillet_face_distance_mm"] == pytest.approx(throat)
+    assert result["intermediate"]["design_throat_mm"] == pytest.approx(throat)
+    assert not result["intermediate"]["throat_limited_by_butting_part_thickness"]
+    assert result["intermediate"]["effective_area_mm2"] == pytest.approx(848.528137423857)
+    weld = result["checks"]["weld_strength"]
+    assert weld["nominal_capacity_kn"] == pytest.approx(249.467273858193)
+    assert weld["design_capacity_kn"] == pytest.approx(199.573819086554)
+    assert weld["utilisation"] == pytest.approx(190 / design)
+    assert weld["satisfied"]
+    assert "9.6.5.2(b)" in weld["clause"]
+
+
+def test_clause_9_6_5_compound_weld_throat_is_capped_by_butting_part():
+    result = incomplete_compound_weld_design(
+        fillet_face_start_point_mm=[12, 0],
+        fillet_face_end_point_mm=[0, 12],
+        butting_part_thickness_mm=4,
+        action_kn=0,
+    )
+    assert result["intermediate"]["root_to_fillet_face_distance_mm"] == pytest.approx(8 / 2**0.5)
+    assert result["intermediate"]["design_throat_mm"] == 4
+    assert result["intermediate"]["throat_limited_by_butting_part_thickness"]
+    assert result["intermediate"]["effective_area_mm2"] == 800
+    expected_capacity = 0.8 * 0.6 * 490 * 800 / 1000
+    assert result["checks"]["weld_strength"]["design_capacity_kn"] == pytest.approx(
+        expected_capacity
+    )
+
+
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        (
+            {"incomplete_butt_root_point_mm": [20, -5]},
+            "perpendicular projection must land on the fillet face",
+        ),
+        (
+            {"fillet_face_end_point_mm": [10, 0]},
+            "fillet face segment must have positive length",
+        ),
+        (
+            {"incomplete_butt_root_point_mm": [5, 5]},
+            "butt root must not lie on the fillet face segment",
+        ),
+        (
+            {"as1101_3_compound_weld_classification_verified": False},
+            "not valid under any of the given schemas",
+        ),
+    ],
+)
+def test_clause_9_6_5_compound_weld_rejects_unverified_or_invalid_geometry(changes, message):
+    with pytest.raises(ValueError, match=message):
+        incomplete_compound_weld_design(**changes)
+
+
 def test_fillet_design_calculates_throat_effective_area_and_strength():
     result = fillet_design()
     throat = 6 / 2**0.5

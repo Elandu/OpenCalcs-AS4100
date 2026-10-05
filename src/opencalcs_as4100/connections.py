@@ -472,6 +472,18 @@ FIELDS = {
         "macro_test_penetration_beyond_preparation_mm": N,
         "action_kn": N,
     },
+    "incomplete_compound_weld_design": {
+        "weld_strength_mpa": P,
+        "quality": QUALITY,
+        "incomplete_butt_root_point_mm": POINT,
+        "fillet_face_start_point_mm": POINT,
+        "fillet_face_end_point_mm": POINT,
+        "butting_part_thickness_mm": P,
+        "continuous_full_size_weld_length_mm": P,
+        "as1101_3_compound_weld_classification_verified": {"const": True},
+        "compound_weld_classification_reference": TEXT_REFERENCE,
+        "action_kn": N,
+    },
     "plug_slot": {
         "weld_strength_mpa": P,
         "effective_area_mm2": P,
@@ -3342,6 +3354,57 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "effective_area_mm2": throat * length,
             **strength_intermediate,
         }
+    elif k == "incomplete_compound_weld_design":
+        root_x, root_y = d["incomplete_butt_root_point_mm"]
+        start_x, start_y = d["fillet_face_start_point_mm"]
+        end_x, end_y = d["fillet_face_end_point_mm"]
+        face_dx, face_dy = end_x - start_x, end_y - start_y
+        face_length_squared = face_dx * face_dx + face_dy * face_dy
+        if face_length_squared == 0:
+            raise ValueError("The fillet face segment must have positive length.")
+        projection_parameter = (
+            (root_x - start_x) * face_dx + (root_y - start_y) * face_dy
+        ) / face_length_squared
+        if not -1e-12 <= projection_parameter <= 1 + 1e-12:
+            raise ValueError("The butt-root perpendicular projection must land on the fillet face.")
+        projection_parameter = min(1.0, max(0.0, projection_parameter))
+        projection_x = start_x + projection_parameter * face_dx
+        projection_y = start_y + projection_parameter * face_dy
+        root_to_face_distance = hypot(root_x - projection_x, root_y - projection_y)
+        if root_to_face_distance <= 0:
+            raise ValueError("The butt root must not lie on the fillet face segment.")
+        throat = min(root_to_face_distance, d["butting_part_thickness_mm"])
+        length = d["continuous_full_size_weld_length_mm"]
+        clause = "9.6.5.2(b); 9.6.5.3; 9.6.2.4; 9.6.2.5; 9.6.2.7(c); 9.6.3.10"
+        weld_data = {
+            "weld_strength_mpa": d["weld_strength_mpa"],
+            "quality": d["quality"],
+            "thin_rhs_longitudinal": False,
+            "lap_length_mm": 0,
+            "action_kn": d["action_kn"],
+        }
+        strength_check, strength_intermediate = _fillet_strength_check(
+            weld_data, throat, length, clause
+        )
+        c["weld_strength"] = {"clause": clause, **strength_check}
+        intermediate = {
+            "as1101_3_compound_weld_classification_verified": True,
+            "compound_weld_classification_reference": d["compound_weld_classification_reference"],
+            "incomplete_butt_root_point_mm": [root_x, root_y],
+            "fillet_face_start_point_mm": [start_x, start_y],
+            "fillet_face_end_point_mm": [end_x, end_y],
+            "perpendicular_projection_parameter": projection_parameter,
+            "perpendicular_projection_point_mm": [projection_x, projection_y],
+            "root_to_fillet_face_distance_mm": root_to_face_distance,
+            "butting_part_thickness_mm": d["butting_part_thickness_mm"],
+            "design_throat_mm": throat,
+            "throat_limited_by_butting_part_thickness": (
+                d["butting_part_thickness_mm"] < root_to_face_distance
+            ),
+            "effective_length_mm": length,
+            "effective_area_mm2": throat * length,
+            **strength_intermediate,
+        }
     elif k in {"fillet", "complete_butt", "plug_slot"}:
         phi = 0.8 if d["quality"] == "SP" else 0.6
         if k == "fillet":
@@ -3533,6 +3596,18 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "Optional Clause 9.6.2.3(b)(iii)/Figure 9.6.3.4 throat increases require automatic arc "
             "process verification and a production-weld macro-test record. Fatigue quality and "
             "complete connection design remain separate."
+        )
+    elif k == "incomplete_compound_weld_design":
+        scope = (
+            "Clauses 9.6.5.2(b) and 9.6.5.3 for a straight planar fillet face in an "
+            "incomplete-penetration compound weld. The perpendicular projection from the butt "
+            "root must fall on the supplied face segment; the throat is capped at the butting-part "
+            "thickness, then effective area and strength are calculated under 9.6.2.4–5, "
+            "9.6.2.7(c) and 9.6.3.10. Verify the AS 1101.3 classification, weld geometry, "
+            "procedure, consumable strength, quality and inspection from project evidence. "
+            "The supplied classification reference and declarations are not authenticated. "
+            "Curved or non-planar faces, fatigue assessment and complete connection design "
+            "remain separate."
         )
     elif k == "butt_weld_transition":
         scope = (
