@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.15",
+  "package_version": "0.7.16",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1275,6 +1275,48 @@
       "actual": 0.1,
       "expected": 0.1,
       "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.3 opening max-to-average design shear stress ratio",
+      "actual": 2.0,
+      "expected": 2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.3 opening nominal shear capacity by hand arithmetic",
+      "actual": 103.44827586206897,
+      "expected": 103.44827586206897,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.1 opening design shear capacity",
+      "actual": 93.10344827586208,
+      "expected": 93.10344827586208,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.1 opening action at passing boundary",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.1 opening action above design capacity",
+      "actual": 0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.12.3 opening shear-and-bending interaction rejection",
+      "actual": 0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
       "passed": true
     },
     {

@@ -2547,6 +2547,64 @@ def verify():
         0.1,
         1e-12,
     )
+    opening_shear_inputs = {
+        "operation": "web_opening_shear_design",
+        "clear_web_depth_mm": 250,
+        "opening_internal_dimension_mm": 25,
+        "longitudinal_stiffeners_present": False,
+        "adjacent_openings_present": False,
+        "adjacent_opening_boundary_spacing_mm": 0,
+        "unstiffened_openings_at_cross_section": 1,
+        "multiple_openings_rational_analysis_verified": False,
+        "opening_geometry_verified": True,
+        "yield_strength_mpa": 250,
+        "web_area_at_opening_mm2": 1000,
+        "web_area_basis_verified": True,
+        "panel_depth_mm": 250,
+        "web_thickness_mm": 5,
+        "maximum_design_shear_stress_mpa": 8,
+        "average_design_shear_stress_mpa": 4,
+        "rational_elastic_analysis_reference": "BENCHMARK-OPENING-ANALYSIS-01",
+        "rational_elastic_analysis_verified": True,
+        "action_kn": 90,
+        "moment_action_knm": 50,
+        "section_moment_capacity_knm": 100,
+    }
+    opening_shear = run_webs(opening_shear_inputs)
+    record(
+        "Clause 5.11.3 opening max-to-average design shear stress ratio",
+        opening_shear["values"]["stress_max_average_ratio"],
+        2,
+    )
+    record(
+        "Clause 5.11.3 opening nominal shear capacity by hand arithmetic",
+        opening_shear["values"]["nominal_web_shear_capacity_kn"],
+        150 * 2 / 2.9,
+    )
+    record(
+        "Clause 5.11.1 opening design shear capacity",
+        opening_shear["values"]["design_web_shear_capacity_kn"],
+        0.9 * 150 * 2 / 2.9,
+    )
+    record(
+        "Clause 5.11.1 opening action at passing boundary",
+        int(opening_shear["checked_conditions_satisfied"]),
+        1,
+    )
+    opening_shear_fail = run_webs({**opening_shear_inputs, "action_kn": 94})
+    record(
+        "Clause 5.11.1 opening action above design capacity",
+        int(opening_shear_fail["checked_conditions_satisfied"]),
+        0,
+    )
+    opening_interaction = run_webs(
+        {**opening_shear_inputs, "action_kn": 80, "moment_action_knm": 80}
+    )
+    record(
+        "Clause 5.12.3 opening shear-and-bending interaction rejection",
+        int(opening_interaction["checked_conditions_satisfied"]),
+        0,
+    )
     bolt = run_connections(
         {
             "check_type": "bolt",

@@ -31,7 +31,7 @@ not authenticate certificates or material/installation evidence; the other
 Clause 2.3 fastener, weld, stud and anchor provisions and Clause 2.4 castings
 remain assessed.
 
-Version 0.7.15 exposes twelve installed calculation families. The code implements
+Version 0.7.16 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing

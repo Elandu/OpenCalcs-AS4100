@@ -261,6 +261,99 @@ def test_clause_5_10_7_longitudinally_stiffened_opening_limit_and_multiple_openi
     assert out["values"]["permitted_ratio"] == 0.33
 
 
+def web_opening_shear_design(**changes):
+    inputs = {
+        "operation": "web_opening_shear_design",
+        "clear_web_depth_mm": 250,
+        "opening_internal_dimension_mm": 25,
+        "longitudinal_stiffeners_present": False,
+        "adjacent_openings_present": False,
+        "adjacent_opening_boundary_spacing_mm": 0,
+        "unstiffened_openings_at_cross_section": 1,
+        "multiple_openings_rational_analysis_verified": False,
+        "opening_geometry_verified": True,
+        "yield_strength_mpa": 250,
+        "web_area_at_opening_mm2": 1000,
+        "web_area_basis_verified": True,
+        "panel_depth_mm": 250,
+        "web_thickness_mm": 5,
+        "maximum_design_shear_stress_mpa": 8,
+        "average_design_shear_stress_mpa": 4,
+        "rational_elastic_analysis_reference": "FEA-OPENING-01",
+        "rational_elastic_analysis_verified": True,
+        "action_kn": 90,
+        "moment_action_knm": 50,
+        "section_moment_capacity_knm": 100,
+    }
+    inputs.update(changes)
+    return run(inputs)
+
+
+def test_clause_5_10_7_opening_shear_capacity_and_5_12_3_interaction():
+    out = web_opening_shear_design()
+    values = out["values"]
+    checks = {check["clause"]: check for check in out["checks"]}
+
+    assert values["stress_max_average_ratio"] == pytest.approx(2)
+    assert values["nominal_web_shear_yield_capacity_kn"] == pytest.approx(150)
+    assert values["nominal_web_shear_capacity_kn"] == pytest.approx(150 * 2 / 2.9)
+    assert values["design_web_shear_capacity_kn"] == pytest.approx(93.1034482759)
+    assert checks["5.11.1"]["satisfied"]
+    assert checks["5.12.3 shear and bending interaction"]["satisfied"]
+    assert out["checked_conditions_satisfied"]
+    assert out["clauses"] == ["5.10.7", "5.11.1", "5.11.2", "5.11.3", "5.11.4", "5.11.5", "5.12.3"]
+
+    overloaded = web_opening_shear_design(action_kn=94)
+    overloaded_checks = {check["clause"]: check for check in overloaded["checks"]}
+    assert not overloaded_checks["5.11.1"]["satisfied"]
+    assert not overloaded_checks["5.12.3 shear and bending interaction"]["satisfied"]
+
+
+def test_clause_5_12_3_opening_shear_reduces_capacity_for_high_bending():
+    out = web_opening_shear_design(action_kn=80, moment_action_knm=80)
+    checks = {check["clause"]: check for check in out["checks"]}
+    assert checks["5.11.1"]["satisfied"]
+    assert not checks["5.12.3 shear and bending interaction"]["satisfied"]
+    assert out["values"]["design_web_shear_capacity_with_bending_kn"] == pytest.approx(
+        0.9 * (150 * 2 / 2.9) * (2.2 - 1.6 * (80 / 90))
+    )
+
+
+def test_clause_5_10_7_opening_shear_requires_geometry_and_analysis_evidence():
+    unverified = web_opening_shear_design(
+        web_area_basis_verified=False,
+        rational_elastic_analysis_verified=False,
+    )
+    checks = {check["clause"]: check for check in unverified["checks"]}
+    assert not checks["web area at opening evidence"]["satisfied"]
+    assert not checks["5.11.3 rational elastic analysis evidence"]["satisfied"]
+    assert not unverified["checked_conditions_satisfied"]
+
+    oversized = web_opening_shear_design(opening_internal_dimension_mm=26)
+    assert not oversized["checked_conditions_satisfied"]
+    too_close = web_opening_shear_design(
+        adjacent_openings_present=True,
+        adjacent_opening_boundary_spacing_mm=74,
+    )
+    assert not too_close["checked_conditions_satisfied"]
+    multiple = web_opening_shear_design(
+        unstiffened_openings_at_cross_section=2,
+        multiple_openings_rational_analysis_verified=False,
+    )
+    assert not multiple["checked_conditions_satisfied"]
+
+
+def test_clause_5_11_3_opening_shear_stress_ratio_requires_maximum_at_least_average():
+    with pytest.raises(ValueError, match="Maximum design shear stress"):
+        web_opening_shear_design(
+            maximum_design_shear_stress_mpa=3,
+            average_design_shear_stress_mpa=4,
+        )
+
+    with pytest.raises(ValueError, match="reference must not be blank"):
+        web_opening_shear_design(rational_elastic_analysis_reference="   ")
+
+
 def test_clause_5_10_2_load_bearing_stiffener_trigger_boundaries():
     inputs = {
         "operation": "load_bearing_stiffener_requirement",

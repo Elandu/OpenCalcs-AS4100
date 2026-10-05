@@ -2468,9 +2468,54 @@ def clause_5_10_web_geometry():
     expect_close(opening["values"]["opening_dimension_to_web_depth_ratio"], 0.1)
     if not opening["checked_conditions_satisfied"]:
         raise AssertionError("Clause 5.10.7 rejected an opening at the boundary.")
+    opening_shear_inputs = {
+        "operation": "web_opening_shear_design",
+        "clear_web_depth_mm": 250,
+        "opening_internal_dimension_mm": 25,
+        "longitudinal_stiffeners_present": False,
+        "adjacent_openings_present": False,
+        "adjacent_opening_boundary_spacing_mm": 0,
+        "unstiffened_openings_at_cross_section": 1,
+        "multiple_openings_rational_analysis_verified": False,
+        "opening_geometry_verified": True,
+        "yield_strength_mpa": 250,
+        "web_area_at_opening_mm2": 1000,
+        "web_area_basis_verified": True,
+        "panel_depth_mm": 250,
+        "web_thickness_mm": 5,
+        "maximum_design_shear_stress_mpa": 8,
+        "average_design_shear_stress_mpa": 4,
+        "rational_elastic_analysis_reference": "INDEPENDENT-OPENING-ANALYSIS-01",
+        "rational_elastic_analysis_verified": True,
+        "action_kn": 90,
+        "moment_action_knm": 50,
+        "section_moment_capacity_knm": 100,
+    }
+    opening_shear = run_webs(opening_shear_inputs)
+    shear_values = opening_shear["values"]
+    expect_close(shear_values["stress_max_average_ratio"], 2)
+    expect_close(shear_values["nominal_web_shear_yield_capacity_kn"], 150)
+    expect_close(shear_values["nominal_web_shear_capacity_kn"], 150 * 2 / 2.9)
+    expect_close(shear_values["design_web_shear_capacity_kn"], 0.9 * 150 * 2 / 2.9)
+    checks = {check["clause"]: check for check in opening_shear["checks"]}
+    if not opening_shear["checked_conditions_satisfied"] or not checks["5.11.1"]["satisfied"]:
+        raise AssertionError("Clause 5.11.1 opening shear hand example failed")
+    if not checks["5.12.3 shear and bending interaction"]["satisfied"]:
+        raise AssertionError("Clause 5.12.3 opening shear/bending hand example failed")
+    above_capacity = run_webs({**opening_shear_inputs, "action_kn": 94})
+    if above_capacity["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 5.11.1 opening shear did not reject overload")
+    high_moment = run_webs({**opening_shear_inputs, "action_kn": 80, "moment_action_knm": 80})
+    if high_moment["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 5.12.3 opening interaction did not reject high bending")
     return {
         "minimum_transverse_web_thickness_mm": thickness["values"]["required_web_thickness_mm"],
         "opening_ratio_at_limit": opening["values"]["opening_dimension_to_web_depth_ratio"],
+        "opening_design_shear_capacity_kn": shear_values["design_web_shear_capacity_kn"],
+        "opening_shear_check_passes": checks["5.11.1"]["satisfied"],
+        "opening_shear_bending_check_passes": checks["5.12.3 shear and bending interaction"][
+            "satisfied"
+        ],
     }
 
 

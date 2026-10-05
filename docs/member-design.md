@@ -56,8 +56,10 @@ The following cannot currently be claimed as completed by these member primitive
 - 5.7.1–5.7.2 require rational analysis to establish principal-axis moments and restraint
   forces. `advanced_members.nonprincipal_bending` applies the 8.3.4 section interaction and,
   when deflections are unconstrained, the 8.4.5 biaxial member interaction to those supplied
-  results. Rational analysis itself remains external. Rational web configuration and opening
-  resistance remain outside the selected 5.10 geometry, thickness and transfer checks.
+  results. Rational analysis itself remains external. For eligible unstiffened openings,
+  `web_opening_shear_design` applies the 5.11 shear and 5.12.3 interaction checks to the
+  supplied opening web area; local opening bending and bearing resistance remain external.
+  Stiffened and castellated opening resistance remains outside the implemented route.
 - Rational flange-restraint buckling analysis itself remains external and is not authenticated;
   longitudinal-stiffener cases remain unsupported.
 - The 5.12.2 flange-only proportioning check is available through `shear_proportioning`;

@@ -1,8 +1,9 @@
 # Web geometry and resistance checks
 
 The `webs` family contains selected AS 4100:2020 web checks. Thickness and opening
-operations compare supplied geometry with Clause 5.10 limits; they do not calculate
-member shear, bearing or reduced capacity at an opening.
+operations compare supplied geometry with Clause 5.10 limits. The opening shear
+operation also checks shear and whole-section shear/bending resistance using evidenced
+opening-area and rational-analysis inputs; it does not perform that analysis.
 
 `web_minimum_thickness` also records Clause 5.9.3 for each prescriptive route.
 Verify web-panel boundaries and dimensions under Clause 5.9.2; a lower thickness
@@ -15,6 +16,7 @@ supported by rational analysis is assessed separately.
 | `web_minimum_thickness` with `design_case=longitudinal_and_transverse` | 5.10.5 thickness bands for longitudinal stiffeners at `0.2 d2`, with the additional neutral-axis stiffener limit | Verify the stiffener layout and `d2`, which is twice the distance from the neutral axis to the compression flange. The operation does not check stiffener strength or attachment. |
 | `web_minimum_thickness` with `design_case=plastic_hinge` | 5.10.6 minimum web thickness and load-bearing-stiffener trigger near a plastic hinge; optional per-plate 5.2.2 slenderness against the Table 5.2 plasticity limit for flat stiffeners | Verify hinge location, the hinge-zone design load, design web shear yield capacity, stiffener location and Clause 5.14 design. Supply every flat stiffener plate when using the plasticity check, with its clear outstand, thickness, yield stress and residual-stress category. |
 | `web_opening_geometry` | 5.10.7 unstiffened opening dimension ratios, spacing between adjacent openings and the multiple-opening condition | Verify opening dimensions and layout; use the greater opening dimension when adjacent openings differ. Stiffened openings, castellated members and member capacity at openings require rational analysis. |
+| `web_opening_shear_design` | 5.10.7 qualifying unstiffened opening geometry; 5.11.1–5.11.5 web shear resistance using the supplied opening web area, panel dimensions and verified maximum/average shear-stress ratio; 5.12.3 whole-section shear/bending interaction | Provide a verified web-area basis and referenced rational elastic analysis for the supplied maximum and average design shear stresses. Check adjacent-opening spacing and all geometry. The operation does not perform or authenticate the analysis and does not calculate local opening bending/bearing resistance; stiffened or castellated openings remain outside this route. |
 | `load_bearing_stiffener_requirement` | 5.10.2 load-bearing stiffener trigger when a design bearing force exceeds the design capacity of the web alone, or an end post is required | Supply the design web bearing capacity from 5.13.2 and assess the end-post trigger under 5.15.2.2. Stiffener resistance, detailing and force transfer remain separate checks. |
 | `load_bearing_stiffener_attachment` | 5.14.4 flange fit or flange-to-stiffener transfer, both-flange provision at a support, and force transfer from the stiffener to the web | Supply capacities from the applicable Clause 9 checks and verify the flange fit and connection arrangement against the details. |
 | `transverse_stiffener` | 5.15.2.1 interior-panel spacing via 5.10.4/5.10.5; 5.15.3–5.15.4 area and buckling checks with supplied capacities or geometry-derived 5.11.2/5.11.5 and 5.14.2 capacities (`le=d1`); 5.15.8 web-connection shear per unit length when no external stiffener actions apply | Verify panel geometry and stiffener layout. For calculated capacities, supply the effective-section radius of gyration and available web widths. Otherwise supply the nominal capacities and shear buckling coefficient. Supply a verified design connection capacity per unit length from the relevant Clause 9 checks. For 5.10.5, supply `d2` and state whether a neutral-axis stiffener set is present. Use `end_panel_design` for the reduced end-panel alternative. |
@@ -65,6 +67,14 @@ end-plate area, and requires an explicit verification that the stiffener is no s
 than the plate. The governing bearing reaction and the relationship between end-panel
 shear and bearing reaction are supplied engineering inputs. End-plate connections and
 geometry still require separate design.
+
+`web_opening_shear_design` combines the 5.10.7 geometry check for an unstiffened
+opening with the existing web shear and 5.12.3 member interaction calculations.
+It derives the maximum-to-average stress ratio from the referenced rational elastic
+analysis inputs and reports separate 5.11.1 shear and 5.12.3 interaction checks.
+The supplied opening area and panel geometry must represent the governing section.
+Local tee bending, bearing and load redistribution at the opening require separate
+engineering analysis.
 
 `load_bearing_stiffener` checks 5.14.1–5.14.3 and calculates the optional 5.14.5
 minimum second moment of area for stiffener pairs when they provide the sole torsional

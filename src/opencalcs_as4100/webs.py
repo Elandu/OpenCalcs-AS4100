@@ -302,6 +302,63 @@ SCHEMAS = {
             "opening_geometry_verified": {"const": True},
         }
     ),
+    "web_opening_shear_design": object_schema(
+        {
+            "operation": {"const": "web_opening_shear_design"},
+            "clear_web_depth_mm": POSITIVE,
+            "opening_internal_dimension_mm": POSITIVE,
+            "longitudinal_stiffeners_present": {"const": False},
+            "adjacent_openings_present": {"type": "boolean"},
+            "adjacent_opening_boundary_spacing_mm": NONNEGATIVE,
+            "unstiffened_openings_at_cross_section": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000,
+            },
+            "multiple_openings_rational_analysis_verified": {"type": "boolean"},
+            "opening_geometry_verified": {"const": True},
+            "yield_strength_mpa": YIELD_STRESS,
+            "web_area_at_opening_mm2": POSITIVE,
+            "web_area_basis_verified": {"type": "boolean"},
+            "panel_depth_mm": POSITIVE,
+            "web_thickness_mm": POSITIVE,
+            "stiffener_spacing_mm": POSITIVE,
+            "maximum_design_shear_stress_mpa": POSITIVE,
+            "average_design_shear_stress_mpa": POSITIVE,
+            "rational_elastic_analysis_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "rational_elastic_analysis_verified": {"type": "boolean"},
+            "action_kn": NONNEGATIVE,
+            "moment_action_knm": NONNEGATIVE,
+            "section_moment_capacity_knm": POSITIVE,
+        },
+        [
+            "operation",
+            "clear_web_depth_mm",
+            "opening_internal_dimension_mm",
+            "longitudinal_stiffeners_present",
+            "adjacent_openings_present",
+            "adjacent_opening_boundary_spacing_mm",
+            "unstiffened_openings_at_cross_section",
+            "multiple_openings_rational_analysis_verified",
+            "opening_geometry_verified",
+            "yield_strength_mpa",
+            "web_area_at_opening_mm2",
+            "web_area_basis_verified",
+            "panel_depth_mm",
+            "web_thickness_mm",
+            "maximum_design_shear_stress_mpa",
+            "average_design_shear_stress_mpa",
+            "rational_elastic_analysis_reference",
+            "rational_elastic_analysis_verified",
+            "action_kn",
+            "moment_action_knm",
+            "section_moment_capacity_knm",
+        ],
+    ),
     "load_bearing_stiffener_requirement": object_schema(
         {
             "operation": {"const": "load_bearing_stiffener_requirement"},
@@ -817,9 +874,111 @@ def _web_shear_buckling_values(
     }
 
 
+def _web_opening_shear_design(d):
+    maximum_stress = d["maximum_design_shear_stress_mpa"]
+    average_stress = d["average_design_shear_stress_mpa"]
+    if maximum_stress < average_stress:
+        raise ValueError("Maximum design shear stress must not be below the average stress.")
+    reference = d["rational_elastic_analysis_reference"].strip()
+    if not reference:
+        raise ValueError("Rational elastic analysis reference must not be blank.")
+
+    opening = run_webs(
+        {
+            "operation": "web_opening_geometry",
+            "clear_web_depth_mm": d["clear_web_depth_mm"],
+            "opening_internal_dimension_mm": d["opening_internal_dimension_mm"],
+            "longitudinal_stiffeners_present": d["longitudinal_stiffeners_present"],
+            "adjacent_openings_present": d["adjacent_openings_present"],
+            "adjacent_opening_boundary_spacing_mm": d["adjacent_opening_boundary_spacing_mm"],
+            "unstiffened_openings_at_cross_section": d["unstiffened_openings_at_cross_section"],
+            "multiple_openings_rational_analysis_verified": d[
+                "multiple_openings_rational_analysis_verified"
+            ],
+            "opening_geometry_verified": d["opening_geometry_verified"],
+        }
+    )
+    shear_inputs = {
+        "operation": "shear",
+        "yield_strength_mpa": d["yield_strength_mpa"],
+        "web_area_mm2": d["web_area_at_opening_mm2"],
+        "panel_depth_mm": d["panel_depth_mm"],
+        "web_thickness_mm": d["web_thickness_mm"],
+        "stress_max_average_ratio": maximum_stress / average_stress,
+        "action_kn": d["action_kn"],
+        "moment_action_knm": d["moment_action_knm"],
+        "section_moment_capacity_knm": d["section_moment_capacity_knm"],
+    }
+    if "stiffener_spacing_mm" in d:
+        shear_inputs["stiffener_spacing_mm"] = d["stiffener_spacing_mm"]
+    shear = run_members(shear_inputs)
+    values = shear["values"]
+    shear_capacity = values["shear_capacity_kn"]
+    shear_design_capacity = 0.9 * shear_capacity
+    interaction = dict(shear["checks"]["shear_bending"])
+    interaction["clause"] = "5.12.3 shear and bending interaction"
+    bending = dict(shear["checks"]["bending"])
+    bending["clause"] = "5.12.3 section moment capacity"
+
+    checks = list(opening["checks"])
+    checks.extend(
+        [
+            {
+                "clause": "web area at opening evidence",
+                "satisfied": d["web_area_basis_verified"],
+            },
+            {
+                "clause": "5.11.3 rational elastic analysis evidence",
+                "satisfied": d["rational_elastic_analysis_verified"],
+            },
+            capacity_check("5.11.1", shear_capacity, d["action_kn"]),
+            interaction,
+            bending,
+        ]
+    )
+    clauses = ["5.10.7", "5.11.1"]
+    clauses.extend(clause["clause"] for clause in shear["trace"] if clause["clause"] not in clauses)
+    return result(
+        "web_opening_shear_design",
+        clauses,
+        {
+            **opening["values"],
+            "web_area_at_opening_mm2": d["web_area_at_opening_mm2"],
+            "web_area_basis_verified": d["web_area_basis_verified"],
+            "stress_max_average_ratio": maximum_stress / average_stress,
+            "maximum_design_shear_stress_mpa": maximum_stress,
+            "average_design_shear_stress_mpa": average_stress,
+            "rational_elastic_analysis_reference": reference,
+            "rational_elastic_analysis_verified": d["rational_elastic_analysis_verified"],
+            "web_slenderness": values["web_slenderness"],
+            "shear_buckling_reduction": values["buckling_reduction"],
+            "nominal_web_shear_yield_capacity_kn": values["shear_yield_capacity_kn"],
+            "nominal_web_shear_capacity_kn": shear_capacity,
+            "nominal_web_shear_capacity_with_bending_kn": values["shear_bending_capacity_kn"],
+            "design_web_shear_capacity_kn": shear_design_capacity,
+            "design_web_shear_capacity_with_bending_kn": interaction["design_capacity"],
+            "moment_to_design_capacity_ratio": d["moment_action_knm"]
+            / (0.9 * d["section_moment_capacity_knm"]),
+        },
+        checks,
+        [
+            "The rational elastic analysis and web area at the opening are supplied, "
+            "referenced and evidence-gated inputs; this operation does not perform or "
+            "authenticate that analysis.",
+            "Only unstiffened openings within Clause 5.10.7 geometry are checked. "
+            "Local opening bending and bearing resistance, stiffened openings and "
+            "castellated members require separate analysis.",
+            "The shear and bending resistance calculation uses the supplied web area "
+            "and panel geometry; verify these values represent the governing opening section.",
+        ],
+    )
+
+
 def run_webs(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
+    if op == "web_opening_shear_design":
+        return _web_opening_shear_design(d)
     if op == "web_minimum_thickness":
         depth, fy, actual = (
             d["clear_web_depth_mm"],
