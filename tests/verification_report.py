@@ -2000,6 +2000,46 @@ def clause_8_4_4_1_uniform_moment_member_capacity():
     }
 
 
+def clause_8_4_2_2_compact_in_plane_capacity():
+    result = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 500,
+            "moment_x_knm": 10,
+            "moment_y_knm": 5,
+            "compact_doubly_symmetric_i_verified": True,
+            "compression_form_factor_one_verified": True,
+            "compact_in_plane_alternative": True,
+            "compact_in_plane_beta_m_x": 1,
+            "compact_in_plane_beta_m_y": 1,
+            "compact_in_plane_moment_distribution_verified": True,
+            "compact_in_plane_moment_distribution_reference": "Clause 4.4.2.2 hand example",
+        }
+    )
+    values = result["values"]
+    expected_x = 1.18 * 100 * (1 - 500 / (0.9 * 1000))
+    expected_y = 1.18 * 50 * (1 - 500 / (0.9 * 1000)) ** 0.5
+    if not isclose(values["in_plane_x_knm"], expected_x, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 8.4.2.2 x-axis capacity limit did not match hand arithmetic")
+    if not isclose(values["in_plane_y_knm"], expected_y, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 8.4.2.2 y-axis capacity did not match hand arithmetic")
+    if {"clause": "8.4.2.2 compact-section alternative"} not in result["trace"]:
+        raise AssertionError("Clause 8.4.2.2 compact alternative is missing from the trace")
+    return {
+        "in_plane_x_capacity_knm": values["in_plane_x_knm"],
+        "in_plane_y_capacity_knm": values["in_plane_y_knm"],
+        "x_section_limit_applied": values["compact_in_plane_unbounded_capacity_x_knm"]
+        > values["compact_in_plane_section_limit_x_knm"],
+    }
+
+
 def clause_8_4_6_amended_angle_interaction():
     passed = run_advanced_members(
         {
@@ -4573,6 +4613,7 @@ def main():
         "clause_8_4_4_1_uniform_moment_member_capacity": (
             clause_8_4_4_1_uniform_moment_member_capacity
         ),
+        "clause_8_4_2_2_compact_in_plane_capacity": clause_8_4_2_2_compact_in_plane_capacity,
         "clause_6_3_3_c_amended_lambda_20_row": clause_6_3_3_c_amended_lambda_20_row,
         "clause_6_3_4_varying_compression_both_axes": clause_6_3_4_varying_compression_both_axes,
         "clause_6_3_4_stepped_member_elastic_buckling": (

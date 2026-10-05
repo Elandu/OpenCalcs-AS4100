@@ -1002,6 +1002,78 @@ def test_general_interaction_independent_arithmetic():
     assert "compact_section_reduced_y_knm" not in out["values"]
 
 
+@pytest.mark.parametrize(
+    ("section_form", "expected_y_limit", "expected_y_capacity"),
+    [
+        ("i", 3332 / 81, 39.333333333333336),
+        ("rhs", 26.222222222222225, 26.222222222222225),
+    ],
+)
+def test_clause_8_4_2_2_compact_in_plane_alternative(
+    section_form, expected_y_limit, expected_y_capacity
+):
+    data = interaction()
+    data.update(
+        section_axial_capacity_kn=1000,
+        member_axial_x_kn=800,
+        member_axial_y_kn=1000,
+        axial_action_kn=500,
+        compression_form_factor_one_verified=True,
+        compact_in_plane_alternative=True,
+        compact_in_plane_beta_m_x=1,
+        compact_in_plane_beta_m_y=1,
+        compact_in_plane_moment_distribution_verified=True,
+        compact_in_plane_moment_distribution_reference="Clause 4.4.2.2 end-moment check",
+    )
+    data[
+        "compact_doubly_symmetric_i_verified" if section_form == "i" else "compact_rhs_shs_verified"
+    ] = True
+
+    out = run_members(data)
+    values = out["values"]
+
+    # N*/(phi*Ns)=5/9; for beta_m=1, Mi=1.18*Ms*sqrt(1-N*/(phi*Nc)).
+    assert values["compact_in_plane_unbounded_capacity_x_knm"] == pytest.approx(118 * (11**0.5) / 6)
+    assert values["compact_in_plane_section_limit_x_knm"] == pytest.approx(1.18 * 100 * 4 / 9)
+    assert values["in_plane_x_knm"] == pytest.approx(1.18 * 100 * 4 / 9)
+    assert values["compact_in_plane_unbounded_capacity_y_knm"] == pytest.approx(1.18 * 50 * 2 / 3)
+    assert values["compact_in_plane_section_limit_y_knm"] == pytest.approx(expected_y_limit)
+    assert values["in_plane_y_knm"] == pytest.approx(expected_y_capacity)
+    assert values["in_plane_method_x"] == "compact_8_4_2_2_alternative"
+    assert values["in_plane_method_y"] == "compact_8_4_2_2_alternative"
+    assert {"clause": "8.4.2.2 compact-section alternative"} in out["trace"]
+    assert values["compact_in_plane_moment_distribution_reference"] == (
+        "Clause 4.4.2.2 end-moment check"
+    )
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "compact_doubly_symmetric_i_verified",
+        "compression_form_factor_one_verified",
+        "compact_in_plane_beta_m_x",
+        "compact_in_plane_beta_m_y",
+        "compact_in_plane_moment_distribution_verified",
+        "compact_in_plane_moment_distribution_reference",
+    ],
+)
+def test_clause_8_4_2_2_requires_compactness_form_factor_and_moment_evidence(missing):
+    data = interaction()
+    data.update(
+        compact_doubly_symmetric_i_verified=True,
+        compression_form_factor_one_verified=True,
+        compact_in_plane_alternative=True,
+        compact_in_plane_beta_m_x=1,
+        compact_in_plane_beta_m_y=1,
+        compact_in_plane_moment_distribution_verified=True,
+        compact_in_plane_moment_distribution_reference="Clause 4.4.2.2 check",
+    )
+    data.pop(missing)
+    with pytest.raises(ValueError):
+        run_members(data)
+
+
 def compact_i_out_of_plane_interaction(**changes):
     data = interaction()
     data.update(

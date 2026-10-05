@@ -524,6 +524,15 @@ INPUT_SCHEMA = {
                 "compact_rhs_shs_verified": {"const": True},
                 "compression_form_factor_one_verified": {"const": True},
                 "compression_form_factor_below_one_verified": {"const": True},
+                "compact_in_plane_alternative": {"const": True},
+                "compact_in_plane_beta_m_x": _number(-1, maximum=1),
+                "compact_in_plane_beta_m_y": _number(-1, maximum=1),
+                "compact_in_plane_moment_distribution_verified": {"const": True},
+                "compact_in_plane_moment_distribution_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                },
                 "compact_i_out_of_plane_alternative": {"const": True},
                 "uniform_moment_member_capacity_knm": P,
                 "uniform_moment_member_capacity_verified": {"const": True},
@@ -682,7 +691,37 @@ INPUT_SCHEMA = {
                             ]
                         }
                     },
-                }
+                },
+                {
+                    "if": {
+                        "required": ["compact_in_plane_alternative"],
+                        "properties": {"compact_in_plane_alternative": {"const": True}},
+                    },
+                    "then": {
+                        "required": [
+                            "compression_form_factor_one_verified",
+                            "compact_in_plane_beta_m_x",
+                            "compact_in_plane_beta_m_y",
+                            "compact_in_plane_moment_distribution_verified",
+                            "compact_in_plane_moment_distribution_reference",
+                        ],
+                        "anyOf": [
+                            {"required": ["compact_doubly_symmetric_i_verified"]},
+                            {"required": ["compact_rhs_shs_verified"]},
+                        ],
+                        "properties": {"axial_mode": {"const": "compression"}},
+                    },
+                    "else": {
+                        "not": {
+                            "anyOf": [
+                                {"required": ["compact_in_plane_beta_m_x"]},
+                                {"required": ["compact_in_plane_beta_m_y"]},
+                                {"required": ["compact_in_plane_moment_distribution_verified"]},
+                                {"required": ["compact_in_plane_moment_distribution_reference"]},
+                            ]
+                        }
+                    },
+                },
             ]
         },
         _variant(
@@ -1577,6 +1616,47 @@ def _interaction(d):
         }
     ratio = n / (phi * ns)
     mrx, mry = msx * max(0, 1 - ratio), msy * max(0, 1 - ratio)
+    in_plane_alternative_values = None
+    if d.get("compact_in_plane_alternative", False):
+        reference = d["compact_in_plane_moment_distribution_reference"].strip()
+        if not reference:
+            raise ValueError("Compact in-plane moment-distribution reference must not be blank.")
+        section_moment_limit_x = min(msx, max(0.0, 1.18 * msx * (1 - ratio)))
+        if compact_i_verified:
+            section_moment_limit_y = min(msy, max(0.0, 1.19 * msy * (1 - ratio**2)))
+        else:
+            section_moment_limit_y = min(msy, max(0.0, 1.18 * msy * (1 - ratio)))
+
+        def compact_in_plane_capacity(section_capacity, section_limit, member_capacity, beta_m):
+            axial_ratio = n / (phi * member_capacity)
+            if axial_ratio >= 1:
+                return 0.0, 0.0, axial_ratio
+            beta_factor = ((1 + beta_m) / 2) ** 3
+            unbounded = section_capacity * (
+                (1 - beta_factor) * (1 - axial_ratio) + 1.18 * beta_factor * sqrt(1 - axial_ratio)
+            )
+            return min(unbounded, section_limit), unbounded, axial_ratio
+
+        mix, candidate_x, axial_ratio_x = compact_in_plane_capacity(
+            msx, section_moment_limit_x, d["member_axial_x_kn"], d["compact_in_plane_beta_m_x"]
+        )
+        miy, candidate_y, axial_ratio_y = compact_in_plane_capacity(
+            msy, section_moment_limit_y, d["member_axial_y_kn"], d["compact_in_plane_beta_m_y"]
+        )
+        in_plane_alternative_values = {
+            "in_plane_method_x": "compact_8_4_2_2_alternative",
+            "in_plane_method_y": "compact_8_4_2_2_alternative",
+            "compact_in_plane_beta_m_x": d["compact_in_plane_beta_m_x"],
+            "compact_in_plane_beta_m_y": d["compact_in_plane_beta_m_y"],
+            "compact_in_plane_axial_ratio_x": axial_ratio_x,
+            "compact_in_plane_axial_ratio_y": axial_ratio_y,
+            "compact_in_plane_unbounded_capacity_x_knm": candidate_x,
+            "compact_in_plane_unbounded_capacity_y_knm": candidate_y,
+            "compact_in_plane_section_limit_x_knm": section_moment_limit_x,
+            "compact_in_plane_section_limit_y_knm": section_moment_limit_y,
+            "compact_in_plane_moment_distribution_verified": True,
+            "compact_in_plane_moment_distribution_reference": reference,
+        }
     compact_i_out_of_plane = d.get("compact_i_out_of_plane_alternative", False)
     out_of_plane_alternative_values = None
     if d["axial_mode"] == "compression":
@@ -1701,6 +1781,11 @@ def _interaction(d):
         mix, miy = mrx, mry
         mox = min(mb * (1 + ratio), mrx)
         mcx = min(mrx, mox)
+    if in_plane_alternative_values is not None:
+        mix = min(candidate_x, section_moment_limit_x)
+        miy = min(candidate_y, section_moment_limit_y)
+        if d["axial_mode"] == "compression":
+            mcx = min(mix, mox)
     section_util = ratio + mx / (phi * msx) + my / (phi * msy)
     if (mx and mcx == 0) or (my and miy == 0):
         member_util = None
@@ -1742,6 +1827,8 @@ def _interaction(d):
     }
     if out_of_plane_alternative_values is not None:
         values.update(out_of_plane_alternative_values)
+    if in_plane_alternative_values is not None:
+        values.update(in_plane_alternative_values)
     clauses = ["8.3.2", "8.3.3", "8.3.4", "8.4.2", "8.4.4", "8.4.5"]
     manual = [
         "Elastic analysis only; moments must satisfy 8.2 second-order requirements.",
@@ -1763,6 +1850,17 @@ def _interaction(d):
             "moment case using Clause 5.6.1.1 and an assessed Clause 5.6.3 effective length. "
             "The derived route does not replace a general Clause 5.6.4 buckling analysis. "
             "Verify beta_m from the end moments; reverse curvature is positive."
+        )
+    if in_plane_alternative_values is not None:
+        clauses.append("8.4.2.2 compact-section alternative")
+        manual.append(
+            "The compact in-plane alternative applies only to a verified compact doubly "
+            "symmetric I-section or RHS/SHS with kf=1.0. It calculates both principal-axis "
+            "capacities from the supplied Clause 6.3 member capacities and beta_m values, "
+            "then limits each result by its Clause 8.3 section capacity. Verify the moment "
+            "distribution for each axis and record its source; determine beta_m from the end "
+            "moments or the applicable Clause 4.4.2.2 route. The general elastic route remains "
+            "available when these conditions are not met."
         )
     if compact_i_verified or compact_rhs_shs_verified:
         compact_mrx = mrx

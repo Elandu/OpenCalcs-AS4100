@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.42",
+  "package_version": "0.7.43",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -694,6 +694,20 @@
       "actual": 81.61666356684752,
       "expected": 81.616663566848,
       "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.2.2 compact-I in-plane x section-capacity limit",
+      "actual": 52.44444444444444,
+      "expected": 52.44444444444444,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.2.2 compact-I in-plane y capacity with beta_m=1",
+      "actual": 39.33333333333333,
+      "expected": 39.33333333333333,
+      "absolute_tolerance": 1e-12,
       "passed": true
     },
     {

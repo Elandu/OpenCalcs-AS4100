@@ -1356,6 +1356,40 @@ def verify():
         81.616663566848,
         1e-9,
     )
+    compact_i_in_plane_alternative = run_members(
+        {
+            "operation": "interaction",
+            "axial_mode": "compression",
+            "section_axial_capacity_kn": 1000,
+            "member_axial_x_kn": 800,
+            "member_axial_y_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "member_moment_x_knm": 70,
+            "axial_action_kn": 500,
+            "moment_x_knm": 10,
+            "moment_y_knm": 5,
+            "compact_doubly_symmetric_i_verified": True,
+            "compression_form_factor_one_verified": True,
+            "compact_in_plane_alternative": True,
+            "compact_in_plane_beta_m_x": 1,
+            "compact_in_plane_beta_m_y": 1,
+            "compact_in_plane_moment_distribution_verified": True,
+            "compact_in_plane_moment_distribution_reference": "Clause 4.4.2.2 hand example",
+        }
+    )
+    record(
+        "Clause 8.4.2.2 compact-I in-plane x section-capacity limit",
+        compact_i_in_plane_alternative["values"]["in_plane_x_knm"],
+        1.18 * 100 * (1 - 500 / (0.9 * 1000)),
+        1e-12,
+    )
+    record(
+        "Clause 8.4.2.2 compact-I in-plane y capacity with beta_m=1",
+        compact_i_in_plane_alternative["values"]["in_plane_y_knm"],
+        1.18 * 50 * sqrt(1 - 500 / (0.9 * 1000)),
+        1e-12,
+    )
     compact_kf_below_one_interaction = run_members(
         {
             "operation": "interaction",
