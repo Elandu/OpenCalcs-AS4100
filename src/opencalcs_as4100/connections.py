@@ -473,6 +473,33 @@ FIELDS = {
             },
         },
     },
+    "hole_deduction_layout": {
+        "plate_width_mm": P,
+        "thickness_mm": P,
+        "flat_uniform_plate_and_complete_hole_layout_verified": {"const": True},
+        "design_action_axis_verified": {"const": True},
+        "holes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "hole_id",
+                    "longitudinal_mm",
+                    "transverse_mm",
+                    "gross_hole_width_mm",
+                ],
+                "properties": {
+                    "hole_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "longitudinal_mm": SIGNED,
+                    "transverse_mm": N,
+                    "gross_hole_width_mm": P,
+                },
+            },
+        },
+    },
     "minimum_beam_shear_action": {
         "actual_design_shear_kn": N,
         "member_design_shear_capacity_kn": P,
@@ -925,6 +952,119 @@ def _finite(value):
     if isinstance(value, list):
         return all(_finite(v) for v in value)
     return not isinstance(value, (int, float)) or isinstance(value, bool) or isfinite(value)
+
+
+def _hole_deduction_layout(d):
+    holes = sorted(
+        d["holes"],
+        key=lambda hole: (
+            hole["transverse_mm"],
+            hole["longitudinal_mm"],
+            hole["hole_id"],
+        ),
+    )
+    hole_ids = [hole["hole_id"] for hole in holes]
+    positions = [(hole["longitudinal_mm"], hole["transverse_mm"]) for hole in holes]
+    if len(set(hole_ids)) != len(hole_ids):
+        raise ValueError("Hole IDs must be unique.")
+    if len(set(positions)) != len(positions):
+        raise ValueError("Hole centre positions must be distinct.")
+    for hole in holes:
+        half_width = hole["gross_hole_width_mm"] / 2
+        if (
+            hole["gross_hole_width_mm"] > d["plate_width_mm"]
+            or hole["transverse_mm"] < half_width
+            or hole["transverse_mm"] + half_width > d["plate_width_mm"]
+        ):
+            raise ValueError("Every gross hole width must fit within the plate edges.")
+
+    straight_rows = {}
+    for hole in holes:
+        straight_rows.setdefault(hole["longitudinal_mm"], []).append(hole)
+    straight_candidates = [
+        {
+            "longitudinal_mm": x,
+            "hole_ids": [hole["hole_id"] for hole in row],
+            "hole_width_sum_mm": fsum(hole["gross_hole_width_mm"] for hole in row),
+        }
+        for x, row in sorted(straight_rows.items())
+    ]
+    straight = max(straight_candidates, key=lambda candidate: candidate["hole_width_sum_mm"])
+
+    # Every progressively ordered sequence is a Clause 9.1.10.3 zig-zag
+    # candidate. The DAG recurrence finds the governing sequence in O(n^2)
+    # without materializing the potentially exponential set of paths.
+    best_widths = []
+    predecessors = []
+    transitions_considered = 0
+    for j, hole in enumerate(holes):
+        best_prefix = 0.0
+        predecessor = None
+        for i in range(j):
+            previous = holes[i]
+            gauge = hole["transverse_mm"] - previous["transverse_mm"]
+            if gauge <= 0:
+                continue
+            transitions_considered += 1
+            pitch = abs(hole["longitudinal_mm"] - previous["longitudinal_mm"])
+            stagger_correction = pitch * pitch / (4 * gauge)
+            candidate_prefix = best_widths[i] - stagger_correction
+            if candidate_prefix > best_prefix:
+                best_prefix = candidate_prefix
+                predecessor = i
+        best_widths.append(hole["gross_hole_width_mm"] + best_prefix)
+        predecessors.append(predecessor)
+
+    zigzag_end = max(range(len(holes)), key=lambda index: best_widths[index])
+    zigzag_indices = []
+    while zigzag_end is not None:
+        zigzag_indices.append(zigzag_end)
+        zigzag_end = predecessors[zigzag_end]
+    zigzag_indices.reverse()
+    zigzag_path = [holes[index] for index in zigzag_indices]
+    zigzag_hole_width_sum = fsum(hole["gross_hole_width_mm"] for hole in zigzag_path)
+    stagger_pairs = []
+    for first, second in zip(zigzag_path, zigzag_path[1:], strict=False):
+        pitch = abs(second["longitudinal_mm"] - first["longitudinal_mm"])
+        gauge = second["transverse_mm"] - first["transverse_mm"]
+        stagger_pairs.append(
+            {
+                "from_hole_id": first["hole_id"],
+                "to_hole_id": second["hole_id"],
+                "staggered_pitch_mm": pitch,
+                "gauge_mm": gauge,
+                "correction_width_mm": pitch * pitch / (4 * gauge),
+            }
+        )
+    correction_width = fsum(pair["correction_width_mm"] for pair in stagger_pairs)
+    zigzag_width = zigzag_hole_width_sum - correction_width
+
+    governing_path_type = "straight" if straight["hole_width_sum_mm"] >= zigzag_width else "zigzag"
+    deduction_width = max(straight["hole_width_sum_mm"], zigzag_width)
+    gross_area = d["plate_width_mm"] * d["thickness_mm"]
+    deduction_area = deduction_width * d["thickness_mm"]
+    net_area = gross_area - deduction_area
+    if net_area <= 0:
+        raise ValueError("Hole deductions must leave positive net area.")
+    return (
+        {"net_area": {"satisfied": True, "clause": "9.1.10.1; 9.1.10.2; 9.1.10.3"}},
+        {
+            "gross_area_mm2": gross_area,
+            "straight_path": straight,
+            "zigzag_path": {
+                "hole_ids": [hole["hole_id"] for hole in zigzag_path],
+                "hole_width_sum_mm": zigzag_hole_width_sum,
+                "stagger_pairs": stagger_pairs,
+                "stagger_correction_width_mm": correction_width,
+                "net_deduction_width_mm": zigzag_width,
+            },
+            "zigzag_transitions_considered": transitions_considered,
+            "governing_path_type": governing_path_type,
+            "governing_deduction_width_mm": deduction_width,
+            "deduction_mm2": deduction_area,
+            "net_area_mm2": net_area,
+        },
+    )
 
 
 def _appendix_j_slip_load(bolt):
@@ -2908,6 +3048,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError("Hole deductions must leave positive net area.")
         intermediate = {"deduction_mm2": deduction, "net_area_mm2": d["gross_area_mm2"] - deduction}
         c["net_area"] = {"satisfied": True, "clause": "9.1.10"}
+    elif k == "hole_deduction_layout":
+        c, intermediate = _hole_deduction_layout(d)
     else:
         c, intermediate = _weld_group(d)
     if k == "slip_factor_test":
@@ -3043,6 +3185,16 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "The engineer must enumerate every feasible path and verify gross/net path lengths, "
             "including fastener-hole deductions under Clause 9.1.10. This operation does not "
             "derive rupture paths or hole geometry."
+        )
+    elif k == "hole_deduction_layout":
+        scope = (
+            "Clause 9.1.10.1–3 governing gross-hole deduction for a complete, uniform-thickness "
+            "flat-plate layout. The operation searches all exact straight hole rows and all "
+            "progressively ordered zig-zag hole paths, applying the stagger correction to each "
+            "successive pair. Verify the plate/action axes, hole dimensions, coordinates and "
+            "completeness of the layout. Angle sections with holes in both legs, other section "
+            "geometries, net-section modulus calculations and block-shear rupture paths require "
+            "separate assessment."
         )
     else:
         scope = (

@@ -2132,6 +2132,153 @@ def test_layout_and_hole_deduction():
     assert r["intermediate"]["net_area_mm2"] == pytest.approx(1605)
 
 
+def test_hole_layout_searches_straight_and_all_progressive_zigzag_paths():
+    result = run_connections(
+        {
+            "check_type": "hole_deduction_layout",
+            "plate_width_mm": 200,
+            "thickness_mm": 10,
+            "flat_uniform_plate_and_complete_hole_layout_verified": True,
+            "design_action_axis_verified": True,
+            "holes": [
+                {
+                    "hole_id": "A",
+                    "longitudinal_mm": 0,
+                    "transverse_mm": 50,
+                    "gross_hole_width_mm": 22,
+                },
+                {
+                    "hole_id": "B",
+                    "longitudinal_mm": 40,
+                    "transverse_mm": 100,
+                    "gross_hole_width_mm": 22,
+                },
+                {
+                    "hole_id": "C",
+                    "longitudinal_mm": 0,
+                    "transverse_mm": 150,
+                    "gross_hole_width_mm": 22,
+                },
+            ],
+        }
+    )
+
+    result_data = result["intermediate"]
+    assert result["checks"]["net_area"]["clause"] == "9.1.10.1; 9.1.10.2; 9.1.10.3"
+    assert result_data["straight_path"]["hole_width_sum_mm"] == pytest.approx(44)
+    assert result_data["zigzag_path"]["hole_ids"] == ["A", "B", "C"]
+    assert [
+        pair["correction_width_mm"] for pair in result_data["zigzag_path"]["stagger_pairs"]
+    ] == pytest.approx([8, 8])
+    assert result_data["zigzag_path"]["net_deduction_width_mm"] == pytest.approx(50)
+    assert result_data["governing_path_type"] == "zigzag"
+    assert result_data["deduction_mm2"] == pytest.approx(500)
+    assert result_data["net_area_mm2"] == pytest.approx(1500)
+
+
+def test_hole_layout_uses_the_maximum_straight_section_when_it_controls():
+    result = run_connections(
+        {
+            "check_type": "hole_deduction_layout",
+            "plate_width_mm": 200,
+            "thickness_mm": 10,
+            "flat_uniform_plate_and_complete_hole_layout_verified": True,
+            "design_action_axis_verified": True,
+            "holes": [
+                {
+                    "hole_id": hole_id,
+                    "longitudinal_mm": 0,
+                    "transverse_mm": transverse,
+                    "gross_hole_width_mm": 22,
+                }
+                for hole_id, transverse in (("A", 50), ("B", 100), ("C", 150))
+            ],
+        }
+    )
+
+    assert result["intermediate"]["governing_path_type"] == "straight"
+    assert result["intermediate"]["straight_path"]["hole_width_sum_mm"] == pytest.approx(66)
+    assert result["intermediate"]["net_area_mm2"] == pytest.approx(1340)
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        (
+            {
+                "holes": [
+                    {
+                        "hole_id": "A",
+                        "longitudinal_mm": 0,
+                        "transverse_mm": 50,
+                        "gross_hole_width_mm": 20,
+                    },
+                    {
+                        "hole_id": "A",
+                        "longitudinal_mm": 10,
+                        "transverse_mm": 100,
+                        "gross_hole_width_mm": 20,
+                    },
+                ]
+            },
+            "Hole IDs must be unique",
+        ),
+        (
+            {
+                "holes": [
+                    {
+                        "hole_id": "A",
+                        "longitudinal_mm": 0,
+                        "transverse_mm": 50,
+                        "gross_hole_width_mm": 20,
+                    },
+                    {
+                        "hole_id": "B",
+                        "longitudinal_mm": 0,
+                        "transverse_mm": 50,
+                        "gross_hole_width_mm": 20,
+                    },
+                ]
+            },
+            "Hole centre positions must be distinct",
+        ),
+        (
+            {
+                "holes": [
+                    {
+                        "hole_id": "A",
+                        "longitudinal_mm": 0,
+                        "transverse_mm": 5,
+                        "gross_hole_width_mm": 20,
+                    }
+                ]
+            },
+            "must fit within the plate edges",
+        ),
+    ],
+)
+def test_hole_layout_rejects_inconsistent_geometry(changes, message):
+    inputs = {
+        "check_type": "hole_deduction_layout",
+        "plate_width_mm": 200,
+        "thickness_mm": 10,
+        "flat_uniform_plate_and_complete_hole_layout_verified": True,
+        "design_action_axis_verified": True,
+        "holes": [
+            {
+                "hole_id": "A",
+                "longitudinal_mm": 0,
+                "transverse_mm": 50,
+                "gross_hole_width_mm": 20,
+            }
+        ],
+    }
+    inputs.update(changes)
+
+    with pytest.raises(ValueError, match=message):
+        run_connections(inputs)
+
+
 def test_bolt_group_vector_superposition_and_equilibrium():
     r = run_connections(
         bolt(

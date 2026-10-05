@@ -527,6 +527,45 @@ def verify():
             "stagger_pairs": [],
         }
     )
+    layout_holes = run_connections(
+        {
+            "check_type": "hole_deduction_layout",
+            "plate_width_mm": 200,
+            "thickness_mm": 10,
+            "flat_uniform_plate_and_complete_hole_layout_verified": True,
+            "design_action_axis_verified": True,
+            "holes": [
+                {
+                    "hole_id": "A",
+                    "longitudinal_mm": 0,
+                    "transverse_mm": 50,
+                    "gross_hole_width_mm": 22,
+                },
+                {
+                    "hole_id": "B",
+                    "longitudinal_mm": 40,
+                    "transverse_mm": 100,
+                    "gross_hole_width_mm": 22,
+                },
+                {
+                    "hole_id": "C",
+                    "longitudinal_mm": 0,
+                    "transverse_mm": 150,
+                    "gross_hole_width_mm": 22,
+                },
+            ],
+        }
+    )
+    record(
+        "Clause 9.1.10.3 maximum progressive zig-zag deduction width",
+        layout_holes["intermediate"]["zigzag_path"]["net_deduction_width_mm"],
+        50,
+    )
+    record(
+        "Clause 9.1.10.2 straight-versus-zig-zag net area",
+        layout_holes["intermediate"]["net_area_mm2"],
+        1500,
+    )
     net_i_section = run_members(
         {
             "operation": "section_moduli",

@@ -2614,6 +2614,50 @@ def clause_9_1_9e_block_shear_path_set():
     }
 
 
+def clause_9_1_10_coordinate_hole_deduction():
+    result = run_connections(
+        {
+            "check_type": "hole_deduction_layout",
+            "plate_width_mm": 200,
+            "thickness_mm": 10,
+            "flat_uniform_plate_and_complete_hole_layout_verified": True,
+            "design_action_axis_verified": True,
+            "holes": [
+                {
+                    "hole_id": "A",
+                    "longitudinal_mm": 0,
+                    "transverse_mm": 50,
+                    "gross_hole_width_mm": 22,
+                },
+                {
+                    "hole_id": "B",
+                    "longitudinal_mm": 40,
+                    "transverse_mm": 100,
+                    "gross_hole_width_mm": 22,
+                },
+                {
+                    "hole_id": "C",
+                    "longitudinal_mm": 0,
+                    "transverse_mm": 150,
+                    "gross_hole_width_mm": 22,
+                },
+            ],
+        }
+    )["intermediate"]
+    expected_deduction_width_mm = max(2 * 22, 3 * 22 - 2 * (40**2 / (4 * 50)))
+    expected_net_area_mm2 = 200 * 10 - expected_deduction_width_mm * 10
+    if result["governing_path_type"] != "zigzag":
+        raise AssertionError("Clause 9.1.10 did not select the governing zig-zag path")
+    if result["zigzag_path"]["hole_ids"] != ["A", "B", "C"]:
+        raise AssertionError("Clause 9.1.10 did not preserve the progressive hole path")
+    if result["net_area_mm2"] != expected_net_area_mm2:
+        raise AssertionError("Clause 9.1.10 net area differs from independent hand arithmetic")
+    return {
+        "governing_path_type": result["governing_path_type"],
+        "net_area_mm2": result["net_area_mm2"],
+    }
+
+
 def clause_12_6_3_single_test_history():
     result = run_durability(
         {
@@ -2901,6 +2945,7 @@ def main():
         "clause_7_4_2_connection_plane_distribution": clause_7_4_2_connection_plane_distribution,
         "clause_7_4_3_back_to_back_connection_layout": clause_7_4_3_back_to_back_connection_layout,
         "clause_9_1_9e_block_shear_path_set": clause_9_1_9e_block_shear_path_set,
+        "clause_9_1_10_coordinate_hole_deduction": clause_9_1_10_coordinate_hole_deduction,
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
         "clause_12_10_2_web_protection": clause_12_10_2_web_protection,

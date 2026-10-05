@@ -3,7 +3,7 @@ requires = ["hatchling>=1.26,<2"]
 build-backend = "hatchling.build"
 [project]
 name = "opencalcs-as4100"
-version = "0.7.4"
+version = "0.7.5"
 description = "Clause-traced AS 4100 steel design calculations for OpenCalcs."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -18,6 +18,8 @@ dev = ["pytest>=8.3,<9", "ruff>=0.11,<1", "build>=1.2,<2"]
 as4100 = "opencalcs_as4100.plugin:get_plugin"
 [tool.hatch.build.targets.wheel]
 packages = ["src/opencalcs_as4100"]
+[tool.hatch.build.targets.sdist]
+exclude = ["/tmp", "/uv.lock"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 [tool.ruff]

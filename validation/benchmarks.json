@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.4",
+  "package_version": "0.7.5",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -245,6 +245,20 @@
       "name": "Clause 5.1 plastic-method eligibility gates",
       "actual": 1,
       "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.10.3 maximum progressive zig-zag deduction width",
+      "actual": 50.0,
+      "expected": 50,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.10.2 straight-versus-zig-zag net area",
+      "actual": 1500.0,
+      "expected": 1500,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

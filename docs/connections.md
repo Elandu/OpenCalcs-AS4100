@@ -21,7 +21,7 @@ each shear plane, including paint film; the operation selects the maximum.
 Alternatively, `filler_thickness_mm` must already be that governing maximum.
 
 The implementation was visually reviewed against the licensed AS 4100:2020
-Section 9, printed pages 112–138, including Clause 9.1.4 on page 114, Clauses
+Section 9, printed pages 112–138, including Clauses 9.1.10.1-3 on pages 116-117, Clause 9.1.4 on page 114, Clauses
 9.6.2.3(b)(i), 9.6.2.3(b)(iii), 9.6.2.6 on page 127, and 9.6.2.7(c) on page 129,
 plus 9.6.3.4 and Figure 9.6.3.4 on page 133, Table 3.4
 on page 34, Clause 3.5.5 on page 35, and Appendix J on printed pages 203–206.
@@ -60,10 +60,13 @@ The source standard is not redistributed.
 | plug_slot | 9.6.4.2 calculates filled-hole shear area at the faying plane from a verified circular hole, round-ended slot (overall length and width) or rectangular slot (length and width), or accepts an externally assessed nominal area. Capacity is `0.6 fuw Aw`; 9.6.4.3 permitted shear applications require attestation. Circumferential fillet welds use `fillet`. | Verify hole dimensions/profile, faying-plane geometry and the allowed application: shear transfer in lap joints, preventing buckling of lapped parts, or joining built-up-member components. Unsupported profiles need an externally assessed nominal area. |
 | layout | 9.5.1–4 pitch and edge limits for standard holes; supply thinnest applicable ply and edge finish. Nonstandard hole-edge reference, corrosion and non-load conditions require external assessment. |
 | hole_deduction | 9.1.10 governing straight/zigzag deduction. Supply maximum straight width sum and each candidate zigzag path separately; each stagger pair is [pitch, gauge]. Includes actual gross hole width, countersink where relevant. Enumerate all paths externally. |
+| hole_deduction_layout | 9.1.10.1-3 derives the maximum straight-row deduction and searches every progressive zig-zag path for a complete flat, uniform-thickness plate. Supply hole-centre coordinates and each gross hole width across the plate; verify the member/action axes and complete layout. |
 | bolt_group | 9.3.1 rigid-group elastic superposition of centroidal signed Fx, Fy and Mz. Checks each bolt; identical bolts, in-plane actions only. Component actions must be zero. Separate ply bearing and detailing remain necessary. |
 | bolt_group_out_of_plane | 9.3.2–3 checks user-supplied per-bolt Fx/Fy/tension actions, their six-resultant equilibrium under 9.1.3(a), and each bolt's shear, tension, prying addition and combined interaction. Bolt tension acts along z; positions are (x,y) about the verified common action origin and moments follow right-handed `r × F`. Load distribution and component stability require verified analysis inputs. Check compression/contact actions and ply bearing separately. |
 | bolt_group_elastic_3d | 9.1.3(a), 9.3.2–3 resolves a planar bolt group's six centroidal resultants with rigid-plate, equal-bolt-stiffness linear elastic distribution, then checks equilibrium and each bolt's shear, tension, prying addition and interaction. Requires a non-collinear layout, verified method/experimental basis, and nonnegative calculated bolt tension. Compression/contact and slack-bolt redistribution, ply bearing and complete connection-component checks remain separate. |
 | weld_group | 9.7.1–3 constant-throat straight-line fillet group, signed Fx/Fy/Fz and Mx/My/Mz at centroid. Exact line integrals including product inertia; vector resultant checked at every endpoint. Forces and moments are in a right-handed xyz system; weld lies in xy plane. |
+
+`hole_deduction_layout` treats `longitudinal_mm` as parallel to the design action and `transverse_mm` as perpendicular to it. `gross_hole_width_mm` is the gross hole width across the plate at the section, including any applicable countersink. The result reports the controlling straight row, the maximum progressive zig-zag chain and its individual stagger corrections, then selects the greater deduction under Clause 9.1.10.3. This geometry route does not cover angles with holes in both legs, other section forms, net-section modulus calculations or block-shear path enumeration. It also does not authenticate the declared layout or replace Clause 9.5 detailing checks.
 
 The optional incomplete-butt macro-test inputs are all required together. The calculation
 uses total preparation depth as `t_t1` and measured penetration beyond it as `t_t2` in
