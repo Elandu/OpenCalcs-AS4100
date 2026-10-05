@@ -727,6 +727,63 @@ def test_clause_5_3_2_2_continuous_restraint_route_records_all_conditions():
     ]
 
 
+def test_clause_5_4_2_full_restraint_has_both_standard_alternatives():
+    critical_flange_route = run_advanced_members(
+        {
+            "operation": "restraint_classification",
+            "critical_flange_lateral_deflection_prevented_verified": True,
+            "other_cross_section_point_lateral_deflection_prevented_verified": False,
+            "twist_rotation_effectively_prevented_verified": False,
+            "twist_rotation_partially_prevented_verified": True,
+            "critical_flange_out_of_plane_rotation_significantly_restrained_verified": False,
+        }
+    )
+    assert critical_flange_route["values"]["full_lateral_restraint_criterion_a_satisfied"]
+    assert not critical_flange_route["values"]["full_lateral_restraint_criterion_b_satisfied"]
+    assert critical_flange_route["values"]["full_lateral_restraint_qualifies"]
+    assert critical_flange_route["values"]["lateral_restraint_qualifies"]
+
+    other_point_route = run_advanced_members(
+        {
+            "operation": "restraint_classification",
+            "critical_flange_lateral_deflection_prevented_verified": False,
+            "other_cross_section_point_lateral_deflection_prevented_verified": True,
+            "twist_rotation_effectively_prevented_verified": True,
+            "twist_rotation_partially_prevented_verified": False,
+            "critical_flange_out_of_plane_rotation_significantly_restrained_verified": True,
+        }
+    )
+    assert not other_point_route["values"]["full_lateral_restraint_criterion_a_satisfied"]
+    assert other_point_route["values"]["full_lateral_restraint_criterion_b_satisfied"]
+    assert other_point_route["values"]["full_lateral_restraint_qualifies"]
+    assert other_point_route["values"]["rotational_restraint_qualifies"]
+    assert not other_point_route["values"]["lateral_restraint_qualifies"]
+
+
+def test_clause_5_4_2_partial_restraint_uses_other_point_and_partial_twist():
+    result = run_advanced_members(
+        {
+            "operation": "restraint_classification",
+            "critical_flange_lateral_deflection_prevented_verified": False,
+            "other_cross_section_point_lateral_deflection_prevented_verified": True,
+            "twist_rotation_effectively_prevented_verified": False,
+            "twist_rotation_partially_prevented_verified": True,
+            "critical_flange_out_of_plane_rotation_significantly_restrained_verified": False,
+        }
+    )
+    assert result["values"]["partial_lateral_restraint_qualifies"]
+    assert not result["values"]["full_lateral_restraint_qualifies"]
+    assert not result["values"]["rotational_restraint_qualifies"]
+    assert not result["values"]["lateral_restraint_qualifies"]
+    assert [check["clause"] for check in result["checks"]] == [
+        "5.4.2.1(a)",
+        "5.4.2.1(b)",
+        "5.4.2.2",
+        "5.4.2.3",
+        "5.4.2.4",
+    ]
+
+
 def test_clause_5_3_2_3_checks_each_intermediate_restraint_subsegment():
     first = full_restraint(
         "equal_flanged_i",

@@ -423,6 +423,16 @@ SCHEMAS = {
             "continuous_restraints_satisfy_5_4_3_1_verified": VERIFIED,
         },
     ),
+    "restraint_classification": _schema(
+        "restraint_classification",
+        {
+            "critical_flange_lateral_deflection_prevented_verified": BOOL,
+            "other_cross_section_point_lateral_deflection_prevented_verified": BOOL,
+            "twist_rotation_effectively_prevented_verified": BOOL,
+            "twist_rotation_partially_prevented_verified": BOOL,
+            "critical_flange_out_of_plane_rotation_significantly_restrained_verified": BOOL,
+        },
+    ),
     "full_lateral_restraint_limit": _full_lateral_restraint_schema(),
     "intermediate_lateral_restraints": _schema(
         "intermediate_lateral_restraints",
@@ -848,6 +858,45 @@ def _reduced_check(clause, moment, nominal):
 def run_advanced_members(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
+    if op == "restraint_classification":
+        critical_lateral = d["critical_flange_lateral_deflection_prevented_verified"]
+        other_point_lateral = d["other_cross_section_point_lateral_deflection_prevented_verified"]
+        effective_twist = d["twist_rotation_effectively_prevented_verified"]
+        partial_twist = d["twist_rotation_partially_prevented_verified"]
+        full_a = critical_lateral and (effective_twist or partial_twist)
+        full_b = other_point_lateral and effective_twist
+        partial = other_point_lateral and partial_twist
+        rotational = d["critical_flange_out_of_plane_rotation_significantly_restrained_verified"]
+        clauses = ["5.4.2.1", "5.4.2.2", "5.4.2.3", "5.4.2.4"]
+        values = {
+            "full_lateral_restraint_criterion_a_satisfied": full_a,
+            "full_lateral_restraint_criterion_b_satisfied": full_b,
+            "full_lateral_restraint_qualifies": full_a or full_b,
+            "partial_lateral_restraint_qualifies": partial,
+            "rotational_restraint_qualifies": rotational,
+            "lateral_restraint_qualifies": critical_lateral,
+        }
+        checks = [
+            {"clause": "5.4.2.1(a)", "satisfied": full_a},
+            {"clause": "5.4.2.1(b)", "satisfied": full_b},
+            {"clause": "5.4.2.2", "satisfied": partial},
+            {"clause": "5.4.2.3", "satisfied": rotational},
+            {"clause": "5.4.2.4", "satisfied": critical_lateral},
+        ]
+        return result(
+            op,
+            clauses,
+            values,
+            checks,
+            [
+                "Verify the cross-section point identified as critical flange and establish "
+                "effective lateral, twist and out-of-plane rotational restraint from the "
+                "actual support and connection details.",
+                "The classification outcomes can overlap. This operation records supplied "
+                "evidence; it does not calculate restraint stiffness or force, nor establish "
+                "segment-level full lateral restraint under 5.3.2.",
+            ],
+        )
     if op == "closed_section_torsion_constant":
         enclosed_area = d["enclosed_median_line_area_mm2"]
         wall_ratio_sum = sum(

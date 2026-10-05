@@ -27,6 +27,12 @@ section moduli; fastener-hole modulus selection remains a separate Clause 5.2.6
 route. Circular hollow sections continue through the single-element `plate`
 operation.
 
+For Clause 5.4.2, `advanced_members.restraint_classification` evaluates the
+standard's alternative fully restrained routes and its partial, rotational and
+lateral restraint conditions from supplied evidence. The categories can
+overlap; the operation does not calculate restraint stiffness or force and does
+not replace the segment-level checks under Clause 5.3.2.
+
 | Section | Calculated or compared in this release | Assessed externally; remaining gaps |
 | --- | --- | --- |
 | 1 — Scope and general | No normative design check. `design_review` records scope evidence. | Applicability, exclusions, edition, referenced standards and project basis; no automatic scope decision. |

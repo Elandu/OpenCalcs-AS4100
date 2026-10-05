@@ -1873,6 +1873,56 @@ def clause_5_3_2_4_lateral_restraint():
     }
 
 
+def clause_5_4_2_restraint_classification():
+    full_by_critical_flange = run_advanced_members(
+        {
+            "operation": "restraint_classification",
+            "critical_flange_lateral_deflection_prevented_verified": True,
+            "other_cross_section_point_lateral_deflection_prevented_verified": False,
+            "twist_rotation_effectively_prevented_verified": False,
+            "twist_rotation_partially_prevented_verified": True,
+            "critical_flange_out_of_plane_rotation_significantly_restrained_verified": False,
+        }
+    )
+    if not full_by_critical_flange["values"]["full_lateral_restraint_qualifies"]:
+        raise AssertionError("Clause 5.4.2.1(a) critical-flange alternative was not recognized")
+
+    full_by_other_point = run_advanced_members(
+        {
+            "operation": "restraint_classification",
+            "critical_flange_lateral_deflection_prevented_verified": False,
+            "other_cross_section_point_lateral_deflection_prevented_verified": True,
+            "twist_rotation_effectively_prevented_verified": True,
+            "twist_rotation_partially_prevented_verified": False,
+            "critical_flange_out_of_plane_rotation_significantly_restrained_verified": False,
+        }
+    )
+    if not full_by_other_point["values"]["full_lateral_restraint_qualifies"]:
+        raise AssertionError("Clause 5.4.2.1(b) other-point alternative was not recognized")
+
+    partial = run_advanced_members(
+        {
+            "operation": "restraint_classification",
+            "critical_flange_lateral_deflection_prevented_verified": False,
+            "other_cross_section_point_lateral_deflection_prevented_verified": True,
+            "twist_rotation_effectively_prevented_verified": False,
+            "twist_rotation_partially_prevented_verified": True,
+            "critical_flange_out_of_plane_rotation_significantly_restrained_verified": False,
+        }
+    )
+    if not partial["values"]["partial_lateral_restraint_qualifies"]:
+        raise AssertionError("Clause 5.4.2.2 partial-restraint criteria were not recognized")
+    return {
+        "full_restraint_critical_flange_route": full_by_critical_flange["values"][
+            "full_lateral_restraint_qualifies"
+        ],
+        "full_restraint_other_point_route": full_by_other_point["values"][
+            "full_lateral_restraint_qualifies"
+        ],
+        "partial_restraint_route": partial["values"]["partial_lateral_restraint_qualifies"],
+    }
+
+
 def clause_5_3_2_1_capacity_restraint():
     result = run_members(
         {
@@ -2639,6 +2689,7 @@ def main():
         "clause_5_2_section_moment_capacity": clause_5_2_section_moment_capacity,
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,
         "clause_5_1_bending_design_routes": clause_5_1_bending_design_routes,
+        "clause_5_4_2_restraint_classification": clause_5_4_2_restraint_classification,
         "clause_5_3_2_4_unequal_flange_restraint_boundary": (clause_5_3_2_4_lateral_restraint),
         "clause_5_3_2_1_member_capacity_restraint_route": (clause_5_3_2_1_capacity_restraint),
         "clause_5_3_3_critical_section": clause_5_3_3_critical_section,
