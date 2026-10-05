@@ -253,6 +253,36 @@ FIELDS = {
         "uniform_tension": BOOL,
         "action_kn": N,
     },
+    "block_shear_paths": {
+        "yield_strength_mpa": P,
+        "ultimate_strength_mpa": P,
+        "thickness_mm": P,
+        "candidate_paths": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "path_id",
+                    "gross_shear_length_mm",
+                    "net_shear_length_mm",
+                    "net_tension_length_mm",
+                    "uniform_tension",
+                ],
+                "properties": {
+                    "path_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "gross_shear_length_mm": P,
+                    "net_shear_length_mm": P,
+                    "net_tension_length_mm": P,
+                    "uniform_tension": BOOL,
+                },
+            },
+        },
+        "rupture_paths_complete_and_net_lengths_verified": {"const": True},
+        "action_kn": N,
+    },
     "pin": {
         "yield_strength_mpa": P,
         "diameter_mm": P,
@@ -2236,6 +2266,71 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         ]
         c["block_shear"] = _check(min(modes), 0.75, d["action_kn"], "9.1.9(e)")
         intermediate = {"eccentricity_factor": kb, "nominal_modes_kn": modes}
+    elif k == "block_shear_paths":
+        fy, fu, thickness = (
+            d["yield_strength_mpa"],
+            d["ultimate_strength_mpa"],
+            d["thickness_mm"],
+        )
+        if fu < fy:
+            raise ValueError("Ultimate strength cannot be below yield strength.")
+        paths = d["candidate_paths"]
+        path_ids = [path["path_id"] for path in paths]
+        if len(set(path_ids)) != len(path_ids):
+            raise ValueError("Block-shear path IDs must be unique.")
+        evaluated_paths = []
+        for path in paths:
+            gross_length = path["gross_shear_length_mm"]
+            net_length = path["net_shear_length_mm"]
+            if net_length > gross_length:
+                raise ValueError("Net shear length cannot exceed gross shear length.")
+            gross_area = thickness * gross_length
+            net_shear_area = thickness * net_length
+            net_tension_area = thickness * path["net_tension_length_mm"]
+            kbs = 1.0 if path["uniform_tension"] else 0.5
+            tension_term_kn = kbs * fu * net_tension_area / 1000
+            nominal_rupture_kn = 0.6 * fu * net_shear_area / 1000 + tension_term_kn
+            nominal_yielding_kn = 0.6 * fy * gross_area / 1000 + tension_term_kn
+            nominal_capacity_kn = min(nominal_rupture_kn, nominal_yielding_kn)
+            governing_mode = (
+                "shear_rupture_plus_tension_rupture"
+                if nominal_rupture_kn <= nominal_yielding_kn
+                else "shear_yielding_plus_tension_rupture"
+            )
+            capacity_check = _check(nominal_capacity_kn, 0.75, d["action_kn"], "9.1.9(e)")
+            evaluated_paths.append(
+                {
+                    "path_id": path["path_id"],
+                    "gross_shear_area_mm2": gross_area,
+                    "net_shear_area_mm2": net_shear_area,
+                    "net_tension_area_mm2": net_tension_area,
+                    "eccentricity_factor_kbs": kbs,
+                    "nominal_tension_term_kn": tension_term_kn,
+                    "nominal_shear_rupture_mode_capacity_kn": nominal_rupture_kn,
+                    "nominal_shear_yielding_mode_capacity_kn": nominal_yielding_kn,
+                    "governing_mode": governing_mode,
+                    **capacity_check,
+                }
+            )
+        controlling_path = min(evaluated_paths, key=lambda item: item["nominal_capacity_kn"])
+        c["block_shear_path_set"] = {
+            "paths": evaluated_paths,
+            "controlling_path_id": controlling_path["path_id"],
+            "nominal_capacity_kn": controlling_path["nominal_capacity_kn"],
+            "design_capacity_kn": controlling_path["design_capacity_kn"],
+            "capacity_factor": 0.75,
+            "utilisation": controlling_path["utilisation"],
+            "satisfied": controlling_path["satisfied"],
+            "clause": "9.1.9(e)",
+        }
+        intermediate = {
+            "thickness_mm": thickness,
+            "yield_strength_mpa": fy,
+            "ultimate_strength_mpa": fu,
+            "action_kn": d["action_kn"],
+            "rupture_path_set_completeness_and_net_length_basis_verified": True,
+            "clause": "9.1.9(e); 9.1.10",
+        }
     elif k == "pin":
         fy, dia = d["yield_strength_mpa"], d["diameter_mm"]
         c["shear"] = _check(
@@ -2941,6 +3036,13 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "recognized method supported by experimental evidence. This operation does not "
             "calculate prying force; verify eccentricity, plate flexibility and connection "
             "geometry separately."
+        )
+    elif k == "block_shear_paths":
+        scope = (
+            "Clause 9.1.9(e) block-shear resistance for the supplied rupture-path set. "
+            "The engineer must enumerate every feasible path and verify gross/net path lengths, "
+            "including fastener-hole deductions under Clause 9.1.10. This operation does not "
+            "derive rupture paths or hole geometry."
         )
     else:
         scope = (

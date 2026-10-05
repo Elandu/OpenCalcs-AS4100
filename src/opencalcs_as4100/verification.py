@@ -2753,6 +2753,55 @@ def verify():
         bolt_group_elastic_3d["checks"]["bolts"][0]["total_bolt_tension_action_kn"],
         46,
     )
+    block_shear_paths = run_connections(
+        {
+            "check_type": "block_shear_paths",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 440,
+            "thickness_mm": 10,
+            "candidate_paths": [
+                {
+                    "path_id": "path-a",
+                    "gross_shear_length_mm": 200,
+                    "net_shear_length_mm": 150,
+                    "net_tension_length_mm": 50,
+                    "uniform_tension": False,
+                },
+                {
+                    "path_id": "path-b",
+                    "gross_shear_length_mm": 180,
+                    "net_shear_length_mm": 130,
+                    "net_tension_length_mm": 60,
+                    "uniform_tension": False,
+                },
+                {
+                    "path_id": "path-c",
+                    "gross_shear_length_mm": 200,
+                    "net_shear_length_mm": 150,
+                    "net_tension_length_mm": 50,
+                    "uniform_tension": True,
+                },
+            ],
+            "rupture_paths_complete_and_net_lengths_verified": True,
+            "action_kn": 250,
+        }
+    )
+    block_shear_path_b = block_shear_paths["checks"]["block_shear_path_set"]["paths"][1]
+    record(
+        "Clause 9.1.9(e) path set, path B net shear area from dimensions",
+        block_shear_path_b["net_shear_area_mm2"],
+        1300,
+    )
+    record(
+        "Clause 9.1.9(e) path B yielding mode, independent arithmetic",
+        block_shear_path_b["nominal_shear_yielding_mode_capacity_kn"],
+        456,
+    )
+    record(
+        "Clause 9.1.9(e) minimum across candidate paths, phi=0.75",
+        block_shear_paths["checks"]["block_shear_path_set"]["design_capacity_kn"],
+        342,
+    )
     beam_connection_shear = run_connections(
         {
             "check_type": "minimum_beam_shear_action",

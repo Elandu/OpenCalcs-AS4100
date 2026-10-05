@@ -1314,6 +1314,84 @@ def test_block_shear_hand_benchmark():
     assert r["checks"]["block_shear"]["design_capacity_kn"] == pytest.approx(352.5)
 
 
+def test_block_shear_path_set_selects_lowest_capacity_from_independent_arithmetic():
+    result = run_connections(
+        {
+            "check_type": "block_shear_paths",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 440,
+            "thickness_mm": 10,
+            "candidate_paths": [
+                {
+                    "path_id": "path-a",
+                    "gross_shear_length_mm": 200,
+                    "net_shear_length_mm": 150,
+                    "net_tension_length_mm": 50,
+                    "uniform_tension": False,
+                },
+                {
+                    "path_id": "path-b",
+                    "gross_shear_length_mm": 180,
+                    "net_shear_length_mm": 130,
+                    "net_tension_length_mm": 60,
+                    "uniform_tension": False,
+                },
+                {
+                    "path_id": "path-c",
+                    "gross_shear_length_mm": 200,
+                    "net_shear_length_mm": 150,
+                    "net_tension_length_mm": 50,
+                    "uniform_tension": True,
+                },
+            ],
+            "rupture_paths_complete_and_net_lengths_verified": True,
+            "action_kn": 250,
+        }
+    )
+    summary = result["checks"]["block_shear_path_set"]
+    assert [path["design_capacity_kn"] for path in summary["paths"]] == pytest.approx(
+        [352.5, 342, 435]
+    )
+    assert summary["controlling_path_id"] == "path-b"
+    assert summary["design_capacity_kn"] == pytest.approx(342)
+    assert summary["satisfied"]
+
+
+@pytest.mark.parametrize(
+    ("path_changes", "message"),
+    [
+        ({"path_id": "path-a"}, "unique"),
+        ({"net_shear_length_mm": 201}, "cannot exceed gross"),
+    ],
+)
+def test_block_shear_path_set_rejects_invalid_path_data(path_changes, message):
+    valid_path = {
+        "path_id": "path-a",
+        "gross_shear_length_mm": 200,
+        "net_shear_length_mm": 150,
+        "net_tension_length_mm": 50,
+        "uniform_tension": False,
+    }
+    second_path = {
+        "path_id": "path-b",
+        "gross_shear_length_mm": 100,
+        "net_shear_length_mm": 90,
+        "net_tension_length_mm": 50,
+        "uniform_tension": True,
+    }
+    inputs = {
+        "check_type": "block_shear_paths",
+        "yield_strength_mpa": 300,
+        "ultimate_strength_mpa": 440,
+        "thickness_mm": 10,
+        "candidate_paths": [valid_path, {**second_path, **path_changes}],
+        "rupture_paths_complete_and_net_lengths_verified": True,
+        "action_kn": 100,
+    }
+    with pytest.raises(ValueError, match=message):
+        run_connections(inputs)
+
+
 def test_pin_hand_benchmark():
     r = run_connections(
         {

@@ -2575,6 +2575,45 @@ def clause_9_8_packing():
     return {"required_edge_weld_sizes_mm": result["checks"]["edge_weld_sizes"]["required_mm"]}
 
 
+def clause_9_1_9e_block_shear_path_set():
+    result = run_connections(
+        {
+            "check_type": "block_shear_paths",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 440,
+            "thickness_mm": 10,
+            "candidate_paths": [
+                {
+                    "path_id": "path-a",
+                    "gross_shear_length_mm": 200,
+                    "net_shear_length_mm": 150,
+                    "net_tension_length_mm": 50,
+                    "uniform_tension": False,
+                },
+                {
+                    "path_id": "path-b",
+                    "gross_shear_length_mm": 180,
+                    "net_shear_length_mm": 130,
+                    "net_tension_length_mm": 60,
+                    "uniform_tension": False,
+                },
+            ],
+            "rupture_paths_complete_and_net_lengths_verified": True,
+            "action_kn": 250,
+        }
+    )
+    summary = result["checks"]["block_shear_path_set"]
+    if summary["controlling_path_id"] != "path-b":
+        raise AssertionError("The lowest block-shear path capacity was not selected")
+    if summary["design_capacity_kn"] != 342 or not summary["satisfied"]:
+        raise AssertionError("Clause 9.1.9(e) block-shear path check failed")
+    return {
+        "controlling_path_id": summary["controlling_path_id"],
+        "design_capacity_kn": summary["design_capacity_kn"],
+        "path_count": len(summary["paths"]),
+    }
+
+
 def clause_12_6_3_single_test_history():
     result = run_durability(
         {
@@ -2861,6 +2900,7 @@ def main():
         "clause_7_4_5_tension_batten_geometry": clause_7_4_5_tension_batten_geometry,
         "clause_7_4_2_connection_plane_distribution": clause_7_4_2_connection_plane_distribution,
         "clause_7_4_3_back_to_back_connection_layout": clause_7_4_3_back_to_back_connection_layout,
+        "clause_9_1_9e_block_shear_path_set": clause_9_1_9e_block_shear_path_set,
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
         "clause_12_10_2_web_protection": clause_12_10_2_web_protection,
