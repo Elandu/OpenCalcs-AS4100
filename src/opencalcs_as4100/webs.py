@@ -293,6 +293,7 @@ SCHEMAS = {
             "longitudinal_stiffeners_present": {"type": "boolean"},
             "adjacent_openings_present": {"type": "boolean"},
             "adjacent_opening_boundary_spacing_mm": NONNEGATIVE,
+            "adjacent_opening_greatest_internal_dimension_mm": POSITIVE,
             "unstiffened_openings_at_cross_section": {
                 "type": "integer",
                 "minimum": 1,
@@ -300,7 +301,18 @@ SCHEMAS = {
             },
             "multiple_openings_rational_analysis_verified": {"type": "boolean"},
             "opening_geometry_verified": {"const": True},
-        }
+        },
+        [
+            "operation",
+            "clear_web_depth_mm",
+            "opening_internal_dimension_mm",
+            "longitudinal_stiffeners_present",
+            "adjacent_openings_present",
+            "adjacent_opening_boundary_spacing_mm",
+            "unstiffened_openings_at_cross_section",
+            "multiple_openings_rational_analysis_verified",
+            "opening_geometry_verified",
+        ],
     ),
     "web_opening_shear_design": object_schema(
         {
@@ -310,6 +322,7 @@ SCHEMAS = {
             "longitudinal_stiffeners_present": {"const": False},
             "adjacent_openings_present": {"type": "boolean"},
             "adjacent_opening_boundary_spacing_mm": NONNEGATIVE,
+            "adjacent_opening_greatest_internal_dimension_mm": POSITIVE,
             "unstiffened_openings_at_cross_section": {
                 "type": "integer",
                 "minimum": 1,
@@ -891,6 +904,15 @@ def _web_opening_shear_design(d):
             "longitudinal_stiffeners_present": d["longitudinal_stiffeners_present"],
             "adjacent_openings_present": d["adjacent_openings_present"],
             "adjacent_opening_boundary_spacing_mm": d["adjacent_opening_boundary_spacing_mm"],
+            **(
+                {
+                    "adjacent_opening_greatest_internal_dimension_mm": d[
+                        "adjacent_opening_greatest_internal_dimension_mm"
+                    ]
+                }
+                if "adjacent_opening_greatest_internal_dimension_mm" in d
+                else {}
+            ),
             "unstiffened_openings_at_cross_section": d["unstiffened_openings_at_cross_section"],
             "multiple_openings_rational_analysis_verified": d[
                 "multiple_openings_rational_analysis_verified"
@@ -1136,6 +1158,7 @@ def run_webs(inputs):
         dimension, depth = d["opening_internal_dimension_mm"], d["clear_web_depth_mm"]
         ratio = dimension / depth
         permitted = 0.33 if d["longitudinal_stiffeners_present"] else 0.10
+        adjacent_dimension = d.get("adjacent_opening_greatest_internal_dimension_mm")
         stiffener_condition = (
             d["unstiffened_openings_at_cross_section"] <= 1
             or d["multiple_openings_rational_analysis_verified"]
@@ -1153,13 +1176,25 @@ def run_webs(inputs):
             },
         ]
         if d["adjacent_openings_present"]:
-            required_spacing = 3 * dimension
+            has_adjacent_dimension = adjacent_dimension is not None
+            spacing_dimension = max(dimension, adjacent_dimension or dimension)
+            required_spacing = 3 * spacing_dimension
+            checks.append(
+                {
+                    "clause": "5.10.7 adjacent opening greatest internal dimension",
+                    "current_opening_dimension_mm": dimension,
+                    "adjacent_opening_greatest_internal_dimension_mm": adjacent_dimension,
+                    "satisfied": has_adjacent_dimension,
+                }
+            )
             checks.append(
                 {
                     "clause": "5.10.7 adjacent opening spacing",
                     "required_boundary_spacing_mm": required_spacing,
                     "provided_boundary_spacing_mm": d["adjacent_opening_boundary_spacing_mm"],
-                    "satisfied": d["adjacent_opening_boundary_spacing_mm"] >= required_spacing,
+                    "spacing_reference_dimension_mm": spacing_dimension,
+                    "satisfied": has_adjacent_dimension
+                    and d["adjacent_opening_boundary_spacing_mm"] >= required_spacing,
                 }
             )
         return result(
@@ -1169,8 +1204,11 @@ def run_webs(inputs):
                 "opening_dimension_to_web_depth_ratio": ratio,
                 "permitted_ratio": permitted,
                 "required_adjacent_opening_spacing_mm": (
-                    3 * dimension if d["adjacent_openings_present"] else None
+                    3 * max(dimension, adjacent_dimension or dimension)
+                    if d["adjacent_openings_present"]
+                    else None
                 ),
+                "adjacent_opening_greatest_internal_dimension_mm": adjacent_dimension,
             },
             checks,
             [

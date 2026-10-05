@@ -2710,13 +2710,15 @@ def clause_5_10_web_geometry():
             "opening_internal_dimension_mm": 100,
             "longitudinal_stiffeners_present": False,
             "adjacent_openings_present": True,
-            "adjacent_opening_boundary_spacing_mm": 300,
+            "adjacent_opening_boundary_spacing_mm": 450,
+            "adjacent_opening_greatest_internal_dimension_mm": 150,
             "unstiffened_openings_at_cross_section": 1,
             "multiple_openings_rational_analysis_verified": False,
             "opening_geometry_verified": True,
         }
     )
     expect_close(opening["values"]["opening_dimension_to_web_depth_ratio"], 0.1)
+    expect_close(opening["values"]["required_adjacent_opening_spacing_mm"], 450)
     if not opening["checked_conditions_satisfied"]:
         raise AssertionError("Clause 5.10.7 rejected an opening at the boundary.")
     opening_shear_inputs = {

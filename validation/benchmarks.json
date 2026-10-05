@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.27",
+  "package_version": "0.7.32",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -753,6 +753,34 @@
       "passed": true
     },
     {
+      "name": "Clause 6.3.2 fixed-fixed effective length about x",
+      "actual": 2800.0,
+      "expected": 2800,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.2 fixed-fixed effective length about y",
+      "actual": 2800.0,
+      "expected": 2800,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 compression member design capacity, Table 6.3.3(C)",
+      "actual": 505.0507558478072,
+      "expected": 505.0507558478072,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 compression member at 500 kN, hand check",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 4.6.3.3 braced chart factor branch range",
       "actual": 1,
       "expected": 1,
@@ -1327,6 +1355,13 @@
       "passed": true
     },
     {
+      "name": "Clause 5.10.7 adjacent opening spacing uses greater opening dimension",
+      "actual": 450,
+      "expected": 450,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
       "name": "Clause 5.11.3 opening max-to-average design shear stress ratio",
       "actual": 2.0,
       "expected": 2,
@@ -1754,6 +1789,34 @@
       "passed": true
     },
     {
+      "name": "Clause 9.6.5.2(b) compound-weld throat from root-to-face distance",
+      "actual": 4.242640687119285,
+      "expected": 4.242640687119285,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.6.5.2(b) compound-weld effective area",
+      "actual": 848.528137423857,
+      "expected": 848.528137423857,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.6.5.3 compound-weld nominal capacity, hand arithmetic",
+      "actual": 249.46727240261396,
+      "expected": 249.46727240261396,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.6.5.3 compound-weld design capacity, hand arithmetic",
+      "actual": 199.57381792209117,
+      "expected": 199.57381792209117,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 9.6.3.9(a) tapered built-up component end-weld length",
       "actual": 1,
       "expected": 1,
@@ -1866,16 +1929,72 @@
       "passed": true
     },
     {
-      "name": "Clause 5.6.1.2 section-integral beta_x, smaller flange in compression",
-      "actual": -64,
-      "expected": -64,
-      "absolute_tolerance": 1e-09,
+      "name": "Clause 5.6.1.2 rectangular-section I_x, hand integration",
+      "actual": 172914045.49019608,
+      "expected": 172914045.49019608,
+      "absolute_tolerance": 1e-05,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 rectangular-section centroid, hand first moments",
+      "actual": 199.2941176470588,
+      "expected": 199.2941176470588,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 weak-axis section inertia, hand parallel-axis arithmetic",
+      "actual": 24994986.666666668,
+      "expected": 24994986.6666667,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 rectangular-section integral, hand integration",
+      "actual": -10352934373.4256,
+      "expected": -10352934373.425606,
+      "absolute_tolerance": 0.05,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 positive beta_x with larger flange in compression",
+      "actual": 20.126700846793888,
+      "expected": 20.126700846793845,
+      "absolute_tolerance": 1e-08,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 section-integral reference buckling moment, hand arithmetic",
+      "actual": 139.69601745506344,
+      "expected": 139.69601745506344,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 section-integral member moment capacity, hand arithmetic",
+      "actual": 117.42846284675667,
+      "expected": 117.42846284675667,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 negative beta_x with smaller flange in compression",
+      "actual": -20.126700846793888,
+      "expected": -20.126700846793845,
+      "absolute_tolerance": 1e-08,
       "passed": true
     },
     {
       "name": "Clause 5.6.1.2 negative-beta reference buckling moment, hand arithmetic",
-      "actual": 180.90296197251985,
-      "expected": 180.90296197251985,
+      "actual": 135.2826232150819,
+      "expected": 135.2826232150819,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.2 negative-beta member moment capacity, hand arithmetic",
+      "actual": 115.02872818800071,
+      "expected": 115.02872818800071,
       "absolute_tolerance": 1e-10,
       "passed": true
     },

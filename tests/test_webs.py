@@ -231,6 +231,7 @@ def test_clause_5_10_7_unstiffened_opening_geometry_and_spacing_boundaries():
         "longitudinal_stiffeners_present": False,
         "adjacent_openings_present": True,
         "adjacent_opening_boundary_spacing_mm": 300,
+        "adjacent_opening_greatest_internal_dimension_mm": 100,
         "unstiffened_openings_at_cross_section": 1,
         "multiple_openings_rational_analysis_verified": False,
         "opening_geometry_verified": True,
@@ -241,6 +242,21 @@ def test_clause_5_10_7_unstiffened_opening_geometry_and_spacing_boundaries():
     inputs["opening_internal_dimension_mm"] = 100
     inputs["adjacent_opening_boundary_spacing_mm"] = 299.999
     assert not run(inputs)["checked_conditions_satisfied"]
+
+    inputs["adjacent_opening_greatest_internal_dimension_mm"] = 150
+    inputs["adjacent_opening_boundary_spacing_mm"] = 449.999
+    too_close_to_larger_neighbor = run(inputs)
+    assert too_close_to_larger_neighbor["values"]["required_adjacent_opening_spacing_mm"] == 450
+    assert not too_close_to_larger_neighbor["checked_conditions_satisfied"]
+
+    inputs["adjacent_opening_boundary_spacing_mm"] = 450
+    assert run(inputs)["checked_conditions_satisfied"]
+
+    del inputs["adjacent_opening_greatest_internal_dimension_mm"]
+    missing_neighbor_dimension = run(inputs)
+    checks = {check["clause"]: check for check in missing_neighbor_dimension["checks"]}
+    assert not checks["5.10.7 adjacent opening greatest internal dimension"]["satisfied"]
+    assert not missing_neighbor_dimension["checked_conditions_satisfied"]
 
 
 def test_clause_5_10_7_longitudinally_stiffened_opening_limit_and_multiple_openings():
@@ -333,8 +349,10 @@ def test_clause_5_10_7_opening_shear_requires_geometry_and_analysis_evidence():
     assert not oversized["checked_conditions_satisfied"]
     too_close = web_opening_shear_design(
         adjacent_openings_present=True,
-        adjacent_opening_boundary_spacing_mm=74,
+        adjacent_opening_boundary_spacing_mm=89,
+        adjacent_opening_greatest_internal_dimension_mm=30,
     )
+    assert too_close["values"]["required_adjacent_opening_spacing_mm"] == 90
     assert not too_close["checked_conditions_satisfied"]
     multiple = web_opening_shear_design(
         unstiffened_openings_at_cross_section=2,
