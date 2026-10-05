@@ -1923,6 +1923,50 @@ def clause_5_4_2_restraint_classification():
     }
 
 
+def clause_5_4_3_4_lateral_rotation_restraint():
+    comparable = run_advanced_members(
+        {
+            "operation": "lateral_rotation_restraint",
+            "method": "comparable_stiffness",
+            "cross_section_restraint_classification": "partially_restrained",
+            "cross_section_restraint_classification_verified": True,
+            "restraint_flexural_stiffness_comparable_to_member_verified": True,
+            "stiffness_evidence_reference": "BENCHMARK-STIFFNESS-01",
+        }
+    )
+    adjacent = run_advanced_members(
+        {
+            "operation": "lateral_rotation_restraint",
+            "method": "adjacent_continuous_segment",
+            "segment_full_lateral_restraint_verified": True,
+            "adjacent_segment_laterally_continuous_verified": True,
+            "restraint_evidence_reference": "BENCHMARK-RESTRAINT-01",
+        }
+    )
+    buckling = run_advanced_members(
+        {
+            "operation": "lateral_rotation_restraint",
+            "method": "buckling_analysis",
+            "member_resistance_determined_by_buckling_analysis_verified": True,
+            "buckling_analysis_reference": "BENCHMARK-BUCKLING-01",
+        }
+    )
+    outcomes = [
+        comparable["values"]["lateral_rotation_restraint_effective"],
+        adjacent["values"]["lateral_rotation_restraint_effective"],
+        buckling["values"]["lateral_rotation_restraint_effective"],
+    ]
+    if outcomes != [True, True, True]:
+        raise AssertionError("Clause 5.4.3.4 did not accept all three evidenced routes")
+    if any(result["full_standard_compliance"] for result in (comparable, adjacent, buckling)):
+        raise AssertionError("Clause 5.4.3.4 route implied full-standard compliance")
+    return {
+        "comparable_stiffness_route": outcomes[0],
+        "adjacent_continuous_segment_route": outcomes[1],
+        "clause_5_6_4_buckling_analysis_route": outcomes[2],
+    }
+
+
 def clause_5_3_2_1_capacity_restraint():
     result = run_members(
         {
@@ -2690,6 +2734,7 @@ def main():
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,
         "clause_5_1_bending_design_routes": clause_5_1_bending_design_routes,
         "clause_5_4_2_restraint_classification": clause_5_4_2_restraint_classification,
+        "clause_5_4_3_4_lateral_rotation_restraint": (clause_5_4_3_4_lateral_rotation_restraint),
         "clause_5_3_2_4_unequal_flange_restraint_boundary": (clause_5_3_2_4_lateral_restraint),
         "clause_5_3_2_1_member_capacity_restraint_route": (clause_5_3_2_1_capacity_restraint),
         "clause_5_3_3_critical_section": clause_5_3_3_critical_section,

@@ -433,6 +433,55 @@ SCHEMAS = {
             "critical_flange_out_of_plane_rotation_significantly_restrained_verified": BOOL,
         },
     ),
+    "lateral_rotation_restraint": {
+        "oneOf": [
+            _schema(
+                "lateral_rotation_restraint",
+                {
+                    "method": {"const": "comparable_stiffness"},
+                    "cross_section_restraint_classification": {
+                        "enum": [
+                            "fully_restrained",
+                            "partially_restrained",
+                            "rotationally_restrained",
+                        ]
+                    },
+                    "cross_section_restraint_classification_verified": BOOL,
+                    "restraint_flexural_stiffness_comparable_to_member_verified": BOOL,
+                    "stiffness_evidence_reference": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                    },
+                },
+            ),
+            _schema(
+                "lateral_rotation_restraint",
+                {
+                    "method": {"const": "adjacent_continuous_segment"},
+                    "segment_full_lateral_restraint_verified": BOOL,
+                    "adjacent_segment_laterally_continuous_verified": BOOL,
+                    "restraint_evidence_reference": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                    },
+                },
+            ),
+            _schema(
+                "lateral_rotation_restraint",
+                {
+                    "method": {"const": "buckling_analysis"},
+                    "member_resistance_determined_by_buckling_analysis_verified": BOOL,
+                    "buckling_analysis_reference": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                    },
+                },
+            ),
+        ]
+    },
     "full_lateral_restraint_limit": _full_lateral_restraint_schema(),
     "intermediate_lateral_restraints": _schema(
         "intermediate_lateral_restraints",
@@ -895,6 +944,74 @@ def run_advanced_members(inputs):
                 "The classification outcomes can overlap. This operation records supplied "
                 "evidence; it does not calculate restraint stiffness or force, nor establish "
                 "segment-level full lateral restraint under 5.3.2.",
+            ],
+        )
+    if op == "lateral_rotation_restraint":
+        method = d["method"]
+        values = {"method": method}
+        if method == "comparable_stiffness":
+            classification_verified = d["cross_section_restraint_classification_verified"]
+            stiffness_verified = d["restraint_flexural_stiffness_comparable_to_member_verified"]
+            classification = d["cross_section_restraint_classification"]
+            classification_clause = {
+                "fully_restrained": "5.4.2.1",
+                "partially_restrained": "5.4.2.2",
+                "rotationally_restrained": "5.4.2.3",
+            }[classification]
+            effective = classification_verified and stiffness_verified
+            values.update(
+                {
+                    "cross_section_restraint_classification": classification,
+                    "stiffness_evidence_reference": d["stiffness_evidence_reference"],
+                }
+            )
+            checks = [
+                {"clause": classification_clause, "satisfied": classification_verified},
+                {
+                    "clause": "5.4.3.4 comparable flexural stiffness",
+                    "satisfied": stiffness_verified,
+                },
+            ]
+        elif method == "adjacent_continuous_segment":
+            full_restraint = d["segment_full_lateral_restraint_verified"]
+            continuity = d["adjacent_segment_laterally_continuous_verified"]
+            effective = full_restraint and continuity
+            values.update(
+                {
+                    "segment_full_lateral_restraint_verified": full_restraint,
+                    "adjacent_segment_laterally_continuous_verified": continuity,
+                    "restraint_evidence_reference": d["restraint_evidence_reference"],
+                }
+            )
+            checks = [
+                {"clause": "5.3.2 full lateral restraint", "satisfied": full_restraint},
+                {"clause": "5.4.3.4 adjacent-segment continuity", "satisfied": continuity},
+            ]
+        else:
+            analysis_verified = d["member_resistance_determined_by_buckling_analysis_verified"]
+            effective = analysis_verified
+            values.update({"buckling_analysis_reference": d["buckling_analysis_reference"]})
+            checks = [
+                {
+                    "clause": "5.6.4 member resistance by buckling analysis",
+                    "satisfied": analysis_verified,
+                },
+            ]
+        values["lateral_rotation_restraint_effective"] = effective
+        return result(
+            op,
+            ["5.4.3.4"],
+            values,
+            checks,
+            [
+                "Verify a Clause 5.4.2.1, 5.4.2.2 or 5.4.2.3 cross-section classification "
+                "and comparable flexural stiffness in the plane of rotation; or verify full "
+                "lateral restraint and continuity for the adjacent-segment route.",
+                "The comparable-stiffness and adjacent-segment routes record engineering "
+                "evidence; the operation does not derive stiffness or restraint capacity.",
+                "A segment without full lateral restraint provides no rotational-restraint "
+                "credit unless member resistance is determined by buckling analysis under "
+                "Clause 5.6.4. The analysis remains externally performed and verified.",
             ],
         )
     if op == "closed_section_torsion_constant":

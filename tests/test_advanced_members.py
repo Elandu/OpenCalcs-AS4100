@@ -784,6 +784,111 @@ def test_clause_5_4_2_partial_restraint_uses_other_point_and_partial_twist():
     ]
 
 
+@pytest.mark.parametrize(
+    "classification,classification_clause,classification_verified,stiffness_verified,expected",
+    [
+        ("fully_restrained", "5.4.2.1", True, True, True),
+        ("partially_restrained", "5.4.2.2", True, True, True),
+        ("rotationally_restrained", "5.4.2.3", True, True, True),
+        ("partially_restrained", "5.4.2.2", False, True, False),
+        ("partially_restrained", "5.4.2.2", True, False, False),
+    ],
+)
+def test_clause_5_4_3_4_comparable_flexural_stiffness_route(
+    classification,
+    classification_clause,
+    classification_verified,
+    stiffness_verified,
+    expected,
+):
+    result = run_advanced_members(
+        {
+            "operation": "lateral_rotation_restraint",
+            "method": "comparable_stiffness",
+            "cross_section_restraint_classification": classification,
+            "cross_section_restraint_classification_verified": classification_verified,
+            "restraint_flexural_stiffness_comparable_to_member_verified": stiffness_verified,
+            "stiffness_evidence_reference": "CALC-STIFFNESS-01",
+        }
+    )
+    assert result["values"]["lateral_rotation_restraint_effective"] is expected
+    assert [check["clause"] for check in result["checks"]] == [
+        classification_clause,
+        "5.4.3.4 comparable flexural stiffness",
+    ]
+    assert [check["satisfied"] for check in result["checks"]] == [
+        classification_verified,
+        stiffness_verified,
+    ]
+    assert result["clauses"] == ["5.4.3.4"]
+    assert result["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    "fully_restrained,continuous,expected",
+    [(True, True, True), (True, False, False), (False, True, False)],
+)
+def test_clause_5_4_3_4_adjacent_segment_route_requires_restraint_and_continuity(
+    fully_restrained, continuous, expected
+):
+    result = run_advanced_members(
+        {
+            "operation": "lateral_rotation_restraint",
+            "method": "adjacent_continuous_segment",
+            "segment_full_lateral_restraint_verified": fully_restrained,
+            "adjacent_segment_laterally_continuous_verified": continuous,
+            "restraint_evidence_reference": "DRAWING-REST-01",
+        }
+    )
+    assert result["values"]["lateral_rotation_restraint_effective"] is expected
+    assert [check["satisfied"] for check in result["checks"]] == [fully_restrained, continuous]
+    assert result["values"]["restraint_evidence_reference"] == "DRAWING-REST-01"
+
+
+@pytest.mark.parametrize("analysis_verified", [True, False])
+def test_clause_5_4_3_4_unrestrained_segment_requires_clause_5_6_4_member_resistance(
+    analysis_verified,
+):
+    result = run_advanced_members(
+        {
+            "operation": "lateral_rotation_restraint",
+            "method": "buckling_analysis",
+            "member_resistance_determined_by_buckling_analysis_verified": analysis_verified,
+            "buckling_analysis_reference": "BUCKLING-ANALYSIS-01",
+        }
+    )
+    assert result["values"]["lateral_rotation_restraint_effective"] is analysis_verified
+    assert result["checks"] == [
+        {
+            "clause": "5.6.4 member resistance by buckling analysis",
+            "satisfied": analysis_verified,
+        }
+    ]
+    assert result["values"]["buckling_analysis_reference"] == "BUCKLING-ANALYSIS-01"
+
+
+def test_clause_5_4_3_4_evidence_fields_and_classification_are_required():
+    comparable = {
+        "operation": "lateral_rotation_restraint",
+        "method": "comparable_stiffness",
+        "cross_section_restraint_classification": "laterally_restrained",
+        "cross_section_restraint_classification_verified": True,
+        "restraint_flexural_stiffness_comparable_to_member_verified": True,
+        "stiffness_evidence_reference": "CALC-STIFFNESS-01",
+    }
+    with pytest.raises(ValueError):
+        run_advanced_members(comparable)
+
+    adjacent = {
+        "operation": "lateral_rotation_restraint",
+        "method": "adjacent_continuous_segment",
+        "segment_full_lateral_restraint_verified": True,
+        "adjacent_segment_laterally_continuous_verified": True,
+    }
+    with pytest.raises(ValueError):
+        run_advanced_members(adjacent)
+
+
 def test_clause_5_3_2_3_checks_each_intermediate_restraint_subsegment():
     first = full_restraint(
         "equal_flanged_i",
