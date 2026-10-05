@@ -3209,6 +3209,33 @@ def verify():
         71.58374376007083,
         1e-10,
     )
+    varying_buckling = run_advanced_members(
+        {
+            "operation": "buckling_analysis_bending",
+            "analysis_scope": "varying_section",
+            "section_capacity_knm": 120,
+            "elastic_buckling_moment_knm": 100,
+            "moment_factor": 1.3,
+            "end_configuration": "both_restrained",
+            "restraint_and_load_model_verified": True,
+            "critical_section_capacity_verified": True,
+            "varying_section_buckling_model_verified": True,
+            "buckling_analysis_reference": "VERIFY-VARYING-BUCKLING-01",
+            "action_knm": 60,
+        }
+    )
+    record(
+        "Clause 5.6.1.1(b)(iii) reference analysis moment, hand arithmetic",
+        varying_buckling["values"]["reference_analysis_moment_knm"],
+        76.92307692307692,
+        1e-12,
+    )
+    record(
+        "Clause 5.6.1.1(b)(iii) varying-section member moment capacity, hand arithmetic",
+        varying_buckling["values"]["member_capacity_knm"],
+        72.16638301017798,
+        1e-10,
+    )
     effective_length = run_advanced_members(
         {
             "operation": "lateral_buckling_effective_length",

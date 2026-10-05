@@ -2078,6 +2078,41 @@ def clause_5_6_1_1_b_varying_section():
     }
 
 
+def clause_5_6_1_1_b_iii_varying_section_buckling():
+    result = run_advanced_members(
+        {
+            "operation": "buckling_analysis_bending",
+            "analysis_scope": "varying_section",
+            "section_capacity_knm": 120,
+            "elastic_buckling_moment_knm": 100,
+            "moment_factor": 1.3,
+            "end_configuration": "both_restrained",
+            "restraint_and_load_model_verified": True,
+            "critical_section_capacity_verified": True,
+            "varying_section_buckling_model_verified": True,
+            "buckling_analysis_reference": "BENCHMARK-VARYING-BUCKLING-01",
+            "action_knm": 60,
+        }
+    )
+    values = result["values"]
+    reference_moment = 100 / 1.3
+    ratio = 120 / reference_moment
+    expected_capacity = 1.3 * (1.8 / ((ratio**2 + 3) ** 0.5 + ratio)) * 120
+    expect_close(values["reference_analysis_moment_knm"], reference_moment)
+    expect_close(values["member_capacity_knm"], expected_capacity)
+    if result["clauses"] != ["5.6.1.1(b)(iii)", "5.6.4"]:
+        raise AssertionError(
+            "Varying-section buckling route did not identify Clause 5.6.1.1(b)(iii)"
+        )
+    return {
+        "reference_analysis_moment_knm": values["reference_analysis_moment_knm"],
+        "member_capacity_knm": values["member_capacity_knm"],
+        "critical_section_and_varying_model_verified": all(
+            check["satisfied"] for check in result["checks"][:2]
+        ),
+    }
+
+
 def clause_5_6_1_1_a_iii_moment_factor():
     result = run_advanced_members(
         {
@@ -2741,6 +2776,9 @@ def main():
         "clause_5_5_3_critical_flange": clause_5_5_3_critical_flange,
         "clause_5_6_1_1_a_iii_moment_factor": clause_5_6_1_1_a_iii_moment_factor,
         "clause_5_6_1_1_b_varying_section": clause_5_6_1_1_b_varying_section,
+        "clause_5_6_1_1_b_iii_varying_section_buckling": (
+            clause_5_6_1_1_b_iii_varying_section_buckling
+        ),
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,

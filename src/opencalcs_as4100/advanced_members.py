@@ -392,6 +392,32 @@ def _varying_section_bending_schema():
     return {"oneOf": variants}
 
 
+def _buckling_analysis_bending_schema():
+    common = {
+        "operation": {"const": "buckling_analysis_bending"},
+        "section_capacity_knm": P,
+        "elastic_buckling_moment_knm": P,
+        "moment_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 2.5},
+        "end_configuration": {"enum": ["both_restrained", "one_unrestrained"]},
+        "restraint_and_load_model_verified": VERIFIED,
+        "action_knm": N,
+    }
+    varying_section = {
+        **common,
+        "analysis_scope": {"const": "varying_section"},
+        "end_configuration": {"const": "both_restrained"},
+        "critical_section_capacity_verified": VERIFIED,
+        "varying_section_buckling_model_verified": VERIFIED,
+        "buckling_analysis_reference": {"type": "string", "minLength": 1, "maxLength": 128},
+    }
+    return {
+        "oneOf": [
+            object_schema(common),
+            object_schema(varying_section),
+        ]
+    }
+
+
 BOOL = {"type": "boolean"}
 VERIFIED = {"const": True}
 BETA = {"type": "number", "minimum": -1, "maximum": 1}
@@ -558,17 +584,7 @@ SCHEMAS = {
             "action_kn": N,
         },
     ),
-    "buckling_analysis_bending": _schema(
-        "buckling_analysis_bending",
-        {
-            "section_capacity_knm": P,
-            "elastic_buckling_moment_knm": P,
-            "moment_factor": {"type": "number", "exclusiveMinimum": 0, "maximum": 2.5},
-            "end_configuration": {"enum": ["both_restrained", "one_unrestrained"]},
-            "restraint_and_load_model_verified": VERIFIED,
-            "action_knm": N,
-        },
-    ),
+    "buckling_analysis_bending": _buckling_analysis_bending_schema(),
     "one_unrestrained_table_bending": _schema(
         "one_unrestrained_table_bending",
         {
@@ -1559,6 +1575,7 @@ def run_advanced_members(inputs):
     if op == "buckling_analysis_bending":
         ms, mob = d["section_capacity_knm"], d["elastic_buckling_moment_knm"]
         am = d["moment_factor"]
+        analysis_scope = d.get("analysis_scope", "constant_section")
         # For 5.6.2(ii), no moment-factor enhancement multiplies alpha_s.
         if d["end_configuration"] == "one_unrestrained":
             if am != 1:
@@ -1569,23 +1586,76 @@ def run_advanced_members(inputs):
         ratio = ms / moa
         reduction = 1.8 / (sqrt(ratio * ratio + 3) + ratio)
         mb = min(ms, am * reduction * ms)
-        return result(
-            op,
-            ["5.6.2", "5.6.4"],
+        if analysis_scope == "varying_section":
+            analysis_reference = d["buckling_analysis_reference"].strip()
+            if not analysis_reference:
+                raise ValueError("Buckling-analysis reference must not be blank.")
+            clauses = ["5.6.1.1(b)(iii)", "5.6.4"]
+            capacity_clause = "5.6.1.1(b)(iii)"
+            values = {
+                "analysis_scope": analysis_scope,
+                "critical_section_capacity_verified": d["critical_section_capacity_verified"],
+                "varying_section_buckling_model_verified": d[
+                    "varying_section_buckling_model_verified"
+                ],
+                "buckling_analysis_reference": analysis_reference,
+            }
+            checks = [
+                {
+                    "clause": "5.3.3 critical-section capacity",
+                    "satisfied": d["critical_section_capacity_verified"],
+                },
+                {
+                    "clause": "5.6.1.1(b)(iii) varying-section buckling model",
+                    "satisfied": d["varying_section_buckling_model_verified"],
+                },
+            ]
+        elif d["end_configuration"] == "one_unrestrained":
+            clauses = ["5.6.2(ii)", "5.6.4"]
+            capacity_clause = "5.6.2(ii)"
+            values = {"analysis_scope": analysis_scope}
+            checks = []
+        else:
+            clauses = ["5.6.4"]
+            capacity_clause = "5.6.4"
+            values = {"analysis_scope": analysis_scope}
+            checks = []
+        values.update(
             {
                 "reference_analysis_moment_knm": moa,
                 "reduction": reduction,
                 "member_capacity_knm": mb,
-            },
-            [capacity_check("5.6", mb, d["action_knm"])],
-            [
-                "External elastic flexural-torsional buckling analysis must model "
-                "supports, restraints and loading.",
-                "One-unrestrained-end segment requires other end full/partial restraint"
-                " and lateral continuity/rotation restraint.",
-                "Both-restrained path uses Moa=Mob/alpha_m under 5.6.4; moment factor "
-                "needs 5.6.1.1 assessment.",
-            ],
+            }
+        )
+        checks.append(capacity_check(capacity_clause, mb, d["action_knm"]))
+        limitations = [
+            "External elastic flexural-torsional buckling analysis must model supports, "
+            "restraints and loading.",
+        ]
+        if d["end_configuration"] == "one_unrestrained":
+            limitations.append(
+                "The one-unrestrained-end path requires full or partial restraint and lateral "
+                "continuity or rotation restraint at the other end."
+            )
+        else:
+            limitations.append(
+                "The both-restrained path uses Moa=Mob/alpha_m under Clause 5.6.4; select "
+                "the moment factor under Clause 5.6.1.1."
+            )
+        if analysis_scope == "varying_section":
+            limitations.extend(
+                [
+                    "The buckling model must represent actual section variation and the supplied "
+                    "section capacity must match the critical section selected under Clause 5.3.3.",
+                    "Buckling-analysis evidence and its reference are not authenticated here.",
+                ]
+            )
+        return result(
+            op,
+            clauses,
+            values,
+            checks,
+            limitations,
         )
     if op == "one_unrestrained_table_bending":
         # Table 5.6.2 applies to the three illustrated one-end-unrestrained cases.

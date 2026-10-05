@@ -40,6 +40,14 @@ with lateral continuity, or a Clause 5.6.4 buckling analysis that determines
 member resistance where full lateral restraint is absent. It does not calculate
 restraint stiffness or perform the buckling analysis.
 
+For Clause 5.6.1.1(b)(iii), `advanced_members.buckling_analysis_bending`
+calculates the member moment capacity using the Clause 5.6.4 buckling-analysis
+method when `analysis_scope` is `varying_section`. The external model must
+represent the actual section variation, and the supplied nominal section
+capacity must correspond to the critical cross-section selected under Clause
+5.3.3. The analysis model and critical-section evidence remain externally
+verified.
+
 | Section | Calculated or compared in this release | Assessed externally; remaining gaps |
 | --- | --- | --- |
 | 1 — Scope and general | No normative design check. `design_review` records scope evidence. | Applicability, exclusions, edition, referenced standards and project basis; no automatic scope decision. |

@@ -140,14 +140,14 @@ def test_clause_6_3_3_hot_rolled_channel_major_axis_remains_in_scope():
 
 
 @pytest.mark.parametrize(
-    "ends,factor,expected",
+    "ends,factor,expected,clauses",
     [
-        ("both_restrained", 1, 60),
-        ("both_restrained", 2, 77.4901573278),
-        ("one_unrestrained", 1, 60),
+        ("both_restrained", 1, 60, ["5.6.4"]),
+        ("both_restrained", 2, 77.4901573278, ["5.6.4"]),
+        ("one_unrestrained", 1, 60, ["5.6.2(ii)", "5.6.4"]),
     ],
 )
-def test_external_lateral_buckling(ends, factor, expected):
+def test_external_lateral_buckling(ends, factor, expected, clauses):
     # Ms=Mob=100: 0.6*(sqrt(4)-1)*100=60 for factor1.
     # factor2: Moa=50 => 120*(sqrt(7)-2)=77.4901573278.
     out = run_advanced_members(
@@ -162,6 +162,54 @@ def test_external_lateral_buckling(ends, factor, expected):
         }
     )
     assert out["values"]["member_capacity_knm"] == pytest.approx(expected)
+    assert out["clauses"] == clauses
+
+
+def varying_section_buckling_analysis_inputs(**changes):
+    return {
+        "operation": "buckling_analysis_bending",
+        "analysis_scope": "varying_section",
+        "section_capacity_knm": 120,
+        "elastic_buckling_moment_knm": 100,
+        "moment_factor": 1.3,
+        "end_configuration": "both_restrained",
+        "restraint_and_load_model_verified": True,
+        "critical_section_capacity_verified": True,
+        "varying_section_buckling_model_verified": True,
+        "buckling_analysis_reference": "BUCKLING-ANALYSIS-VAR-01",
+        "action_knm": 60,
+        **changes,
+    }
+
+
+def test_clause_5_6_1_1_b_iii_uses_critical_capacity_and_variable_section_analysis():
+    out = run_advanced_members(varying_section_buckling_analysis_inputs())
+    values = out["values"]
+    moa = 100 / 1.3
+    ratio = 120 / moa
+    reduction = 1.8 / ((ratio**2 + 3) ** 0.5 + ratio)
+    assert values["analysis_scope"] == "varying_section"
+    assert values["reference_analysis_moment_knm"] == pytest.approx(moa)
+    assert values["reduction"] == pytest.approx(reduction)
+    assert values["member_capacity_knm"] == pytest.approx(1.3 * reduction * 120)
+    assert out["clauses"] == ["5.6.1.1(b)(iii)", "5.6.4"]
+    assert [check["satisfied"] for check in out["checks"]] == [True, True, True]
+    assert values["buckling_analysis_reference"] == "BUCKLING-ANALYSIS-VAR-01"
+    assert out["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"critical_section_capacity_verified": False},
+        {"varying_section_buckling_model_verified": False},
+        {"buckling_analysis_reference": " "},
+        {"end_configuration": "one_unrestrained"},
+    ],
+)
+def test_clause_5_6_1_1_b_iii_requires_verified_variable_section_analysis(changes):
+    with pytest.raises(ValueError):
+        run_advanced_members(varying_section_buckling_analysis_inputs(**changes))
 
 
 @pytest.mark.parametrize(

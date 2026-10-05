@@ -1607,6 +1607,20 @@
       "passed": true
     },
     {
+      "name": "Clause 5.6.1.1(b)(iii) reference analysis moment, hand arithmetic",
+      "actual": 76.92307692307692,
+      "expected": 76.92307692307692,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.1.1(b)(iii) varying-section member moment capacity, hand arithmetic",
+      "actual": 72.16638301017798,
+      "expected": 72.16638301017798,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
       "name": "Table 5.6.3 twist_restraint_factor",
       "actual": 1.2,
       "expected": 1.2,
