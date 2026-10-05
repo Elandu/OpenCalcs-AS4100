@@ -2984,6 +2984,60 @@ def clause_6_4_built_up_compression_member_actions():
     }
 
 
+def clause_6_5_compression_built_up_connection_layout():
+    common = {
+        "eligible_component_forms_verified": True,
+        "similar_sections_verified": True,
+        "symmetrical_arrangement_verified": True,
+        "rectangular_axes_aligned_verified": True,
+        "member_length_mm": 3600,
+        "bay_lengths_mm": [1200, 1200, 1200],
+        "all_connection_bays_assessed_verified": True,
+        "approximately_equal_bays_verified": True,
+        "all_end_connection_lines_assessed_verified": True,
+        "layout_evidence_reference": "independent compression layout example",
+    }
+    separated = run_advanced_members(
+        {
+            "operation": "compression_built_up_connection_layout",
+            "connection_arrangement": "separated",
+            "separated_within_end_gusset_spacing_verified": True,
+            "components_interconnected_by_fasteners_verified": True,
+            "end_connection_method": "fasteners",
+            "fasteners_per_end_connection_line": 2,
+            **common,
+        }
+    )
+    if separated["clauses"] != ["6.5.1.1", "6.5.1.2", "6.5.1.4"]:
+        raise AssertionError("Separated compression member clauses were not traced correctly")
+    if separated["values"]["maximum_to_minimum_bay_length_ratio"] != 1:
+        raise AssertionError("Three equal compression-member bays returned a non-unity ratio")
+    if not separated["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 6.5.1.4 fastener and bay-layout conditions failed")
+
+    in_contact = run_advanced_members(
+        {
+            "operation": "compression_built_up_connection_layout",
+            "connection_arrangement": "in_contact",
+            "components_in_contact_or_continuously_packed_verified": True,
+            "end_connection_method": "welds",
+            "equivalent_end_welds_verified": True,
+            **common,
+        }
+    )
+    if in_contact["clauses"] != ["6.5.2.1", "6.5.2.2", "6.5.2.4"]:
+        raise AssertionError("In-contact compression member clauses were not traced correctly")
+    if not in_contact["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 6.5.2.4 equivalent end-weld route failed")
+    return {
+        "separated_bay_count": separated["values"]["bay_count"],
+        "separated_minimum_fasteners_per_line": separated["checks"][-1][
+            "minimum_fasteners_per_end_connection_line"
+        ],
+        "in_contact_equivalent_weld_route_satisfied": in_contact["checks"][-1]["satisfied"],
+    }
+
+
 def clause_7_4_2_member_actions_from_member_analysis():
     batten = run_advanced_members(
         {
@@ -3637,6 +3691,9 @@ def main():
         "clause_7_4_2_connection_plane_distribution": clause_7_4_2_connection_plane_distribution,
         "clause_6_4_built_up_compression_member_actions": (
             clause_6_4_built_up_compression_member_actions
+        ),
+        "clause_6_5_compression_built_up_connection_layout": (
+            clause_6_5_compression_built_up_connection_layout
         ),
         "clause_7_4_2_member_actions_from_member_analysis": (
             clause_7_4_2_member_actions_from_member_analysis

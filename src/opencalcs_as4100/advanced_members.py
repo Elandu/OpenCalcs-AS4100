@@ -431,6 +431,52 @@ def _buckling_analysis_bending_schema():
 BOOL = {"type": "boolean"}
 VERIFIED = {"const": True}
 BETA = {"type": "number", "minimum": -1, "maximum": 1}
+
+
+def _compression_built_up_connection_layout_schema():
+    common = {
+        "operation": {"const": "compression_built_up_connection_layout"},
+        "eligible_component_forms_verified": BOOL,
+        "similar_sections_verified": BOOL,
+        "symmetrical_arrangement_verified": BOOL,
+        "rectangular_axes_aligned_verified": BOOL,
+        "member_length_mm": P,
+        "bay_lengths_mm": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": P,
+        },
+        "all_connection_bays_assessed_verified": BOOL,
+        "approximately_equal_bays_verified": BOOL,
+        "all_end_connection_lines_assessed_verified": BOOL,
+        "layout_evidence_reference": {"type": "string", "minLength": 1, "maxLength": 500},
+    }
+    variants = []
+    for arrangement in ("separated", "in_contact"):
+        for end_method in ("fasteners", "welds"):
+            properties = {
+                **common,
+                "connection_arrangement": {"const": arrangement},
+                "end_connection_method": {"const": end_method},
+            }
+            if arrangement == "separated":
+                properties["separated_within_end_gusset_spacing_verified"] = BOOL
+                properties["components_interconnected_by_fasteners_verified"] = BOOL
+            else:
+                properties["components_in_contact_or_continuously_packed_verified"] = BOOL
+            if end_method == "fasteners":
+                properties["fasteners_per_end_connection_line"] = {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000000,
+                }
+            else:
+                properties["equivalent_end_welds_verified"] = BOOL
+            variants.append(object_schema(properties))
+    return {"oneOf": variants}
+
+
 SCHEMAS = {
     "open_section_torsion_constant": _schema(
         "open_section_torsion_constant",
@@ -773,6 +819,7 @@ SCHEMAS = {
             ],
         ]
     },
+    "compression_built_up_connection_layout": _compression_built_up_connection_layout_schema(),
     "lacing": _schema(
         "lacing",
         {
@@ -2286,6 +2333,132 @@ def run_advanced_members(inputs):
                 "parallel_connection_planes": planes,
                 "action_analysis_reference": d["action_analysis_reference"],
                 "action_intervals": actions,
+            },
+            checks,
+            limitations,
+        )
+    if op == "compression_built_up_connection_layout":
+        separated = d["connection_arrangement"] == "separated"
+        application_clause, configuration_clause, connection_clause = (
+            ("6.5.1.1", "6.5.1.2", "6.5.1.4") if separated else ("6.5.2.1", "6.5.2.2", "6.5.2.4")
+        )
+        arrangement_verified = (
+            d["separated_within_end_gusset_spacing_verified"]
+            if separated
+            else d["components_in_contact_or_continuously_packed_verified"]
+        )
+        bay_lengths = d["bay_lengths_mm"]
+        total_bay_length = sum(bay_lengths)
+        bay_length_ratio = max(bay_lengths) / min(bay_lengths)
+        member_length_matches = isclose(
+            total_bay_length, d["member_length_mm"], rel_tol=1e-9, abs_tol=1e-6
+        )
+        checks = [
+            {
+                "clause": application_clause,
+                "condition": "eligible angle, channel or tee component forms",
+                "satisfied": d["eligible_component_forms_verified"],
+            },
+            {
+                "clause": application_clause,
+                "condition": (
+                    "separation does not exceed end-gusset connection spacing"
+                    if separated
+                    else "components are in contact or continuously packed with steel"
+                ),
+                "satisfied": arrangement_verified,
+            },
+            {
+                "clause": configuration_clause,
+                "condition": "similar sections, arranged symmetrically with axes aligned",
+                "satisfied": (
+                    d["similar_sections_verified"]
+                    and d["symmetrical_arrangement_verified"]
+                    and d["rectangular_axes_aligned_verified"]
+                ),
+            },
+            *(
+                [
+                    {
+                        "clause": connection_clause,
+                        "condition": "separated main components are interconnected by fasteners",
+                        "satisfied": d["components_interconnected_by_fasteners_verified"],
+                    }
+                ]
+                if separated
+                else []
+            ),
+            {
+                "clause": connection_clause,
+                "condition": "minimum of three connection bays",
+                "actual_bays": len(bay_lengths),
+                "required_minimum_bays": 3,
+                "satisfied": len(bay_lengths) >= 3,
+            },
+            {
+                "clause": connection_clause,
+                "condition": "complete connection-bay lengths span the member",
+                "member_length_mm": d["member_length_mm"],
+                "summed_bay_length_mm": total_bay_length,
+                "satisfied": d["all_connection_bays_assessed_verified"] and member_length_matches,
+            },
+            {
+                "clause": connection_clause,
+                "condition": "bays are approximately equal in length",
+                "maximum_to_minimum_bay_length_ratio": bay_length_ratio,
+                "satisfied": d["approximately_equal_bays_verified"],
+            },
+            {
+                "clause": connection_clause,
+                "condition": "all end connection lines are assessed",
+                "satisfied": d["all_end_connection_lines_assessed_verified"],
+            },
+        ]
+        if d["end_connection_method"] == "fasteners":
+            end_connection_satisfied = d["fasteners_per_end_connection_line"] >= 2
+            checks.append(
+                {
+                    "clause": connection_clause,
+                    "condition": "at least two fasteners in each end connection line",
+                    "minimum_fasteners_per_end_connection_line": d[
+                        "fasteners_per_end_connection_line"
+                    ],
+                    "required_minimum_fasteners": 2,
+                    "satisfied": end_connection_satisfied,
+                }
+            )
+        else:
+            end_connection_satisfied = d["equivalent_end_welds_verified"]
+            checks.append(
+                {
+                    "clause": connection_clause,
+                    "condition": "equivalent end welds are verified",
+                    "satisfied": end_connection_satisfied,
+                }
+            )
+
+        limitations = [
+            "This operation checks the Clause 6.5 arrangement, bay layout and end-connection "
+            "conditions only. It does not calculate member, component, interconnection or weld "
+            "capacity, or detailed Clause 9 connection strength.",
+            "The standard gives no numerical tolerance for approximately equal bays; this "
+            "condition is supplied engineering evidence. The reported length ratio is descriptive.",
+            "Where separated components are connected together, the battened-member design "
+            "requirements of Clause 6.4.3 remain a separate check. Evidence declarations are "
+            "not authenticated.",
+        ]
+        return result(
+            op,
+            [application_clause, configuration_clause, connection_clause],
+            {
+                "connection_arrangement": d["connection_arrangement"],
+                "end_connection_method": d["end_connection_method"],
+                "member_length_mm": d["member_length_mm"],
+                "bay_count": len(bay_lengths),
+                "bay_lengths_mm": bay_lengths,
+                "summed_bay_length_mm": total_bay_length,
+                "maximum_to_minimum_bay_length_ratio": bay_length_ratio,
+                "layout_evidence_reference": d["layout_evidence_reference"],
             },
             checks,
             limitations,

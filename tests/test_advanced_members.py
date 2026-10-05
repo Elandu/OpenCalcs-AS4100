@@ -1386,6 +1386,101 @@ def test_compression_built_up_action_requires_complete_valid_geometry():
     assert not out["checked_conditions_satisfied"]
 
 
+def compression_built_up_connection_layout(
+    connection_arrangement="separated", end_connection_method="fasteners", **changes
+):
+    data = {
+        "operation": "compression_built_up_connection_layout",
+        "connection_arrangement": connection_arrangement,
+        "eligible_component_forms_verified": True,
+        "similar_sections_verified": True,
+        "symmetrical_arrangement_verified": True,
+        "rectangular_axes_aligned_verified": True,
+        "member_length_mm": 3000,
+        "bay_lengths_mm": [1000, 1000, 1000],
+        "all_connection_bays_assessed_verified": True,
+        "approximately_equal_bays_verified": True,
+        "all_end_connection_lines_assessed_verified": True,
+        "end_connection_method": end_connection_method,
+        "layout_evidence_reference": "verified built-up compression layout 01",
+    }
+    if connection_arrangement == "separated":
+        data["separated_within_end_gusset_spacing_verified"] = True
+        data["components_interconnected_by_fasteners_verified"] = True
+    else:
+        data["components_in_contact_or_continuously_packed_verified"] = True
+    if end_connection_method == "fasteners":
+        data["fasteners_per_end_connection_line"] = 2
+    else:
+        data["equivalent_end_welds_verified"] = True
+    data.update(changes)
+    return data
+
+
+def test_clause_6_5_compression_built_up_connection_layout_routes():
+    separated = run_advanced_members(compression_built_up_connection_layout())
+    assert separated["clauses"] == ["6.5.1.1", "6.5.1.2", "6.5.1.4"]
+    assert separated["values"]["bay_count"] == 3
+    assert separated["values"]["maximum_to_minimum_bay_length_ratio"] == pytest.approx(1)
+    assert separated["checked_conditions_satisfied"]
+
+    in_contact = run_advanced_members(
+        compression_built_up_connection_layout(
+            connection_arrangement="in_contact", end_connection_method="welds"
+        )
+    )
+    assert in_contact["clauses"] == ["6.5.2.1", "6.5.2.2", "6.5.2.4"]
+    assert in_contact["checked_conditions_satisfied"]
+
+
+def test_clause_6_5_compression_built_up_connection_layout_boundaries():
+    two_bays = run_advanced_members(
+        compression_built_up_connection_layout(
+            member_length_mm=2000,
+            bay_lengths_mm=[1000, 1000],
+        )
+    )
+    minimum_bay_check = next(
+        check
+        for check in two_bays["checks"]
+        if check["condition"] == "minimum of three connection bays"
+    )
+    assert not minimum_bay_check["satisfied"]
+    assert not two_bays["checked_conditions_satisfied"]
+
+    one_fastener = run_advanced_members(
+        compression_built_up_connection_layout(fasteners_per_end_connection_line=1)
+    )
+    assert not one_fastener["checks"][-1]["satisfied"]
+
+    incomplete_length = run_advanced_members(
+        compression_built_up_connection_layout(member_length_mm=3100)
+    )
+    member_coverage_check = next(
+        check
+        for check in incomplete_length["checks"]
+        if check["condition"] == "complete connection-bay lengths span the member"
+    )
+    assert not member_coverage_check["satisfied"]
+
+    poor_separation = run_advanced_members(
+        compression_built_up_connection_layout(separated_within_end_gusset_spacing_verified=False)
+    )
+    assert not poor_separation["checks"][1]["satisfied"]
+
+    missing_interconnections = run_advanced_members(
+        compression_built_up_connection_layout(
+            components_interconnected_by_fasteners_verified=False
+        )
+    )
+    interconnection_check = next(
+        check
+        for check in missing_interconnections["checks"]
+        if check["condition"] == "separated main components are interconnected by fasteners"
+    )
+    assert not interconnection_check["satisfied"]
+
+
 @pytest.mark.parametrize(
     ("arrangement", "clause"),
     [

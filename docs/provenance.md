@@ -31,7 +31,7 @@ not authenticate certificates or material/installation evidence; the other
 Clause 2.3 fastener, weld, stud and anchor provisions and Clause 2.4 castings
 remain assessed.
 
-Version 0.7.21 exposes twelve installed calculation families. The code implements
+Version 0.7.22 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing
@@ -46,6 +46,10 @@ inter-component load cases. The compression built-up action route calculates
 Clause 6.4.1 design shear and derives per-bay lacing, batten and tie-plate
 demands from the verified geometry; its scope and limits are recorded in
 [advanced member notes](advanced-members.md).
+The Clause 6.5 connection-layout route checks the separated and in-contact
+member arrangements, minimum bay count, full member coverage, approximately
+equal-bay evidence and end fastener/equivalent-weld conditions. Clause 6.5
+capacity checks and detailed connection design remain separate.
 
 The original axial section equations were also compared with
 [steel-as](https://github.com/Folded-Structures-Lab/steel-as),

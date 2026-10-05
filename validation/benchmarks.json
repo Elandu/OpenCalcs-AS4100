@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.21",
+  "package_version": "0.7.22",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2233,6 +2233,27 @@
       "name": "Clause 6.4.3.7 compression batten bending moment per plane",
       "actual": 0.9424777960769379,
       "expected": 0.9424777960769379,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.5.1.4 minimum connection-bay count",
+      "actual": 3,
+      "expected": 3,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.5.1.4 minimum end fasteners per line",
+      "actual": 2,
+      "expected": 2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.5.2.4 equivalent end-weld route",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

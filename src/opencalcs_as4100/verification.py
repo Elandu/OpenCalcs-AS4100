@@ -4407,6 +4407,60 @@ def verify():
         compression_batten_interval["design_batten_moment_per_plane_knm"],
         0.3 * 3.141592653589793,
     )
+    compression_layout = run_advanced_members(
+        {
+            "operation": "compression_built_up_connection_layout",
+            "connection_arrangement": "separated",
+            "eligible_component_forms_verified": True,
+            "separated_within_end_gusset_spacing_verified": True,
+            "components_interconnected_by_fasteners_verified": True,
+            "similar_sections_verified": True,
+            "symmetrical_arrangement_verified": True,
+            "rectangular_axes_aligned_verified": True,
+            "member_length_mm": 3000,
+            "bay_lengths_mm": [1000, 1000, 1000],
+            "all_connection_bays_assessed_verified": True,
+            "approximately_equal_bays_verified": True,
+            "all_end_connection_lines_assessed_verified": True,
+            "end_connection_method": "fasteners",
+            "fasteners_per_end_connection_line": 2,
+            "layout_evidence_reference": "three-bay compression layout benchmark",
+        }
+    )
+    record(
+        "Clause 6.5.1.4 minimum connection-bay count",
+        compression_layout["values"]["bay_count"],
+        3,
+    )
+    record(
+        "Clause 6.5.1.4 minimum end fasteners per line",
+        compression_layout["checks"][-1]["minimum_fasteners_per_end_connection_line"],
+        2,
+    )
+    contact_layout = run_advanced_members(
+        {
+            "operation": "compression_built_up_connection_layout",
+            "connection_arrangement": "in_contact",
+            "eligible_component_forms_verified": True,
+            "components_in_contact_or_continuously_packed_verified": True,
+            "similar_sections_verified": True,
+            "symmetrical_arrangement_verified": True,
+            "rectangular_axes_aligned_verified": True,
+            "member_length_mm": 3000,
+            "bay_lengths_mm": [1000, 1000, 1000],
+            "all_connection_bays_assessed_verified": True,
+            "approximately_equal_bays_verified": True,
+            "all_end_connection_lines_assessed_verified": True,
+            "end_connection_method": "welds",
+            "equivalent_end_welds_verified": True,
+            "layout_evidence_reference": "in-contact compression layout benchmark",
+        }
+    )
+    record(
+        "Clause 6.5.2.4 equivalent end-weld route",
+        int(contact_layout["checks"][-1]["satisfied"]),
+        1,
+    )
     for arrangement, clause in [
         ("separated_back_to_back", "7.4.3(a)(i)"),
         ("laced", "7.4.4(b)"),
