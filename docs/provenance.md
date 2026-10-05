@@ -57,11 +57,15 @@ supplied design capacity. In-contact members trace Clause 6.5.2.5 back to Clause
 externally assessed; the operation does not authenticate their evidence.
 The Clause 6.6 restraint route applies the greater of the analyzed restraint force
 and the minimum force for the connected compression member, adding the 6.6.3
-parallel-member allowance when supplied. It requires allocated path forces to
-balance the total and checks each listed member and connection capacity, summing
-shares for a component common to multiple paths. The analysis, path distribution,
-capacities and evidence are supplied; the closer-spacing force-reduction exception
-and complete restraint design remain outside this check.
+parallel-member allowance when supplied. Its closer-spacing route accepts groups
+of actual restraints only with a complete inventory and verified equivalent-position
+evidence. For each group it checks `N* = φNc` using the supplied nominal member
+capacity and the Table 3.4 compression-member factor, then applies the analyzed-force
+envelope and group-specific minimum. Allocated path forces must balance each group;
+capacity demands are accumulated for components shared between paths or groups.
+The analysis, grouping, capacity derivations and evidence are supplied rather than
+authenticated here. Restraint stiffness and complete restraint-system design remain
+outside this check.
 
 The original axial section equations were also compared with
 [steel-as](https://github.com/Folded-Structures-Lab/steel-as),

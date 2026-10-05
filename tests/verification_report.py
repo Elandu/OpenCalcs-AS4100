@@ -2753,6 +2753,95 @@ def clause_6_6_compression_restraint_path():
     }
 
 
+def clause_6_6_2_equivalent_restraint_groups():
+    def force_path(path_id, share, brace_id, brace_capacity, collector_capacity):
+        return {
+            "path_id": path_id,
+            "design_force_share_kn": share,
+            "series_force_path_verified": True,
+            "components": [
+                {
+                    "component_id": brace_id,
+                    "component_type": "restraint_member",
+                    "design_capacity_kn": brace_capacity,
+                    "capacity_verified": True,
+                    "component_in_force_path_verified": True,
+                },
+                {
+                    "component_id": "COLLECTOR",
+                    "component_type": "connection",
+                    "design_capacity_kn": collector_capacity,
+                    "capacity_verified": True,
+                    "component_in_force_path_verified": True,
+                },
+            ],
+        }
+
+    result = run_advanced_members(
+        {
+            "operation": "compression_restraint_design",
+            "actual_restraint_ids": ["R1", "R2", "R3"],
+            "restraint_inventory_verified": True,
+            "equivalent_restraint_groups_verified": True,
+            "equivalent_spacing_evidence_reference": "independent equivalent-spacing schedule",
+            "restraint_system_analysis_verified": True,
+            "parallel_member_set_verified": True,
+            "all_restraint_force_paths_assessed_verified": True,
+            "restraint_analysis_reference": "independent analysis to anchorage and reaction points",
+            "equivalent_restraint_groups": [
+                {
+                    "equivalent_restraint_id": "EQ1",
+                    "actual_restraint_ids": ["R1", "R2"],
+                    "equivalent_member_design_force_kn": 900,
+                    "nominal_member_compression_capacity_kn": 1000,
+                    "nominal_capacity_verified": True,
+                    "nominal_capacity_evidence_reference": "independent member design EQ1",
+                    "parallel_compression_forces_beyond_kn": [400],
+                    "analysis_restraint_force_kn": 31,
+                    "force_paths": [
+                        force_path("EQ1-P1", 20, "BR1", 20, 42.25),
+                        force_path("EQ1-P2", 11, "BR2", 11, 42.25),
+                    ],
+                },
+                {
+                    "equivalent_restraint_id": "EQ2",
+                    "actual_restraint_ids": ["R3"],
+                    "equivalent_member_design_force_kn": 450,
+                    "nominal_member_compression_capacity_kn": 500,
+                    "nominal_capacity_verified": True,
+                    "nominal_capacity_evidence_reference": "independent member design EQ2",
+                    "parallel_compression_forces_beyond_kn": [],
+                    "analysis_restraint_force_kn": 10,
+                    "force_paths": [force_path("EQ2-P1", 11.25, "BR3", 11.25, 42.25)],
+                },
+            ],
+        }
+    )
+    groups = {
+        group["equivalent_restraint_id"]: group
+        for group in result["values"]["equivalent_restraint_groups"]
+    }
+    checks = {check.get("component_id"): check for check in result["checks"]}
+    expect_close(groups["EQ1"]["equivalent_member_design_capacity_kn"], 900)
+    expect_close(groups["EQ1"]["minimum_transverse_force_kn"], 27.5)
+    expect_close(groups["EQ1"]["design_restraint_force_kn"], 31)
+    expect_close(groups["EQ2"]["minimum_transverse_force_kn"], 11.25)
+    expect_close(groups["EQ2"]["design_restraint_force_kn"], 11.25)
+    expect_close(result["values"]["sum_equivalent_group_design_force_kn"], 42.25)
+    expect_close(checks["COLLECTOR"]["design_demand_kn"], 42.25)
+    if result["clauses"] != ["6.6.1", "6.6.2", "Table 3.4", "6.6.3"]:
+        raise AssertionError("Equivalent-restraint clause route failed")
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Equivalent-restraint force or component capacity boundary failed")
+    return {
+        "eq1_minimum_restraint_force_kn": groups["EQ1"]["minimum_transverse_force_kn"],
+        "eq1_design_restraint_force_kn": groups["EQ1"]["design_restraint_force_kn"],
+        "eq2_minimum_restraint_force_kn": groups["EQ2"]["minimum_transverse_force_kn"],
+        "total_group_force_kn": result["values"]["sum_equivalent_group_design_force_kn"],
+        "shared_collector_demand_kn": checks["COLLECTOR"]["design_demand_kn"],
+    }
+
+
 def clause_7_3_1_uniform_connection_capacity():
     result = run_members(
         {
@@ -3799,6 +3888,7 @@ def main():
             clause_6_5_1_5_compression_interconnections
         ),
         "clause_6_6_compression_restraint_path": clause_6_6_compression_restraint_path,
+        "clause_6_6_2_equivalent_restraint_groups": clause_6_6_2_equivalent_restraint_groups,
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
         "clause_7_3_2_table_factor_lookup": clause_7_3_2_table_factor_lookup,

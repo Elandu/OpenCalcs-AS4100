@@ -4465,6 +4465,90 @@ def verify():
         int(compression_restraint["checked_conditions_satisfied"]),
         1,
     )
+    equivalent_restraint = run_advanced_members(
+        {
+            "operation": "compression_restraint_design",
+            "actual_restraint_ids": ["R1", "R2"],
+            "restraint_inventory_verified": True,
+            "equivalent_restraint_groups_verified": True,
+            "equivalent_spacing_evidence_reference": "independent equivalent restraint benchmark",
+            "restraint_system_analysis_verified": True,
+            "parallel_member_set_verified": True,
+            "all_restraint_force_paths_assessed_verified": True,
+            "restraint_analysis_reference": "independent equivalent restraint analysis",
+            "equivalent_restraint_groups": [
+                {
+                    "equivalent_restraint_id": "EQ1",
+                    "actual_restraint_ids": ["R1", "R2"],
+                    "equivalent_member_design_force_kn": 900,
+                    "nominal_member_compression_capacity_kn": 1000,
+                    "nominal_capacity_verified": True,
+                    "nominal_capacity_evidence_reference": (
+                        "independent member capacity calculation"
+                    ),
+                    "parallel_compression_forces_beyond_kn": [400],
+                    "analysis_restraint_force_kn": 31,
+                    "force_paths": [
+                        {
+                            "path_id": "EQ1-P1",
+                            "design_force_share_kn": 31,
+                            "series_force_path_verified": True,
+                            "components": [
+                                {
+                                    "component_id": "BR1",
+                                    "component_type": "restraint_member",
+                                    "design_capacity_kn": 31,
+                                    "capacity_verified": True,
+                                    "component_in_force_path_verified": True,
+                                },
+                                {
+                                    "component_id": "COL1",
+                                    "component_type": "connection",
+                                    "design_capacity_kn": 31,
+                                    "capacity_verified": True,
+                                    "component_in_force_path_verified": True,
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    equivalent_group = equivalent_restraint["values"]["equivalent_restraint_groups"][0]
+    equivalent_component_checks = {
+        check.get("component_id"): check for check in equivalent_restraint["checks"]
+    }
+    record(
+        "Clause 6.6.2 equivalent restraint capacity factor from Table 3.4",
+        equivalent_group["equivalent_member_design_capacity_kn"],
+        0.9 * 1000,
+    )
+    record(
+        "Clause 6.6.3 equivalent-position parallel minimum force",
+        equivalent_group["minimum_transverse_force_kn"],
+        0.025 * 900 + 0.0125 * 400,
+    )
+    record(
+        "Clause 6.6.2 equivalent restraint retains analyzed force envelope",
+        equivalent_group["design_restraint_force_kn"],
+        31,
+    )
+    record(
+        "Clause 6.6.1 equivalent-group path equilibrium",
+        equivalent_restraint["values"]["allocated_force_kn"],
+        31,
+    )
+    record(
+        "Clause 6.6.2 equivalent-group collector force demand",
+        equivalent_component_checks["COL1"]["design_demand_kn"],
+        31,
+    )
+    record(
+        "Clause 6.6.2 equivalent-group member and connection capacities",
+        int(equivalent_restraint["checked_conditions_satisfied"]),
+        1,
+    )
     compression_lacing_actions = run_advanced_members(
         {
             "operation": "compression_built_up_member_actions",

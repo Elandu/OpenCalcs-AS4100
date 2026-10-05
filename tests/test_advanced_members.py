@@ -2160,6 +2160,111 @@ def compression_restraint_design(**changes):
     return data
 
 
+def compression_restraint_equivalent_design():
+    return {
+        "operation": "compression_restraint_design",
+        "actual_restraint_ids": ["R1", "R2", "R3"],
+        "restraint_inventory_verified": True,
+        "equivalent_restraint_groups_verified": True,
+        "equivalent_spacing_evidence_reference": (
+            "verified restraint-spacing and buckling-capacity schedule"
+        ),
+        "restraint_system_analysis_verified": True,
+        "parallel_member_set_verified": True,
+        "all_restraint_force_paths_assessed_verified": True,
+        "restraint_analysis_reference": "verified frame analysis to anchorage and reactions",
+        "equivalent_restraint_groups": [
+            {
+                "equivalent_restraint_id": "EQ1",
+                "actual_restraint_ids": ["R1", "R2"],
+                "equivalent_member_design_force_kn": 900,
+                "nominal_member_compression_capacity_kn": 1000,
+                "nominal_capacity_verified": True,
+                "nominal_capacity_evidence_reference": "member capacity calculation EQ1",
+                "parallel_compression_forces_beyond_kn": [400],
+                "analysis_restraint_force_kn": 30,
+                "force_paths": [
+                    {
+                        "path_id": "EQ1-P1",
+                        "design_force_share_kn": 18,
+                        "series_force_path_verified": True,
+                        "components": [
+                            {
+                                "component_id": "BR1",
+                                "component_type": "restraint_member",
+                                "design_capacity_kn": 18,
+                                "capacity_verified": True,
+                                "component_in_force_path_verified": True,
+                            },
+                            {
+                                "component_id": "COLLECTOR",
+                                "component_type": "connection",
+                                "design_capacity_kn": 42,
+                                "capacity_verified": True,
+                                "component_in_force_path_verified": True,
+                            },
+                        ],
+                    },
+                    {
+                        "path_id": "EQ1-P2",
+                        "design_force_share_kn": 12,
+                        "series_force_path_verified": True,
+                        "components": [
+                            {
+                                "component_id": "BR2",
+                                "component_type": "restraint_member",
+                                "design_capacity_kn": 12,
+                                "capacity_verified": True,
+                                "component_in_force_path_verified": True,
+                            },
+                            {
+                                "component_id": "COLLECTOR",
+                                "component_type": "connection",
+                                "design_capacity_kn": 42,
+                                "capacity_verified": True,
+                                "component_in_force_path_verified": True,
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                "equivalent_restraint_id": "EQ2",
+                "actual_restraint_ids": ["R3"],
+                "equivalent_member_design_force_kn": 450,
+                "nominal_member_compression_capacity_kn": 500,
+                "nominal_capacity_verified": True,
+                "nominal_capacity_evidence_reference": "member capacity calculation EQ2",
+                "parallel_compression_forces_beyond_kn": [],
+                "analysis_restraint_force_kn": 8,
+                "force_paths": [
+                    {
+                        "path_id": "EQ2-P1",
+                        "design_force_share_kn": 11.25,
+                        "series_force_path_verified": True,
+                        "components": [
+                            {
+                                "component_id": "BR3",
+                                "component_type": "restraint_member",
+                                "design_capacity_kn": 11.25,
+                                "capacity_verified": True,
+                                "component_in_force_path_verified": True,
+                            },
+                            {
+                                "component_id": "COLLECTOR",
+                                "component_type": "connection",
+                                "design_capacity_kn": 42,
+                                "capacity_verified": True,
+                                "component_in_force_path_verified": True,
+                            },
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+
+
 def test_clause_6_6_restraint_force_and_all_parallel_load_path_capacities():
     out = run_advanced_members(compression_restraint_design())
     values = out["values"]
@@ -2234,6 +2339,73 @@ def test_clause_6_6_restraint_rejects_incomplete_force_distribution_and_ids():
     data["parallel_compression_forces_beyond_kn"] = [100] * 7
     with pytest.raises(ValueError, match="parallel_compression_forces_beyond_kn"):
         run_advanced_members(data)
+
+
+def test_clause_6_6_2_equivalent_restraint_groups_and_shared_component_design():
+    out = run_advanced_members(compression_restraint_equivalent_design())
+    values = out["values"]
+    groups = {
+        group["equivalent_restraint_id"]: group for group in values["equivalent_restraint_groups"]
+    }
+
+    assert out["clauses"] == ["6.6.1", "6.6.2", "Table 3.4", "6.6.3"]
+    assert values["restraint_design_route"] == "verified_equivalent_restraint_groups"
+    assert groups["EQ1"]["minimum_transverse_force_kn"] == pytest.approx(27.5)
+    assert groups["EQ1"]["design_restraint_force_kn"] == pytest.approx(30)
+    assert groups["EQ2"]["minimum_transverse_force_kn"] == pytest.approx(11.25)
+    assert groups["EQ2"]["design_restraint_force_kn"] == pytest.approx(11.25)
+    assert values["sum_equivalent_group_design_force_kn"] == pytest.approx(41.25)
+    assert values["allocated_force_kn"] == pytest.approx(41.25)
+
+    by_id = {check.get("component_id"): check for check in out["checks"] if "component_id" in check}
+    assert by_id["COLLECTOR"]["design_demand_kn"] == pytest.approx(41.25)
+    assert by_id["COLLECTOR"]["equivalent_restraint_ids"] == ["EQ1", "EQ1", "EQ2"]
+    assert by_id["COLLECTOR"]["satisfied"]
+    assert out["checked_conditions_satisfied"]
+    assert out["full_standard_compliance"] is False
+
+
+def test_clause_6_6_2_equivalent_restraint_requires_capacity_equality_inventory_and_equilibrium():
+    data = compression_restraint_equivalent_design()
+    data["equivalent_restraint_groups"][0]["nominal_member_compression_capacity_kn"] = 999
+    with pytest.raises(ValueError, match=r"N\* = phi Nc"):
+        run_advanced_members(data)
+
+    data = compression_restraint_equivalent_design()
+    data["equivalent_restraint_groups"][0]["actual_restraint_ids"] = ["R1"]
+    with pytest.raises(ValueError, match="include every inventoried restraint"):
+        run_advanced_members(data)
+
+    data = compression_restraint_equivalent_design()
+    data["equivalent_restraint_groups"][1]["actual_restraint_ids"] = ["R2", "R3"]
+    with pytest.raises(ValueError, match="one equivalent restraint group only"):
+        run_advanced_members(data)
+
+    data = compression_restraint_equivalent_design()
+    data["equivalent_restraint_groups"][0]["force_paths"][0]["design_force_share_kn"] = 19
+    with pytest.raises(ValueError, match="must sum to that group's design restraint force"):
+        run_advanced_members(data)
+
+    data = compression_restraint_equivalent_design()
+    data["equivalent_restraint_groups"][0]["analysis_restraint_force_kn"] = 35
+    data["equivalent_restraint_groups"][0]["force_paths"][0]["design_force_share_kn"] = 23
+    out = run_advanced_members(data)
+    group = out["values"]["equivalent_restraint_groups"][0]
+    assert group["minimum_transverse_force_kn"] == pytest.approx(27.5)
+    assert group["design_restraint_force_kn"] == pytest.approx(35)
+
+    data = compression_restraint_equivalent_design()
+    for group in data["equivalent_restraint_groups"]:
+        for path in group["force_paths"]:
+            for component in path["components"]:
+                if component["component_id"] == "COLLECTOR":
+                    component["design_capacity_kn"] = 40
+    out = run_advanced_members(data)
+    collector = next(check for check in out["checks"] if check.get("component_id") == "COLLECTOR")
+    assert collector["design_demand_kn"] == pytest.approx(41.25)
+    assert collector["verified_design_capacity_kn"] == pytest.approx(40)
+    assert not collector["satisfied"]
+    assert not out["checked_conditions_satisfied"]
 
 
 def test_separator_diaphragm_minimum_and_equal_share():

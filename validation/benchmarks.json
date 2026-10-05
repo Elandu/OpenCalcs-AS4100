@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.24",
+  "package_version": "0.7.25",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2259,6 +2259,48 @@
     },
     {
       "name": "Clause 6.6.2 restraint path component capacity comparisons",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.6.2 equivalent restraint capacity factor from Table 3.4",
+      "actual": 900.0,
+      "expected": 900.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.6.3 equivalent-position parallel minimum force",
+      "actual": 27.5,
+      "expected": 27.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.6.2 equivalent restraint retains analyzed force envelope",
+      "actual": 31,
+      "expected": 31,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.6.1 equivalent-group path equilibrium",
+      "actual": 31.0,
+      "expected": 31,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.6.2 equivalent-group collector force demand",
+      "actual": 31.0,
+      "expected": 31,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.6.2 equivalent-group member and connection capacities",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,
