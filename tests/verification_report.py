@@ -257,6 +257,59 @@ def clause_4_6_3_2_idealized_member_buckling():
     }
 
 
+def clause_6_3_2_compression_member_effective_lengths():
+    effective_lengths = run_design_actions(
+        {
+            "operation": "compression_member_effective_lengths",
+            "member_length_mm": 4000,
+            "member_length_centre_to_centre_verified": True,
+            "member_length_evidence_reference": "BENCHMARK-UB-MEMBER-LENGTH",
+            "principal_buckling_axes_verified": True,
+            "principal_axes_evidence_reference": "BENCHMARK-UB-PRINCIPAL-AXES",
+            "effective_length_case_x": "braced_fixed_fixed",
+            "effective_length_case_x_verified": True,
+            "effective_length_case_x_reference": "BENCHMARK-UB-X-RESTRAINT",
+            "effective_length_case_y": "braced_fixed_fixed",
+            "effective_length_case_y_verified": True,
+            "effective_length_case_y_reference": "BENCHMARK-UB-Y-RESTRAINT",
+        }
+    )
+    if not effective_lengths["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 6.3.2 end-restraint or member-length evidence failed")
+    values = effective_lengths["values"]
+    if values["effective_length_x_mm"] != 2800 or values["effective_length_y_mm"] != 2800:
+        raise AssertionError("Figure 4.6.3.2 fixed-fixed compression lengths should equal 2800 mm")
+    compression = run_members(
+        {
+            "operation": "compression",
+            "yield_strength_mpa": 250,
+            "gross_area_mm2": 3000,
+            "net_area_mm2": 3000,
+            "effective_area_mm2": 3000,
+            "effective_length_x_mm": values["effective_length_x_mm"],
+            "effective_length_y_mm": values["effective_length_y_mm"],
+            "radius_x_mm": 40,
+            "radius_y_mm": 40,
+            "section_constant_x": 0,
+            "section_constant_y": 0,
+            "action_kn": 500,
+            "geometry": "doubly_symmetric",
+        }
+    )
+    design_capacity = compression["checks"]["x"]["design_capacity"]
+    if not isclose(design_capacity, 505.0507558478072, rel_tol=0, abs_tol=1e-9):
+        raise AssertionError("Clause 6.3.3 compression capacity differs from the hand benchmark")
+    if not compression["checks"]["x"]["satisfied"]:
+        raise AssertionError("The 500 kN action should pass the fixed-fixed column benchmark")
+    return {
+        "effective_length_x_mm": values["effective_length_x_mm"],
+        "effective_length_y_mm": values["effective_length_y_mm"],
+        "design_capacity_kn": design_capacity,
+        "action_kn": 500,
+        "satisfied": True,
+    }
+
+
 def clause_4_6_3_3_chart_factor_buckling():
     result = run_design_actions(
         {
@@ -3960,6 +4013,9 @@ def main():
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_9_7_4_combined_weld_types": combined_weld_types,
         "clause_4_6_3_2_idealized_member_buckling": (clause_4_6_3_2_idealized_member_buckling),
+        "clause_6_3_2_compression_member_effective_lengths": (
+            clause_6_3_2_compression_member_effective_lengths
+        ),
         "clause_4_6_3_3_chart_factor_buckling": clause_4_6_3_3_chart_factor_buckling,
         "clause_4_6_3_3_alignment_equation_buckling": (clause_4_6_3_3_alignment_equation_buckling),
         "clause_4_6_3_5_triangulated_member_buckling": (

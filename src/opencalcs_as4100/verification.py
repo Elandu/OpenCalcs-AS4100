@@ -1338,6 +1338,61 @@ def verify():
         2014.2049798141545,
         1e-8,
     )
+    compression_effective_lengths = run_design_actions(
+        {
+            "operation": "compression_member_effective_lengths",
+            "member_length_mm": 4000,
+            "member_length_centre_to_centre_verified": True,
+            "member_length_evidence_reference": "VERIFY-UB-MEMBER-LENGTH",
+            "principal_buckling_axes_verified": True,
+            "principal_axes_evidence_reference": "VERIFY-UB-PRINCIPAL-AXES",
+            "effective_length_case_x": "braced_fixed_fixed",
+            "effective_length_case_x_verified": True,
+            "effective_length_case_x_reference": "VERIFY-UB-X-RESTRAINT",
+            "effective_length_case_y": "braced_fixed_fixed",
+            "effective_length_case_y_verified": True,
+            "effective_length_case_y_reference": "VERIFY-UB-Y-RESTRAINT",
+        }
+    )
+    compression_lengths = compression_effective_lengths["values"]
+    record(
+        "Clause 6.3.2 fixed-fixed effective length about x",
+        compression_lengths["effective_length_x_mm"],
+        2800,
+    )
+    record(
+        "Clause 6.3.2 fixed-fixed effective length about y",
+        compression_lengths["effective_length_y_mm"],
+        2800,
+    )
+    compression_capacity = run_members(
+        {
+            "operation": "compression",
+            "yield_strength_mpa": 250,
+            "gross_area_mm2": 3000,
+            "net_area_mm2": 3000,
+            "effective_area_mm2": 3000,
+            "effective_length_x_mm": compression_lengths["effective_length_x_mm"],
+            "effective_length_y_mm": compression_lengths["effective_length_y_mm"],
+            "radius_x_mm": 40,
+            "radius_y_mm": 40,
+            "section_constant_x": 0,
+            "section_constant_y": 0,
+            "action_kn": 500,
+            "geometry": "doubly_symmetric",
+        }
+    )
+    record(
+        "Clause 6.3.3 compression member design capacity, Table 6.3.3(C)",
+        compression_capacity["checks"]["x"]["design_capacity"],
+        505.0507558478072,
+        1e-9,
+    )
+    record(
+        "Clause 6.3.3 compression member at 500 kN, hand check",
+        int(compression_capacity["checks"]["x"]["satisfied"]),
+        1,
+    )
 
     chart_buckling = run_design_actions(
         {

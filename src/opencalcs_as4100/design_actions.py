@@ -298,6 +298,22 @@ SCHEMAS = {
             "member_length_evidence_reference": _REFERENCE,
         }
     ),
+    "compression_member_effective_lengths": object_schema(
+        {
+            "operation": {"const": "compression_member_effective_lengths"},
+            "member_length_mm": POSITIVE,
+            "member_length_centre_to_centre_verified": _BOOL,
+            "member_length_evidence_reference": _REFERENCE,
+            "principal_buckling_axes_verified": _BOOL,
+            "principal_axes_evidence_reference": _REFERENCE,
+            "effective_length_case_x": {"enum": list(_IDEALIZED_END_RESTRAINT_FACTORS)},
+            "effective_length_case_x_verified": _BOOL,
+            "effective_length_case_x_reference": _REFERENCE,
+            "effective_length_case_y": {"enum": list(_IDEALIZED_END_RESTRAINT_FACTORS)},
+            "effective_length_case_y_verified": _BOOL,
+            "effective_length_case_y_reference": _REFERENCE,
+        }
+    ),
     "frame_chart_member_buckling": _FRAME_CHART,
     "triangulated_member_buckling": object_schema(
         {
@@ -900,6 +916,59 @@ def run_design_actions(inputs):
                 "The elastic buckling load uses the supplied section second moment and verified "
                 "centre-to-centre member length. It is not a Clause 6.3 design capacity or a "
                 "frame stability analysis.",
+            ],
+        )
+    if op == "compression_member_effective_lengths":
+        member_length = d["member_length_mm"]
+        values = {"member_length_mm": member_length}
+        checks = [
+            {
+                "clause": "6.3.2",
+                "condition": "x and y are verified principal buckling axes of the member",
+                "satisfied": d["principal_buckling_axes_verified"],
+                "evidence_reference": d["principal_axes_evidence_reference"],
+            },
+            {
+                "clause": "4.6.2",
+                "condition": (
+                    "member length is verified centre-to-centre between supporting members"
+                ),
+                "satisfied": d["member_length_centre_to_centre_verified"],
+                "evidence_reference": d["member_length_evidence_reference"],
+            }
+        ]
+        for axis in "xy":
+            case_key = f"effective_length_case_{axis}"
+            case = d[case_key]
+            factor = _IDEALIZED_END_RESTRAINT_FACTORS[case]
+            values.update(
+                {
+                    case_key: case,
+                    f"effective_length_factor_{axis}": factor,
+                    f"effective_length_{axis}_mm": factor * member_length,
+                }
+            )
+            checks.append(
+                {
+                    "clause": "4.6.3.2",
+                    "condition": (
+                        f"{axis}-axis restraint classification matches Figure 4.6.3.2"
+                    ),
+                    "satisfied": d[f"{case_key}_verified"],
+                    "evidence_reference": d[f"{case_key}_reference"],
+                }
+            )
+        return result(
+            op,
+            ["6.3.2", "4.6.2", "4.6.3.2"],
+            values,
+            checks,
+            limitations=[
+                "The end-restraint cases are idealizations from Figure 4.6.3.2. Verify the "
+                "restraint and buckling-axis classification for each axis from the actual frame.",
+                "This operation does not analyse the frame or calculate compression capacity. "
+                "Pass effective_length_x_mm and effective_length_y_mm to run_members with "
+                "operation='compression'.",
             ],
         )
     if op == "frame_chart_member_buckling":

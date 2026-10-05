@@ -1,7 +1,7 @@
 # Design actions and stability
 
-`run_design_actions` implements selected checks for AS 4100:2020 Sections 3 and
-4. All action and capacity inputs are kN or kN·m unless the field name states
+`run_design_actions` implements selected checks for AS 4100:2020 Sections 3, 4,
+and 6.3.2. All action and capacity inputs are kN or kN·m unless the field name states
 otherwise. Evidence references identify supporting project records; the plugin
 does not authenticate those records.
 
@@ -28,6 +28,18 @@ The case and centre-to-centre length each require a verified declaration and
 evidence reference. These are the figure's idealized cases; the operation does
 not determine actual restraint stiffness, select the buckling axis, analyse the
 frame, or calculate a Clause 6.3 design capacity.
+
+## Compression-member effective lengths
+
+`compression_member_effective_lengths` applies the independently selected
+Figure 4.6.3.2 idealized end-restraint cases to both flexural-buckling axes,
+then returns `effective_length_x_mm` and `effective_length_y_mm` for direct use
+in `run_members` with `operation="compression"`. Supply the verified member principal axes, one
+centre-to-centre member length, and a verified case plus evidence reference for
+each axis. It does not infer the restraint case, select the governing mode,
+analyse the frame or calculate member resistance. For restraints outside the
+listed idealizations, provide effective lengths established by the applicable
+frame or rational analysis.
 
 ## Frame chart factor and Euler buckling load
 

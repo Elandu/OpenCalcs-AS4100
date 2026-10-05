@@ -4,6 +4,7 @@ from math import pi
 import pytest
 
 from opencalcs_as4100.design_actions import run_design_actions as run
+from opencalcs_as4100.members import run_members
 
 
 def test_euler_pin_ended_hand_benchmark():
@@ -87,6 +88,83 @@ def test_idealized_member_buckling_requires_verified_case_and_member_length():
     inputs["idealized_end_restraint_case"] = "unlisted_case"
     with pytest.raises(ValueError):
         run(inputs)
+
+
+def test_clause_6_3_2_derives_compression_member_lengths_about_both_axes():
+    inputs = {
+        "operation": "compression_member_effective_lengths",
+        "member_length_mm": 4000,
+        "member_length_centre_to_centre_verified": True,
+        "member_length_evidence_reference": "MEMBER-LENGTH-01",
+        "principal_buckling_axes_verified": True,
+        "principal_axes_evidence_reference": "MEMBER-PRINCIPAL-AXES-01",
+        "effective_length_case_x": "braced_fixed_fixed",
+        "effective_length_case_x_verified": True,
+        "effective_length_case_x_reference": "RESTRAINT-X-01",
+        "effective_length_case_y": "braced_pinned_pinned",
+        "effective_length_case_y_verified": True,
+        "effective_length_case_y_reference": "RESTRAINT-Y-01",
+    }
+    result = run(inputs)
+    assert result["checked_conditions_satisfied"]
+    assert result["clauses"] == ["6.3.2", "4.6.2", "4.6.3.2"]
+    assert result["values"]["effective_length_factor_x"] == 0.7
+    assert result["values"]["effective_length_x_mm"] == 2800
+    assert result["values"]["effective_length_factor_y"] == 1.0
+    assert result["values"]["effective_length_y_mm"] == 4000
+    assert result["full_standard_compliance"] is False
+    inputs["effective_length_case_x_verified"] = False
+    unverified = run(inputs)
+    assert not unverified["checked_conditions_satisfied"]
+    assert not unverified["checks"][2]["satisfied"]
+    inputs["effective_length_case_x_verified"] = True
+    inputs["principal_buckling_axes_verified"] = False
+    unverified_axes = run(inputs)
+    assert not unverified_axes["checked_conditions_satisfied"]
+    assert not unverified_axes["checks"][0]["satisfied"]
+
+
+def test_clause_6_3_2_lengths_feed_the_compression_member_capacity_check():
+    effective_lengths = run(
+        {
+            "operation": "compression_member_effective_lengths",
+            "member_length_mm": 4000,
+            "member_length_centre_to_centre_verified": True,
+            "member_length_evidence_reference": "UB-4000-MEMBER-LENGTH",
+            "principal_buckling_axes_verified": True,
+            "principal_axes_evidence_reference": "UB-PRINCIPAL-AXES",
+            "effective_length_case_x": "braced_fixed_fixed",
+            "effective_length_case_x_verified": True,
+            "effective_length_case_x_reference": "UB-X-FIXED-ENDS",
+            "effective_length_case_y": "braced_fixed_fixed",
+            "effective_length_case_y_verified": True,
+            "effective_length_case_y_reference": "UB-Y-FIXED-ENDS",
+        }
+    )
+    length_values = effective_lengths["values"]
+    capacity = run_members(
+        {
+            "operation": "compression",
+            "yield_strength_mpa": 250,
+            "gross_area_mm2": 3000,
+            "net_area_mm2": 3000,
+            "effective_area_mm2": 3000,
+            "effective_length_x_mm": length_values["effective_length_x_mm"],
+            "effective_length_y_mm": length_values["effective_length_y_mm"],
+            "radius_x_mm": 40,
+            "radius_y_mm": 40,
+            "section_constant_x": 0,
+            "section_constant_y": 0,
+            "action_kn": 500,
+            "geometry": "doubly_symmetric",
+        }
+    )
+    assert length_values["effective_length_x_mm"] == 2800
+    assert capacity["values"]["modified_slenderness_x"] == 70
+    assert capacity["values"]["reduction_x"] == pytest.approx(0.7482233419967513)
+    assert capacity["values"]["member_capacity_x_kn"] == pytest.approx(561.1675064975635)
+    assert capacity["checks"]["x"]["design_capacity"] == pytest.approx(505.0507558478072)
+    assert capacity["checks"]["x"]["satisfied"]
 
 
 def frame_chart_member_buckling(**overrides):

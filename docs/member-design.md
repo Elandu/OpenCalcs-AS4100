@@ -25,7 +25,9 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 | `tension_distribution` | 7.3.1–7.3.2 and Table 7.3.2 | Checks supplied connection capacities for the uniform and both-flange routes and looks up a selected Table 7.3.2 case (a)–(g), including the unequal-angle short-leg condition for cases (a)/(b). A failed capacity check returns no usable `kt` factor. Verify the selected table diagram and Clause 7.3.1 symmetry/connection conditions independently. |
 
 All member actions must already include applicable second-order effects under 8.2.
-Effective lengths are assessed inputs, not inferred from an analysis mesh.
+`design_actions.compression_member_effective_lengths` calculates compression-member
+lengths for explicitly verified idealized end restraints; other effective lengths
+remain assessed inputs, not values inferred from an analysis mesh.
 The Clause 5.15 tension-field prerequisite flag and reference are supplied evidence;
 the calculation requires them when tension-field credit is requested but does not
 authenticate the stiffener or end-post design.
