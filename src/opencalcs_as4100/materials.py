@@ -765,9 +765,7 @@ def _appendix_m_through_thickness_design(data: Mapping) -> dict:
             )
     elif b_case == "fillet_welds_butting_low_strength_material":
         if z_a <= 1:
-            raise ValueError(
-                "Table M.2(b) low-strength butting fillet case requires Za > 1."
-            )
+            raise ValueError("Table M.2(b) low-strength butting fillet case requires Za > 1.")
         if not low_strength_verified or not low_strength_reference:
             raise ValueError(
                 "The low-strength butting fillet case requires verified weld-material evidence "

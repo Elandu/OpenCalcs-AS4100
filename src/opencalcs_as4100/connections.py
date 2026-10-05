@@ -821,6 +821,65 @@ FIELDS["bolt_group"] = {
     "force_y_kn": SIGNED,
     "moment_z_knm": SIGNED,
 }
+FIELDS["bolt_group_with_ply_bearing"] = {
+    **FIELDS["bolt"],
+    "points_mm": {"type": "array", "minItems": 2, "maxItems": 100, "items": POINT},
+    "force_x_kn": SIGNED,
+    "force_y_kn": SIGNED,
+    "moment_z_knm": SIGNED,
+    "diameter_mm": P,
+    "connected_plies": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "ply_id",
+                "thickness_mm",
+                "ultimate_strength_mpa",
+                "bearing_force_relative_to_bolt_action",
+                "effective_edge_distances_by_bolt_mm",
+            ],
+            "properties": {
+                "ply_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                "thickness_mm": P,
+                "ultimate_strength_mpa": P,
+                "bearing_force_relative_to_bolt_action": {
+                    "enum": ["same_as_bolt_action", "opposite_to_bolt_action"]
+                },
+                "effective_edge_distances_by_bolt_mm": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 100,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "positive_x_mm",
+                            "negative_x_mm",
+                            "positive_y_mm",
+                            "negative_y_mm",
+                        ],
+                        "properties": {
+                            "positive_x_mm": P,
+                            "negative_x_mm": P,
+                            "positive_y_mm": P,
+                            "negative_y_mm": P,
+                        },
+                    },
+                },
+            },
+        },
+    },
+    "single_shear_two_ply_lap_joint_verified": {"const": True},
+    "standard_round_holes_verified": {"const": True},
+    "no_filler_plates_verified": {"const": True},
+    "rigid_connection_plates_verified": {"const": True},
+    "group_actions_at_centroid_verified": {"const": True},
+    "connected_plies_complete_and_force_distribution_verified": {"const": True},
+}
 FIELDS["bolt_group_out_of_plane"] = {
     **{
         field: FIELDS["bolt"][field]
@@ -996,6 +1055,7 @@ SLIP_FACTOR_TEST_OPTIONAL_FIELDS = (
 OPTIONAL_FIELDS = {
     "bolt": FILLER_PLATE_OPTIONAL_FIELDS,
     "bolt_group": FILLER_PLATE_OPTIONAL_FIELDS,
+    "bolt_group_with_ply_bearing": FILLER_PLATE_OPTIONAL_FIELDS,
     "bolt_group_out_of_plane": FILLER_PLATE_OPTIONAL_FIELDS,
     "bolt_group_elastic_3d": FILLER_PLATE_OPTIONAL_FIELDS,
     "slip": SLIP_SURFACE_OPTIONAL_FIELDS,
@@ -2735,7 +2795,7 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
                 "distributed_bolt_actions": bolt_actions,
             }
         )
-    elif k in {"bolt", "bolt_group"}:
+    elif k in {"bolt", "bolt_group", "bolt_group_with_ply_bearing"}:
         v, n, intermediate = _bolt(d)
         tension_action = d["tension_action_kn"]
         if k == "bolt":
@@ -2748,7 +2808,7 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
                 }
             )
         actions = [(d["shear_action_kn"], tension_action)]
-        if k == "bolt_group":
+        if k in {"bolt_group", "bolt_group_with_ply_bearing"}:
             if d["shear_action_kn"] or d["tension_action_kn"] or d["prying_tension_kn"]:
                 raise ValueError(
                     "Group uses signed in-plane actions only; component and prying actions "
@@ -2772,13 +2832,105 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             ]
             actions = [(hypot(*f), 0) for f in forces]
             intermediate.update(centroid_mm=[cx, cy], polar_sum_mm2=j, bolt_forces_kn=forces)
+            if k == "bolt_group_with_ply_bearing":
+                if d["threaded_planes"] + d["plain_planes"] != 1:
+                    raise ValueError("Ply-bearing bolt groups must have exactly one shear plane.")
+                if _effective_filler_thickness_mm(d) != 0 or not d["no_filler_plates_verified"]:
+                    raise ValueError("Ply-bearing bolt groups do not support filler plates.")
+                plies = d["connected_plies"]
+                ply_ids = [ply["ply_id"] for ply in plies]
+                if len(set(ply_ids)) != len(ply_ids):
+                    raise ValueError("Connected-ply IDs must be unique.")
+                directions = {ply["bearing_force_relative_to_bolt_action"] for ply in plies}
+                if directions != {"same_as_bolt_action", "opposite_to_bolt_action"}:
+                    raise ValueError(
+                        "The two connected plies must have opposing bearing-force directions "
+                        "relative to the distributed bolt actions."
+                    )
+                for ply in plies:
+                    if len(ply["effective_edge_distances_by_bolt_mm"]) != count:
+                        raise ValueError(
+                            "Each connected ply needs one directional edge-distance set per bolt."
+                        )
+                if any(abs(fx) > 1e-12 and abs(fy) > 1e-12 for fx, fy in forces):
+                    raise ValueError(
+                        "Ply-bearing groups support axis-aligned bolt forces only; assess "
+                        "forces toward multiple edges separately."
+                    )
         for i, (va, na) in enumerate(actions):
-            prefix = f"bolt_{i}_" if k == "bolt_group" else ""
+            prefix = f"bolt_{i}_" if k in {"bolt_group", "bolt_group_with_ply_bearing"} else ""
             c[prefix + "shear"] = _check(v, 0.8, va, "9.2.2.1")
             tension_clause = "9.1.8; 9.2.2.2" if k == "bolt" else "9.2.2.2"
             c[prefix + "tension"] = _check(n, 0.8, na, tension_clause)
             u = (va / (0.8 * v)) ** 2 + (na / (0.8 * n)) ** 2
             c[prefix + "interaction"] = {"utilisation": u, "satisfied": u <= 1, "clause": "9.2.2.3"}
+        if k == "bolt_group_with_ply_bearing":
+            bearing_plies = []
+            for ply in d["connected_plies"]:
+                direction_factor = (
+                    1
+                    if ply["bearing_force_relative_to_bolt_action"] == "same_as_bolt_action"
+                    else -1
+                )
+                bolt_checks = []
+                for index, (fx, fy) in enumerate(forces):
+                    force_on_ply = [direction_factor * fx, direction_factor * fy]
+                    bearing_action = hypot(*force_on_ply)
+                    edge_direction = None
+                    effective_edge_distance = None
+                    if abs(force_on_ply[0]) > 1e-12:
+                        edge_direction = "positive_x" if force_on_ply[0] > 0 else "negative_x"
+                    elif abs(force_on_ply[1]) > 1e-12:
+                        edge_direction = "positive_y" if force_on_ply[1] > 0 else "negative_y"
+                    if edge_direction is not None:
+                        effective_edge_distance = ply["effective_edge_distances_by_bolt_mm"][index][
+                            f"{edge_direction}_mm"
+                        ]
+                    nominal, material_limit, edge_limit = _ply_bearing_capacity(
+                        d["diameter_mm"],
+                        ply["thickness_mm"],
+                        ply["ultimate_strength_mpa"],
+                        effective_edge_distance,
+                    )
+                    bearing_check = _check(nominal, 0.9, bearing_action, "9.2.2.4")
+                    bearing_check.update(
+                        {
+                            "design_action_kn": bearing_action,
+                            "bolt_index": index,
+                            "force_on_ply_kn": force_on_ply,
+                            "edge_direction": edge_direction,
+                            "effective_edge_distance_mm": effective_edge_distance,
+                            "material_limit_nominal_capacity_kn": material_limit,
+                            "edge_limit_nominal_capacity_kn": edge_limit,
+                            "governing_limit": (
+                                "edge_distance"
+                                if edge_limit is not None and edge_limit < material_limit
+                                else "material"
+                            ),
+                        }
+                    )
+                    bolt_checks.append(bearing_check)
+                bearing_plies.append(
+                    {
+                        "ply_id": ply["ply_id"],
+                        "bearing_force_relative_to_bolt_action": ply[
+                            "bearing_force_relative_to_bolt_action"
+                        ],
+                        "bolts": bolt_checks,
+                        "satisfied": all(check["satisfied"] for check in bolt_checks),
+                    }
+                )
+            c["ply_bearing"] = {
+                "plies": bearing_plies,
+                "satisfied": all(ply["satisfied"] for ply in bearing_plies),
+                "clause": "9.3.1; 9.2.2.4",
+            }
+            intermediate["bearing_ply_count"] = len(bearing_plies)
+            intermediate["bearing_action_distribution"] = "full_distributed_bolt_action_on_each_ply"
+            intermediate["group_action_convention"] = (
+                "resultant_force_and_moment_applied_to_reference_connected_ply; "
+                "computed_bolt_actions_sum_to_the_supplied_resultant"
+            )
         filler_check = _filler_plate_detailing_check(d)
         if filler_check is not None:
             c["filler_plate_detailing"] = filler_check
@@ -3695,6 +3847,17 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "prying. Determine bolt actions under Clause 9.1.3 and verify connection-element "
             "deformation, stability, and each ply's Clause 9.2.2.4 bearing resistance separately."
             " Compression/contact reactions are outside this bolt-only operation."
+        )
+    elif k == "bolt_group_with_ply_bearing":
+        scope = (
+            "Clauses 9.3.1 and 9.2.2.1/9.2.2.4 for a verified rigid-plate, centroidal-action, "
+            "single-shear two-ply lap joint with standard round holes and no filler plates. "
+            "This route computes the in-plane group vectors, checks each bolt, and applies the "
+            "full bolt resultant to each opposing ply's own bearing resistance. Bolt vectors must "
+            "align with one global axis; multi-edge force directions require separate assessment. "
+            "Verify the complete ply set, directional effective edge distances, material values, "
+            "standard-hole and detailing requirements, net/block shear, slip, load path, and "
+            "connection-element deformation/stability from project evidence."
         )
     elif k == "pin":
         scope = (

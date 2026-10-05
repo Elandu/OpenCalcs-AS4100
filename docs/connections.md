@@ -21,7 +21,7 @@ each shear plane, including paint film; the operation selects the maximum.
 Alternatively, `filler_thickness_mm` must already be that governing maximum.
 
 The implementation was visually reviewed against the licensed AS 4100:2020
-Section 9, printed pages 112–138, including Clauses 9.1.10.1-3 on pages 116-117, Clause 9.1.4 on page 114, Clause 9.2.2.4 on page 120, Clause 9.4.4 on page 124, Clauses
+Section 9, printed pages 112–138, including Clauses 9.1.10.1-3 on pages 116-117, Clause 9.1.4 on page 114, Clauses 9.2.2.4 and 9.3.1 on pages 120 and 122, Clause 9.4.4 on page 124, Clauses
 9.6.2.3(b)(i), 9.6.2.3(b)(iii), 9.6.2.6 on page 127, and 9.6.2.7(c) on page 129,
 plus 9.6.3.4 and Figure 9.6.3.4 on page 133, Table 3.4
 on page 34, Clause 3.5.5 on page 35, and Appendix J on printed pages 203–206.
@@ -66,6 +66,7 @@ The source standard is not redistributed.
 | angle_hole_deduction_layout | 9.1.10.1-3 derives straight rows and searches every progressive zig-zag chain through a complete two-leg angle hole layout. Leg 1 is ordered toe-to-heel and leg 2 heel-to-toe. Same-leg gauges use back-mark differences; cross-leg gauges use Figure 9.1.10.3(B). Supply all hole coordinates, gross hole widths and verified angle orientation, dimensions and action axis. |
 | combined_weld_types | 9.7.4 sums already-calculated Section 9 design capacities for at least two different weld types and compares the total with one force or moment action. Declare the complete non-overlapping component set and a common action basis/direction. It does not calculate individual weld capacities or apply another capacity factor. |
 | bolt_group | 9.3.1 rigid-group elastic superposition of centroidal signed Fx, Fy and Mz. Checks each bolt; identical bolts, in-plane actions only. Component actions must be zero. Separate ply bearing and detailing remain necessary. |
+| bolt_group_with_ply_bearing | 9.3.1 and 9.2.2.1/9.2.2.4 for a rigid-plate, centroidal-action group with exactly two plies, one shear plane, standard round holes and no filler. Checks each bolt and each ply; the full bolt force acts on both plies. Bolt-force vectors must align with one global axis. |
 | bolt_group_out_of_plane | 9.3.2–3 checks user-supplied per-bolt Fx/Fy/tension actions, their six-resultant equilibrium under 9.1.3(a), and each bolt's shear, tension, prying addition and combined interaction. Bolt tension acts along z; positions are (x,y) about the verified common action origin and moments follow right-handed `r × F`. Load distribution and component stability require verified analysis inputs. Check compression/contact actions and ply bearing separately. |
 | bolt_group_elastic_3d | 9.1.3(a), 9.3.2–3 resolves a planar bolt group's six centroidal resultants with rigid-plate, equal-bolt-stiffness linear elastic distribution, then checks equilibrium and each bolt's shear, tension, prying addition and interaction. Requires a non-collinear layout, verified method/experimental basis, and nonnegative calculated bolt tension. Compression/contact and slack-bolt redistribution, ply bearing and complete connection-component checks remain separate. |
 | weld_group | 9.7.1–3 constant-throat straight-line fillet group, signed Fx/Fy/Fz and Mx/My/Mz at centroid. Exact line integrals including product inertia; vector resultant checked at every endpoint. Forces and moments are in a right-handed xyz system; weld lies in xy plane. |
@@ -79,6 +80,25 @@ towards an edge, `effective_edge_distance_mm` is required: use the minimum clear
 distance from the pin hole to a ply edge or adjacent hole in that direction,
 plus half the pin diameter. These geometry and load-distribution inputs remain
 engineering evidence; the plugin does not authenticate them.
+
+For `bolt_group_with_ply_bearing`, provide exactly two complete connected plies,
+one shear plane, standard round holes and no filler plates. The supplied group
+force and moment are the resultant applied to the reference connected ply; the
+computed distributed bolt-action vectors sum to that resultant. For each ply,
+set `bearing_force_relative_to_bolt_action` to state whether the bolt bearing
+force on that ply follows or opposes its computed per-bolt action vector. The
+per-bolt convention defines directions for a pure couple as well, where no
+global force direction exists. Supply a direction-specific
+`effective_edge_distances_by_bolt_mm` entry for every point in the same order as
+`points_mm`; each distance is the minimum clear distance from the hole edge to a
+free edge or adjacent hole in that force direction, plus half the nominal bolt
+diameter. The full resultant force on each bolt is checked against each ply,
+with that ply's own thickness, tensile strength and edge distance. The route
+accepts only bolt forces aligned with one global axis; a force toward multiple
+edges needs a separate bearing assessment. Verify the centroidal actions,
+rigid plates, complete ply set, geometry and Clause 9.5 detailing independently.
+Net/block shear, slip resistance, component stability and other connection
+checks remain separate.
 
 `hole_deduction_layout` treats `longitudinal_mm` as parallel to the design action and `transverse_mm` as perpendicular to it. `gross_hole_width_mm` is the gross hole width across the plate at the section, including any applicable countersink. The result reports the controlling straight row, the maximum progressive zig-zag chain and its individual stagger corrections, then selects the greater deduction under Clause 9.1.10.3. This flat-plate route does not cover other section forms, net-section modulus calculations or block-shear path enumeration. It also does not authenticate the declared layout or replace Clause 9.5 detailing checks.
 

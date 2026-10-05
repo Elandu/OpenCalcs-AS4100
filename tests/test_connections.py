@@ -28,6 +28,55 @@ def bolt(**changes):
     }
 
 
+def bolt_group_with_ply_bearing(**changes):
+    def edge_distances(positive_y, negative_y):
+        return [
+            {
+                "positive_x_mm": 100,
+                "negative_x_mm": 100,
+                "positive_y_mm": positive_y,
+                "negative_y_mm": negative_y,
+            }
+            for _ in range(3)
+        ]
+
+    values = {
+        "check_type": "bolt_group_with_ply_bearing",
+        "points_mm": [[-50, 0], [0, 0], [50, 0]],
+        "force_x_kn": 0,
+        "force_y_kn": 108,
+        "moment_z_knm": 4.8,
+        "shear_action_kn": 0,
+        "tension_action_kn": 0,
+        "prying_tension_kn": 0,
+        "diameter_mm": 20,
+        "connected_plies": [
+            {
+                "ply_id": "loaded",
+                "thickness_mm": 6,
+                "ultimate_strength_mpa": 320,
+                "bearing_force_relative_to_bolt_action": "opposite_to_bolt_action",
+                "effective_edge_distances_by_bolt_mm": edge_distances(100, 35),
+            },
+            {
+                "ply_id": "support",
+                "thickness_mm": 6,
+                "ultimate_strength_mpa": 320,
+                "bearing_force_relative_to_bolt_action": "same_as_bolt_action",
+                "effective_edge_distances_by_bolt_mm": edge_distances(60, 100),
+            },
+        ],
+        "single_shear_two_ply_lap_joint_verified": True,
+        "standard_round_holes_verified": True,
+        "no_filler_plates_verified": True,
+        "rigid_connection_plates_verified": True,
+        "group_actions_at_centroid_verified": True,
+        "connected_plies_complete_and_force_distribution_verified": True,
+    }
+    values.update(changes)
+    return bolt(**values)
+
+
 def simple_beam_shear(**changes):
     return {
         "check_type": "minimum_beam_shear_action",
@@ -2833,6 +2882,60 @@ def test_bolt_group_vector_superposition_and_equilibrium():
     assert sum(
         x * fy - y * fx for (x, y), (fx, fy) in zip(points, forces, strict=True)
     ) == pytest.approx(2000)
+
+
+def test_clause_9_3_1_bolt_group_checks_full_action_on_each_ply():
+    result = run_connections(bolt_group_with_ply_bearing())
+    bolt_forces = result["intermediate"]["bolt_forces_kn"]
+    assert [force[0] for force in bolt_forces] == pytest.approx([0, 0, 0])
+    assert [force[1] for force in bolt_forces] == pytest.approx([-12, 36, 84])
+    assert result["checks"]["bolt_2_shear"]["satisfied"]
+    assert result["checks"]["bolt_2_shear"]["design_capacity_kn"] == pytest.approx(92.628)
+
+    bearing = result["checks"]["ply_bearing"]
+    loaded, support = bearing["plies"]
+    loaded_bolt = loaded["bolts"][2]
+    support_bolt = support["bolts"][2]
+    assert loaded_bolt["design_action_kn"] == pytest.approx(84)
+    assert support_bolt["design_action_kn"] == pytest.approx(84)
+    assert loaded_bolt["force_on_ply_kn"] == pytest.approx([0, -84])
+    assert support_bolt["force_on_ply_kn"] == pytest.approx([0, 84])
+    assert loaded_bolt["edge_direction"] == "negative_y"
+    assert support_bolt["edge_direction"] == "positive_y"
+    assert loaded_bolt["material_limit_nominal_capacity_kn"] == pytest.approx(122.88)
+    assert loaded_bolt["edge_limit_nominal_capacity_kn"] == pytest.approx(67.2)
+    assert loaded_bolt["design_capacity_kn"] == pytest.approx(60.48)
+    assert not loaded_bolt["satisfied"]
+    assert support_bolt["design_capacity_kn"] == pytest.approx(103.68)
+    assert support_bolt["satisfied"]
+    assert not bearing["satisfied"]
+
+
+def test_ply_bearing_bolt_group_rejects_unsupported_distribution_and_geometry():
+    with pytest.raises(ValueError, match="axis-aligned bolt forces only"):
+        run_connections(bolt_group_with_ply_bearing(force_x_kn=10))
+    with pytest.raises(ValueError, match="exactly one shear plane"):
+        run_connections(bolt_group_with_ply_bearing(plain_planes=1))
+    with pytest.raises(ValueError, match="do not support filler plates"):
+        run_connections(bolt_group_with_ply_bearing(filler_thickness_mm=2))
+    with pytest.raises(ValueError, match="opposing bearing-force directions"):
+        invalid = bolt_group_with_ply_bearing()
+        invalid["connected_plies"][1]["bearing_force_relative_to_bolt_action"] = (
+            "opposite_to_bolt_action"
+        )
+        run_connections(invalid)
+
+
+def test_ply_bearing_bolt_group_pure_couple_uses_per_bolt_directions():
+    result = run_connections(bolt_group_with_ply_bearing(force_y_kn=0, moment_z_knm=4.8))
+    loaded, support = result["checks"]["ply_bearing"]["plies"]
+    assert [bolt["force_on_ply_kn"][1] for bolt in loaded["bolts"]] == pytest.approx([48, 0, -48])
+    assert [bolt["edge_direction"] for bolt in loaded["bolts"]] == [
+        "positive_y",
+        None,
+        "negative_y",
+    ]
+    assert [bolt["force_on_ply_kn"][1] for bolt in support["bolts"]] == pytest.approx([-48, 0, 48])
 
 
 def test_clause_9_1_3_and_9_3_2_3_rigid_plate_bolt_group_distribution():

@@ -1504,25 +1504,25 @@ def clause_2_2_5_z_quality():
 
 def appendix_m_table_m2_z_quality():
     inputs = {
-            "operation": "appendix_m_through_thickness_design",
-            "product_standard": "AS/NZS 3678",
-            "material_thickness_mm": 45,
-            "effective_weld_depth_mm": 25,
-            "table_m2_b_case": "multi_run_fillet",
-            "low_strength_weld_material_verified": False,
-            "low_strength_weld_material_reference": None,
-            "remote_restraint": "high",
-            "preheating_condition": "without_preheating",
-            "compression_reduction_basis": "not_applicable",
-            "effective_weld_depth_assessment_verified": True,
-            "table_m2_weld_form_case_verified": True,
-            "remote_restraint_classification_verified": True,
-            "preheating_condition_verified": True,
-            "compression_reduction_applicability_verified": True,
-            "available_z_quality_class": "Z25",
-            "material_certificate_verified": True,
-            "material_certificate_reference": "MILL-CERT-M2-01",
-        }
+        "operation": "appendix_m_through_thickness_design",
+        "product_standard": "AS/NZS 3678",
+        "material_thickness_mm": 45,
+        "effective_weld_depth_mm": 25,
+        "table_m2_b_case": "multi_run_fillet",
+        "low_strength_weld_material_verified": False,
+        "low_strength_weld_material_reference": None,
+        "remote_restraint": "high",
+        "preheating_condition": "without_preheating",
+        "compression_reduction_basis": "not_applicable",
+        "effective_weld_depth_assessment_verified": True,
+        "table_m2_weld_form_case_verified": True,
+        "remote_restraint_classification_verified": True,
+        "preheating_condition_verified": True,
+        "compression_reduction_applicability_verified": True,
+        "available_z_quality_class": "Z25",
+        "material_certificate_verified": True,
+        "material_certificate_reference": "MILL-CERT-M2-01",
+    }
     result = run_materials(inputs)
     values = result["values"]
     terms = {"z_a": 9, "z_b": 0, "z_c_after_reduction": 10, "z_d": 5, "z_e": 0}
@@ -3725,6 +3725,103 @@ def clause_9_4_4_pin_ply_bearing():
     }
 
 
+def clause_9_3_1_bolt_group_ply_bearing():
+    def edge_distances(positive_y, negative_y):
+        return [
+            {
+                "positive_x_mm": 100,
+                "negative_x_mm": 100,
+                "positive_y_mm": positive_y,
+                "negative_y_mm": negative_y,
+            }
+            for _ in range(3)
+        ]
+
+    result = run_connections(
+        {
+            "check_type": "bolt_group_with_ply_bearing",
+            "ultimate_strength_mpa": 830,
+            "minor_area_mm2": 225,
+            "shank_area_mm2": 314,
+            "tensile_area_mm2": 245,
+            "threaded_planes": 1,
+            "plain_planes": 0,
+            "grade": "8.8",
+            "lap_length_mm": 0,
+            "filler_thickness_mm": 0,
+            "shear_action_kn": 0,
+            "tension_action_kn": 0,
+            "prying_tension_kn": 0,
+            "prying_force_assessment_verified": True,
+            "points_mm": [[-50, 0], [0, 0], [50, 0]],
+            "force_x_kn": 0,
+            "force_y_kn": 108,
+            "moment_z_knm": 4.8,
+            "diameter_mm": 20,
+            "connected_plies": [
+                {
+                    "ply_id": "loaded",
+                    "thickness_mm": 6,
+                    "ultimate_strength_mpa": 320,
+                    "bearing_force_relative_to_bolt_action": "opposite_to_bolt_action",
+                    "effective_edge_distances_by_bolt_mm": edge_distances(100, 35),
+                },
+                {
+                    "ply_id": "support",
+                    "thickness_mm": 6,
+                    "ultimate_strength_mpa": 320,
+                    "bearing_force_relative_to_bolt_action": "same_as_bolt_action",
+                    "effective_edge_distances_by_bolt_mm": edge_distances(60, 100),
+                },
+            ],
+            "single_shear_two_ply_lap_joint_verified": True,
+            "standard_round_holes_verified": True,
+            "no_filler_plates_verified": True,
+            "rigid_connection_plates_verified": True,
+            "group_actions_at_centroid_verified": True,
+            "connected_plies_complete_and_force_distribution_verified": True,
+        }
+    )
+    forces = result["intermediate"]["bolt_forces_kn"]
+    expected_y = [-12, 36, 84]
+    for force, expected in zip(forces, expected_y, strict=True):
+        if not isclose(force[0], 0, rel_tol=0, abs_tol=1e-12) or not isclose(
+            force[1], expected, rel_tol=0, abs_tol=1e-12
+        ):
+            raise AssertionError("Clause 9.3.1 bolt-group forces differ from hand arithmetic")
+    if not result["checks"]["bolt_2_shear"]["satisfied"]:
+        raise AssertionError("Clause 9.2.2.1 bolt shear should pass in the bearing benchmark")
+    plies = result["checks"]["ply_bearing"]["plies"]
+    expected_capacities = [60.48, 103.68]
+    expected_ply_force_y = [-84, 84]
+    for ply, expected, expected_force_y in zip(
+        plies, expected_capacities, expected_ply_force_y, strict=True
+    ):
+        if not isclose(ply["bolts"][2]["design_action_kn"], 84, rel_tol=0, abs_tol=1e-12):
+            raise AssertionError("Clause 9.3.1 must apply the full bolt action to each ply")
+        if not isclose(
+            ply["bolts"][2]["force_on_ply_kn"][1], expected_force_y, rel_tol=0, abs_tol=1e-12
+        ):
+            raise AssertionError(
+                "Clause 9.2.2.4 must select the edge in the ply bearing-force direction"
+            )
+        if not isclose(ply["bolts"][2]["design_capacity_kn"], expected, rel_tol=0, abs_tol=1e-12):
+            raise AssertionError(
+                "Clause 9.2.2.4 per-ply edge capacity differs from hand arithmetic"
+            )
+    if plies[0]["satisfied"] or not plies[1]["satisfied"]:
+        raise AssertionError("Clause 9.3.1 must report each ply against its own edge distance")
+    return {
+        "bolt_forces_kn": forces,
+        "bolt_3_design_shear_capacity_kn": result["checks"]["bolt_2_shear"]["design_capacity_kn"],
+        "bolt_3_full_action_on_each_ply_kn": [ply["bolts"][2]["design_action_kn"] for ply in plies],
+        "bolt_3_ply_design_bearing_capacities_kn": [
+            ply["bolts"][2]["design_capacity_kn"] for ply in plies
+        ],
+        "ply_passes": [ply["satisfied"] for ply in plies],
+    }
+
+
 def clause_9_8_packing():
     result = run_connections(
         {
@@ -4252,6 +4349,7 @@ def main():
         ),
         "clause_7_4_3_back_to_back_connection_layout": clause_7_4_3_back_to_back_connection_layout,
         "clause_9_1_9e_block_shear_path_set": clause_9_1_9e_block_shear_path_set,
+        "clause_9_3_1_bolt_group_ply_bearing": clause_9_3_1_bolt_group_ply_bearing,
         "clause_9_4_4_pin_ply_bearing": clause_9_4_4_pin_ply_bearing,
         "clause_9_1_10_coordinate_hole_deduction": clause_9_1_10_coordinate_hole_deduction,
         "figure_9_1_10_3b_angle_back_mark_gauge": figure_9_1_10_3b_angle_back_mark_gauge,

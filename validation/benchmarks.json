@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.35",
+  "package_version": "0.7.36",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1610,6 +1610,90 @@
       "name": "Clauses 9.1.8 and 9.2.2.2 bolt tension including prying",
       "actual": 85,
       "expected": 85,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 bolt B1 force from centroidal shear and moment (kN)",
+      "actual": -12.0,
+      "expected": -12,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 bolt B2 force from centroidal shear and moment (kN)",
+      "actual": 36.0,
+      "expected": 36,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 bolt B3 force from centroidal shear and moment (kN)",
+      "actual": 84.0,
+      "expected": 84,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.2.2.1 bolt B3 design shear resistance (kN)",
+      "actual": 92.628,
+      "expected": 92.628,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 full bolt B3 action on first ply (kN)",
+      "actual": 84.0,
+      "expected": 84,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 full bolt B3 action on second ply (kN)",
+      "actual": 84.0,
+      "expected": 84,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 bearing force direction on loaded ply B3 (kN)",
+      "actual": -84.0,
+      "expected": -84,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 bearing force direction on support ply B3 (kN)",
+      "actual": 84.0,
+      "expected": 84,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.2.2.4 first-ply edge-limited resistance (kN)",
+      "actual": 60.480000000000004,
+      "expected": 60.48,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.2.2.4 second-ply edge-limited resistance (kN)",
+      "actual": 103.68,
+      "expected": 103.68,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 first-ply bearing failure despite bolt shear pass",
+      "actual": 0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.3.1 second-ply bearing pass at its separate edge distance",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },
