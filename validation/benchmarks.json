@@ -200,6 +200,55 @@
       "passed": true
     },
     {
+      "name": "Clause 5.2.2 selects maximum plate slenderness/yield-limit ratio",
+      "actual": 1.5625,
+      "expected": 1.5625,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.1 nominal section capacity from governing Ze",
+      "actual": 16.0,
+      "expected": 16,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.1 elastic major-axis design section capacity",
+      "actual": 90.0,
+      "expected": 90,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.1 elastic major-axis design member capacity",
+      "actual": 81.0,
+      "expected": 81,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.1 elastic minor-axis design section capacity",
+      "actual": 45.0,
+      "expected": 45,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.1 plastic-method design section capacity",
+      "actual": 90.0,
+      "expected": 90,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.1 plastic-method eligibility gates",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 9.1.10 single-hole flange net area",
       "actual": 800,
       "expected": 800,
@@ -547,6 +596,132 @@
       "actual": 2014.2049798141545,
       "expected": 2014.2049798141545,
       "absolute_tolerance": 1e-08,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.3.3 braced chart factor branch range",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.2 Euler load using assessed Figure 4.6.3.3 factor",
+      "actual": 1366.0352112234405,
+      "expected": 1366.0352112234405,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.3.5 triangulated member effective-length minimum",
+      "actual": 3000,
+      "expected": 3000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.2 Euler load at triangulated member length minimum",
+      "actual": 986.9604401089358,
+      "expected": 986.9604401089358,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.7.2.1 braced-frame lowest column load factor",
+      "actual": 2.0,
+      "expected": 2.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.7.2.2 sway-storey factor with tension column",
+      "actual": 8.0,
+      "expected": 8.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.7.2.2 whole-frame lowest storey factor",
+      "actual": 2.9999999999999996,
+      "expected": 3.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 4.6.3.4 braced beam modifier: pinned",
+      "actual": 1.5,
+      "expected": 1.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 4.6.3.4 braced beam modifier: rigidly_connected_to_column",
+      "actual": 1.0,
+      "expected": 1.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 4.6.3.4 braced beam modifier: fixed",
+      "actual": 2.0,
+      "expected": 2.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 4.6.3.4 sway beam modifier: pinned",
+      "actual": 0.5,
+      "expected": 0.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 4.6.3.4 sway beam modifier: rigidly_connected_to_column",
+      "actual": 1.0,
+      "expected": 1.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 4.6.3.4 sway beam modifier: fixed",
+      "actual": 0.67,
+      "expected": 0.67,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.3.4 connected compression-member stiffness sum",
+      "actual": 4000.0,
+      "expected": 4000,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.3.4 beta-adjusted beam stiffness sum",
+      "actual": 5000.0,
+      "expected": 5000,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.3.4 rectangular-frame end stiffness ratio",
+      "actual": 0.8,
+      "expected": 0.8,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.3.4 rigid-base minimum gamma check",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.6.3.4 unrestrained-base minimum gamma boundary",
+      "actual": 0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
       "passed": true
     },
     {
