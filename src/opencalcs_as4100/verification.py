@@ -33,6 +33,40 @@ def verify():
             }
         )
 
+    design_service_temperature = run_durability(
+        {
+            "check_type": "design_service_temperature",
+            "lodmat_temperature_c": 6,
+            "lodmat_assessment_verified": True,
+            "lodmat_evidence_reference": "BENCHMARK-FIGURE-10.3.2-SITE-01",
+            "especially_low_local_ambient_conditions_verified": True,
+            "special_local_temperature_evidence_reference": "BENCHMARK-LOW-TEMP-01",
+            "record_based_low_temperature_c": -2,
+            "critical_structure_and_temperature_records_verified": True,
+            "recorded_temperature_evidence_reference": "BENCHMARK-TEMPERATURE-RECORD-01",
+            "artificial_cooling_minimum_temperature_c": -25,
+            "artificial_cooling_below_basic_temperature_verified": True,
+            "artificial_cooling_evidence_reference": "BENCHMARK-COOLING-01",
+        }
+    )
+    service_temperature = design_service_temperature["results"]
+    record(
+        "Clause 10.3.2(a) local ambient temperature adjustment",
+        service_temperature["lodmat_temperature_c"]
+        + service_temperature["special_local_ambient_adjustment_c"],
+        1,
+    )
+    record(
+        "Clause 10.3.2(b) verified colder record controls basic temperature",
+        service_temperature["basic_design_service_temperature_c"],
+        -2,
+    )
+    record(
+        "Clause 10.3.3 artificial cooling sets part service temperature",
+        service_temperature["design_service_temperature_c"],
+        -25,
+    )
+
     truss_stress_range = run_durability(
         {
             "check_type": "hollow_section_truss_stress_range",

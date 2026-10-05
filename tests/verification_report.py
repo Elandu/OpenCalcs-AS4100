@@ -19,6 +19,37 @@ from opencalcs_as4100.testing import run_testing  # noqa: E402
 from opencalcs_as4100.webs import run_webs  # noqa: E402
 
 
+def clause_10_3_design_service_temperature():
+    result = run_durability(
+        {
+            "check_type": "design_service_temperature",
+            "lodmat_temperature_c": 6,
+            "lodmat_assessment_verified": True,
+            "lodmat_evidence_reference": "BENCHMARK-FIGURE-10.3.2-SITE-01",
+            "especially_low_local_ambient_conditions_verified": True,
+            "special_local_temperature_evidence_reference": "BENCHMARK-LOW-TEMP-01",
+            "record_based_low_temperature_c": -2,
+            "critical_structure_and_temperature_records_verified": True,
+            "recorded_temperature_evidence_reference": "BENCHMARK-TEMPERATURE-RECORD-01",
+            "artificial_cooling_minimum_temperature_c": -25,
+            "artificial_cooling_below_basic_temperature_verified": True,
+            "artificial_cooling_evidence_reference": "BENCHMARK-COOLING-01",
+        }
+    )
+    values = result["results"]
+    expected = {
+        "lodmat_temperature_c": 6,
+        "special_local_ambient_adjustment_c": -5,
+        "basic_design_service_temperature_c": -2,
+        "design_service_temperature_c": -25,
+    }
+    for name, value in expected.items():
+        expect_close(values[name], value)
+    if result["clauses"] != ["10.3.2", "10.3.3"]:
+        raise AssertionError("Clauses 10.3.2-10.3.3 were not reported for the applied adjustments")
+    return expected
+
+
 def fillet(length):
     return run_connections(
         {
@@ -3019,6 +3050,9 @@ def clause_13_3_6_2_connection_detailing():
 
 def main():
     cases = {
+        "clauses_10_3_2_10_3_3_design_service_temperature": (
+            clause_10_3_design_service_temperature
+        ),
         "fillet_lap_1700_mm": lambda: expect_close(fillet(1700), 98.784),
         "fillet_lap_8000_mm": lambda: expect_close(fillet(8000), 61.24608),
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),

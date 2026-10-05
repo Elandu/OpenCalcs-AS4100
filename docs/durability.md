@@ -143,6 +143,14 @@ page images are not included in this package.
   temperature (10.4.1), and fabrication/erection requirements must be confirmed.
   Unavailable table cells fail explicitly. No geographic climate mapping or
   automatic grade-to-steel-type selection is performed.
+- `design_service_temperature`: Clause 10.3.2 applies the 5 °C reduction for
+  verified exceptionally low local ambient conditions and selects a verified
+  colder record temperature for critical structures. Clause 10.3.3 uses the
+  supplied minimum expected part temperature when verified artificial cooling
+  takes the part below the basic design temperature. Supply LODMAT from Figure
+  10.3.2 within its 0 °C to 20 °C isotherm range, and verify location, climate
+  records and cooling conditions externally; this operation does not determine
+  those source values.
 - `earthquake_audit`: Table 13.3.4 ductility/performance factors, minimum panel
   movement, grade yield limit for limited/moderate ductility, and an explicit
   manual-review result. Fully ductile design is identified as requiring
@@ -175,8 +183,10 @@ thicknesses used for 12.10.2 still requires separate assessed evidence. No prote
 database or proprietary test certificates are supplied. The room-temperature
 yield strength must remain in the slenderness expressions identified in 12.4.3.
 
-Brittle-fracture design service temperature requires climate/erection/artificial
-cooling assessment under 10.3. Product certification, grade/type mapping
+Brittle-fracture design service temperature uses the separate
+`design_service_temperature` operation for the calculated 10.3.2-10.3.3 routes;
+the LODMAT source, location, record assessment and cooling minimum remain
+externally verified. Product certification, grade/type mapping
 (Table 10.4.4), applicable fabrication provisions, non-conforming-condition
 Charpy evidence and fracture-mechanics assessment (10.5) remain external.
 

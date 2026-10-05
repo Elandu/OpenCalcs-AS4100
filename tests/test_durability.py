@@ -1351,6 +1351,126 @@ def brittle():
     }
 
 
+def design_service_temperature(**changes):
+    return {
+        "check_type": "design_service_temperature",
+        "lodmat_temperature_c": 6,
+        "lodmat_assessment_verified": True,
+        "lodmat_evidence_reference": "AS4100-FIGURE-10.3.2-SITE-01",
+        "especially_low_local_ambient_conditions_verified": False,
+        **changes,
+    }
+
+
+def test_clause_10_3_design_service_temperature_adjustments():
+    ordinary = run_durability(design_service_temperature())
+    assert ordinary["clauses"] == ["10.3.2"]
+    assert ordinary["results"]["basic_design_service_temperature_c"] == 6
+    assert ordinary["results"]["design_service_temperature_c"] == 6
+
+    local = run_durability(
+        design_service_temperature(
+            especially_low_local_ambient_conditions_verified=True,
+            special_local_temperature_evidence_reference="SITE-LOW-TEMP-ASSESSMENT-01",
+        )
+    )
+    assert local["results"]["special_local_ambient_adjustment_c"] == -5
+    assert local["results"]["basic_design_service_temperature_c"] == 1
+
+    record = run_durability(
+        design_service_temperature(
+            record_based_low_temperature_c=-2,
+            critical_structure_and_temperature_records_verified=True,
+            recorded_temperature_evidence_reference="BOM-RECORD-01",
+        )
+    )
+    assert record["results"]["basic_design_service_temperature_c"] == -2
+    assert record["results"]["record_based_temperature_controls"]
+
+    cooled = run_durability(
+        design_service_temperature(
+            artificial_cooling_minimum_temperature_c=-25,
+            artificial_cooling_below_basic_temperature_verified=True,
+            artificial_cooling_evidence_reference="REFRIGERATED-SPACE-01",
+        )
+    )
+    assert cooled["clauses"] == ["10.3.2", "10.3.3"]
+    assert cooled["results"]["design_service_temperature_c"] == -25
+    assert cooled["results"]["artificial_cooling_controls"]
+
+
+@pytest.mark.parametrize(("lodmat", "expected"), [(0, 0), (20, 20)])
+def test_clause_10_3_lodmat_figure_temperature_boundaries(lodmat, expected):
+    values = run_durability(design_service_temperature(lodmat_temperature_c=lodmat))["results"]
+    assert values["basic_design_service_temperature_c"] == expected
+    assert values["design_service_temperature_c"] == expected
+
+
+@pytest.mark.parametrize("lodmat", [-0.1, 20.1])
+def test_clause_10_3_rejects_lodmat_outside_figure_range(lodmat):
+    with pytest.raises(ValueError):
+        run_durability(design_service_temperature(lodmat_temperature_c=lodmat))
+
+
+def test_clause_10_3_design_service_temperature_uses_coldest_verified_basis():
+    result = run_durability(
+        design_service_temperature(
+            especially_low_local_ambient_conditions_verified=True,
+            special_local_temperature_evidence_reference="SITE-LOW-TEMP-ASSESSMENT-01",
+            record_based_low_temperature_c=-2,
+            critical_structure_and_temperature_records_verified=True,
+            recorded_temperature_evidence_reference="BOM-RECORD-01",
+            artificial_cooling_minimum_temperature_c=-25,
+            artificial_cooling_below_basic_temperature_verified=True,
+            artificial_cooling_evidence_reference="REFRIGERATED-SPACE-01",
+        )
+    )
+    values = result["results"]
+    assert values["basic_design_service_temperature_c"] == -2
+    assert values["record_based_temperature_controls"]
+    assert values["design_service_temperature_c"] == -25
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        (
+            {
+                "record_based_low_temperature_c": 6,
+                "critical_structure_and_temperature_records_verified": True,
+                "recorded_temperature_evidence_reference": "BOM-RECORD-01",
+            },
+            "colder than LODMAT",
+        ),
+        (
+            {
+                "artificial_cooling_minimum_temperature_c": 6,
+                "artificial_cooling_below_basic_temperature_verified": True,
+                "artificial_cooling_evidence_reference": "REFRIGERATED-SPACE-01",
+            },
+            "below the basic design temperature",
+        ),
+        (
+            {"especially_low_local_ambient_conditions_verified": True},
+            None,
+        ),
+        (
+            {"record_based_low_temperature_c": -12},
+            None,
+        ),
+        (
+            {"artificial_cooling_minimum_temperature_c": -25},
+            None,
+        ),
+    ],
+)
+def test_clause_10_3_rejects_unverified_or_inconsistent_temperature_adjustments(changes, message):
+    with pytest.raises(ValueError) as exc_info:
+        run_durability(design_service_temperature(**changes))
+    if message is not None:
+        assert message in str(exc_info.value)
+
+
 def test_d12_brittle_table_boundaries_and_strain():
     d = brittle()
     assert result(d)["permissible_service_temperature_c"] == -20

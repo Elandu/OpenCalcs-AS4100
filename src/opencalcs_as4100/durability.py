@@ -22,6 +22,102 @@ def _operation(name, properties, required=None):
     }
 
 
+def _design_service_temperature_operation():
+    reference = {"type": "string", "minLength": 1, "maxLength": 200}
+    schema = _operation(
+        "design_service_temperature",
+        {
+            "lodmat_temperature_c": _number(0, 20),
+            "lodmat_assessment_verified": {"const": True},
+            "lodmat_evidence_reference": reference,
+            "especially_low_local_ambient_conditions_verified": _BOOL,
+            "special_local_temperature_evidence_reference": reference,
+            "record_based_low_temperature_c": _number(-273, 20),
+            "critical_structure_and_temperature_records_verified": {"const": True},
+            "recorded_temperature_evidence_reference": reference,
+            "artificial_cooling_minimum_temperature_c": _number(-273, 20),
+            "artificial_cooling_below_basic_temperature_verified": {"const": True},
+            "artificial_cooling_evidence_reference": reference,
+        },
+        required=[
+            "lodmat_temperature_c",
+            "lodmat_assessment_verified",
+            "lodmat_evidence_reference",
+            "especially_low_local_ambient_conditions_verified",
+        ],
+    )
+    schema["allOf"] = [
+        {
+            "if": {
+                "properties": {"especially_low_local_ambient_conditions_verified": {"const": True}},
+                "required": ["especially_low_local_ambient_conditions_verified"],
+            },
+            "then": {"required": ["special_local_temperature_evidence_reference"]},
+        },
+        {
+            "if": {"required": ["special_local_temperature_evidence_reference"]},
+            "then": {
+                "properties": {"especially_low_local_ambient_conditions_verified": {"const": True}}
+            },
+        },
+        {
+            "if": {"required": ["record_based_low_temperature_c"]},
+            "then": {
+                "required": [
+                    "critical_structure_and_temperature_records_verified",
+                    "recorded_temperature_evidence_reference",
+                ]
+            },
+        },
+        {
+            "if": {"required": ["critical_structure_and_temperature_records_verified"]},
+            "then": {
+                "required": [
+                    "record_based_low_temperature_c",
+                    "recorded_temperature_evidence_reference",
+                ]
+            },
+        },
+        {
+            "if": {"required": ["recorded_temperature_evidence_reference"]},
+            "then": {
+                "required": [
+                    "record_based_low_temperature_c",
+                    "critical_structure_and_temperature_records_verified",
+                ]
+            },
+        },
+        {
+            "if": {"required": ["artificial_cooling_minimum_temperature_c"]},
+            "then": {
+                "required": [
+                    "artificial_cooling_below_basic_temperature_verified",
+                    "artificial_cooling_evidence_reference",
+                ]
+            },
+        },
+        {
+            "if": {"required": ["artificial_cooling_below_basic_temperature_verified"]},
+            "then": {
+                "required": [
+                    "artificial_cooling_minimum_temperature_c",
+                    "artificial_cooling_evidence_reference",
+                ]
+            },
+        },
+        {
+            "if": {"required": ["artificial_cooling_evidence_reference"]},
+            "then": {
+                "required": [
+                    "artificial_cooling_minimum_temperature_c",
+                    "artificial_cooling_below_basic_temperature_verified",
+                ]
+            },
+        },
+    ]
+    return schema
+
+
 _BOOL = {"type": "boolean"}
 _POS = _number(exclusive=True)
 _FATIGUE = {
@@ -646,6 +742,7 @@ INPUT_SCHEMA = {
         _fire_protected_regression_fit_operation(),
         _fire_three_sided_group_operation(),
         _fire_protected_regression_operation(),
+        _design_service_temperature_operation(),
         _operation(
             "brittle_fracture",
             {
@@ -1203,6 +1300,16 @@ _RESULT_SCHEMAS = {
             "permissible_service_temperature_c": {"type": "number"},
             "strain_temperature_increase_c": _NUM,
             "check_satisfied": _BOOL,
+        }
+    ),
+    "design_service_temperature": _result_schema(
+        {
+            "lodmat_temperature_c": {"type": "number"},
+            "special_local_ambient_adjustment_c": {"type": "number"},
+            "basic_design_service_temperature_c": {"type": "number"},
+            "record_based_temperature_controls": _BOOL,
+            "artificial_cooling_controls": _BOOL,
+            "design_service_temperature_c": {"type": "number"},
         }
     ),
     "earthquake_audit": _result_schema(
@@ -2546,11 +2653,57 @@ def _brittle(d):
             "check_satisfied": permissible < d["design_service_temperature_c"]
             and d["fabrication_erection_requirements_satisfied"],
         },
-        ["10.3", "10.4.1", "10.4.2", "10.4.3"],
+        ["10.4.1", "10.4.2", "10.4.3"],
         [
             "Steel type must be selected from Table 10.4.4 using certified product grade.",
             "Design service temperature needs climate, erection and artificial-cooling review.",
             "Non-conforming conditions and fracture-mechanics assessment require separate review.",
+        ],
+    )
+
+
+def _design_service_temperature(d):
+    lodmat = d["lodmat_temperature_c"]
+    adjustment = -5 if d["especially_low_local_ambient_conditions_verified"] else 0
+    basic = lodmat + adjustment
+    record_controls = False
+    if "record_based_low_temperature_c" in d:
+        recorded = d["record_based_low_temperature_c"]
+        if recorded >= lodmat:
+            raise ValueError("The verified abnormal temperature record must be colder than LODMAT.")
+        if recorded < basic:
+            basic = recorded
+            record_controls = True
+    design = basic
+    cooling_controls = False
+    if "artificial_cooling_minimum_temperature_c" in d:
+        cooling_temperature = d["artificial_cooling_minimum_temperature_c"]
+        if cooling_temperature >= basic:
+            raise ValueError(
+                "The artificial-cooling minimum must be below the basic design temperature."
+            )
+        design = cooling_temperature
+        cooling_controls = True
+    clauses = ["10.3.2"]
+    if cooling_controls:
+        clauses.append("10.3.3")
+    return (
+        {
+            "lodmat_temperature_c": lodmat,
+            "special_local_ambient_adjustment_c": adjustment,
+            "basic_design_service_temperature_c": basic,
+            "record_based_temperature_controls": record_controls,
+            "artificial_cooling_controls": cooling_controls,
+            "design_service_temperature_c": design,
+        },
+        clauses,
+        [
+            "Determine LODMAT from Figure 10.3.2 for the site; the value and source are supplied "
+            "inputs.",
+            "Verify local climate records, the structure's critical designation and the minimum "
+            "temperature under artificial cooling against project evidence.",
+            "Steel selection under Clause 10.4 and fracture assessment under Clause 10.5 remain "
+            "separate checks.",
         ],
     )
 
@@ -2885,6 +3038,8 @@ def _run_durability(inputs):
                 "The caller-supplied interpolation declaration cannot be independently checked; "
                 "assess geometry and temperature limits plus the Clause 12.6.2.3 reuse conditions.",
             ]
+    elif op == "design_service_temperature":
+        result, clauses, warnings = _design_service_temperature(d)
     elif op == "brittle_fracture":
         result, clauses, warnings = _brittle(d)
     else:
