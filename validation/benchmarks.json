@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.6",
+  "package_version": "0.7.7",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1981,6 +1981,13 @@
       "name": "Amd 1 Appendix H.4 square closed-section torsion constant, hand arithmetic",
       "actual": 5000000.0,
       "expected": 5000000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix H.4 informative open-section torsion constant, hand arithmetic",
+      "actual": 54000.0,
+      "expected": 54000,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

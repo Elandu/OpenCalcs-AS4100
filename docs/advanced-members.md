@@ -1,7 +1,7 @@
 # Further member provisions
 
 The `advanced_members` module supplies additional calculations reviewed directly from
-AS 4100:2020 pages 57–67, 69, 93–98, 101–102 and 107–112. The licensed document
+AS 4100:2020 pages 57–67, 69, 93–98, 101–102, 107–112 and 194–199. The licensed document
 is not included. `INPUT_SCHEMA`, `OUTPUT_SCHEMA` and `run_advanced_members` are exported.
 Every result retains `full_standard_compliance: false` and lists its prerequisites.
 Supplied capacities are nominal; strength checks apply phi=0.9.
@@ -26,6 +26,7 @@ Supplied capacities are nominal; strength checks apply phi=0.9.
 | `lateral_buckling_effective_length` | 5.6.3 effective length from tabulated twist-restraint, gravity-load-height and end-rotation-restraint factors | Supply the applicable end arrangement, restraint spacing/sub-segment length and section dimensions; only listed gravity-load cases are supported. Effective rotation restraint needs assessment to 5.4.3.4. |
 | `nonprincipal_bending` | 5.7 section interaction and, for unconstrained deflection, biaxial member interaction | Rational analysis supplies principal moments, restraint forces and reduced member capacities. |
 | `closed_section_torsion_constant` | Amendment No. 1:2021 Appendix H.4 torsion constant `J = 4 Ae² / Σ(b/t)` for a thin-walled single-cell closed section | Supply verified enclosed median-line area and each wall's median-line length and thickness. Multi-cell and open sections, other section properties and warping constant `Iw` are outside this operation. |
+| `open_section_torsion_constant` | Informative Appendix H.4 approximation `J ≈ Σ(b t³ / 3)` for a thin-walled open section | Supply every verified median-line wall length and thickness for the verified thin-walled open geometry. This approximate property does not cover closed or multi-cell sections, warping constant `Iw`, or member resistance. |
 | `plastic_in_plane` | 8.4.3 member/web plastic hinge eligibility and uniaxial reduced plastic moment capacity | Compact doubly symmetric I section, actual-length Euler load, correct beta_m, plastic frame analysis/restraint provisions. |
 | `built_up_compression` | 6.4 design transverse shear; component slenderness; laced/battened effective slenderness; 6.5 connection shear and minimum bays; optional 6.5.1.5 comparison against verified per-interconnection design capacity | Assessed Ns/Nc/lambda_n, similar symmetric components; iterate Nc with calculated effective slenderness; equal bays/end connections and eligible packing/spacing. |
 | `lacing` | 6.4.2 angle/effective-length/slenderness; tie width/thickness; 7.4.4(a) tension-lacing limit and tie-plate thickness | Double-lacing crossing connection; tie placement and connection force transfer; tension tie plates must meet the 0.017 minimum even when edge-stiffened; component slenderness under 7.4.4(b) is checked by `tension_component_slenderness`; torsional assessment for opposed lacing. |

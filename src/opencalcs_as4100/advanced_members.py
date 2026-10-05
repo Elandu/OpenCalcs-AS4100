@@ -432,6 +432,23 @@ BOOL = {"type": "boolean"}
 VERIFIED = {"const": True}
 BETA = {"type": "number", "minimum": -1, "maximum": 1}
 SCHEMAS = {
+    "open_section_torsion_constant": _schema(
+        "open_section_torsion_constant",
+        {
+            "wall_segments": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "median_line_length_mm": P,
+                        "thickness_mm": P,
+                    }
+                ),
+            },
+            "all_wall_segments_and_thin_walled_open_geometry_verified": VERIFIED,
+        },
+    ),
     "closed_section_torsion_constant": _schema(
         "closed_section_torsion_constant",
         {
@@ -1089,6 +1106,33 @@ def run_advanced_members(inputs):
                 "median line, with its matching wall thickness; verify the closed-cell geometry.",
                 "Multi-cell and open sections are outside this operation. It calculates J only; "
                 "warping constant Iw and other section properties are separate.",
+            ],
+        )
+    if op == "open_section_torsion_constant":
+        contributions = [
+            segment["median_line_length_mm"] * segment["thickness_mm"] ** 3 / 3
+            for segment in d["wall_segments"]
+        ]
+        torsion_constant = sum(contributions)
+        if not isfinite(torsion_constant) or torsion_constant <= 0:
+            raise ValueError(
+                "Appendix H.4 open-section torsion constant must be positive and finite."
+            )
+        return result(
+            op,
+            ["Appendix H.4 (informative)"],
+            {
+                "wall_segment_contributions_mm4": contributions,
+                "torsion_constant_j_approx_mm4": torsion_constant,
+            },
+            [],
+            [
+                "Calculates the informative Appendix H.4 open-section approximation "
+                "J ~= sum(b*t^3/3).",
+                "Supply each wall segment's median-line length and thickness in a verified "
+                "thin-walled open section.",
+                "This approximate torsion property does not calculate warping constant Iw, "
+                "multi-cell torsion, or member resistance.",
             ],
         )
     if op == "continuous_lateral_restraints":

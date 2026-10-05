@@ -5,9 +5,12 @@ licensed scanned copy was reviewed directly for the expanded calculation
 families. Amendment No. 1:2021 (Correction amendment) was reviewed. The supported
 routes apply its Clause 5.6.1.1 labels, the corrected Table 6.3.3(C) row, the
 Clause 6.4.1 equation label, powered Clause 8.4.5.1–8.4.5.2 interactions and
-Clause 8.4.6 interaction. Its corrected Appendix H.4 torsion-constant equation is
-implemented for verified thin-walled single-cell closed sections; other torsion
-properties and warping constant `Iw` remain externally supplied. The amendment
+Clause 8.4.6 interaction. Its corrected Appendix H.4 closed-section torsion-
+constant equation is implemented for verified thin-walled single-cell closed
+sections. The informative Appendix H.4 open-section approximation
+`J ≈ Σ(b t³ / 3)` is also implemented for verified thin-walled open geometry.
+Multi-cell torsion properties, other section properties and warping constant
+`Iw` remain externally supplied. The amendment
 PDF, base-standard scan, page images and extracted standard text are not
 distributed with this repository. No later amendments were supplied or verified;
 applicable project requirements require engineering review.
@@ -24,7 +27,7 @@ the weld/detail demand. Material certification, test evidence, Table 2.1 notes,
 Clause 3.8 detailing and clauses 2.3–2.5 remain assessed outside these
 calculations.
 
-Version 0.7.6 exposes twelve installed calculation families. The code implements
+Version 0.7.7 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing

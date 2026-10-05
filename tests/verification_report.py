@@ -1672,6 +1672,30 @@ def appendix_h4_amended_closed_section_torsion_constant():
     return {"square_closed_section_torsion_constant_mm4": value}
 
 
+def appendix_h4_open_section_torsion_constant():
+    result = run_advanced_members(
+        {
+            "operation": "open_section_torsion_constant",
+            "wall_segments": [
+                {"median_line_length_mm": 1200, "thickness_mm": 3},
+                {"median_line_length_mm": 600, "thickness_mm": 6},
+            ],
+            "all_wall_segments_and_thin_walled_open_geometry_verified": True,
+        }
+    )
+    values = result["values"]
+    expected_contributions = [10_800, 43_200]
+    if values["wall_segment_contributions_mm4"] != expected_contributions:
+        raise AssertionError(
+            "Appendix H.4 open-section wall contributions differ from independent "
+            "b*t^3/3 arithmetic"
+        )
+    value = values["torsion_constant_j_approx_mm4"]
+    if not isclose(value, 54_000, rel_tol=0, abs_tol=1e-9):
+        raise AssertionError(f"Appendix H.4 expected approximate J=54000, observed {value}")
+    return {"open_section_torsion_constant_approx_mm4": value}
+
+
 def clause_5_2_6_hole_moduli():
     result = run_members(
         {
@@ -2967,6 +2991,7 @@ def main():
         "appendix_h4_amended_closed_section_torsion_constant": (
             appendix_h4_amended_closed_section_torsion_constant
         ),
+        "appendix_h4_open_section_torsion_constant": appendix_h4_open_section_torsion_constant,
         "clause_5_2_5_internal_gradient_effective_modulus": clause_5_2_5_internal_gradient,
         "clause_5_2_section_moment_capacity": clause_5_2_section_moment_capacity,
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,

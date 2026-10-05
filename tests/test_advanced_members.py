@@ -19,6 +19,40 @@ def closed_torsion_constant_inputs(**changes):
     }
 
 
+def open_torsion_constant_inputs(**changes):
+    return {
+        "operation": "open_section_torsion_constant",
+        "wall_segments": [
+            {"median_line_length_mm": 1200, "thickness_mm": 3},
+            {"median_line_length_mm": 600, "thickness_mm": 6},
+        ],
+        "all_wall_segments_and_thin_walled_open_geometry_verified": True,
+        **changes,
+    }
+
+
+def test_appendix_h4_open_section_torsion_constant_hand_arithmetic():
+    out = run_advanced_members(open_torsion_constant_inputs())
+    values = out["values"]
+    assert values["wall_segment_contributions_mm4"] == [10_800, 43_200]
+    assert values["torsion_constant_j_approx_mm4"] == 54_000
+    assert out["clauses"] == ["Appendix H.4 (informative)"]
+    assert out["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"wall_segments": []},
+        {"wall_segments": [{"median_line_length_mm": 0, "thickness_mm": 3}]},
+        {"all_wall_segments_and_thin_walled_open_geometry_verified": False},
+    ],
+)
+def test_appendix_h4_open_section_rejects_invalid_or_unverified_geometry(changes):
+    with pytest.raises(ValueError):
+        run_advanced_members(open_torsion_constant_inputs(**changes))
+
+
 def test_amendment_1_appendix_h4_closed_section_torsion_constant_hand_arithmetic():
     out = run_advanced_members(closed_torsion_constant_inputs())
     values = out["values"]

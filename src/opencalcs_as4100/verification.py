@@ -3895,6 +3895,22 @@ def verify():
         5_000_000,
         1e-9,
     )
+    open_section_j = run_advanced_members(
+        {
+            "operation": "open_section_torsion_constant",
+            "wall_segments": [
+                {"median_line_length_mm": 1200, "thickness_mm": 3},
+                {"median_line_length_mm": 600, "thickness_mm": 6},
+            ],
+            "all_wall_segments_and_thin_walled_open_geometry_verified": True,
+        }
+    )
+    record(
+        "Appendix H.4 informative open-section torsion constant, hand arithmetic",
+        open_section_j["values"]["torsion_constant_j_approx_mm4"],
+        54_000,
+        1e-9,
+    )
     back_to_back = run_advanced_members(
         {
             "operation": "built_up_compression",
