@@ -141,8 +141,15 @@ page images are not included in this package.
   increase and eligible post-weld heat-treatment exception (10.4.3). The
   permissible temperature must be **less** than the supplied design service
   temperature (10.4.1), and fabrication/erection requirements must be confirmed.
-  Unavailable table cells fail explicitly. No geographic climate mapping or
-  automatic grade-to-steel-type selection is performed.
+  Unavailable table cells fail explicitly. No geographic climate mapping is
+  performed; use `steel_grade_selection` to compare a proposed grade to the
+  required steel type.
+- `steel_grade_selection`: Checks a candidate grade against the required steel
+  type in Table 10.4.4. Supported standards are AS/NZS 1163, AS/NZS 1594,
+  AS/NZS 3678, AS/NZS 3679.1, AS/NZS 3679.2 and AS 3597. Establish the required
+  type under Clauses 10.4.1–10.4.3 first. Confirm the certified product
+  standard and grade; this check does not establish material conformity,
+  strength, thickness availability or impact-test minima.
 - `nonconforming_steel_impact_test`: For steel whose Table 10.4.1 permissible
   temperature is unknown or warmer than design, Clause 10.4.3.4(d) checks the
   27 J mean and 20 J individual Charpy energy limits for grades whose product

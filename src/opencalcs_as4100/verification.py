@@ -134,6 +134,19 @@ def verify():
         int(specified_impact_test["check_satisfied"]),
         1,
     )
+    grade_selection = run_durability(
+        {
+            "check_type": "steel_grade_selection",
+            "product_standard": "AS 3597",
+            "grade": "700",
+            "required_steel_type": "10Q",
+        }
+    )
+    record(
+        "Table 10.4.4 AS 3597 grade 700 matches required steel type 10Q",
+        int(grade_selection["results"]["grade_selection_satisfied"]),
+        1,
+    )
 
     truss_stress_range = run_durability(
         {

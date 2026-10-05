@@ -1488,6 +1488,73 @@ def test_d12_brittle_table_boundaries_and_strain():
     assert result(d)["permissible_service_temperature_c"] == -40
 
 
+@pytest.mark.parametrize(
+    ("product_standard", "grade", "expected_steel_type"),
+    [
+        ("AS/NZS 1163", "C250", "1"),
+        ("AS/NZS 1163", "C250L0", "2"),
+        ("AS/NZS 3679.1", "300S0", "2S"),
+        ("AS/NZS 1594", "XF300", "3"),
+        ("AS/NZS 1594", "HA350", "4"),
+        ("AS/NZS 1163", "C350L0", "5"),
+        ("AS/NZS 3679.1", "350S0", "5S"),
+        ("AS/NZS 1594", "XF400", "6"),
+        ("AS/NZS 1163", "C450", "7A"),
+        ("AS/NZS 1163", "C450L0", "7B"),
+        ("AS/NZS 3678", "450Y40", "7C"),
+        ("AS/NZS 1594", "XF500", "8C"),
+        ("AS 3597", "500", "8Q"),
+        ("AS 3597", "600", "9Q"),
+        ("AS 3597", "700", "10Q"),
+        ("AS/NZS 1594", "HA300/1", "1"),
+        ("AS/NZS 3678", "WR350L0", "5"),
+        ("AS/NZS 3679.2", "400L40", "6"),
+    ],
+)
+def test_clause_10_4_4_grade_selects_table_steel_type(product_standard, grade, expected_steel_type):
+    response = run_durability(
+        {
+            "check_type": "steel_grade_selection",
+            "product_standard": product_standard,
+            "grade": grade,
+            "required_steel_type": expected_steel_type,
+        }
+    )
+    assert response["clauses"] == ["10.4.4"]
+    assert response["results"]["steel_type"] == expected_steel_type
+    assert response["results"]["grade_selection_satisfied"]
+
+
+@pytest.mark.parametrize(
+    ("product_standard", "grade"),
+    [("AS/NZS 1163", "C500"), ("AS/NZS 3678", "300L0"), ("AS 3597", "800")],
+)
+def test_clause_10_4_4_rejects_unlisted_standard_grade_pairs(product_standard, grade):
+    with pytest.raises(ValueError, match="no steel-type entry in Table 10.4.4"):
+        run_durability(
+            {
+                "check_type": "steel_grade_selection",
+                "product_standard": product_standard,
+                "grade": grade,
+                "required_steel_type": "1",
+            }
+        )
+
+
+def test_clause_10_4_4_grade_that_maps_to_another_type_fails_selection():
+    response = run_durability(
+        {
+            "check_type": "steel_grade_selection",
+            "product_standard": "AS/NZS 1163",
+            "grade": "C250",
+            "required_steel_type": "2",
+        }
+    )
+    assert response["clauses"] == ["10.4.4"]
+    assert response["results"]["steel_type"] == "1"
+    assert not response["results"]["grade_selection_satisfied"]
+
+
 def nonconforming_steel_impact_test(**changes):
     return {
         "check_type": "nonconforming_steel_impact_test",

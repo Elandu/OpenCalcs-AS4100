@@ -121,6 +121,20 @@ def clause_10_4_3_4_specified_impact_properties():
     return expected
 
 
+def table_10_4_4_grade_selection():
+    result = run_durability(
+        {
+            "check_type": "steel_grade_selection",
+            "product_standard": "AS 3597",
+            "grade": "700",
+            "required_steel_type": "10Q",
+        }
+    )
+    if result["clauses"] != ["10.4.4"] or not result["results"]["grade_selection_satisfied"]:
+        raise AssertionError("Table 10.4.4 AS 3597 grade 700 must match required type 10Q")
+    return {"steel_type": result["results"]["steel_type"]}
+
+
 def fillet(length):
     return run_connections(
         {
@@ -3128,6 +3142,7 @@ def main():
         "clause_10_4_3_4_specified_impact_properties": (
             clause_10_4_3_4_specified_impact_properties
         ),
+        "table_10_4_4_grade_selection": table_10_4_4_grade_selection,
         "fillet_lap_1700_mm": lambda: expect_close(fillet(1700), 98.784),
         "fillet_lap_8000_mm": lambda: expect_close(fillet(8000), 61.24608),
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),

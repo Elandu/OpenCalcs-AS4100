@@ -386,6 +386,115 @@ _WEB_STIFFENERS_INPUT = {
     },
 }
 _STEEL_TYPES = ["1", "2", "2S", "3", "4", "5", "5S", "6", "7A", "7B", "7C", "8C", "8Q", "9Q", "10Q"]
+_TABLE_10_4_4_GRADES = {
+    "AS/NZS 1163": {
+        "C250": "1",
+        "C250L0": "2",
+        "C350": "4",
+        "C350L0": "5",
+        "C450": "7A",
+        "C450L0": "7B",
+    },
+    "AS/NZS 1594": {
+        "HA200": "1",
+        "HA250": "1",
+        "HU250": "1",
+        "HA300": "1",
+        "HA300/1": "1",
+        "HU300": "1",
+        "HU300/1": "1",
+        "XF300": "3",
+        "HA350": "4",
+        "HA400": "4",
+        "WR350": "4",
+        "XF400": "6",
+        "XF500": "8C",
+    },
+    "AS/NZS 3678": {
+        "200": "1",
+        "250": "1",
+        "300": "1",
+        "250S0": "2S",
+        "250L15": "3",
+        "250L20": "3",
+        "250Y20": "3",
+        "250L40": "3",
+        "250Y40": "3",
+        "300L15": "3",
+        "300L20": "3",
+        "300Y20": "3",
+        "300L40": "3",
+        "300Y40": "3",
+        "350": "4",
+        "WR350": "4",
+        "400": "4",
+        "WR350L0": "5",
+        "350S0": "5S",
+        "350L15": "6",
+        "350L20": "6",
+        "350Y20": "6",
+        "350L40": "6",
+        "350Y40": "6",
+        "400L15": "6",
+        "400L20": "6",
+        "400Y20": "6",
+        "400L40": "6",
+        "400Y40": "6",
+        "450": "7A",
+        "450L15": "7C",
+        "450L20": "7C",
+        "450Y20": "7C",
+        "450L40": "7C",
+        "450Y40": "7C",
+    },
+    "AS/NZS 3679.1": {
+        "300": "1",
+        "300L0": "2",
+        "300S0": "2S",
+        "300L15": "3",
+        "350": "4",
+        "350L0": "5",
+        "350S0": "5S",
+    },
+    "AS/NZS 3679.2": {
+        "200": "1",
+        "250": "1",
+        "300": "1",
+        "300S0": "2S",
+        "250L15": "3",
+        "250L20": "3",
+        "250Y20": "3",
+        "250L40": "3",
+        "250Y40": "3",
+        "300L15": "3",
+        "300L20": "3",
+        "300Y20": "3",
+        "300L40": "3",
+        "300Y40": "3",
+        "350": "4",
+        "WR350": "4",
+        "400": "4",
+        "WR350L0": "5",
+        "350S0": "5S",
+        "350L15": "6",
+        "350L20": "6",
+        "350Y20": "6",
+        "350L40": "6",
+        "350Y40": "6",
+        "400L15": "6",
+        "400L20": "6",
+        "400Y20": "6",
+        "400L40": "6",
+        "400Y40": "6",
+        "450": "7A",
+        "450L15": "7C",
+        "450L20": "7C",
+        "450Y20": "7C",
+        "450L40": "7C",
+        "450Y40": "7C",
+    },
+    "AS 3597": {"500": "8Q", "600": "9Q", "700": "10Q"},
+}
 _SEISMIC = {
     "special_moment": (4, 0.67),
     "intermediate_moment": (3, 0.67),
@@ -799,6 +908,14 @@ INPUT_SCHEMA = {
                 "post_weld_heat_treatment_c": _number(0, 2000),
                 "impact_test_temperature_c": _number(-273, 1000),
                 "fabrication_erection_requirements_satisfied": _BOOL,
+            },
+        ),
+        _operation(
+            "steel_grade_selection",
+            {
+                "product_standard": {"enum": list(_TABLE_10_4_4_GRADES)},
+                "grade": {"type": "string", "minLength": 1, "maxLength": 20},
+                "required_steel_type": {"enum": _STEEL_TYPES},
             },
         ),
         _operation(
@@ -1367,6 +1484,15 @@ _RESULT_SCHEMAS = {
             "permissible_service_temperature_c": {"type": "number"},
             "strain_temperature_increase_c": _NUM,
             "check_satisfied": _BOOL,
+        }
+    ),
+    "steel_grade_selection": _result_schema(
+        {
+            "product_standard": {"enum": list(_TABLE_10_4_4_GRADES)},
+            "grade": {"type": "string", "minLength": 1, "maxLength": 20},
+            "required_steel_type": {"enum": _STEEL_TYPES},
+            "steel_type": {"enum": _STEEL_TYPES},
+            "grade_selection_satisfied": _BOOL,
         }
     ),
     "nonconforming_steel_impact_test": _result_schema(
@@ -2753,6 +2879,33 @@ def _brittle(d):
     )
 
 
+def _check_steel_grade(d):
+    standard = d["product_standard"]
+    grade = d["grade"]
+    try:
+        steel_type = _TABLE_10_4_4_GRADES[standard][grade]
+    except KeyError as exc:
+        raise ValueError(
+            f"{standard} grade {grade!r} has no steel-type entry in Table 10.4.4."
+        ) from exc
+    return (
+        {
+            "product_standard": standard,
+            "grade": grade,
+            "required_steel_type": d["required_steel_type"],
+            "steel_type": steel_type,
+            "grade_selection_satisfied": steel_type == d["required_steel_type"],
+        },
+        ["10.4.4"],
+        [
+            "The required steel type must be established under Clauses 10.4.1-10.4.3.",
+            "Confirm the certified product standard and grade match the member being assessed.",
+            "The lookup does not validate grade strength, product conformity, thickness "
+            "availability or subsequent design requirements.",
+        ],
+    )
+
+
 def _nonconforming_steel_impact_test(d):
     plate_thickness = d["plate_thickness_mm"]
     specimen_thickness = d["specimen_thickness_mm"]
@@ -3231,6 +3384,8 @@ def _run_durability(inputs):
         result, clauses, warnings = _specified_impact_properties_test(d)
     elif op == "brittle_fracture":
         result, clauses, warnings = _brittle(d)
+    elif op == "steel_grade_selection":
+        result, clauses, warnings = _check_steel_grade(d)
     else:
         mu, sp = _SEISMIC[d["structural_system"]]
         result = {

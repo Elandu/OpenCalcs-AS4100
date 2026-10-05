@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.12",
+  "package_version": "0.7.13",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -68,6 +68,13 @@
     },
     {
       "name": "Clause 10.4.3.4(c) supplied product-standard minimum acceptance",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 10.4.4 AS 3597 grade 700 matches required steel type 10Q",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,
