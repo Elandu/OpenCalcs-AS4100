@@ -2210,6 +2210,8 @@ def clause_5_10_web_geometry():
         }
     )
     expect_close(thickness["values"]["required_web_thickness_mm"], 5)
+    if "5.9.3" not in thickness["clauses"]:
+        raise AssertionError("Clause 5.9.3 is missing from the web thickness result.")
     opening = run_webs(
         {
             "operation": "web_opening_geometry",

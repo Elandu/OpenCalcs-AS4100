@@ -67,6 +67,16 @@ def test_clause_5_10_1_unstiffened_web_minimum_thickness(edge_condition, denomin
 
 
 @pytest.mark.parametrize(
+    "design_case",
+    ["unstiffened", "transversely_stiffened", "longitudinal_and_transverse", "plastic_hinge"],
+)
+def test_clause_5_9_3_is_traced_for_every_prescriptive_thickness_route(design_case):
+    out = minimum_web_thickness(design_case)
+    assert out["clauses"][0] == "5.9.3"
+    assert out["checks"][0]["clause"].startswith("5.10.")
+
+
+@pytest.mark.parametrize(
     "ratio,expected",
     [(0.5, 1000 / 270), (0.74, 1000 / 270), (0.8, 4), (1, 5), (3, 5)],
 )
@@ -86,7 +96,7 @@ def test_clause_5_10_4_long_panels_are_treated_as_unstiffened():
     )
     assert out["values"]["web_treated_as_unstiffened"]
     assert out["values"]["required_web_thickness_mm"] == pytest.approx(1000 / 180)
-    assert out["clauses"] == ["5.10.1", "5.10.4"]
+    assert out["clauses"] == ["5.9.3", "5.10.1", "5.10.4"]
 
 
 @pytest.mark.parametrize(

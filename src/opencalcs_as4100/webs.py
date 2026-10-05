@@ -928,8 +928,10 @@ def run_webs(inputs):
                 details["flat_stiffener_plate_checks"] = flat_plate_checks
                 clauses.append("5.2.2")
 
+        thickness_clause = clauses[0]
+        clauses.insert(0, "5.9.3")
         thickness_check = {
-            "clause": clauses[0],
+            "clause": thickness_clause,
             "required_thickness_mm": required,
             "provided_thickness_mm": actual,
             "satisfied": actual >= required,

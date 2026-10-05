@@ -54,6 +54,11 @@ with both ends restrained. The supplied section capacity, section applicability
 and analysis model are evidence-gated; the model and its reference are not
 independently authenticated.
 
+For Clause 5.9.3, `webs.web_minimum_thickness` traces its selected Clause 5.10
+minimum-thickness equation together with the parent panel-thickness provision.
+Clause 5.9.2 panel boundaries and dimensions are verified inputs; the rational-
+analysis alternative for a lesser thickness remains external.
+
 | Section | Calculated or compared in this release | Assessed externally; remaining gaps |
 | --- | --- | --- |
 | 1 — Scope and general | No normative design check. `design_review` records scope evidence. | Applicability, exclusions, edition, referenced standards and project basis; no automatic scope decision. |

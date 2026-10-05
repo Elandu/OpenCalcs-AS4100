@@ -872,6 +872,13 @@
       "passed": true
     },
     {
+      "name": "Clause 5.9.3 parent minimum-thickness provision is traced",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 5.10.6 flat stiffener plate slenderness under 5.2.2 Table 5.2",
       "actual": 8.0,
       "expected": 8,

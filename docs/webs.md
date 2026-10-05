@@ -4,6 +4,10 @@ The `webs` family contains selected AS 4100:2020 web checks. Thickness and openi
 operations compare supplied geometry with Clause 5.10 limits; they do not calculate
 member shear, bearing or reduced capacity at an opening.
 
+`web_minimum_thickness` also records Clause 5.9.3 for each prescriptive route.
+Verify web-panel boundaries and dimensions under Clause 5.9.2; a lower thickness
+supported by rational analysis is assessed separately.
+
 | Operation | Calculated provisions | Required assessment |
 | --- | --- | --- |
 | `web_minimum_thickness` with `design_case=unstiffened` | 5.10.1 minimum thickness for a web bounded by flanges or with one longitudinal free edge | Verify web depth, yield stress, edge condition and thickness. A lesser thickness based on rational analysis is outside this operation. |

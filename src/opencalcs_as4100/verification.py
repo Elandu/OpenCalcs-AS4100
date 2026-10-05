@@ -1682,6 +1682,11 @@ def verify():
         web_thickness["values"]["required_web_thickness_mm"],
         5,
     )
+    record(
+        "Clause 5.9.3 parent minimum-thickness provision is traced",
+        int("5.9.3" in web_thickness["clauses"]),
+        1,
+    )
     plastic_hinge_web = run_webs(
         {
             "operation": "web_minimum_thickness",
