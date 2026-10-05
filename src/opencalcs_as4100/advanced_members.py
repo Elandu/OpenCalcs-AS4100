@@ -690,6 +690,89 @@ SCHEMAS = {
         },
         optional=("interconnection_design",),
     ),
+    "compression_built_up_member_actions": {
+        "oneOf": [
+            _schema(
+                "compression_built_up_member_actions",
+                {
+                    "connection_type": {"const": "lacing"},
+                    "section_capacity_kn": P,
+                    "member_capacity_kn": P,
+                    "modified_member_slenderness": P,
+                    "axial_action_kn": P,
+                    "parallel_connection_planes": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                    },
+                    "connection_plane_count_verified": VERIFIED,
+                    "equal_connection_plane_participation_verified": VERIFIED,
+                    "member_action_envelope_verified": VERIFIED,
+                    "all_connection_bays_assessed_verified": VERIFIED,
+                    "action_analysis_reference": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500,
+                    },
+                    "lacing_arrangement": {"enum": ["single", "double"]},
+                    "lacing_force_path_verified": VERIFIED,
+                    "bays": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "items": object_schema(
+                            {
+                                "start_station_mm": N,
+                                "end_station_mm": N,
+                                "transverse_connection_spacing_mm": P,
+                                "bay_geometry_verified": VERIFIED,
+                            }
+                        ),
+                    },
+                },
+            ),
+            *[
+                _schema(
+                    "compression_built_up_member_actions",
+                    {
+                        "connection_type": {"const": connection_type},
+                        "section_capacity_kn": P,
+                        "member_capacity_kn": P,
+                        "modified_member_slenderness": P,
+                        "axial_action_kn": P,
+                        "parallel_connection_planes": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100,
+                        },
+                        "connection_plane_count_verified": VERIFIED,
+                        "equal_connection_plane_participation_verified": VERIFIED,
+                        "member_action_envelope_verified": VERIFIED,
+                        "all_connection_bays_assessed_verified": VERIFIED,
+                        "action_analysis_reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500,
+                        },
+                        "bays": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1000,
+                            "items": object_schema(
+                                {
+                                    "start_station_mm": N,
+                                    "end_station_mm": N,
+                                    "connection_group_centroid_spacing_mm": P,
+                                    "bay_geometry_verified": VERIFIED,
+                                }
+                            ),
+                        },
+                    },
+                )
+                for connection_type in ("batten", "lacing_tie_plate")
+            ],
+        ]
+    },
     "lacing": _schema(
         "lacing",
         {
@@ -995,6 +1078,12 @@ def _minimum(clause, actual, minimum):
         "required_minimum": minimum,
         "satisfied": actual >= minimum,
     }
+
+
+def _clause_6_4_1_transverse_shear(section_capacity, member_capacity, axial_action, slenderness):
+    minimum = 0.01 * axial_action
+    strength_based = pi * (section_capacity / member_capacity - 1) * axial_action / slenderness
+    return max(minimum, strength_based), minimum, strength_based
 
 
 def _reduced_check(clause, moment, nominal):
@@ -1977,7 +2066,7 @@ def run_advanced_members(inputs):
         if nc > ns:
             raise ValueError("Member capacity cannot exceed section capacity.")
         ln, component = d["modified_member_slenderness"], d["component_slenderness"]
-        transverse = max(0.01 * n, pi * (ns / nc - 1) * n / ln)
+        transverse, _, _ = _clause_6_4_1_transverse_shear(ns, nc, n, ln)
         perpendicular, parallel = (
             d["integral_slenderness_perpendicular"],
             d["integral_slenderness_parallel"],
@@ -2033,6 +2122,170 @@ def run_advanced_members(inputs):
                 "effective_slenderness_parallel": effective_parallel,
                 "component_slenderness_limit": limit,
                 "back_to_back_connection_longitudinal_shear_kn": 0.25 * transverse * component,
+            },
+            checks,
+            limitations,
+        )
+    if op == "compression_built_up_member_actions":
+        ns = d["section_capacity_kn"]
+        nc = d["member_capacity_kn"]
+        slenderness = d["modified_member_slenderness"]
+        axial_action = d["axial_action_kn"]
+        if nc > ns:
+            raise ValueError("Member capacity cannot exceed section capacity.")
+
+        transverse_shear, minimum_shear, strength_shear = _clause_6_4_1_transverse_shear(
+            ns, nc, axial_action, slenderness
+        )
+        connection_type = d["connection_type"]
+        planes = d["parallel_connection_planes"]
+        actions = []
+        checks = [
+            {
+                "clause": "6.4.1",
+                "design_transverse_shear_kn": transverse_shear,
+                "one_percent_minimum_kn": minimum_shear,
+                "satisfied": transverse_shear >= minimum_shear,
+            }
+        ]
+        previous_end = None
+        for index, bay in enumerate(d["bays"], start=1):
+            start = bay["start_station_mm"]
+            end = bay["end_station_mm"]
+            if end <= start:
+                raise ValueError(f"Connection bay {index} must have positive length.")
+            if previous_end is not None and not isclose(
+                start, previous_end, rel_tol=1e-9, abs_tol=1e-6
+            ):
+                raise ValueError("Connection bays must be ordered and contiguous.")
+            previous_end = end
+
+            spacing = end - start
+            action = {
+                "bay_index": index,
+                "start_station_mm": start,
+                "end_station_mm": end,
+                "bay_spacing_mm": spacing,
+                "design_transverse_shear_kn": transverse_shear,
+                "design_transverse_shear_per_plane_kn": transverse_shear / planes,
+            }
+            if connection_type == "lacing":
+                angle = degrees(atan2(bay["transverse_connection_spacing_mm"], spacing))
+                lower, upper = (50.0, 70.0) if d["lacing_arrangement"] == "single" else (40.0, 50.0)
+                bar_force = transverse_shear / (planes * sin(radians(angle)))
+                action.update(
+                    {
+                        "lacing_angle_degrees": angle,
+                        "design_lacing_bar_force_per_plane_kn": bar_force,
+                    }
+                )
+                checks.extend(
+                    [
+                        {
+                            "clause": "6.4.2.3",
+                            "bay_index": index,
+                            "lacing_arrangement": d["lacing_arrangement"],
+                            "angle_degrees": angle,
+                            "minimum_angle_degrees": lower,
+                            "maximum_angle_degrees": upper,
+                            "satisfied": lower <= angle <= upper,
+                        },
+                        {
+                            "clause": "6.4.1",
+                            "bay_index": index,
+                            "action": "lacing-bar transverse equilibrium",
+                            "reconstructed_design_shear_kn": (
+                                bar_force * sin(radians(angle)) * planes
+                            ),
+                            "satisfied": isclose(
+                                bar_force * sin(radians(angle)) * planes,
+                                transverse_shear,
+                                rel_tol=1e-12,
+                                abs_tol=1e-12,
+                            ),
+                        },
+                    ]
+                )
+            else:
+                group_spacing = bay["connection_group_centroid_spacing_mm"]
+                batten_shear = transverse_shear * spacing / (planes * group_spacing)
+                batten_moment = transverse_shear * spacing / (2 * planes * 1000)
+                action.update(
+                    {
+                        "connection_group_centroid_spacing_mm": group_spacing,
+                        "design_batten_longitudinal_shear_per_plane_kn": batten_shear,
+                        "design_batten_moment_per_plane_knm": batten_moment,
+                    }
+                )
+                checks.extend(
+                    [
+                        {
+                            "clause": "6.4.3.7",
+                            "bay_index": index,
+                            "action": "batten longitudinal shear",
+                            "satisfied": isclose(
+                                batten_shear * group_spacing * planes,
+                                transverse_shear * spacing,
+                                rel_tol=1e-12,
+                                abs_tol=1e-12,
+                            ),
+                        },
+                        {
+                            "clause": "6.4.3.7",
+                            "bay_index": index,
+                            "action": "batten bending moment",
+                            "satisfied": isclose(
+                                batten_moment * 2 * planes * 1000,
+                                transverse_shear * spacing,
+                                rel_tol=1e-12,
+                                abs_tol=1e-12,
+                            ),
+                        },
+                    ]
+                )
+            actions.append(action)
+
+        clauses = ["6.4.1"]
+        limitations = [
+            "The supplied section/member capacities, modified slenderness and axial action "
+            "must form a conservative envelope for one uniform compression member and every "
+            "listed bay; varying sections and local action envelopes need separate assessment.",
+            "Plane sharing and complete connection-bay geometry are assessed inputs. Direct "
+            "loads on individual components, eccentricity, torsion and combined-action effects "
+            "are outside this action calculation.",
+            "These are design action demands only. Lacing, battens, tie plates and their "
+            "Clause 9 connections require separate capacity and detailing checks.",
+        ]
+        if connection_type == "lacing":
+            clauses.append("6.4.2.3")
+            limitations.append(
+                "Lacing-bar force is a truss-equilibrium resolution of the Clause 6.4.1 shear, "
+                "assuming one active diagonal per connection plane for each loading direction. "
+                "Verify the actual force path and reversed-action resistance."
+            )
+        else:
+            if connection_type == "lacing_tie_plate":
+                clauses.append("6.4.2.7")
+                limitations.append(
+                    "Clause 6.4.2.7 requires lacing tie plates and their connections to be "
+                    "treated as battens. Their location and completeness remain assessed."
+                )
+            clauses.append("6.4.3.7")
+        return result(
+            op,
+            clauses,
+            {
+                "connection_type": connection_type,
+                "design_axial_action_kn": axial_action,
+                "section_capacity_kn": ns,
+                "member_capacity_kn": nc,
+                "modified_member_slenderness": slenderness,
+                "transverse_design_shear_kn": transverse_shear,
+                "one_percent_minimum_shear_kn": minimum_shear,
+                "strength_based_shear_kn": strength_shear,
+                "parallel_connection_planes": planes,
+                "action_analysis_reference": d["action_analysis_reference"],
+                "action_intervals": actions,
             },
             checks,
             limitations,

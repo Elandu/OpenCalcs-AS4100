@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.19",
+  "package_version": "0.7.21",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1362,6 +1362,27 @@
       "passed": true
     },
     {
+      "name": "Clause 9.4.4 Eq 9.2.2.4(1) pin-ply material limit",
+      "actual": 422.4,
+      "expected": 422.4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.4.4 Eq 9.2.2.4(2) pin-ply edge limit",
+      "actual": 132.0,
+      "expected": 132,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.4.4 Table 3.4 pin-ply design capacity",
+      "actual": 118.8,
+      "expected": 118.8,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Appendix J.5 three-specimen arithmetic mean",
       "actual": 0.405,
       "expected": 0.405,
@@ -2184,6 +2205,34 @@
       "name": "Clause 6.5.1.5 back-to-back interconnection demand",
       "actual": 23.561944901923447,
       "expected": 23.561944901923447,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.4.1 compression-member transverse shear, independent formula",
+      "actual": 3.141592653589793,
+      "expected": 3.141592653589793,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.4.2.3 two-plane 45-degree lacing force, equilibrium",
+      "actual": 2.221441469079183,
+      "expected": 2.221441469079183,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.4.3.7 compression batten longitudinal shear per plane",
+      "actual": 6.283185307179586,
+      "expected": 6.283185307179586,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.4.3.7 compression batten bending moment per plane",
+      "actual": 0.9424777960769379,
+      "expected": 0.9424777960769379,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

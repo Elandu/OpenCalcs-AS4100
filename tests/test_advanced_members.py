@@ -1270,6 +1270,122 @@ def test_battened_slenderness_and_back_to_back_shear():
         run_advanced_members(d)
 
 
+def compression_built_up_member_actions(connection_type="batten", **changes):
+    common = {
+        "operation": "compression_built_up_member_actions",
+        "connection_type": connection_type,
+        "section_capacity_kn": 1000,
+        "member_capacity_kn": 500,
+        "modified_member_slenderness": 100,
+        "axial_action_kn": 100,
+        "parallel_connection_planes": 2,
+        "connection_plane_count_verified": True,
+        "equal_connection_plane_participation_verified": True,
+        "member_action_envelope_verified": True,
+        "all_connection_bays_assessed_verified": True,
+        "action_analysis_reference": "verified built-up compression analysis 01",
+    }
+    if connection_type == "lacing":
+        common.update(
+            {
+                "lacing_arrangement": "double",
+                "lacing_force_path_verified": True,
+                "bays": [
+                    {
+                        "start_station_mm": 0,
+                        "end_station_mm": 1000,
+                        "transverse_connection_spacing_mm": 1000,
+                        "bay_geometry_verified": True,
+                    }
+                ],
+            }
+        )
+    else:
+        common["bays"] = [
+            {
+                "start_station_mm": 0,
+                "end_station_mm": 1200,
+                "connection_group_centroid_spacing_mm": 300,
+                "bay_geometry_verified": True,
+            }
+        ]
+    common.update(changes)
+    return common
+
+
+def test_clause_6_4_1_and_6_4_2_3_compression_lacing_actions():
+    out = run_advanced_members(compression_built_up_member_actions("lacing"))
+    action = out["values"]["action_intervals"][0]
+    assert out["values"]["transverse_design_shear_kn"] == pytest.approx(3.14159265359)
+    assert action["lacing_angle_degrees"] == pytest.approx(45)
+    assert action["design_transverse_shear_per_plane_kn"] == pytest.approx(3.14159265359 / 2)
+    assert action["design_lacing_bar_force_per_plane_kn"] == pytest.approx(
+        3.14159265359 / (2 * (2**0.5 / 2))
+    )
+    assert out["clauses"] == ["6.4.1", "6.4.2.3"]
+    assert out["checked_conditions_satisfied"]
+
+    out = run_advanced_members(
+        compression_built_up_member_actions(
+            "lacing", section_capacity_kn=500, member_capacity_kn=500
+        )
+    )
+    assert out["values"]["strength_based_shear_kn"] == 0
+    assert out["values"]["transverse_design_shear_kn"] == pytest.approx(1)
+
+
+def test_clause_6_4_3_7_compression_batten_and_tie_plate_actions():
+    batten = run_advanced_members(compression_built_up_member_actions("batten"))
+    action = batten["values"]["action_intervals"][0]
+    assert batten["clauses"] == ["6.4.1", "6.4.3.7"]
+    assert action["design_batten_longitudinal_shear_per_plane_kn"] == pytest.approx(
+        2 * 3.14159265359
+    )
+    assert action["design_batten_moment_per_plane_knm"] == pytest.approx(0.3 * 3.14159265359)
+    assert batten["checked_conditions_satisfied"]
+
+    tie_plate = run_advanced_members(
+        compression_built_up_member_actions(
+            "lacing_tie_plate",
+            bays=[
+                {
+                    "start_station_mm": 0,
+                    "end_station_mm": 1200,
+                    "connection_group_centroid_spacing_mm": 300,
+                    "bay_geometry_verified": True,
+                }
+            ],
+        )
+    )
+    assert tie_plate["clauses"] == ["6.4.1", "6.4.2.7", "6.4.3.7"]
+    assert tie_plate["checked_conditions_satisfied"]
+
+
+def test_compression_built_up_action_requires_complete_valid_geometry():
+    data = compression_built_up_member_actions()
+    data["bays"][0]["end_station_mm"] = 0
+    with pytest.raises(ValueError, match="positive length"):
+        run_advanced_members(data)
+
+    data = compression_built_up_member_actions()
+    data["member_capacity_kn"] = data["section_capacity_kn"] + 1
+    with pytest.raises(ValueError, match="cannot exceed section capacity"):
+        run_advanced_members(data)
+
+    data = compression_built_up_member_actions("lacing")
+    data["lacing_force_path_verified"] = False
+    with pytest.raises(ValueError, match="lacing_force_path_verified"):
+        run_advanced_members(data)
+
+    data = compression_built_up_member_actions("lacing")
+    data["lacing_arrangement"] = "single"
+    data["bays"][0]["transverse_connection_spacing_mm"] = 600
+    out = run_advanced_members(data)
+    assert out["checks"][1]["clause"] == "6.4.2.3"
+    assert not out["checks"][1]["satisfied"]
+    assert not out["checked_conditions_satisfied"]
+
+
 @pytest.mark.parametrize(
     ("arrangement", "clause"),
     [

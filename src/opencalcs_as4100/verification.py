@@ -2723,6 +2723,46 @@ def verify():
         bolt_prying["intermediate"]["total_bolt_tension_action_kn"],
         30,
     )
+    pin_ply = run_connections(
+        {
+            "check_type": "pin",
+            "yield_strength_mpa": 300,
+            "diameter_mm": 30,
+            "shear_planes": 2,
+            "ply_thickness_mm": 10,
+            "connected_plies": [
+                {
+                    "ply_id": "main",
+                    "thickness_mm": 10,
+                    "ultimate_strength_mpa": 440,
+                    "bearing_action_kn": 40,
+                    "force_towards_ply_edge": True,
+                    "effective_edge_distance_mm": 30,
+                }
+            ],
+            "connected_plies_complete_and_force_distribution_verified": True,
+            "rotates": True,
+            "shear_action_kn": 100,
+            "bearing_action_kn": 40,
+            "moment_action_knm": 1,
+        }
+    )
+    pin_ply_check = pin_ply["checks"]["ply_bearing"]["plies"][0]
+    record(
+        "Clause 9.4.4 Eq 9.2.2.4(1) pin-ply material limit",
+        pin_ply_check["material_limit_nominal_capacity_kn"],
+        422.4,
+    )
+    record(
+        "Clause 9.4.4 Eq 9.2.2.4(2) pin-ply edge limit",
+        pin_ply_check["edge_limit_nominal_capacity_kn"],
+        132,
+    )
+    record(
+        "Clause 9.4.4 Table 3.4 pin-ply design capacity",
+        pin_ply_check["design_capacity_kn"],
+        118.8,
+    )
     appendix_j_prerequisites = {
         "check_type": "slip_factor_test",
         "nominal_bolt_diameter_mm": 16,
@@ -4293,6 +4333,79 @@ def verify():
         "Clause 6.5.1.5 back-to-back interconnection demand",
         back_to_back["checks"][-1]["design_demand_kn"],
         7.5 * 3.141592653589793,
+    )
+    compression_lacing_actions = run_advanced_members(
+        {
+            "operation": "compression_built_up_member_actions",
+            "connection_type": "lacing",
+            "section_capacity_kn": 1000,
+            "member_capacity_kn": 500,
+            "modified_member_slenderness": 100,
+            "axial_action_kn": 100,
+            "parallel_connection_planes": 2,
+            "connection_plane_count_verified": True,
+            "equal_connection_plane_participation_verified": True,
+            "member_action_envelope_verified": True,
+            "all_connection_bays_assessed_verified": True,
+            "action_analysis_reference": "independent two-plane lacing action benchmark",
+            "lacing_arrangement": "double",
+            "lacing_force_path_verified": True,
+            "bays": [
+                {
+                    "start_station_mm": 0,
+                    "end_station_mm": 1000,
+                    "transverse_connection_spacing_mm": 1000,
+                    "bay_geometry_verified": True,
+                }
+            ],
+        }
+    )
+    record(
+        "Clause 6.4.1 compression-member transverse shear, independent formula",
+        compression_lacing_actions["values"]["transverse_design_shear_kn"],
+        3.141592653589793,
+    )
+    record(
+        "Clause 6.4.2.3 two-plane 45-degree lacing force, equilibrium",
+        compression_lacing_actions["values"]["action_intervals"][0][
+            "design_lacing_bar_force_per_plane_kn"
+        ],
+        3.141592653589793 / (2 * (2**0.5 / 2)),
+    )
+    compression_batten_actions = run_advanced_members(
+        {
+            "operation": "compression_built_up_member_actions",
+            "connection_type": "batten",
+            "section_capacity_kn": 1000,
+            "member_capacity_kn": 500,
+            "modified_member_slenderness": 100,
+            "axial_action_kn": 100,
+            "parallel_connection_planes": 2,
+            "connection_plane_count_verified": True,
+            "equal_connection_plane_participation_verified": True,
+            "member_action_envelope_verified": True,
+            "all_connection_bays_assessed_verified": True,
+            "action_analysis_reference": "independent two-plane batten action benchmark",
+            "bays": [
+                {
+                    "start_station_mm": 0,
+                    "end_station_mm": 1200,
+                    "connection_group_centroid_spacing_mm": 300,
+                    "bay_geometry_verified": True,
+                }
+            ],
+        }
+    )
+    compression_batten_interval = compression_batten_actions["values"]["action_intervals"][0]
+    record(
+        "Clause 6.4.3.7 compression batten longitudinal shear per plane",
+        compression_batten_interval["design_batten_longitudinal_shear_per_plane_kn"],
+        2 * 3.141592653589793,
+    )
+    record(
+        "Clause 6.4.3.7 compression batten bending moment per plane",
+        compression_batten_interval["design_batten_moment_per_plane_knm"],
+        0.3 * 3.141592653589793,
     )
     for arrangement, clause in [
         ("separated_back_to_back", "7.4.3(a)(i)"),

@@ -30,6 +30,34 @@ BOOL = {"type": "boolean"}
 TEXT_REFERENCE = {"type": "string", "minLength": 1, "maxLength": 200}
 POINT = {"type": "array", "minItems": 2, "maxItems": 2, "items": SIGNED}
 VECTOR3 = {"type": "array", "minItems": 3, "maxItems": 3, "items": SIGNED}
+PIN_PLY = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "ply_id",
+        "thickness_mm",
+        "ultimate_strength_mpa",
+        "bearing_action_kn",
+        "force_towards_ply_edge",
+    ],
+    "properties": {
+        "ply_id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "thickness_mm": P,
+        "ultimate_strength_mpa": P,
+        "bearing_action_kn": N,
+        "force_towards_ply_edge": BOOL,
+        "effective_edge_distance_mm": P,
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {"force_towards_ply_edge": {"const": True}},
+                "required": ["force_towards_ply_edge"],
+            },
+            "then": {"required": ["effective_edge_distance_mm"]},
+        }
+    ],
+}
 CONNECTION_ACTIONS = {
     "type": "object",
     "additionalProperties": False,
@@ -288,6 +316,13 @@ FIELDS = {
         "diameter_mm": P,
         "shear_planes": {"type": "integer", "minimum": 1},
         "ply_thickness_mm": P,
+        "connected_plies": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": PIN_PLY,
+        },
+        "connected_plies_complete_and_force_distribution_verified": {"const": True},
         "rotates": BOOL,
         "shear_action_kn": N,
         "bearing_action_kn": N,
@@ -1888,6 +1923,22 @@ def _connection_capacity_check(action, capacity, unit, clause):
     }
 
 
+def _ply_bearing_capacity(
+    diameter_mm, thickness_mm, ultimate_strength_mpa, effective_edge_distance_mm
+):
+    material_limit = 3.2 * diameter_mm * thickness_mm * ultimate_strength_mpa / 1000
+    edge_limit = (
+        None
+        if effective_edge_distance_mm is None
+        else effective_edge_distance_mm * thickness_mm * ultimate_strength_mpa / 1000
+    )
+    nominal_capacity = min(
+        material_limit,
+        edge_limit if edge_limit is not None else material_limit,
+    )
+    return nominal_capacity, material_limit, edge_limit
+
+
 def _fillet_strength_check(d, throat_mm, effective_length_mm, clause="9.6.3.10"):
     lap_m = d["lap_length_mm"] / 1000
     lap_factor = 1 if lap_m <= 1.7 else (1.10 - 0.06 * lap_m if lap_m <= 8 else 0.62)
@@ -2720,15 +2771,14 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         if filler_check is not None:
             c["filler_plate_detailing"] = filler_check
     elif k == "bearing":
-        a = 3.2 * d["diameter_mm"] * d["ply_thickness_mm"] * d["ultimate_strength_mpa"] / 1000
-        b = (
-            d["effective_edge_distance_mm"]
-            * d["ply_thickness_mm"]
-            * d["ultimate_strength_mpa"]
-            / 1000
+        nominal, material_limit, edge_limit = _ply_bearing_capacity(
+            d["diameter_mm"],
+            d["ply_thickness_mm"],
+            d["ultimate_strength_mpa"],
+            d["effective_edge_distance_mm"],
         )
-        c["bearing"] = _check(min(a, b), 0.9, d["action_kn"], "9.2.2.4")
-        intermediate = {"bearing_kn": a, "edge_kn": b}
+        c["bearing"] = _check(nominal, 0.9, d["action_kn"], "9.2.2.4")
+        intermediate = {"bearing_kn": material_limit, "edge_kn": edge_limit}
     elif k == "slip":
         kh = {"standard": 1, "short_slot": 0.85, "oversize": 0.85, "long_slot": 0.7}[d["hole_type"]]
         v = d["slip_factor"] * d["interfaces"] * d["installation_tension_kn"] * kh
@@ -2820,6 +2870,15 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         }
     elif k == "pin":
         fy, dia = d["yield_strength_mpa"], d["diameter_mm"]
+        plies = d["connected_plies"]
+        ply_ids = [ply["ply_id"] for ply in plies]
+        if len(ply_ids) != len(set(ply_ids)):
+            raise ValueError("Pin connected-ply identifiers must be unique.")
+        total_ply_thickness = fsum(ply["thickness_mm"] for ply in plies)
+        if not isclose(total_ply_thickness, d["ply_thickness_mm"], rel_tol=0, abs_tol=1e-6):
+            raise ValueError(
+                "Pin bearing ply thickness must equal the sum of connected-ply thicknesses."
+            )
         c["shear"] = _check(
             0.62 * fy * d["shear_planes"] * pi * dia**2 / 4000, 0.8, d["shear_action_kn"], "9.4.1"
         )
@@ -2830,6 +2889,43 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "9.4.2",
         )
         c["bending"] = _check(fy * dia**3 / 6e6, 0.8, d["moment_action_knm"], "9.4.3", "knm")
+        ply_checks = []
+        for ply in plies:
+            nominal_capacity, material_limit, edge_limit = _ply_bearing_capacity(
+                dia,
+                ply["thickness_mm"],
+                ply["ultimate_strength_mpa"],
+                (ply["effective_edge_distance_mm"] if ply["force_towards_ply_edge"] else None),
+            )
+            check = _check(
+                nominal_capacity,
+                0.9,
+                ply["bearing_action_kn"],
+                "9.4.4; 9.2.2.4",
+            )
+            check.update(
+                {
+                    "ply_id": ply["ply_id"],
+                    "material_limit_nominal_capacity_kn": material_limit,
+                    "edge_limit_nominal_capacity_kn": edge_limit,
+                    "governing_limit": (
+                        "edge_distance"
+                        if edge_limit is not None and edge_limit < material_limit
+                        else "material"
+                    ),
+                }
+            )
+            ply_checks.append(check)
+        c["ply_bearing"] = {
+            "plies": ply_checks,
+            "satisfied": all(check["satisfied"] for check in ply_checks),
+            "clause": "9.4.4; 9.2.2.4",
+        }
+        intermediate = {
+            "connected_ply_count": len(plies),
+            "connected_ply_thickness_sum_mm": total_ply_thickness,
+            "connected_plies_complete_and_force_distribution_verified": True,
+        }
     elif k == "butt_weld_transition":
         fatigue_fields = {
             "fatigue_slope_limit",
@@ -3524,6 +3620,15 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "prying. Determine bolt actions under Clause 9.1.3 and verify connection-element "
             "deformation, stability, and each ply's Clause 9.2.2.4 bearing resistance separately."
             " Compression/contact reactions are outside this bolt-only operation."
+        )
+    elif k == "pin":
+        scope = (
+            "Clauses 9.4.1–9.4.3 pin shear, pin bearing and pin bending, plus Clause 9.4.4 "
+            "ply bearing under Clause 9.2.2.4 for every supplied connected ply. The complete "
+            "ply set, force distribution, per-ply design actions, load directions, material "
+            "strengths and edge distances remain externally assessed and are not authenticated. "
+            "Pin actions and connection geometry require external analysis; other connection "
+            "components and detailing require separate checks."
         )
     elif k == "bolt":
         scope = (

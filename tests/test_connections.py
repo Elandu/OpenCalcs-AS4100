@@ -1401,6 +1401,17 @@ def test_pin_hand_benchmark():
             "diameter_mm": 30,
             "shear_planes": 2,
             "ply_thickness_mm": 10,
+            "connected_plies": [
+                {
+                    "ply_id": "main",
+                    "thickness_mm": 10,
+                    "ultimate_strength_mpa": 440,
+                    "bearing_action_kn": 40,
+                    "force_towards_ply_edge": True,
+                    "effective_edge_distance_mm": 30,
+                }
+            ],
+            "connected_plies_complete_and_force_distribution_verified": True,
             "rotates": True,
             "shear_action_kn": 100,
             "bearing_action_kn": 40,
@@ -1412,6 +1423,95 @@ def test_pin_hand_benchmark():
     )
     assert r["checks"]["bearing"]["design_capacity_kn"] == pytest.approx(50.4)
     assert r["checks"]["bending"]["design_capacity_knm"] == pytest.approx(1.08)
+    ply = r["checks"]["ply_bearing"]["plies"][0]
+    assert ply["nominal_capacity_kn"] == pytest.approx(132)
+    assert ply["design_capacity_kn"] == pytest.approx(118.8)
+    assert ply["governing_limit"] == "edge_distance"
+
+
+def test_pin_ply_bearing_checks_every_ply_and_non_edge_load():
+    result = run_connections(
+        {
+            "check_type": "pin",
+            "yield_strength_mpa": 300,
+            "diameter_mm": 30,
+            "shear_planes": 2,
+            "ply_thickness_mm": 22,
+            "connected_plies": [
+                {
+                    "ply_id": "centre",
+                    "thickness_mm": 10,
+                    "ultimate_strength_mpa": 440,
+                    "bearing_action_kn": 70,
+                    "force_towards_ply_edge": True,
+                    "effective_edge_distance_mm": 30,
+                },
+                {
+                    "ply_id": "outer",
+                    "thickness_mm": 12,
+                    "ultimate_strength_mpa": 400,
+                    "bearing_action_kn": 20,
+                    "force_towards_ply_edge": False,
+                },
+            ],
+            "connected_plies_complete_and_force_distribution_verified": True,
+            "rotates": True,
+            "shear_action_kn": 100,
+            "bearing_action_kn": 40,
+            "moment_action_knm": 1,
+        }
+    )
+    checks = result["checks"]["ply_bearing"]
+    assert checks["satisfied"]
+    assert [ply["ply_id"] for ply in checks["plies"]] == ["centre", "outer"]
+    assert checks["plies"][0]["design_capacity_kn"] == pytest.approx(118.8)
+    assert checks["plies"][0]["governing_limit"] == "edge_distance"
+    assert checks["plies"][1]["design_capacity_kn"] == pytest.approx(414.72)
+    assert checks["plies"][1]["edge_limit_nominal_capacity_kn"] is None
+    assert checks["plies"][1]["governing_limit"] == "material"
+
+
+def test_pin_requires_complete_ply_geometry_and_thickness_consistency():
+    data = {
+        "check_type": "pin",
+        "yield_strength_mpa": 300,
+        "diameter_mm": 30,
+        "shear_planes": 2,
+        "ply_thickness_mm": 10,
+        "connected_plies": [
+            {
+                "ply_id": "main",
+                "thickness_mm": 10,
+                "ultimate_strength_mpa": 440,
+                "bearing_action_kn": 40,
+                "force_towards_ply_edge": True,
+                "effective_edge_distance_mm": 30,
+            }
+        ],
+        "connected_plies_complete_and_force_distribution_verified": True,
+        "rotates": True,
+        "shear_action_kn": 100,
+        "bearing_action_kn": 40,
+        "moment_action_knm": 1,
+    }
+    incomplete_edge = {**data, "connected_plies": [{**data["connected_plies"][0]}]}
+    incomplete_edge["connected_plies"][0].pop("effective_edge_distance_mm")
+    with pytest.raises(ValueError):
+        run_connections(incomplete_edge)
+
+    inconsistent_thickness = {
+        **data,
+        "connected_plies": [{**data["connected_plies"][0], "thickness_mm": 9}],
+    }
+    with pytest.raises(ValueError, match="sum of connected-ply thicknesses"):
+        run_connections(inconsistent_thickness)
+
+    incomplete_ply_set = {
+        **data,
+        "connected_plies_complete_and_force_distribution_verified": False,
+    }
+    with pytest.raises(ValueError):
+        run_connections(incomplete_ply_set)
 
 
 @pytest.mark.parametrize(
@@ -2903,6 +3003,17 @@ def test_reject_yield_strength_above_as4100_scope():
         "diameter_mm": 30,
         "shear_planes": 2,
         "ply_thickness_mm": 10,
+        "connected_plies": [
+            {
+                "ply_id": "main",
+                "thickness_mm": 10,
+                "ultimate_strength_mpa": 440,
+                "bearing_action_kn": 40,
+                "force_towards_ply_edge": True,
+                "effective_edge_distance_mm": 30,
+            }
+        ],
+        "connected_plies_complete_and_force_distribution_verified": True,
         "rotates": True,
         "shear_action_kn": 100,
         "bearing_action_kn": 40,

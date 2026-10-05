@@ -2905,6 +2905,85 @@ def clause_7_4_2_connection_plane_distribution():
     }
 
 
+def clause_6_4_built_up_compression_member_actions():
+    common = {
+        "section_capacity_kn": 1000,
+        "member_capacity_kn": 500,
+        "modified_member_slenderness": 100,
+        "axial_action_kn": 100,
+        "parallel_connection_planes": 2,
+        "connection_plane_count_verified": True,
+        "equal_connection_plane_participation_verified": True,
+        "member_action_envelope_verified": True,
+        "all_connection_bays_assessed_verified": True,
+        "action_analysis_reference": "independent built-up compression member example",
+    }
+    lacing = run_advanced_members(
+        {
+            "operation": "compression_built_up_member_actions",
+            "connection_type": "lacing",
+            **common,
+            "lacing_arrangement": "double",
+            "lacing_force_path_verified": True,
+            "bays": [
+                {
+                    "start_station_mm": 0,
+                    "end_station_mm": 1000,
+                    "transverse_connection_spacing_mm": 1000,
+                    "bay_geometry_verified": True,
+                }
+            ],
+        }
+    )
+    lacing_action = lacing["values"]["action_intervals"][0]
+    expected_shear = pi
+    expected_bar_force_per_plane = expected_shear / (2 * sin(pi / 4))
+    expect_close(lacing["values"]["transverse_design_shear_kn"], expected_shear)
+    expect_close(lacing_action["lacing_angle_degrees"], 45)
+    expect_close(
+        lacing_action["design_lacing_bar_force_per_plane_kn"], expected_bar_force_per_plane
+    )
+    expect_close(
+        expected_bar_force_per_plane * sin(pi / 4) * 2,
+        expected_shear,
+    )
+    if lacing["clauses"] != ["6.4.1", "6.4.2.3"] or not lacing["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 6.4.1 compression lacing action route failed")
+
+    batten = run_advanced_members(
+        {
+            "operation": "compression_built_up_member_actions",
+            "connection_type": "batten",
+            **common,
+            "bays": [
+                {
+                    "start_station_mm": 0,
+                    "end_station_mm": 1200,
+                    "connection_group_centroid_spacing_mm": 300,
+                    "bay_geometry_verified": True,
+                }
+            ],
+        }
+    )
+    batten_action = batten["values"]["action_intervals"][0]
+    expect_close(batten_action["design_batten_longitudinal_shear_per_plane_kn"], 2 * pi)
+    expect_close(batten_action["design_batten_moment_per_plane_knm"], 0.3 * pi)
+    if batten["clauses"] != ["6.4.1", "6.4.3.7"] or not batten["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 6.4.3.7 compression batten action route failed")
+    return {
+        "clause_6_4_1_design_transverse_shear_kn": lacing["values"]["transverse_design_shear_kn"],
+        "clause_6_4_2_3_lacing_force_per_plane_kn": lacing_action[
+            "design_lacing_bar_force_per_plane_kn"
+        ],
+        "clause_6_4_3_7_batten_shear_per_plane_kn": batten_action[
+            "design_batten_longitudinal_shear_per_plane_kn"
+        ],
+        "clause_6_4_3_7_batten_moment_per_plane_knm": batten_action[
+            "design_batten_moment_per_plane_knm"
+        ],
+    }
+
+
 def clause_7_4_2_member_actions_from_member_analysis():
     batten = run_advanced_members(
         {
@@ -3004,6 +3083,56 @@ def clause_7_4_3_back_to_back_connection_layout():
         "fasteners_per_connection_line_at_each_end": result["values"]["end_connection"][
             "fasteners_per_connection_line_at_each_end"
         ],
+    }
+
+
+def clause_9_4_4_pin_ply_bearing():
+    result = run_connections(
+        {
+            "check_type": "pin",
+            "yield_strength_mpa": 300,
+            "diameter_mm": 30,
+            "shear_planes": 2,
+            "ply_thickness_mm": 22,
+            "connected_plies": [
+                {
+                    "ply_id": "centre",
+                    "thickness_mm": 10,
+                    "ultimate_strength_mpa": 440,
+                    "bearing_action_kn": 118.8,
+                    "force_towards_ply_edge": True,
+                    "effective_edge_distance_mm": 30,
+                },
+                {
+                    "ply_id": "outer",
+                    "thickness_mm": 12,
+                    "ultimate_strength_mpa": 400,
+                    "bearing_action_kn": 20,
+                    "force_towards_ply_edge": False,
+                },
+            ],
+            "connected_plies_complete_and_force_distribution_verified": True,
+            "rotates": True,
+            "shear_action_kn": 100,
+            "bearing_action_kn": 40,
+            "moment_action_knm": 1,
+        }
+    )
+    checks = result["checks"]["ply_bearing"]["plies"]
+    expected_centre = 0.9 * min(3.2 * 30 * 10 * 440 / 1000, 30 * 10 * 440 / 1000)
+    expected_outer = 0.9 * (3.2 * 30 * 12 * 400 / 1000)
+    if not isclose(checks[0]["design_capacity_kn"], expected_centre, rel_tol=0, abs_tol=1e-9):
+        raise AssertionError("Clause 9.4.4 edge-limited ply capacity differs from hand arithmetic")
+    if not isclose(checks[1]["design_capacity_kn"], expected_outer, rel_tol=0, abs_tol=1e-9):
+        raise AssertionError(
+            "Clause 9.4.4 material-limited ply capacity differs from hand arithmetic"
+        )
+    if checks[0]["utilisation"] != 1 or not result["checks"]["ply_bearing"]["satisfied"]:
+        raise AssertionError("Clause 9.4.4 exact design-capacity boundary failed")
+    return {
+        "ply_ids": [check["ply_id"] for check in checks],
+        "design_capacities_kn": [check["design_capacity_kn"] for check in checks],
+        "edge_limited_nominal_capacity_kn": checks[0]["edge_limit_nominal_capacity_kn"],
     }
 
 
@@ -3506,11 +3635,15 @@ def main():
         "clause_7_4_4_tension_lacing_tie_thickness": clause_7_4_4_tension_lacing_tie_thickness,
         "clause_7_4_5_tension_batten_geometry": clause_7_4_5_tension_batten_geometry,
         "clause_7_4_2_connection_plane_distribution": clause_7_4_2_connection_plane_distribution,
+        "clause_6_4_built_up_compression_member_actions": (
+            clause_6_4_built_up_compression_member_actions
+        ),
         "clause_7_4_2_member_actions_from_member_analysis": (
             clause_7_4_2_member_actions_from_member_analysis
         ),
         "clause_7_4_3_back_to_back_connection_layout": clause_7_4_3_back_to_back_connection_layout,
         "clause_9_1_9e_block_shear_path_set": clause_9_1_9e_block_shear_path_set,
+        "clause_9_4_4_pin_ply_bearing": clause_9_4_4_pin_ply_bearing,
         "clause_9_1_10_coordinate_hole_deduction": clause_9_1_10_coordinate_hole_deduction,
         "figure_9_1_10_3b_angle_back_mark_gauge": figure_9_1_10_3b_angle_back_mark_gauge,
         "clause_9_1_10_two_leg_angle_layout": clause_9_1_10_two_leg_angle_layout,

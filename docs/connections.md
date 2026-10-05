@@ -21,7 +21,7 @@ each shear plane, including paint film; the operation selects the maximum.
 Alternatively, `filler_thickness_mm` must already be that governing maximum.
 
 The implementation was visually reviewed against the licensed AS 4100:2020
-Section 9, printed pages 112–138, including Clauses 9.1.10.1-3 on pages 116-117, Clause 9.1.4 on page 114, Clauses
+Section 9, printed pages 112–138, including Clauses 9.1.10.1-3 on pages 116-117, Clause 9.1.4 on page 114, Clause 9.2.2.4 on page 120, Clause 9.4.4 on page 124, Clauses
 9.6.2.3(b)(i), 9.6.2.3(b)(iii), 9.6.2.6 on page 127, and 9.6.2.7(c) on page 129,
 plus 9.6.3.4 and Figure 9.6.3.4 on page 133, Table 3.4
 on page 34, Clause 3.5.5 on page 35, and Appendix J on printed pages 203–206.
@@ -46,7 +46,7 @@ The source standard is not redistributed.
 | slip_factor_test | Appendix J.1–J.5: calculates the design slip factor from two bolt positions per specimen, using the measured bolt tension from a load-cell calibration curve or Equation J.1; checks Table 15.2.2.2 minimum bolt tension and the Equation J.1 80%–100% proof-load range. Figure J.1 dimensions are calculated for the 10df test-section length, 6df specimen width and bolt spacing, 2df end distance, 3df edge distance, df+5 inner-plate thickness, df/2+2 cover-plate thickness, df+2/df+3 hole diameters and 8 mm butt gap. J.3 calculates each position's assumed slip load as 2 x 0.35 x bolt tension, uses the lower position load for the two positions in series, and checks the lesser of 25 kN or one-quarter of that load, the 50 kN/min limit up to first measured slip, and creep cessation between increments. J.4 accepts a clear observed slip load or derives the 0.13 mm slip load from the mean of the two edge readings. Four specimens are rejected because Appendix J gives no k value; five or more use k=0.90. Specimen form, faying-surface condition, assembly, calibration-batch, bolt geometry, instrumentation, rate uniformity and creep records remain explicit evidence. |
 | block_shear | 9.1.9(e) net rupture capped by gross shear yielding, phi=0.75, eccentricity factor 1 or 0.5. Evaluate one externally enumerated rupture path from areas. |
 | block_shear_paths | 9.1.9(e) calculates gross/net shear and net tension areas from the supplied path lengths and thickness, checks each candidate path, and selects the least design resistance. Requires a verified complete path set and net lengths derived under 9.1.10. It does not generate paths or derive hole deductions from bolt geometry. |
-| pin | 9.4.1–3 circular solid pin shear, pin bearing with rotation factor, and bending using plastic modulus d³/6. Pin actions and plate load distribution require external analysis; ply bearing also uses bearing. |
+| pin | 9.4.1–3 circular solid pin shear, pin bearing with rotation factor, and bending using plastic modulus d³/6; 9.4.4 checks every connected ply under 9.2.2.4 using its supplied force share, tensile strength, thickness, force-to-edge condition and effective edge distance. Confirm the connected-ply list and force distribution from the connection analysis. |
 | fillet | 9.6.3.10 strength using externally established design throat and effective length; includes the capacity calculation used by 9.6.2.7(c) when an incomplete-butt throat is supplied. Thin RHS longitudinal SP weld factor 0.7. Geometry and weld-size detailing are separate prerequisites. |
 | fillet_design | 9.6.3.1–6 leg sizes, root gap, throat, minimum/maximum size, effective length and area; optional 9.6.3.4 automatic-arc production-weld macro-test throat increase using `t_t1 + 0.85t_t2`; 9.6.3.7–8 built-up parallel/intermittent weld spacing; 9.6.3.10 weld strength. | Supply the weld-metal strength and verify weld geometry, edge build-out, root gap and load sharing. The optional increase requires a production-weld macro-test record demonstrating required penetration. Declarations and measurements are not authenticated. Use the resulting capacity in the attached component or stiffener check; fatigue quality and complete connection design remain separate. |
 | built_up_component_end_weld | 9.6.3.9(a) minimum weld length at built-up component ends, including tapered components. | Supply each connected width and taper length; the requirement applies when side fillet welds alone are used. |
@@ -68,6 +68,16 @@ The source standard is not redistributed.
 | bolt_group_out_of_plane | 9.3.2–3 checks user-supplied per-bolt Fx/Fy/tension actions, their six-resultant equilibrium under 9.1.3(a), and each bolt's shear, tension, prying addition and combined interaction. Bolt tension acts along z; positions are (x,y) about the verified common action origin and moments follow right-handed `r × F`. Load distribution and component stability require verified analysis inputs. Check compression/contact actions and ply bearing separately. |
 | bolt_group_elastic_3d | 9.1.3(a), 9.3.2–3 resolves a planar bolt group's six centroidal resultants with rigid-plate, equal-bolt-stiffness linear elastic distribution, then checks equilibrium and each bolt's shear, tension, prying addition and interaction. Requires a non-collinear layout, verified method/experimental basis, and nonnegative calculated bolt tension. Compression/contact and slack-bolt redistribution, ply bearing and complete connection-component checks remain separate. |
 | weld_group | 9.7.1–3 constant-throat straight-line fillet group, signed Fx/Fy/Fz and Mx/My/Mz at centroid. Exact line integrals including product inertia; vector resultant checked at every endpoint. Forces and moments are in a right-handed xyz system; weld lies in xy plane. |
+
+For `pin`, provide one `connected_plies` item per physically connected ply,
+with a unique `ply_id`, thickness, tensile strength, bearing action and whether
+that action has a component towards a ply edge. The listed thicknesses must sum
+to `ply_thickness_mm`, the complete ply set and action distribution must be
+verified, and each ply is checked independently. When the force has a component
+towards an edge, `effective_edge_distance_mm` is required: use the minimum clear
+distance from the pin hole to a ply edge or adjacent hole in that direction,
+plus half the pin diameter. These geometry and load-distribution inputs remain
+engineering evidence; the plugin does not authenticate them.
 
 `hole_deduction_layout` treats `longitudinal_mm` as parallel to the design action and `transverse_mm` as perpendicular to it. `gross_hole_width_mm` is the gross hole width across the plate at the section, including any applicable countersink. The result reports the controlling straight row, the maximum progressive zig-zag chain and its individual stagger corrections, then selects the greater deduction under Clause 9.1.10.3. This flat-plate route does not cover other section forms, net-section modulus calculations or block-shear path enumeration. It also does not authenticate the declared layout or replace Clause 9.5 detailing checks.
 
