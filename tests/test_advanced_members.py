@@ -1828,7 +1828,7 @@ def hollow_section_bending_inputs(**updates):
     }
 
 
-@pytest.mark.parametrize("section_type", ["rhs", "shs", "chs"])
+@pytest.mark.parametrize("section_type", ["rhs", "shs"])
 def test_clause_5_6_1_4_hollow_section_bending_uses_iw_zero_and_checks_action(section_type):
     out = run_advanced_members(hollow_section_bending_inputs(section_type=section_type))
     values = out["values"]
@@ -1869,6 +1869,7 @@ def test_clause_5_6_1_4_rejects_action_above_design_capacity():
         {"moment_factor_verified": False},
         {"segment_without_full_lateral_restraint_verified": False},
         {"both_ends_restrained_verified": False},
+        {"section_type": "chs"},
         {"section_type": "i_section"},
     ],
 )

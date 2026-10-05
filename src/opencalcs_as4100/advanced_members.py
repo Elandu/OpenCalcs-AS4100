@@ -860,7 +860,7 @@ SCHEMAS = {
     "hollow_section_bending_capacity": _schema(
         "hollow_section_bending_capacity",
         {
-            "section_type": {"enum": ["rhs", "shs", "chs"]},
+            "section_type": {"enum": ["rhs", "shs"]},
             "section_capacity_knm": P,
             "iy_mm4": P,
             "torsion_constant_mm4": P,
@@ -2474,7 +2474,7 @@ def run_advanced_members(inputs):
             },
             [capacity_check("5.6.1.4", mb, d["action_knm"])],
             [
-                "Applies to a constant-section RHS, SHS or CHS segment without full lateral "
+                "Applies to a constant-section RHS or SHS segment without full lateral "
                 "restraint, with both ends restrained as verified under Clause 5.6.1.",
                 "Clause 5.6.1.4 specifies Iw=0. Supply gross-section Ms from Clause 5.2 and "
                 "verified Iy, J and effective length from the applicable Clause 5.6.3 route.",
