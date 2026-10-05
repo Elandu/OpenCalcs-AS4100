@@ -1503,13 +1503,14 @@ def clause_2_2_5_z_quality():
 
 
 def appendix_m_table_m2_z_quality():
-    result = run_materials(
-        {
+    inputs = {
             "operation": "appendix_m_through_thickness_design",
             "product_standard": "AS/NZS 3678",
             "material_thickness_mm": 45,
             "effective_weld_depth_mm": 25,
             "table_m2_b_case": "multi_run_fillet",
+            "low_strength_weld_material_verified": False,
+            "low_strength_weld_material_reference": None,
             "remote_restraint": "high",
             "preheating_condition": "without_preheating",
             "compression_reduction_basis": "not_applicable",
@@ -1522,7 +1523,7 @@ def appendix_m_table_m2_z_quality():
             "material_certificate_verified": True,
             "material_certificate_reference": "MILL-CERT-M2-01",
         }
-    )
+    result = run_materials(inputs)
     values = result["values"]
     terms = {"z_a": 9, "z_b": 0, "z_c_after_reduction": 10, "z_d": 5, "z_e": 0}
     for name, expected in terms.items():
@@ -1530,7 +1531,23 @@ def appendix_m_table_m2_z_quality():
     expect_close(values["required_design_z_value"], 24)
     if values["required_z_quality_class"] != "Z25" or not result["checked_conditions_satisfied"]:
         raise AssertionError("Appendix M.2 ZEd=24 did not pass the supplied Z25 material class")
-    return {**terms, "required_design_z_value": 24, "required_z_quality_class": "Z25"}
+    ineligible = {
+        **inputs,
+        "table_m2_b_case": "single_run_fillet_with_z_a_zero",
+        "available_z_quality_class": "Z15",
+    }
+    try:
+        run_materials(ineligible)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Table M.2 accepted the single-run Zb=-5 case when Za was 9")
+    return {
+        **terms,
+        "required_design_z_value": 24,
+        "required_z_quality_class": "Z25",
+        "ineligible_single_run_case_rejected": True,
+    }
 
 
 def clause_14_3_2_hole_sizes_and_use():

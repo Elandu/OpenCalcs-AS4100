@@ -62,12 +62,17 @@ Table M.2(b) case applies. Verify the effective depth, weld form and sequence,
 restraint, preheating and compression-reduction classifications from project
 evidence before selecting them. The supported `table_m2_b_case` values map to
 `Zb` as follows: `t_cruciform_or_corner_diagram_group` = -25;
-`corner_joint_diagram_group_1` = -10; `single_run_or_low_strength_fillet` = -5;
-`multi_run_fillet` = 0;
+`corner_joint_diagram_group_1` = -10; `single_run_fillet_with_z_a_zero` = -5;
+`fillet_welds_butting_low_strength_material` = -5; `multi_run_fillet` = 0;
 `penetration_weld_with_shrinkage_reducing_sequence` = 3;
 `penetration_weld_without_shrinkage_reducing_sequence` = 5; and
 `corner_joint_diagram_group_2` = 8. Match the joint geometry and sequence to the
 figures and descriptions in Table M.2(b). Appendix M is informative guidance.
+The single-run case is accepted only when calculated `Za` is zero. The alternate
+butting-fillet case is accepted only when `Za` is greater than 1 and a verified
+low-strength weld-material reference is supplied. This reference is recorded,
+not authenticated; the calculation does not decide whether a weld material is
+low strength.
 
 For material thicker than 16 mm, a `ZEd` value of 10 or less requires no Z
 quality class. Otherwise, the required class is Z15 for `ZEd` 11–20, Z25 for

@@ -154,6 +154,8 @@ def appendix_m_through_thickness(**overrides):
         "material_thickness_mm": 45,
         "effective_weld_depth_mm": 25,
         "table_m2_b_case": "multi_run_fillet",
+        "low_strength_weld_material_verified": False,
+        "low_strength_weld_material_reference": None,
         "remote_restraint": "high",
         "preheating_condition": "without_preheating",
         "compression_reduction_basis": "not_applicable",
@@ -250,7 +252,7 @@ def test_appendix_m_thickness_table_boundaries(thickness, expected):
     [
         ("t_cruciform_or_corner_diagram_group", -25),
         ("corner_joint_diagram_group_1", -10),
-        ("single_run_or_low_strength_fillet", -5),
+        ("single_run_fillet_with_z_a_zero", -5),
         ("multi_run_fillet", 0),
         ("penetration_weld_with_shrinkage_reducing_sequence", 3),
         ("penetration_weld_without_shrinkage_reducing_sequence", 5),
@@ -265,6 +267,54 @@ def test_appendix_m_weld_form_and_sequence_table_cases(case, expected):
         remote_restraint="low",
     )["values"]
     assert values["z_b"] == expected
+
+
+def test_appendix_m_single_run_fillet_zb_case_requires_zero_za():
+    valid = appendix_m_through_thickness(
+        table_m2_b_case="single_run_fillet_with_z_a_zero",
+        effective_weld_depth_mm=7,
+        material_thickness_mm=10,
+        remote_restraint="low",
+    )
+    assert valid["values"]["z_a"] == 0
+    assert valid["values"]["z_b"] == -5
+    assert valid["values"]["table_m2_b_case_eligibility_satisfied"]
+
+    with pytest.raises(ValueError, match="single-run fillet case requires Za = 0"):
+        appendix_m_through_thickness(
+            table_m2_b_case="single_run_fillet_with_z_a_zero",
+            effective_weld_depth_mm=25,
+        )
+
+
+def test_appendix_m_low_strength_butting_fillet_zb_requires_za_and_evidence():
+    with pytest.raises(ValueError, match="Za > 1"):
+        appendix_m_through_thickness(
+            table_m2_b_case="fillet_welds_butting_low_strength_material",
+            effective_weld_depth_mm=7,
+            low_strength_weld_material_verified=True,
+            low_strength_weld_material_reference="WELD-MATERIAL-CERT-01",
+        )
+
+    with pytest.raises(ValueError, match="verified weld-material evidence"):
+        appendix_m_through_thickness(
+            table_m2_b_case="fillet_welds_butting_low_strength_material",
+            effective_weld_depth_mm=25,
+        )
+
+    allowed = appendix_m_through_thickness(
+        table_m2_b_case="fillet_welds_butting_low_strength_material",
+        effective_weld_depth_mm=25,
+        low_strength_weld_material_verified=True,
+        low_strength_weld_material_reference="WELD-MATERIAL-CERT-01",
+        available_z_quality_class="Z15",
+    )
+    values = allowed["values"]
+    assert values["z_a"] == 9
+    assert values["z_b"] == -5
+    assert values["required_design_z_value"] == 19
+    assert values["required_z_quality_class"] == "Z15"
+    assert allowed["checked_conditions_satisfied"]
 
 
 def test_appendix_m_restraint_preheat_and_compression_reduction():

@@ -17,7 +17,8 @@ _P = {"type": "number", "exclusiveMinimum": 0, "maximum": 10000}
 _APPENDIX_M_ZB = {
     "t_cruciform_or_corner_diagram_group": -25,
     "corner_joint_diagram_group_1": -10,
-    "single_run_or_low_strength_fillet": -5,
+    "single_run_fillet_with_z_a_zero": -5,
+    "fillet_welds_butting_low_strength_material": -5,
     "multi_run_fillet": 0,
     "penetration_weld_with_shrinkage_reducing_sequence": 3,
     "penetration_weld_without_shrinkage_reducing_sequence": 5,
@@ -85,6 +86,11 @@ APPENDIX_M_THROUGH_THICKNESS_SCHEMA = object_schema(
         "material_thickness_mm": _P,
         "effective_weld_depth_mm": _P,
         "table_m2_b_case": {"enum": list(_APPENDIX_M_ZB)},
+        "low_strength_weld_material_verified": {"type": "boolean"},
+        "low_strength_weld_material_reference": {
+            "type": ["string", "null"],
+            "maxLength": 2000,
+        },
         "remote_restraint": {"enum": ["low", "medium", "high"]},
         "preheating_condition": {"enum": ["without_preheating", "at_least_100_c"]},
         "compression_reduction_basis": {"enum": ["not_applicable", "verified_applicable"]},
@@ -250,6 +256,9 @@ APPENDIX_M_THROUGH_THICKNESS_OUTPUT_SCHEMA = {
                 "material_thickness_mm",
                 "effective_weld_depth_mm",
                 "table_m2_b_case",
+                "low_strength_weld_material_verified",
+                "low_strength_weld_material_reference",
+                "table_m2_b_case_eligibility_satisfied",
                 "remote_restraint",
                 "preheating_condition",
                 "compression_reduction_basis",
@@ -277,6 +286,12 @@ APPENDIX_M_THROUGH_THICKNESS_OUTPUT_SCHEMA = {
                 "material_thickness_mm": {"type": "number", "exclusiveMinimum": 0},
                 "effective_weld_depth_mm": {"type": "number", "exclusiveMinimum": 0},
                 "table_m2_b_case": {"enum": list(_APPENDIX_M_ZB)},
+                "low_strength_weld_material_verified": {"type": "boolean"},
+                "low_strength_weld_material_reference": {
+                    "type": ["string", "null"],
+                    "maxLength": 2000,
+                },
+                "table_m2_b_case_eligibility_satisfied": {"const": True},
                 "remote_restraint": {"enum": ["low", "medium", "high"]},
                 "preheating_condition": {"enum": ["without_preheating", "at_least_100_c"]},
                 "compression_reduction_basis": {"enum": ["not_applicable", "verified_applicable"]},
@@ -738,7 +753,31 @@ def _appendix_m_through_thickness_design(data: Mapping) -> dict:
         if depth <= 40
         else 15
     )
-    z_b = _APPENDIX_M_ZB[data["table_m2_b_case"]]
+    b_case = data["table_m2_b_case"]
+    low_strength_verified = data["low_strength_weld_material_verified"]
+    low_strength_reference = (data["low_strength_weld_material_reference"] or "").strip()
+    if b_case == "single_run_fillet_with_z_a_zero":
+        if z_a != 0:
+            raise ValueError("Table M.2(b) single-run fillet case requires Za = 0.")
+        if low_strength_verified or low_strength_reference:
+            raise ValueError(
+                "Low-strength weld-material evidence applies only to the butting fillet case."
+            )
+    elif b_case == "fillet_welds_butting_low_strength_material":
+        if z_a <= 1:
+            raise ValueError(
+                "Table M.2(b) low-strength butting fillet case requires Za > 1."
+            )
+        if not low_strength_verified or not low_strength_reference:
+            raise ValueError(
+                "The low-strength butting fillet case requires verified weld-material evidence "
+                "and a reference."
+            )
+    elif low_strength_verified or low_strength_reference:
+        raise ValueError(
+            "Low-strength weld-material evidence applies only to the butting fillet case."
+        )
+    z_b = _APPENDIX_M_ZB[b_case]
     z_c = (
         2
         if thickness <= 10
@@ -777,6 +816,9 @@ def _appendix_m_through_thickness_design(data: Mapping) -> dict:
         "material_thickness_mm": thickness,
         "effective_weld_depth_mm": depth,
         "table_m2_b_case": data["table_m2_b_case"],
+        "low_strength_weld_material_verified": low_strength_verified,
+        "low_strength_weld_material_reference": low_strength_reference or None,
+        "table_m2_b_case_eligibility_satisfied": True,
         "remote_restraint": data["remote_restraint"],
         "preheating_condition": data["preheating_condition"],
         "compression_reduction_basis": data["compression_reduction_basis"],
