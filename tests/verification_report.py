@@ -1962,6 +1962,56 @@ def appendix_h4_open_section_torsion_constant():
     return {"open_section_torsion_constant_approx_mm4": value}
 
 
+def appendix_h4_section_warping_constants():
+    verified = {"section_properties_verified": True, "section_geometry_verified": True}
+    cases = [
+        (
+            "doubly_symmetric_i",
+            {
+                "minor_axis_second_moment_mm4": 2_000_000,
+                "flange_centroid_spacing_mm": 300,
+            },
+            45_000_000_000,
+        ),
+        (
+            "monosymmetric_i",
+            {
+                "minor_axis_second_moment_mm4": 2_000_000,
+                "compression_flange_minor_inertia_mm4": 500_000,
+                "flange_centroid_spacing_mm": 300,
+            },
+            33_750_000_000,
+        ),
+        (
+            "channel",
+            {
+                "flange_width_mm": 100,
+                "flange_thickness_mm": 10,
+                "web_depth_mm": 200,
+                "major_axis_second_moment_mm4": 60_000_000,
+            },
+            50_000_000_000,
+        ),
+        ("hollow", {}, 0),
+    ]
+    values = {}
+    for section_type, properties, expected in cases:
+        result = run_advanced_members(
+            {
+                "operation": "section_warping_constant",
+                "section_type": section_type,
+                **verified,
+                **properties,
+            }
+        )
+        observed = result["values"]["warping_constant_iw_mm6"]
+        expect_close(observed, expected)
+        if result["clauses"] != ["Appendix H.4 (informative)"]:
+            raise AssertionError("Appendix H.4 warping-constant clause route failed")
+        values[section_type] = observed
+    return {"warping_constant_iw_mm6": values}
+
+
 def clause_5_2_6_hole_moduli():
     result = run_members(
         {
@@ -3864,6 +3914,7 @@ def main():
             appendix_h4_amended_closed_section_torsion_constant
         ),
         "appendix_h4_open_section_torsion_constant": appendix_h4_open_section_torsion_constant,
+        "appendix_h4_section_warping_constants": appendix_h4_section_warping_constants,
         "clause_5_2_5_internal_gradient_effective_modulus": clause_5_2_5_internal_gradient,
         "clause_5_2_section_moment_capacity": clause_5_2_section_moment_capacity,
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,

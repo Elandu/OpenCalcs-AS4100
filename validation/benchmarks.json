@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.25",
+  "package_version": "0.7.26",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2198,6 +2198,27 @@
       "name": "Appendix H.4 informative open-section torsion constant, hand arithmetic",
       "actual": 54000.0,
       "expected": 54000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix H.4 doubly symmetric I warping constant",
+      "actual": 45000000000.0,
+      "expected": 45000000000.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix H.4 monosymmetric I warping constant",
+      "actual": 33750000000.0,
+      "expected": 33750000000.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix H.4 channel warping constant",
+      "actual": 50000000000.0,
+      "expected": 50000000000.0,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

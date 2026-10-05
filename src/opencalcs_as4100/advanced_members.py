@@ -589,6 +589,53 @@ def _compression_restraint_design_schema():
     return {"oneOf": [regular, grouped]}
 
 
+def _section_warping_constant_schema():
+    common = {
+        "section_properties_verified": VERIFIED,
+        "section_geometry_verified": VERIFIED,
+    }
+    variants = [
+        _schema(
+            "section_warping_constant",
+            {
+                **common,
+                "section_type": {"const": "doubly_symmetric_i"},
+                "minor_axis_second_moment_mm4": P,
+                "flange_centroid_spacing_mm": P,
+            },
+        ),
+        _schema(
+            "section_warping_constant",
+            {
+                **common,
+                "section_type": {"const": "monosymmetric_i"},
+                "minor_axis_second_moment_mm4": P,
+                "compression_flange_minor_inertia_mm4": P,
+                "flange_centroid_spacing_mm": P,
+            },
+        ),
+        _schema(
+            "section_warping_constant",
+            {
+                **common,
+                "section_type": {"const": "channel"},
+                "flange_width_mm": P,
+                "flange_thickness_mm": P,
+                "web_depth_mm": P,
+                "major_axis_second_moment_mm4": P,
+            },
+        ),
+    ]
+    for section_type in ("angle", "tee", "narrow_rectangular", "hollow"):
+        variants.append(
+            _schema(
+                "section_warping_constant",
+                {**common, "section_type": {"const": section_type}},
+            )
+        )
+    return {"oneOf": variants}
+
+
 SCHEMAS = {
     "open_section_torsion_constant": _schema(
         "open_section_torsion_constant",
@@ -626,6 +673,7 @@ SCHEMAS = {
             "median_line_geometry_verified": VERIFIED,
         },
     ),
+    "section_warping_constant": _section_warping_constant_schema(),
     "continuous_lateral_restraints": _schema(
         "continuous_lateral_restraints",
         {
@@ -1679,6 +1727,83 @@ def run_advanced_members(inputs):
                 "thin-walled open section.",
                 "This approximate torsion property does not calculate warping constant Iw, "
                 "multi-cell torsion, or member resistance.",
+            ],
+        )
+    if op == "section_warping_constant":
+        section_type = d["section_type"]
+        values = {"section_type": section_type}
+        if section_type == "doubly_symmetric_i":
+            minor_inertia = d["minor_axis_second_moment_mm4"]
+            flange_spacing = d["flange_centroid_spacing_mm"]
+            warping_constant = minor_inertia * flange_spacing**2 / 4
+            values.update(
+                {
+                    "minor_axis_second_moment_mm4": minor_inertia,
+                    "flange_centroid_spacing_mm": flange_spacing,
+                }
+            )
+        elif section_type == "monosymmetric_i":
+            minor_inertia = d["minor_axis_second_moment_mm4"]
+            compression_flange_inertia = d["compression_flange_minor_inertia_mm4"]
+            flange_spacing = d["flange_centroid_spacing_mm"]
+            if compression_flange_inertia >= minor_inertia:
+                raise ValueError(
+                    "Compression-flange minor inertia must be less than the total "
+                    "minor-axis inertia for a monosymmetric I-section."
+                )
+            warping_constant = (
+                compression_flange_inertia
+                * flange_spacing**2
+                * (1 - compression_flange_inertia / minor_inertia)
+            )
+            values.update(
+                {
+                    "minor_axis_second_moment_mm4": minor_inertia,
+                    "compression_flange_minor_inertia_mm4": compression_flange_inertia,
+                    "flange_centroid_spacing_mm": flange_spacing,
+                }
+            )
+        elif section_type == "channel":
+            flange_width = d["flange_width_mm"]
+            flange_thickness = d["flange_thickness_mm"]
+            web_depth = d["web_depth_mm"]
+            major_inertia = d["major_axis_second_moment_mm4"]
+            channel_term = flange_width * flange_thickness * web_depth**2
+            correction_factor = 8 - 3 * channel_term / major_inertia
+            warping_constant = flange_width**3 * flange_thickness * web_depth**2 / 48
+            warping_constant *= correction_factor
+            if not isfinite(correction_factor) or correction_factor <= 0:
+                raise ValueError(
+                    "Appendix H.4 channel warping-constant correction factor must be "
+                    "positive and finite."
+                )
+            values.update(
+                {
+                    "flange_width_mm": flange_width,
+                    "flange_thickness_mm": flange_thickness,
+                    "web_depth_mm": web_depth,
+                    "major_axis_second_moment_mm4": major_inertia,
+                    "channel_correction_factor": correction_factor,
+                }
+            )
+        else:
+            warping_constant = 0.0
+        if not isfinite(warping_constant) or warping_constant < 0:
+            raise ValueError("Appendix H.4 warping constant must be finite and nonnegative.")
+        values["warping_constant_iw_mm6"] = warping_constant
+        return result(
+            op,
+            ["Appendix H.4 (informative)"],
+            values,
+            [],
+            [
+                "Calculates the Appendix H.4 warping constant for doubly symmetric I, "
+                "monosymmetric I and channel sections, the stated zero for angle, tee "
+                "and narrow rectangular sections, and the permitted zero approximation "
+                "for a hollow section.",
+                "Section type, dimensions and section properties are supplied and must be "
+                "verified. The operation does not calculate J, an elastic buckling moment "
+                "or member resistance.",
             ],
         )
     if op == "continuous_lateral_restraints":

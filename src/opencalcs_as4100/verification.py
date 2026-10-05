@@ -4310,6 +4310,54 @@ def verify():
         54_000,
         1e-9,
     )
+    symmetric_i_warping = run_advanced_members(
+        {
+            "operation": "section_warping_constant",
+            "section_type": "doubly_symmetric_i",
+            "minor_axis_second_moment_mm4": 2_000_000,
+            "flange_centroid_spacing_mm": 300,
+            "section_properties_verified": True,
+            "section_geometry_verified": True,
+        }
+    )
+    record(
+        "Appendix H.4 doubly symmetric I warping constant",
+        symmetric_i_warping["values"]["warping_constant_iw_mm6"],
+        2_000_000 * 300**2 / 4,
+    )
+    monosymmetric_i_warping = run_advanced_members(
+        {
+            "operation": "section_warping_constant",
+            "section_type": "monosymmetric_i",
+            "minor_axis_second_moment_mm4": 2_000_000,
+            "compression_flange_minor_inertia_mm4": 500_000,
+            "flange_centroid_spacing_mm": 300,
+            "section_properties_verified": True,
+            "section_geometry_verified": True,
+        }
+    )
+    record(
+        "Appendix H.4 monosymmetric I warping constant",
+        monosymmetric_i_warping["values"]["warping_constant_iw_mm6"],
+        500_000 * 300**2 * (1 - 500_000 / 2_000_000),
+    )
+    channel_warping = run_advanced_members(
+        {
+            "operation": "section_warping_constant",
+            "section_type": "channel",
+            "flange_width_mm": 100,
+            "flange_thickness_mm": 10,
+            "web_depth_mm": 200,
+            "major_axis_second_moment_mm4": 60_000_000,
+            "section_properties_verified": True,
+            "section_geometry_verified": True,
+        }
+    )
+    record(
+        "Appendix H.4 channel warping constant",
+        channel_warping["values"]["warping_constant_iw_mm6"],
+        100**3 * 10 * 200**2 / 48 * (8 - 3 * 100 * 10 * 200**2 / 60_000_000),
+    )
     back_to_back = run_advanced_members(
         {
             "operation": "built_up_compression",

@@ -33,6 +33,16 @@ def open_torsion_constant_inputs(**changes):
     }
 
 
+def section_warping_constant_inputs(section_type, **properties):
+    return {
+        "operation": "section_warping_constant",
+        "section_type": section_type,
+        "section_properties_verified": True,
+        "section_geometry_verified": True,
+        **properties,
+    }
+
+
 def test_appendix_h4_open_section_torsion_constant_hand_arithmetic():
     out = run_advanced_members(open_torsion_constant_inputs())
     values = out["values"]
@@ -73,6 +83,68 @@ def test_amendment_1_appendix_h4_closed_section_torsion_constant_hand_arithmetic
         ],
     )
     assert run_advanced_members(nonuniform)["values"]["torsion_constant_j_mm4"] == 3_200_000
+
+
+def test_appendix_h4_doubly_and_monosymmetric_i_warping_constants():
+    doubly_symmetric = run_advanced_members(
+        section_warping_constant_inputs(
+            "doubly_symmetric_i",
+            minor_axis_second_moment_mm4=2_000_000,
+            flange_centroid_spacing_mm=300,
+        )
+    )
+    assert doubly_symmetric["values"]["warping_constant_iw_mm6"] == pytest.approx(45e9)
+
+    monosymmetric = run_advanced_members(
+        section_warping_constant_inputs(
+            "monosymmetric_i",
+            minor_axis_second_moment_mm4=2_000_000,
+            compression_flange_minor_inertia_mm4=500_000,
+            flange_centroid_spacing_mm=300,
+        )
+    )
+    assert monosymmetric["values"]["warping_constant_iw_mm6"] == pytest.approx(33.75e9)
+    assert monosymmetric["full_standard_compliance"] is False
+
+    with pytest.raises(ValueError, match="must be less than the total"):
+        run_advanced_members(
+            section_warping_constant_inputs(
+                "monosymmetric_i",
+                minor_axis_second_moment_mm4=2_000_000,
+                compression_flange_minor_inertia_mm4=2_000_000,
+                flange_centroid_spacing_mm=300,
+            )
+        )
+
+
+def test_appendix_h4_channel_and_zero_warping_constants():
+    channel = run_advanced_members(
+        section_warping_constant_inputs(
+            "channel",
+            flange_width_mm=100,
+            flange_thickness_mm=10,
+            web_depth_mm=200,
+            major_axis_second_moment_mm4=60_000_000,
+        )
+    )
+    assert channel["values"]["channel_correction_factor"] == pytest.approx(6)
+    assert channel["values"]["warping_constant_iw_mm6"] == pytest.approx(50e9)
+
+    for section_type in ("angle", "tee", "narrow_rectangular", "hollow"):
+        result = run_advanced_members(section_warping_constant_inputs(section_type))
+        assert result["values"]["warping_constant_iw_mm6"] == 0
+        assert result["clauses"] == ["Appendix H.4 (informative)"]
+
+    with pytest.raises(ValueError, match="correction factor must be positive"):
+        run_advanced_members(
+            section_warping_constant_inputs(
+                "channel",
+                flange_width_mm=100,
+                flange_thickness_mm=10,
+                web_depth_mm=200,
+                major_axis_second_moment_mm4=10_000_000,
+            )
+        )
 
 
 @pytest.mark.parametrize(

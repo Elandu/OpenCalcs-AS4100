@@ -9,8 +9,12 @@ Clause 8.4.6 interaction. Its corrected Appendix H.4 closed-section torsion-
 constant equation is implemented for verified thin-walled single-cell closed
 sections. The informative Appendix H.4 open-section approximation
 `J ≈ Σ(b t³ / 3)` is also implemented for verified thin-walled open geometry.
-Multi-cell torsion properties, other section properties and warping constant
-`Iw` remain externally supplied. The amendment
+The Appendix H.4 warping-constant expressions are implemented for doubly
+symmetric and monosymmetric I-sections and channels, along with its stated zero
+for angle, tee and narrow rectangular sections and its permitted zero
+approximation for hollow sections. Multi-cell torsion
+properties, other section properties and member resistance remain externally
+supplied. The amendment
 PDF, base-standard scan, page images and extracted standard text are not
 distributed with this repository. No later amendments were supplied or verified;
 applicable project requirements require engineering review.
