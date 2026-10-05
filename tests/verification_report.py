@@ -1728,6 +1728,118 @@ def clause_5_2_5_internal_gradient():
     }
 
 
+def clause_5_2_section_moment_capacity():
+    result = run_members(
+        {
+            "operation": "section_moment_capacity",
+            "yield_strength_mpa": 250,
+            "elastic_modulus_mm3": 100000,
+            "plastic_modulus_mm3": 130000,
+            "plate_elements": [
+                {
+                    "element_id": "web",
+                    "width_mm": 1100,
+                    "thickness_mm": 10,
+                    "edges": "both",
+                    "stress": "internal_gradient",
+                    "residual": "HR",
+                },
+                {
+                    "element_id": "compression_flange",
+                    "width_mm": 250,
+                    "thickness_mm": 10,
+                    "edges": "one",
+                    "stress": "uniform",
+                    "residual": "HR",
+                },
+            ],
+        }
+    )
+    values = result["values"]
+    expect_close(values["governing_element_slenderness_to_yield_limit_ratio"], 25 / 16)
+    expect_close(values["effective_section_modulus_mm3"], 64000)
+    expect_close(values["nominal_section_moment_capacity_knm"], 16)
+    if values["governing_element_id"] != "compression_flange":
+        raise AssertionError("Clause 5.2.2 selected by raw slenderness instead of normalized ratio")
+    return {
+        "governing_element_id": values["governing_element_id"],
+        "effective_section_modulus_mm3": values["effective_section_modulus_mm3"],
+        "nominal_section_moment_capacity_knm": values["nominal_section_moment_capacity_knm"],
+    }
+
+
+def clause_5_1_bending_design_routes():
+    major = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_major_axis",
+            "action_knm": 81,
+            "nominal_section_capacity_knm": 100,
+            "nominal_member_capacity_knm": 90,
+        }
+    )
+    expect_close(major["values"]["design_section_moment_capacity_knm"], 90)
+    expect_close(major["values"]["design_member_moment_capacity_knm"], 81)
+    if not all(major["checks"][key]["satisfied"] for key in ("section_moment", "member_moment")):
+        raise AssertionError("Clause 5.1 major-axis section/member checks failed at equality")
+
+    minor = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_minor_axis",
+            "action_knm": 45,
+            "nominal_section_capacity_knm": 50,
+        }
+    )
+    expect_close(minor["values"]["design_section_moment_capacity_knm"], 45)
+    if not minor["checks"]["section_moment"]["satisfied"]:
+        raise AssertionError("Clause 5.1 minor-axis check failed at equality")
+
+    plastic_inputs = {
+        "operation": "bending_design",
+        "method": "plastic",
+        "action_knm": 90,
+        "nominal_section_capacity_knm": 100,
+        "hinge_sections_compact_verified": True,
+        "full_lateral_restraint_verified": True,
+        "web_clause_5_10_6_satisfied": True,
+    }
+    plastic = run_members(plastic_inputs)
+    expect_close(plastic["values"]["design_section_moment_capacity_knm"], 90)
+    if not plastic["values"]["plastic_method_prerequisites_satisfied"]:
+        raise AssertionError("Clause 5.1 plastic route rejected complete eligibility evidence")
+    ineligible = run_members({**plastic_inputs, "full_lateral_restraint_verified": False})
+    if ineligible["values"]["plastic_method_prerequisites_satisfied"]:
+        raise AssertionError("Clause 5.1 plastic route accepted missing lateral restraint")
+
+    over_member = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_major_axis",
+            "action_knm": 81.001,
+            "nominal_section_capacity_knm": 100,
+            "nominal_member_capacity_knm": 90,
+        }
+    )
+    if over_member["checks"]["member_moment"]["satisfied"]:
+        raise AssertionError("Clause 5.1 major-axis member check accepted demand above capacity")
+    return {
+        "major_axis_section_design_capacity_knm": major["values"][
+            "design_section_moment_capacity_knm"
+        ],
+        "major_axis_member_design_capacity_knm": major["values"][
+            "design_member_moment_capacity_knm"
+        ],
+        "minor_axis_section_design_capacity_knm": minor["values"][
+            "design_section_moment_capacity_knm"
+        ],
+        "plastic_method_prerequisites_satisfied": plastic["values"][
+            "plastic_method_prerequisites_satisfied"
+        ],
+        "member_over_capacity_rejected": not over_member["checks"]["member_moment"]["satisfied"],
+    }
+
+
 def clause_5_3_2_4_lateral_restraint():
     result = run_advanced_members(
         {
@@ -2524,7 +2636,9 @@ def main():
             appendix_h4_amended_closed_section_torsion_constant
         ),
         "clause_5_2_5_internal_gradient_effective_modulus": clause_5_2_5_internal_gradient,
+        "clause_5_2_section_moment_capacity": clause_5_2_section_moment_capacity,
         "clause_5_2_6_net_gross_section_moduli": clause_5_2_6_hole_moduli,
+        "clause_5_1_bending_design_routes": clause_5_1_bending_design_routes,
         "clause_5_3_2_4_unequal_flange_restraint_boundary": (clause_5_3_2_4_lateral_restraint),
         "clause_5_3_2_1_member_capacity_restraint_route": (clause_5_3_2_1_capacity_restraint),
         "clause_5_3_3_critical_section": clause_5_3_3_critical_section,

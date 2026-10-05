@@ -428,6 +428,95 @@ def verify():
         slender_gradient["values"]["effective_modulus_mm3"],
         100000 * (115 / 120) ** 2,
     )
+    flat_plate_section = run_members(
+        {
+            "operation": "section_moment_capacity",
+            "yield_strength_mpa": 250,
+            "elastic_modulus_mm3": 100000,
+            "plastic_modulus_mm3": 130000,
+            "plate_elements": [
+                {
+                    "element_id": "web",
+                    "width_mm": 1100,
+                    "thickness_mm": 10,
+                    "edges": "both",
+                    "stress": "internal_gradient",
+                    "residual": "HR",
+                },
+                {
+                    "element_id": "compression_flange",
+                    "width_mm": 250,
+                    "thickness_mm": 10,
+                    "edges": "one",
+                    "stress": "uniform",
+                    "residual": "HR",
+                },
+            ],
+        }
+    )
+    record(
+        "Clause 5.2.2 selects maximum plate slenderness/yield-limit ratio",
+        flat_plate_section["values"]["governing_element_slenderness_to_yield_limit_ratio"],
+        25 / 16,
+    )
+    record(
+        "Clause 5.2.1 nominal section capacity from governing Ze",
+        flat_plate_section["values"]["nominal_section_moment_capacity_knm"],
+        16,
+    )
+    major_axis_bending_design = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_major_axis",
+            "action_knm": 81,
+            "nominal_section_capacity_knm": 100,
+            "nominal_member_capacity_knm": 90,
+        }
+    )
+    record(
+        "Clause 5.1 elastic major-axis design section capacity",
+        major_axis_bending_design["values"]["design_section_moment_capacity_knm"],
+        90,
+    )
+    record(
+        "Clause 5.1 elastic major-axis design member capacity",
+        major_axis_bending_design["values"]["design_member_moment_capacity_knm"],
+        81,
+    )
+    minor_axis_bending_design = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_minor_axis",
+            "action_knm": 45,
+            "nominal_section_capacity_knm": 50,
+        }
+    )
+    record(
+        "Clause 5.1 elastic minor-axis design section capacity",
+        minor_axis_bending_design["values"]["design_section_moment_capacity_knm"],
+        45,
+    )
+    plastic_bending_design = run_members(
+        {
+            "operation": "bending_design",
+            "method": "plastic",
+            "action_knm": 90,
+            "nominal_section_capacity_knm": 100,
+            "hinge_sections_compact_verified": True,
+            "full_lateral_restraint_verified": True,
+            "web_clause_5_10_6_satisfied": True,
+        }
+    )
+    record(
+        "Clause 5.1 plastic-method design section capacity",
+        plastic_bending_design["values"]["design_section_moment_capacity_knm"],
+        90,
+    )
+    record(
+        "Clause 5.1 plastic-method eligibility gates",
+        int(plastic_bending_design["values"]["plastic_method_prerequisites_satisfied"]),
+        1,
+    )
     top_flange_holes = run_connections(
         {
             "check_type": "hole_deduction",

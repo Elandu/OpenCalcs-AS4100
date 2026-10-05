@@ -63,6 +63,36 @@ INPUT_SCHEMA = {
             ["yield_strength_mpa", "plate", "elastic_modulus_mm3", "plastic_modulus_mm3"],
         ),
         _variant(
+            "section_moment_capacity",
+            {
+                "yield_strength_mpa": P,
+                "elastic_modulus_mm3": P,
+                "plastic_modulus_mm3": P,
+                "plate_elements": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "element_id": {"type": "string", "minLength": 1},
+                            "width_mm": P,
+                            "thickness_mm": P,
+                            "edges": {"type": "string", "enum": ["one", "both"]},
+                            "stress": {
+                                "type": "string",
+                                "enum": ["uniform", "outstand_gradient", "internal_gradient"],
+                            },
+                            "residual": R,
+                        },
+                        "required": ["width_mm", "thickness_mm", "edges", "stress", "residual"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            ["yield_strength_mpa", "elastic_modulus_mm3", "plastic_modulus_mm3", "plate_elements"],
+        ),
+        _variant(
             "section_moduli",
             {
                 "method": {"const": "area_ratio"},
@@ -234,6 +264,49 @@ INPUT_SCHEMA = {
                 "moment_factor",
                 "action_knm",
                 "geometry",
+            ],
+        ),
+        _variant(
+            "bending_design",
+            {
+                "method": {"const": "elastic_major_axis"},
+                "action_knm": N,
+                "nominal_section_capacity_knm": P,
+                "nominal_member_capacity_knm": P,
+            },
+            [
+                "method",
+                "action_knm",
+                "nominal_section_capacity_knm",
+                "nominal_member_capacity_knm",
+            ],
+        ),
+        _variant(
+            "bending_design",
+            {
+                "method": {"const": "elastic_minor_axis"},
+                "action_knm": N,
+                "nominal_section_capacity_knm": P,
+            },
+            ["method", "action_knm", "nominal_section_capacity_knm"],
+        ),
+        _variant(
+            "bending_design",
+            {
+                "method": {"const": "plastic"},
+                "action_knm": N,
+                "nominal_section_capacity_knm": P,
+                "hinge_sections_compact_verified": {"type": "boolean"},
+                "full_lateral_restraint_verified": {"type": "boolean"},
+                "web_clause_5_10_6_satisfied": {"type": "boolean"},
+            },
+            [
+                "method",
+                "action_knm",
+                "nominal_section_capacity_knm",
+                "hinge_sections_compact_verified",
+                "full_lateral_restraint_verified",
+                "web_clause_5_10_6_satisfied",
             ],
         ),
         _variant(
@@ -664,6 +737,53 @@ def _plate(d):
     )
 
 
+def _section_moment_capacity(d):
+    evaluated = []
+    identifiers = set()
+    for index, element in enumerate(d["plate_elements"], start=1):
+        identifier = element.get("element_id", f"element_{index}")
+        if identifier in identifiers:
+            raise ValueError("Plate element identifiers must be unique.")
+        identifiers.add(identifier)
+        result, _, _, _ = _plate(
+            {
+                "yield_strength_mpa": d["yield_strength_mpa"],
+                "elastic_modulus_mm3": d["elastic_modulus_mm3"],
+                "plastic_modulus_mm3": d["plastic_modulus_mm3"],
+                "plate": {key: value for key, value in element.items() if key != "element_id"},
+            }
+        )
+        ratio = result["element_slenderness"] / result["yield_limit"]
+        evaluated.append((ratio, index, identifier, result))
+
+    ratio, index, identifier, governing = max(evaluated, key=lambda item: item[0])
+    values = {
+        "governing_element_id": identifier,
+        "governing_element_index": index,
+        "governing_element_slenderness_to_yield_limit_ratio": ratio,
+        "section_slenderness": governing["element_slenderness"],
+        "plasticity_limit": governing["plasticity_limit"],
+        "yield_limit": governing["yield_limit"],
+        "classification": governing["classification"],
+        "effective_section_modulus_mm3": governing["effective_modulus_mm3"],
+        "nominal_section_moment_capacity_knm": governing["section_capacity_knm"],
+    }
+    return (
+        values,
+        {},
+        ["5.2.1", "5.2.2", "5.2.3", "5.2.4", "5.2.5"],
+        [
+            "Supply every relevant flat compression plate element; the controlling element is "
+            "selected by the greatest element-slenderness/yield-limit ratio.",
+            "Verify plate support, stress gradient, residual-stress category and section "
+            "properties. Apply the appropriate fastener-hole modulus method separately under "
+            "Clause 5.2.6.",
+            "This route does not cover circular hollow-section classification or derive the "
+            "cross-section elastic/plastic moduli.",
+        ],
+    )
+
+
 def _major_axis_section_properties(depth, flange_thickness, web_width, flange_areas):
     web_depth = depth - 2 * flange_thickness
     if web_depth <= 0:
@@ -976,6 +1096,63 @@ def _bending(d):
             "Restraints and critical section/critical flange require 5.3–5.5 assessment.",
         ],
     )
+
+
+def _bending_design(d):
+    phi = 0.9
+    action = d["action_knm"]
+    method = d["method"]
+    section_capacity = d["nominal_section_capacity_knm"]
+
+    def capacity_check(nominal_capacity):
+        check = _check(action, phi * nominal_capacity)
+        check["clause"] = "5.1"
+        return check
+
+    values = {
+        "analysis_method": method,
+        "capacity_factor_phi": phi,
+        "design_section_moment_capacity_knm": phi * section_capacity,
+    }
+    checks = {"section_moment": capacity_check(section_capacity)}
+    clauses = ["5.1"]
+    manual = [
+        "Design action must be determined under Clause 4.4 for elastic analysis or "
+        "Clause 4.5 for plastic analysis.",
+        "Nominal section/member capacities are inputs and must be established under "
+        "the applicable Clauses 5.2, 5.3 or 5.6.",
+        "Check non-principal-axis bending interactions under Clauses 5.7, 8.3 and 8.4, "
+        "and combined bending and shear under Clause 5.12, when applicable.",
+    ]
+
+    if method == "elastic_major_axis":
+        member_capacity = d["nominal_member_capacity_knm"]
+        if member_capacity > section_capacity:
+            raise ValueError("Nominal member moment capacity must not exceed section capacity.")
+        values["design_member_moment_capacity_knm"] = phi * member_capacity
+        checks["member_moment"] = capacity_check(member_capacity)
+        manual.append("The major-axis route requires both the section and member moment checks.")
+    elif method == "plastic":
+        prerequisites = {
+            "hinge_sections_compact": d["hinge_sections_compact_verified"],
+            "full_lateral_restraint": d["full_lateral_restraint_verified"],
+            "web_clause_5_10_6": d["web_clause_5_10_6_satisfied"],
+        }
+        for name, satisfied in prerequisites.items():
+            checks[name] = {"clause": "5.1", "satisfied": satisfied}
+        values["plastic_method_prerequisites_satisfied"] = all(prerequisites.values())
+        manual.extend(
+            [
+                "Verify compactness at every section where a plastic hinge may form under "
+                "Clause 5.2.3.",
+                "Verify full lateral restraint under Clause 5.3.2 and web compliance with "
+                "Clause 5.10.6.",
+            ]
+        )
+    else:
+        manual.append("The minor-axis elastic route checks nominal section moment capacity only.")
+
+    return values, checks, clauses, manual
 
 
 def _shear(d, flange_restraint_factor=1, flange_restraint_values=None):
@@ -1624,9 +1801,11 @@ def run_members(inputs: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("All numerical values must be finite.")
     functions = {
         "plate": _plate,
+        "section_moment_capacity": _section_moment_capacity,
         "section_moduli": _section_moduli,
         "compression": _compression,
         "bending": _bending,
+        "bending_design": _bending_design,
         "shear": _shear,
         "shear_with_flange_restraint": _shear_with_flange_restraint,
         "shear_with_rational_flange_restraint": _shear_with_rational_flange_restraint,

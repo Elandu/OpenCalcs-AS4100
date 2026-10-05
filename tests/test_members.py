@@ -133,6 +133,69 @@ def test_clause_5_2_5_internal_gradient_effective_modulus(width, category, expec
     assert out["compression_effective_width_mm"] is None
 
 
+def section_moment_capacity(elements, **changes):
+    return {
+        "operation": "section_moment_capacity",
+        "yield_strength_mpa": 250,
+        "elastic_modulus_mm3": 100000,
+        "plastic_modulus_mm3": 130000,
+        "plate_elements": elements,
+        **changes,
+    }
+
+
+def test_clause_5_2_selects_governing_plate_by_slenderness_to_yield_ratio():
+    result = run_members(
+        section_moment_capacity(
+            [
+                {
+                    "element_id": "web",
+                    "width_mm": 1100,
+                    "thickness_mm": 10,
+                    "edges": "both",
+                    "stress": "internal_gradient",
+                    "residual": "HR",
+                },
+                {
+                    "element_id": "compression_flange",
+                    "width_mm": 250,
+                    "thickness_mm": 10,
+                    "edges": "one",
+                    "stress": "uniform",
+                    "residual": "HR",
+                },
+            ]
+        )
+    )
+    values = result["values"]
+    assert values["governing_element_id"] == "compression_flange"
+    assert values["section_slenderness"] == 25
+    assert values["yield_limit"] == 16
+    assert values["governing_element_slenderness_to_yield_limit_ratio"] == pytest.approx(1.5625)
+    assert values["classification"] == "slender"
+    assert values["effective_section_modulus_mm3"] == 64000
+    assert values["nominal_section_moment_capacity_knm"] == 16
+    assert result["trace"] == [
+        {"clause": clause} for clause in ("5.2.1", "5.2.2", "5.2.3", "5.2.4", "5.2.5")
+    ]
+
+
+def test_clause_5_2_section_capacity_requires_unique_plate_identifiers():
+    element = {
+        "element_id": "web",
+        "width_mm": 100,
+        "thickness_mm": 10,
+        "edges": "both",
+        "stress": "uniform",
+        "residual": "HR",
+    }
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        run_members(section_moment_capacity([element, element.copy()]))
+
+    with pytest.raises(ValueError):
+        run_members(section_moment_capacity([{**element, "edges": "circular"}]))
+
+
 def section_moduli(method="area_ratio", **changes):
     data = {
         "operation": "section_moduli",
@@ -692,6 +755,94 @@ def test_equal_flanged_lateral_buckling_hand_case():
     assert not out["full_lateral_restraint_qualifies"]
     d["effective_length_mm"] *= 2
     assert run_members(d)["values"]["member_capacity_knm"] < out["member_capacity_knm"]
+
+
+def test_clause_5_1_elastic_major_axis_checks_section_and_member_capacity():
+    result = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_major_axis",
+            "action_knm": 81,
+            "nominal_section_capacity_knm": 100,
+            "nominal_member_capacity_knm": 90,
+        }
+    )
+    assert result["values"]["design_section_moment_capacity_knm"] == 90
+    assert result["values"]["design_member_moment_capacity_knm"] == 81
+    assert result["checks"]["section_moment"]["satisfied"]
+    assert result["checks"]["member_moment"]["satisfied"]
+
+    above_member_capacity = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_major_axis",
+            "action_knm": 81.001,
+            "nominal_section_capacity_knm": 100,
+            "nominal_member_capacity_knm": 90,
+        }
+    )
+    assert above_member_capacity["checks"]["section_moment"]["satisfied"]
+    assert not above_member_capacity["checks"]["member_moment"]["satisfied"]
+
+    with pytest.raises(ValueError, match="must not exceed section capacity"):
+        run_members(
+            {
+                "operation": "bending_design",
+                "method": "elastic_major_axis",
+                "action_knm": 10,
+                "nominal_section_capacity_knm": 80,
+                "nominal_member_capacity_knm": 90,
+            }
+        )
+
+
+def test_clause_5_1_elastic_minor_axis_section_capacity_boundary():
+    at_capacity = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_minor_axis",
+            "action_knm": 45,
+            "nominal_section_capacity_knm": 50,
+        }
+    )
+    assert at_capacity["values"]["design_section_moment_capacity_knm"] == 45
+    assert at_capacity["checks"]["section_moment"]["satisfied"]
+
+    over_capacity = run_members(
+        {
+            "operation": "bending_design",
+            "method": "elastic_minor_axis",
+            "action_knm": 45.001,
+            "nominal_section_capacity_knm": 50,
+        }
+    )
+    assert not over_capacity["checks"]["section_moment"]["satisfied"]
+
+
+def test_clause_5_1_plastic_method_requires_all_clause_prerequisites():
+    base = {
+        "operation": "bending_design",
+        "method": "plastic",
+        "action_knm": 90,
+        "nominal_section_capacity_knm": 100,
+        "hinge_sections_compact_verified": True,
+        "full_lateral_restraint_verified": True,
+        "web_clause_5_10_6_satisfied": True,
+    }
+    eligible = run_members(base)
+    assert eligible["values"]["plastic_method_prerequisites_satisfied"]
+    assert eligible["checks"]["section_moment"]["satisfied"]
+    assert all(
+        eligible["checks"][name]["satisfied"]
+        for name in ("hinge_sections_compact", "full_lateral_restraint", "web_clause_5_10_6")
+    )
+
+    ineligible = run_members({**base, "full_lateral_restraint_verified": False})
+    assert not ineligible["values"]["plastic_method_prerequisites_satisfied"]
+    assert not ineligible["checks"]["full_lateral_restraint"]["satisfied"]
+
+    over_capacity = run_members({**base, "action_knm": 90.001})
+    assert not over_capacity["checks"]["section_moment"]["satisfied"]
 
 
 def test_member_moment_capacity_equal_to_section_capacity_qualifies_under_5_3_2_1():
