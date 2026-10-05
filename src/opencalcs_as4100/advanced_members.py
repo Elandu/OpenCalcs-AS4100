@@ -1237,6 +1237,39 @@ SCHEMAS = {
             "tie_edge_stiffener_slenderness": N,
         },
     ),
+    "lacing_torsional_effects_review": _schema(
+        "lacing_torsional_effects_review",
+        {
+            "lacing_arrangement": {"enum": ["single", "double"]},
+            "lacing_on_opposite_sides": BOOL,
+            "lacing_directions_opposed": BOOL,
+            "lacing_configuration_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+            },
+            "perpendicular_members_or_diaphragms_present": BOOL,
+            "only_perpendicular_elements_are_6_4_2_7_tie_plates": BOOL,
+            "torsional_effects_included_verified": BOOL,
+            "torsional_effects_analysis_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+            },
+            "deformation_actions_included_verified": BOOL,
+            "deformation_actions_analysis_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+            },
+        },
+        optional=(
+            "torsional_effects_included_verified",
+            "torsional_effects_analysis_reference",
+            "deformation_actions_included_verified",
+            "deformation_actions_analysis_reference",
+        ),
+    ),
     "batten": _schema(
         "batten",
         {
@@ -3688,6 +3721,66 @@ def run_advanced_members(inputs):
                 "actions is available through tension_connection_plane_distribution.",
                 "Opposed lacing and transverse members require 6.4.2.6 torsional-effect"
                 " assessment.",
+            ],
+        )
+    if op == "lacing_torsional_effects_review":
+        configuration_reference = d["lacing_configuration_reference"].strip()
+        if not configuration_reference:
+            raise ValueError("Lacing configuration reference must not be blank.")
+        opposed_single = (
+            d["lacing_arrangement"] == "single"
+            and d["lacing_on_opposite_sides"]
+            and d["lacing_directions_opposed"]
+        )
+        torsional_reference = d.get("torsional_effects_analysis_reference", "").strip()
+        torsional_verified = d.get("torsional_effects_included_verified", False)
+        torsional_satisfied = not opposed_single or bool(torsional_verified and torsional_reference)
+
+        deformation_review_required = (
+            d["perpendicular_members_or_diaphragms_present"]
+            and not d["only_perpendicular_elements_are_6_4_2_7_tie_plates"]
+            and (d["lacing_arrangement"] == "double" or opposed_single)
+        )
+        deformation_reference = d.get("deformation_actions_analysis_reference", "").strip()
+        deformation_verified = d.get("deformation_actions_included_verified", False)
+        deformation_satisfied = not deformation_review_required or bool(
+            deformation_verified and deformation_reference
+        )
+        return result(
+            op,
+            ["6.4.2.6"],
+            {
+                "opposed_single_lacing": opposed_single,
+                "lacing_configuration_reference": configuration_reference,
+                "torsional_effects_review_required": opposed_single,
+                "torsional_effects_analysis_reference": torsional_reference or None,
+                "perpendicular_members_or_diaphragms_present": d[
+                    "perpendicular_members_or_diaphragms_present"
+                ],
+                "deformation_review_required": deformation_review_required,
+                "deformation_actions_analysis_reference": deformation_reference or None,
+            },
+            [
+                {
+                    "clause": "6.4.2.6(a) torsional effects for opposed single lacing",
+                    "required": opposed_single,
+                    "verified": bool(torsional_verified),
+                    "analysis_reference": torsional_reference or None,
+                    "satisfied": torsional_satisfied,
+                },
+                {
+                    "clause": "6.4.2.6(b) deformation actions for perpendicular members",
+                    "required": deformation_review_required,
+                    "verified": bool(deformation_verified),
+                    "analysis_reference": deformation_reference or None,
+                    "satisfied": deformation_satisfied,
+                },
+            ],
+            [
+                "This operation is an evidence gate only. It does not calculate torsional effects "
+                "or deformation actions; the referenced structural analysis must do so.",
+                "Tie plates are exempt from the perpendicular-member restriction only when they "
+                "satisfy Clause 6.4.2.7; this operation does not design the tie plates.",
             ],
         )
     if op == "tension_built_up_member_actions":

@@ -2071,6 +2071,62 @@ def test_lacing_length_slenderness_and_tie_limits():
     assert out["checked_conditions_satisfied"]
 
 
+def lacing_torsional_effects_review_inputs(**changes):
+    return {
+        "operation": "lacing_torsional_effects_review",
+        "lacing_arrangement": "single",
+        "lacing_on_opposite_sides": False,
+        "lacing_directions_opposed": False,
+        "lacing_configuration_reference": "LACING-LAYOUT-01",
+        "perpendicular_members_or_diaphragms_present": False,
+        "only_perpendicular_elements_are_6_4_2_7_tie_plates": False,
+        **changes,
+    }
+
+
+def test_clause_6_4_2_6_requires_torsional_review_for_opposed_single_lacing():
+    inputs = lacing_torsional_effects_review_inputs(
+        lacing_on_opposite_sides=True,
+        lacing_directions_opposed=True,
+    )
+    unverified = run_advanced_members(inputs)
+    assert not unverified["checks"][0]["satisfied"]
+    assert unverified["checks"][1]["satisfied"]
+
+    inputs.update(
+        torsional_effects_included_verified=True,
+        torsional_effects_analysis_reference="TORSIONAL-REVIEW-01",
+    )
+    verified = run_advanced_members(inputs)
+    assert verified["values"]["torsional_effects_review_required"]
+    assert verified["checks"][0]["satisfied"]
+    assert verified["checked_conditions_satisfied"]
+
+
+def test_clause_6_4_2_6_requires_deformation_review_except_for_tie_plates():
+    inputs = lacing_torsional_effects_review_inputs(
+        lacing_arrangement="double",
+        perpendicular_members_or_diaphragms_present=True,
+    )
+    unverified = run_advanced_members(inputs)
+    assert unverified["checks"][0]["satisfied"]
+    assert unverified["values"]["deformation_review_required"]
+    assert not unverified["checks"][1]["satisfied"]
+
+    inputs.update(
+        deformation_actions_included_verified=True,
+        deformation_actions_analysis_reference="DEFORMATION-REVIEW-01",
+    )
+    verified = run_advanced_members(inputs)
+    assert verified["checks"][1]["satisfied"]
+    assert verified["checked_conditions_satisfied"]
+
+    inputs["only_perpendicular_elements_are_6_4_2_7_tie_plates"] = True
+    tie_plate_route = run_advanced_members(inputs)
+    assert not tie_plate_route["values"]["deformation_review_required"]
+    assert tie_plate_route["checks"][1]["satisfied"]
+
+
 def batten():
     return {
         "operation": "batten",

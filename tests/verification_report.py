@@ -3384,6 +3384,45 @@ def clause_7_4_2_connection_plane_distribution():
     }
 
 
+def clause_6_4_2_6_lacing_torsional_effects_gate():
+    base = {
+        "operation": "lacing_torsional_effects_review",
+        "lacing_arrangement": "single",
+        "lacing_on_opposite_sides": True,
+        "lacing_directions_opposed": True,
+        "lacing_configuration_reference": "BENCHMARK-LACING-LAYOUT-01",
+        "perpendicular_members_or_diaphragms_present": False,
+        "only_perpendicular_elements_are_6_4_2_7_tie_plates": False,
+    }
+    missing_torsion = run_advanced_members(base)
+    if missing_torsion["checks"][0]["satisfied"]:
+        raise AssertionError("Opposed single lacing passed without torsional-effects evidence")
+    base.update(
+        torsional_effects_included_verified=True,
+        torsional_effects_analysis_reference="BENCHMARK-TORSION-REVIEW-01",
+        perpendicular_members_or_diaphragms_present=True,
+    )
+    missing_deformation = run_advanced_members(base)
+    if missing_deformation["checks"][1]["satisfied"]:
+        raise AssertionError("Perpendicular member passed without deformation-action evidence")
+    base.update(
+        deformation_actions_included_verified=True,
+        deformation_actions_analysis_reference="BENCHMARK-DEFORMATION-REVIEW-01",
+    )
+    verified = run_advanced_members(base)
+    if not verified["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 6.4.2.6 failed with both required analysis records")
+    base["only_perpendicular_elements_are_6_4_2_7_tie_plates"] = True
+    tie_plate = run_advanced_members(base)
+    if tie_plate["values"]["deformation_review_required"]:
+        raise AssertionError("Clause 6.4.2.7 tie plates were not exempted from the 6.4.2.6(b) gate")
+    return {
+        "torsion_evidence_required_for_opposed_single_lacing": True,
+        "deformation_evidence_required_for_perpendicular_members": True,
+        "clause_6_4_2_7_tie_plate_exception_applied": True,
+    }
+
+
 def clause_6_4_built_up_compression_member_actions():
     common = {
         "section_capacity_kn": 1000,
@@ -4184,6 +4223,9 @@ def main():
         "clause_7_4_2_connection_plane_distribution": clause_7_4_2_connection_plane_distribution,
         "clause_6_4_built_up_compression_member_actions": (
             clause_6_4_built_up_compression_member_actions
+        ),
+        "clause_6_4_2_6_lacing_torsional_effects_gate": (
+            clause_6_4_2_6_lacing_torsional_effects_gate
         ),
         "clause_6_5_compression_built_up_connection_layout": (
             clause_6_5_compression_built_up_connection_layout
