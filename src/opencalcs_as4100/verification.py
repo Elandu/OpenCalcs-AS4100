@@ -915,6 +915,42 @@ def verify():
         1e-8,
     )
 
+    chart_buckling = run_design_actions(
+        {
+            "operation": "frame_chart_member_buckling",
+            "member_id": "VERIFY-COL-CHART-01",
+            "frame_type": "braced",
+            "frame_type_verified": True,
+            "rigid_jointed_frame_verified": True,
+            "frame_classification_evidence_reference": "VERIFY-FRAME-CLASSIFICATION",
+            "stiffness_ratio_at_end_1": 0.7,
+            "stiffness_ratio_at_end_2": 1.2,
+            "stiffness_ratios_verified": True,
+            "stiffness_ratio_evidence_reference": "VERIFY-END-RATIOS",
+            "effective_length_factor": 0.85,
+            "effective_length_factor_chart_verified": True,
+            "chart_evidence_reference": "VERIFY-FIGURE-4-6-3-3",
+            "second_moment_mm4": 8e6,
+            "second_moment_about_buckling_axis_verified": True,
+            "section_evidence_reference": "VERIFY-SECTION-01",
+            "member_length_mm": 4000,
+            "member_length_centre_to_centre_verified": True,
+            "member_length_evidence_reference": "VERIFY-MEMBER-LENGTH-01",
+        }
+    )
+    chart_buckling_values = chart_buckling["values"]
+    record(
+        "Clause 4.6.3.3 braced chart factor branch range",
+        int(chart_buckling["checks"][4]["satisfied"]),
+        1,
+    )
+    record(
+        "Clause 4.6.2 Euler load using assessed Figure 4.6.3.3 factor",
+        chart_buckling_values["elastic_buckling_load_kn"],
+        1366.0352112234405,
+        1e-9,
+    )
+
     def frame_stiffness_inputs(frame_type="braced", column_base_condition="not_column_base"):
         return {
             "operation": "rectangular_frame_stiffness_ratio",

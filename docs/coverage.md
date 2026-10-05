@@ -9,6 +9,10 @@ to its declared scope; it is not a Section or whole-standard pass. The
 `design_review` family schedules operations and records engineering evidence
 for every Section, but does not independently validate that evidence.
 
+For Section 4, `frame_chart_member_buckling` uses a supplied, independently
+assessed Figure 4.6.3.3 factor to calculate an elastic buckling load; it does
+not read or interpolate the chart.
+
 | Section | Calculated or compared in this release | Assessed externally; remaining gaps |
 | --- | --- | --- |
 | 1 — Scope and general | No normative design check. `design_review` records scope evidence. | Applicability, exclusions, edition, referenced standards and project basis; no automatic scope decision. |

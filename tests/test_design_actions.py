@@ -89,6 +89,94 @@ def test_idealized_member_buckling_requires_verified_case_and_member_length():
         run(inputs)
 
 
+def frame_chart_member_buckling(**overrides):
+    inputs = {
+        "operation": "frame_chart_member_buckling",
+        "member_id": "COL-CHART-01",
+        "frame_type": "braced",
+        "frame_type_verified": True,
+        "rigid_jointed_frame_verified": True,
+        "frame_classification_evidence_reference": "FRAME-CLASSIFICATION-01",
+        "stiffness_ratio_at_end_1": 0.7,
+        "stiffness_ratio_at_end_2": 1.2,
+        "stiffness_ratios_verified": True,
+        "stiffness_ratio_evidence_reference": "END-RATIOS-01",
+        "effective_length_factor": 0.85,
+        "effective_length_factor_chart_verified": True,
+        "chart_evidence_reference": "FIGURE-4-6-3-3-01",
+        "second_moment_mm4": 8e6,
+        "second_moment_about_buckling_axis_verified": True,
+        "section_evidence_reference": "SECTION-01",
+        "member_length_mm": 4000,
+        "member_length_centre_to_centre_verified": True,
+        "member_length_evidence_reference": "MEMBER-LENGTH-01",
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_frame_chart_member_buckling_uses_verified_factor_for_euler_load():
+    r = run(frame_chart_member_buckling())
+    values = r["values"]
+    assert r["checked_conditions_satisfied"]
+    assert r["clauses"] == ["4.6.2", "4.6.3.3"]
+    assert values["effective_length_factor_figure"] == "Figure 4.6.3.3(a)"
+    assert values["effective_length_mm"] == pytest.approx(3400)
+    assert values["elastic_buckling_load_kn"] == pytest.approx(1366.0352112234405)
+    assert r["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    ("frame_type", "effective_length_factor", "expected"),
+    [
+        ("braced", 0.5, True),
+        ("braced", 1.0, True),
+        ("braced", 0.49, False),
+        ("braced", 1.01, False),
+        ("sway", 1.0, True),
+        ("sway", 1.2, True),
+        ("sway", 0.99, False),
+    ],
+)
+def test_frame_chart_member_buckling_factor_ranges(frame_type, effective_length_factor, expected):
+    r = run(
+        frame_chart_member_buckling(
+            frame_type=frame_type,
+            effective_length_factor=effective_length_factor,
+        )
+    )
+    assert r["checks"][4]["satisfied"] is expected
+    assert r["checked_conditions_satisfied"] is expected
+
+
+def test_frame_chart_member_buckling_requires_ratio_chart_and_geometry_evidence():
+    r = run(
+        frame_chart_member_buckling(
+            frame_type_verified=False,
+            rigid_jointed_frame_verified=False,
+            stiffness_ratios_verified=False,
+            effective_length_factor_chart_verified=False,
+            second_moment_about_buckling_axis_verified=False,
+            member_length_centre_to_centre_verified=False,
+        )
+    )
+    assert not r["checked_conditions_satisfied"]
+    assert [check["satisfied"] for check in r["checks"]] == [
+        False,
+        False,
+        False,
+        False,
+        True,
+        False,
+        False,
+    ]
+
+
+def test_frame_chart_member_buckling_rejects_negative_stiffness_ratios():
+    with pytest.raises(ValueError):
+        run(frame_chart_member_buckling(stiffness_ratio_at_end_1=-0.1))
+
+
 def rectangular_frame_stiffness_ratio(**overrides):
     inputs = {
         "operation": "rectangular_frame_stiffness_ratio",

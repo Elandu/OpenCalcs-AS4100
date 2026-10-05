@@ -115,6 +115,45 @@ def clause_4_6_3_2_idealized_member_buckling():
     }
 
 
+def clause_4_6_3_3_chart_factor_buckling():
+    result = run_design_actions(
+        {
+            "operation": "frame_chart_member_buckling",
+            "member_id": "BENCHMARK-COL-CHART-01",
+            "frame_type": "braced",
+            "frame_type_verified": True,
+            "rigid_jointed_frame_verified": True,
+            "frame_classification_evidence_reference": "BENCHMARK-FRAME-CLASSIFICATION",
+            "stiffness_ratio_at_end_1": 0.7,
+            "stiffness_ratio_at_end_2": 1.2,
+            "stiffness_ratios_verified": True,
+            "stiffness_ratio_evidence_reference": "BENCHMARK-END-RATIOS",
+            "effective_length_factor": 0.85,
+            "effective_length_factor_chart_verified": True,
+            "chart_evidence_reference": "BENCHMARK-FIGURE-4-6-3-3",
+            "second_moment_mm4": 8e6,
+            "second_moment_about_buckling_axis_verified": True,
+            "section_evidence_reference": "BENCHMARK-SECTION-01",
+            "member_length_mm": 4000,
+            "member_length_centre_to_centre_verified": True,
+            "member_length_evidence_reference": "BENCHMARK-MEMBER-LENGTH-01",
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Figure 4.6.3.3 chart factor inputs failed their evidence gates")
+    values = result["values"]
+    if values["effective_length_factor"] != 0.85:
+        raise AssertionError("Figure 4.6.3.3 chart factor should be 0.85")
+    expected_load = 1366.0352112234405
+    if not isclose(values["elastic_buckling_load_kn"], expected_load, rel_tol=0, abs_tol=1e-9):
+        raise AssertionError("Euler load using the Figure 4.6.3.3 factor failed hand arithmetic")
+    return {
+        "effective_length_factor": values["effective_length_factor"],
+        "effective_length_mm": values["effective_length_mm"],
+        "elastic_buckling_load_kn": values["elastic_buckling_load_kn"],
+    }
+
+
 def clause_4_6_3_4_rectangular_frame_stiffness_ratio():
     result = run_design_actions(
         {
@@ -2284,6 +2323,7 @@ def main():
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_4_6_3_2_idealized_member_buckling": (clause_4_6_3_2_idealized_member_buckling),
+        "clause_4_6_3_3_chart_factor_buckling": clause_4_6_3_3_chart_factor_buckling,
         "clause_4_6_3_4_rectangular_frame_stiffness_ratio": (
             clause_4_6_3_4_rectangular_frame_stiffness_ratio
         ),

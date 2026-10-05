@@ -29,6 +29,25 @@ evidence reference. These are the figure's idealized cases; the operation does
 not determine actual restraint stiffness, select the buckling axis, analyse the
 frame, or calculate a Clause 6.3 design capacity.
 
+## Frame chart factor and Euler buckling load
+
+`frame_chart_member_buckling` calculates the Clause 4.6.2 elastic buckling load
+from an effective-length factor assessed against Figure 4.6.3.3. Supply the
+rigid-jointed frame's braced or sway classification, both end stiffness ratios,
+and the factor read from the matching chart. The operation records the selected
+figure and checks that the supplied factor falls within the corresponding chart
+branch range.
+
+The rigid-jointed frame classification, frame type, end ratios, chart reading,
+second moment of area about the buckling axis, and centre-to-centre member length
+each require a verified declaration and evidence reference. Determine the end
+ratios under Clause 4.6.3.4 for rectangular frames or Appendix G where
+applicable.
+
+This operation does not read or interpolate Figure 4.6.3.3 and does not
+calculate the end ratios. It returns an elastic buckling load, not a Clause 6.3
+member design capacity or a whole-frame buckling analysis.
+
 ## Rectangular-frame end stiffness ratio
 
 `rectangular_frame_stiffness_ratio` calculates one end's `gamma` value under

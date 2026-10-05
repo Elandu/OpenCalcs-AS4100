@@ -210,6 +210,29 @@ SCHEMAS = {
             "member_length_evidence_reference": _REFERENCE,
         }
     ),
+    "frame_chart_member_buckling": object_schema(
+        {
+            "operation": {"const": "frame_chart_member_buckling"},
+            "member_id": _REFERENCE,
+            "frame_type": {"enum": ["braced", "sway"]},
+            "frame_type_verified": _BOOL,
+            "rigid_jointed_frame_verified": _BOOL,
+            "frame_classification_evidence_reference": _REFERENCE,
+            "stiffness_ratio_at_end_1": NONNEGATIVE,
+            "stiffness_ratio_at_end_2": NONNEGATIVE,
+            "stiffness_ratios_verified": _BOOL,
+            "stiffness_ratio_evidence_reference": _REFERENCE,
+            "effective_length_factor": POSITIVE,
+            "effective_length_factor_chart_verified": _BOOL,
+            "chart_evidence_reference": _REFERENCE,
+            "second_moment_mm4": POSITIVE,
+            "second_moment_about_buckling_axis_verified": _BOOL,
+            "section_evidence_reference": _REFERENCE,
+            "member_length_mm": POSITIVE,
+            "member_length_centre_to_centre_verified": _BOOL,
+            "member_length_evidence_reference": _REFERENCE,
+        }
+    ),
     "rectangular_frame_stiffness_ratio": object_schema(
         {
             "operation": {"const": "rectangular_frame_stiffness_ratio"},
@@ -459,6 +482,97 @@ def run_design_actions(inputs):
                 "The elastic buckling load uses the supplied section second moment and verified "
                 "centre-to-centre member length. It is not a Clause 6.3 design capacity or a "
                 "frame stability analysis.",
+            ],
+        )
+    if op == "frame_chart_member_buckling":
+        frame_type = d["frame_type"]
+        effective_length_factor = d["effective_length_factor"]
+        chart_factor_range_satisfied = (
+            0.5 <= effective_length_factor <= 1.0
+            if frame_type == "braced"
+            else effective_length_factor >= 1.0
+        )
+        elastic_buckling_load = _elastic_buckling_load(
+            d["second_moment_mm4"],
+            d["member_length_mm"],
+            effective_length_factor,
+        )
+        figure = "Figure 4.6.3.3(a)" if frame_type == "braced" else "Figure 4.6.3.3(b)"
+        return result(
+            op,
+            ["4.6.2", "4.6.3.3"],
+            {
+                "member_id": d["member_id"],
+                "frame_type": frame_type,
+                "stiffness_ratio_at_end_1": d["stiffness_ratio_at_end_1"],
+                "stiffness_ratio_at_end_2": d["stiffness_ratio_at_end_2"],
+                "effective_length_factor": effective_length_factor,
+                "effective_length_factor_figure": figure,
+                "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+                "second_moment_mm4": d["second_moment_mm4"],
+                "member_length_mm": d["member_length_mm"],
+                "effective_length_mm": effective_length_factor * d["member_length_mm"],
+                "elastic_buckling_load_kn": elastic_buckling_load,
+            },
+            [
+                {
+                    "clause": "4.6.3.3",
+                    "condition": "frame type is verified for selecting the braced or sway chart",
+                    "satisfied": d["frame_type_verified"],
+                    "evidence_reference": d["frame_classification_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.3.3",
+                    "condition": "compression member forms part of a rigid-jointed frame",
+                    "satisfied": d["rigid_jointed_frame_verified"],
+                    "evidence_reference": d["frame_classification_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.3.3",
+                    "condition": (
+                        "both end stiffness ratios are verified under Clause 4.6.3.4 or Appendix G"
+                    ),
+                    "stiffness_ratio_at_end_1": d["stiffness_ratio_at_end_1"],
+                    "stiffness_ratio_at_end_2": d["stiffness_ratio_at_end_2"],
+                    "satisfied": d["stiffness_ratios_verified"],
+                    "evidence_reference": d["stiffness_ratio_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.3.3",
+                    "condition": "effective length factor is assessed from the applicable chart",
+                    "effective_length_factor": effective_length_factor,
+                    "figure": figure,
+                    "satisfied": d["effective_length_factor_chart_verified"],
+                    "evidence_reference": d["chart_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.3.3",
+                    "condition": "effective length factor is within the selected chart range",
+                    "satisfied": chart_factor_range_satisfied,
+                },
+                {
+                    "clause": "4.6.2",
+                    "condition": "second moment of area is verified about the buckling axis",
+                    "satisfied": d["second_moment_about_buckling_axis_verified"],
+                    "evidence_reference": d["section_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.2",
+                    "condition": (
+                        "member length is verified centre-to-centre between supporting members"
+                    ),
+                    "satisfied": d["member_length_centre_to_centre_verified"],
+                    "evidence_reference": d["member_length_evidence_reference"],
+                },
+            ],
+            limitations=[
+                "The effective length factor is an externally assessed Figure 4.6.3.3 chart "
+                "reading; this operation does not interpolate the figure or calculate the end "
+                "stiffness ratios.",
+                "Use Clause 4.6.3.4 for rectangular-frame end ratios or Appendix G where "
+                "applicable. "
+                "This is an elastic buckling load, not a Clause 6.3 member design capacity or a "
+                "whole-frame buckling analysis.",
             ],
         )
     if op == "rectangular_frame_stiffness_ratio":
