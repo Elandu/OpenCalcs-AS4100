@@ -982,6 +982,118 @@ def verify():
         1e-9,
     )
 
+    braced_frame_factor = run_design_actions(
+        {
+            "operation": "braced_frame_buckling_factor",
+            "rectangular_frame_verified": True,
+            "all_members_braced_verified": True,
+            "regular_loading_verified": True,
+            "beam_axial_forces_negligible_verified": True,
+            "frame_assessment_evidence_reference": "VERIFY-BRACED-FRAME",
+            "design_load_set_id": "VERIFY-ULS-BRACED",
+            "design_load_set_actions_verified": True,
+            "design_load_set_evidence_reference": "VERIFY-ULS-BRACED-ACTIONS",
+            "columns": [
+                {
+                    "column_id": "VERIFY-BR-COL-01",
+                    "elastic_member_buckling_load_n_omb_kn": 1500,
+                    "design_axial_force_n_star_kn": 300,
+                    "member_buckling_load_verified": True,
+                    "design_axial_force_verified": True,
+                    "evidence_reference": "VERIFY-BR-COL-01-LOADS",
+                },
+                {
+                    "column_id": "VERIFY-BR-COL-02",
+                    "elastic_member_buckling_load_n_omb_kn": 800,
+                    "design_axial_force_n_star_kn": 400,
+                    "member_buckling_load_verified": True,
+                    "design_axial_force_verified": True,
+                    "evidence_reference": "VERIFY-BR-COL-02-LOADS",
+                },
+            ],
+            "all_columns_in_frame_listed_verified": True,
+            "column_list_evidence_reference": "VERIFY-BRACED-COLUMNS",
+        }
+    )
+    record(
+        "Clause 4.7.2.1 braced-frame lowest column load factor",
+        braced_frame_factor["values"]["lambda_c"],
+        2.0,
+    )
+
+    sway_frame_factor = run_design_actions(
+        {
+            "operation": "sway_frame_buckling_factor",
+            "rectangular_frame_verified": True,
+            "sway_member_classification_verified": True,
+            "regular_loading_verified": True,
+            "beam_axial_forces_negligible_verified": True,
+            "frame_assessment_evidence_reference": "VERIFY-SWAY-FRAME",
+            "design_load_set_id": "VERIFY-ULS-SWAY",
+            "design_load_set_actions_verified": True,
+            "design_load_set_evidence_reference": "VERIFY-ULS-SWAY-ACTIONS",
+            "storeys": [
+                {
+                    "storey_id": "VERIFY-LEVEL-1",
+                    "columns": [
+                        {
+                            "column_id": "VERIFY-SW-COL-1A",
+                            "elastic_member_buckling_load_n_oms_kn": 1000,
+                            "design_axial_force_n_star_kn": 400,
+                            "member_length_mm": 4000,
+                            "member_buckling_load_verified": True,
+                            "design_axial_force_verified": True,
+                            "member_length_verified": True,
+                            "evidence_reference": "VERIFY-SW-COL-1A-LOADS",
+                        },
+                        {
+                            "column_id": "VERIFY-SW-COL-1B",
+                            "elastic_member_buckling_load_n_oms_kn": 600,
+                            "design_axial_force_n_star_kn": -200,
+                            "member_length_mm": 4000,
+                            "member_buckling_load_verified": True,
+                            "design_axial_force_verified": True,
+                            "member_length_verified": True,
+                            "evidence_reference": "VERIFY-SW-COL-1B-LOADS",
+                        },
+                    ],
+                    "all_columns_in_storey_listed_verified": True,
+                    "column_list_evidence_reference": "VERIFY-LEVEL-1-COLUMNS",
+                },
+                {
+                    "storey_id": "VERIFY-LEVEL-2",
+                    "columns": [
+                        {
+                            "column_id": "VERIFY-SW-COL-2A",
+                            "elastic_member_buckling_load_n_oms_kn": 900,
+                            "design_axial_force_n_star_kn": 300,
+                            "member_length_mm": 3000,
+                            "member_buckling_load_verified": True,
+                            "design_axial_force_verified": True,
+                            "member_length_verified": True,
+                            "evidence_reference": "VERIFY-SW-COL-2A-LOADS",
+                        }
+                    ],
+                    "all_columns_in_storey_listed_verified": True,
+                    "column_list_evidence_reference": "VERIFY-LEVEL-2-COLUMNS",
+                },
+            ],
+            "all_storeys_in_frame_listed_verified": True,
+            "storey_list_evidence_reference": "VERIFY-SWAY-STOREYS",
+        }
+    )
+    sway_values = sway_frame_factor["values"]
+    record(
+        "Clause 4.7.2.2 sway-storey factor with tension column",
+        sway_values["storeys"][0]["lambda_ms"],
+        8.0,
+    )
+    record(
+        "Clause 4.7.2.2 whole-frame lowest storey factor",
+        sway_values["lambda_c"],
+        3.0,
+    )
+
     def frame_stiffness_inputs(frame_type="braced", column_base_condition="not_column_base"):
         return {
             "operation": "rectangular_frame_stiffness_ratio",

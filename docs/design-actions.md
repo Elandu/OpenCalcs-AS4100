@@ -63,6 +63,25 @@ only when the rational-analysis consistency declaration is verified. This
 operation does not perform that analysis and does not calculate Clause 6.3
 member capacity.
 
+## Rectangular-frame elastic buckling factors
+
+`braced_frame_buckling_factor` evaluates `lambda_m = N_omb / N*` for every
+listed column in a rectangular frame with all members braced. It reports the
+whole-frame factor as the lowest column value. Each listed `N*` must be a
+positive compression force; this route does not accept tensile columns.
+
+`sway_frame_buckling_factor` evaluates each storey's `lambda_ms` as the sum of
+`N_oms / l` divided by the sum of `N* / l` for all columns in that storey. It
+reports the whole-frame factor as the lowest storey value; tension design
+forces are negative in the denominator.
+
+Both operations require verified frame conditions, complete column/storey
+lists, member buckling loads, design axial forces from one named load set, and
+evidence references. `N_omb` and `N_oms` are assessed inputs that must follow
+the applicable Clause 4.6 route. These operations calculate the approximate
+in-plane elastic buckling factors; they do not perform rational whole-frame
+buckling analysis or a Clause 6.3 member design check.
+
 ## Rectangular-frame end stiffness ratio
 
 `rectangular_frame_stiffness_ratio` calculates one end's `gamma` value under

@@ -152,6 +152,36 @@ _FRAME_BEAM = object_schema(
         "stiffness_evidence_reference": _REFERENCE,
     }
 )
+_BRACED_FRAME_COLUMN = object_schema(
+    {
+        "column_id": _REFERENCE,
+        "elastic_member_buckling_load_n_omb_kn": POSITIVE,
+        "design_axial_force_n_star_kn": POSITIVE,
+        "member_buckling_load_verified": _BOOL,
+        "design_axial_force_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_SWAY_FRAME_COLUMN = object_schema(
+    {
+        "column_id": _REFERENCE,
+        "elastic_member_buckling_load_n_oms_kn": POSITIVE,
+        "design_axial_force_n_star_kn": SIGNED,
+        "member_length_mm": POSITIVE,
+        "member_buckling_load_verified": _BOOL,
+        "design_axial_force_verified": _BOOL,
+        "member_length_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_SWAY_FRAME_STOREY = object_schema(
+    {
+        "storey_id": _REFERENCE,
+        "columns": {"type": "array", "minItems": 1, "items": _SWAY_FRAME_COLUMN},
+        "all_columns_in_storey_listed_verified": _BOOL,
+        "column_list_evidence_reference": _REFERENCE,
+    }
+)
 _PLASTIC_JOINT = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -249,6 +279,38 @@ SCHEMAS = {
             "effective_length_assessment_verified": _BOOL,
             "effective_length_evidence_reference": _REFERENCE,
             "rational_buckling_analysis_consistent_with_appendix_g_verified": _BOOL,
+        }
+    ),
+    "braced_frame_buckling_factor": object_schema(
+        {
+            "operation": {"const": "braced_frame_buckling_factor"},
+            "rectangular_frame_verified": _BOOL,
+            "all_members_braced_verified": _BOOL,
+            "regular_loading_verified": _BOOL,
+            "beam_axial_forces_negligible_verified": _BOOL,
+            "frame_assessment_evidence_reference": _REFERENCE,
+            "design_load_set_id": _REFERENCE,
+            "design_load_set_actions_verified": _BOOL,
+            "design_load_set_evidence_reference": _REFERENCE,
+            "columns": {"type": "array", "minItems": 1, "items": _BRACED_FRAME_COLUMN},
+            "all_columns_in_frame_listed_verified": _BOOL,
+            "column_list_evidence_reference": _REFERENCE,
+        }
+    ),
+    "sway_frame_buckling_factor": object_schema(
+        {
+            "operation": {"const": "sway_frame_buckling_factor"},
+            "rectangular_frame_verified": _BOOL,
+            "sway_member_classification_verified": _BOOL,
+            "regular_loading_verified": _BOOL,
+            "beam_axial_forces_negligible_verified": _BOOL,
+            "frame_assessment_evidence_reference": _REFERENCE,
+            "design_load_set_id": _REFERENCE,
+            "design_load_set_actions_verified": _BOOL,
+            "design_load_set_evidence_reference": _REFERENCE,
+            "storeys": {"type": "array", "minItems": 1, "items": _SWAY_FRAME_STOREY},
+            "all_storeys_in_frame_listed_verified": _BOOL,
+            "storey_list_evidence_reference": _REFERENCE,
         }
     ),
     "rectangular_frame_stiffness_ratio": object_schema(
@@ -439,6 +501,242 @@ def _elastic_buckling_load(second_moment_mm4, member_length_mm, effective_length
     if not isfinite(load) or load <= 0:
         raise ValueError("Invalid elastic buckling load.")
     return load
+
+
+def _run_braced_frame_buckling_factor(d):
+    columns = []
+    for column in d["columns"]:
+        factor = (
+            column["elastic_member_buckling_load_n_omb_kn"] / column["design_axial_force_n_star_kn"]
+        )
+        if not isfinite(factor) or factor <= 0:
+            raise ValueError("Invalid braced-column elastic buckling load factor.")
+        columns.append(
+            {
+                "column_id": column["column_id"],
+                "elastic_member_buckling_load_n_omb_kn": column[
+                    "elastic_member_buckling_load_n_omb_kn"
+                ],
+                "design_axial_force_n_star_kn": column["design_axial_force_n_star_kn"],
+                "lambda_m": factor,
+                "member_buckling_load_verified": column["member_buckling_load_verified"],
+                "design_axial_force_verified": column["design_axial_force_verified"],
+                "evidence_reference": column["evidence_reference"],
+            }
+        )
+    column_ids = [column["column_id"] for column in columns]
+    unique_column_ids = len(column_ids) == len(set(column_ids))
+    governing_column = min(columns, key=lambda column: column["lambda_m"])
+    checks = [
+        {
+            "clause": "4.7.2.1",
+            "condition": "frame is a verified rectangular frame",
+            "satisfied": d["rectangular_frame_verified"],
+            "evidence_reference": d["frame_assessment_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.1",
+            "condition": "all frame members are verified as braced",
+            "satisfied": d["all_members_braced_verified"],
+            "evidence_reference": d["frame_assessment_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.1",
+            "condition": "frame loading is regular",
+            "satisfied": d["regular_loading_verified"],
+            "evidence_reference": d["frame_assessment_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.1",
+            "condition": "beam axial forces are negligible",
+            "satisfied": d["beam_axial_forces_negligible_verified"],
+            "evidence_reference": d["frame_assessment_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.1",
+            "condition": "all frame columns are listed",
+            "satisfied": d["all_columns_in_frame_listed_verified"],
+            "column_count": len(columns),
+            "evidence_reference": d["column_list_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.1",
+            "condition": "all member buckling loads and design axial forces are verified",
+            "satisfied": all(
+                column["member_buckling_load_verified"] and column["design_axial_force_verified"]
+                for column in d["columns"]
+            ),
+        },
+        {
+            "clause": "4.7.1",
+            "condition": "all design axial forces use the selected design load set",
+            "load_set_id": d["design_load_set_id"],
+            "satisfied": d["design_load_set_actions_verified"],
+            "evidence_reference": d["design_load_set_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.1",
+            "condition": "column identifiers are unique",
+            "satisfied": unique_column_ids,
+        },
+    ]
+    return result(
+        "braced_frame_buckling_factor",
+        ["4.7.1", "4.7.2.1"],
+        {
+            "columns": columns,
+            "design_load_set_id": d["design_load_set_id"],
+            "governing_column_id": governing_column["column_id"],
+            "lambda_c": governing_column["lambda_m"],
+        },
+        checks,
+        limitations=[
+            "The N_omb member buckling loads are verified inputs that must follow the applicable "
+            "Clauses 4.6.2, 4.6.3.3 and 4.6.3.4 route.",
+            "This calculates the approximate in-plane elastic buckling factor for the listed "
+            "columns; it does not perform whole-frame buckling analysis or establish full design "
+            "compliance.",
+        ],
+    )
+
+
+def _run_sway_frame_buckling_factor(d):
+    storeys = []
+    all_columns_verified = True
+    unique_columns_verified = True
+    for storey in d["storeys"]:
+        column_ids = [column["column_id"] for column in storey["columns"]]
+        unique_columns_verified &= len(column_ids) == len(set(column_ids))
+        columns = []
+        sum_n_oms_over_l = 0.0
+        sum_n_star_over_l = 0.0
+        for column in storey["columns"]:
+            n_oms_over_l = (
+                column["elastic_member_buckling_load_n_oms_kn"] / column["member_length_mm"]
+            )
+            n_star_over_l = column["design_axial_force_n_star_kn"] / column["member_length_mm"]
+            sum_n_oms_over_l += n_oms_over_l
+            sum_n_star_over_l += n_star_over_l
+            all_columns_verified &= (
+                column["member_buckling_load_verified"]
+                and column["design_axial_force_verified"]
+                and column["member_length_verified"]
+            )
+            columns.append(
+                {
+                    "column_id": column["column_id"],
+                    "elastic_member_buckling_load_n_oms_kn": column[
+                        "elastic_member_buckling_load_n_oms_kn"
+                    ],
+                    "design_axial_force_n_star_kn": column["design_axial_force_n_star_kn"],
+                    "member_length_mm": column["member_length_mm"],
+                    "n_oms_over_l_kn_per_mm": n_oms_over_l,
+                    "n_star_over_l_kn_per_mm": n_star_over_l,
+                    "member_buckling_load_verified": column["member_buckling_load_verified"],
+                    "design_axial_force_verified": column["design_axial_force_verified"],
+                    "member_length_verified": column["member_length_verified"],
+                    "evidence_reference": column["evidence_reference"],
+                }
+            )
+        if not isfinite(sum_n_oms_over_l) or not isfinite(sum_n_star_over_l):
+            raise ValueError("Invalid sway-storey buckling-factor summation.")
+        if sum_n_star_over_l <= 0:
+            raise ValueError("Sway-storey design-force sum per length must be positive.")
+        factor = sum_n_oms_over_l / sum_n_star_over_l
+        if not isfinite(factor) or factor <= 0:
+            raise ValueError("Invalid sway-storey elastic buckling load factor.")
+        storeys.append(
+            {
+                "storey_id": storey["storey_id"],
+                "columns": columns,
+                "sum_n_oms_over_l_kn_per_mm": sum_n_oms_over_l,
+                "sum_n_star_over_l_kn_per_mm": sum_n_star_over_l,
+                "lambda_ms": factor,
+                "all_columns_in_storey_listed_verified": storey[
+                    "all_columns_in_storey_listed_verified"
+                ],
+                "column_list_evidence_reference": storey["column_list_evidence_reference"],
+            }
+        )
+    storey_ids = [storey["storey_id"] for storey in storeys]
+    unique_storey_ids = len(storey_ids) == len(set(storey_ids))
+    governing_storey = min(storeys, key=lambda storey: storey["lambda_ms"])
+    checks = [
+        {
+            "clause": "4.7.2.2",
+            "condition": "frame is a verified rectangular frame",
+            "satisfied": d["rectangular_frame_verified"],
+            "evidence_reference": d["frame_assessment_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.2",
+            "condition": "sway-member classification is verified",
+            "satisfied": d["sway_member_classification_verified"],
+            "evidence_reference": d["frame_assessment_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.2",
+            "condition": "frame loading is regular",
+            "satisfied": d["regular_loading_verified"],
+            "evidence_reference": d["frame_assessment_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.2",
+            "condition": "beam axial forces are negligible",
+            "satisfied": d["beam_axial_forces_negligible_verified"],
+            "evidence_reference": d["frame_assessment_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.2",
+            "condition": "all frame storeys are listed",
+            "satisfied": d["all_storeys_in_frame_listed_verified"],
+            "storey_count": len(storeys),
+            "evidence_reference": d["storey_list_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.2",
+            "condition": "all buckling loads, axial forces and member lengths are verified",
+            "satisfied": all_columns_verified,
+        },
+        {
+            "clause": "4.7.1",
+            "condition": "all design axial forces use the selected design load set",
+            "load_set_id": d["design_load_set_id"],
+            "satisfied": d["design_load_set_actions_verified"],
+            "evidence_reference": d["design_load_set_evidence_reference"],
+        },
+        {
+            "clause": "4.7.2.2",
+            "condition": "all columns in each storey are listed",
+            "satisfied": all(
+                storey["all_columns_in_storey_listed_verified"] for storey in d["storeys"]
+            ),
+        },
+        {
+            "clause": "4.7.2.2",
+            "condition": "storey and column identifiers are unique",
+            "satisfied": unique_storey_ids and unique_columns_verified,
+        },
+    ]
+    return result(
+        "sway_frame_buckling_factor",
+        ["4.7.1", "4.7.2.2"],
+        {
+            "storeys": storeys,
+            "design_load_set_id": d["design_load_set_id"],
+            "governing_storey_id": governing_storey["storey_id"],
+            "lambda_c": governing_storey["lambda_ms"],
+        },
+        checks,
+        limitations=[
+            "The N_oms member buckling loads are verified inputs that must follow the applicable "
+            "Clauses 4.6.2, 4.6.3.3 and 4.6.3.4 route. Tension design forces are included as "
+            "negative values in each storey's denominator.",
+            "This calculates the approximate in-plane elastic buckling factor for the listed "
+            "storeys; it does not perform whole-frame buckling analysis or establish full design "
+            "compliance.",
+        ],
+    )
 
 
 def run_design_actions(inputs):
@@ -671,6 +969,10 @@ def run_design_actions(inputs):
                 "Clause 6.3 design capacity or complete triangulated-member assessment.",
             ],
         )
+    if op == "braced_frame_buckling_factor":
+        return _run_braced_frame_buckling_factor(d)
+    if op == "sway_frame_buckling_factor":
+        return _run_sway_frame_buckling_factor(d)
     if op == "rectangular_frame_stiffness_ratio":
         compression_member_ids = [member["member_id"] for member in d["compression_members"]]
         beam_ids = [beam["beam_id"] for beam in d["beams"]]

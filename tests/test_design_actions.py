@@ -246,6 +246,153 @@ def test_triangulated_member_buckling_requires_structure_length_and_section_evid
     assert [check["satisfied"] for check in r["checks"]] == [False, False, True, False, False]
 
 
+def braced_frame_buckling_factor(**overrides):
+    inputs = {
+        "operation": "braced_frame_buckling_factor",
+        "rectangular_frame_verified": True,
+        "all_members_braced_verified": True,
+        "regular_loading_verified": True,
+        "beam_axial_forces_negligible_verified": True,
+        "frame_assessment_evidence_reference": "BRACED-FRAME-01",
+        "design_load_set_id": "ULS-1",
+        "design_load_set_actions_verified": True,
+        "design_load_set_evidence_reference": "ULS-1-ACTIONS",
+        "columns": [
+            {
+                "column_id": "BR-COL-01",
+                "elastic_member_buckling_load_n_omb_kn": 900,
+                "design_axial_force_n_star_kn": 300,
+                "member_buckling_load_verified": True,
+                "design_axial_force_verified": True,
+                "evidence_reference": "BR-COL-01-LOADS",
+            },
+            {
+                "column_id": "BR-COL-02",
+                "elastic_member_buckling_load_n_omb_kn": 1500,
+                "design_axial_force_n_star_kn": 300,
+                "member_buckling_load_verified": True,
+                "design_axial_force_verified": True,
+                "evidence_reference": "BR-COL-02-LOADS",
+            },
+        ],
+        "all_columns_in_frame_listed_verified": True,
+        "column_list_evidence_reference": "BRACED-FRAME-COLUMNS",
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_braced_frame_buckling_factor_selects_lowest_column_ratio():
+    r = run(braced_frame_buckling_factor())
+    values = r["values"]
+    assert r["checked_conditions_satisfied"]
+    assert r["clauses"] == ["4.7.1", "4.7.2.1"]
+    assert [column["lambda_m"] for column in values["columns"]] == [3.0, 5.0]
+    assert values["governing_column_id"] == "BR-COL-01"
+    assert values["lambda_c"] == 3.0
+    assert values["design_load_set_id"] == "ULS-1"
+
+
+def test_braced_frame_buckling_factor_requires_scope_action_and_column_evidence():
+    inputs = braced_frame_buckling_factor(
+        rectangular_frame_verified=False,
+        all_members_braced_verified=False,
+        regular_loading_verified=False,
+        beam_axial_forces_negligible_verified=False,
+        design_load_set_actions_verified=False,
+        all_columns_in_frame_listed_verified=False,
+    )
+    inputs["columns"][0]["member_buckling_load_verified"] = False
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not all(check["satisfied"] for check in r["checks"])
+
+
+def sway_frame_buckling_factor(**overrides):
+    inputs = {
+        "operation": "sway_frame_buckling_factor",
+        "rectangular_frame_verified": True,
+        "sway_member_classification_verified": True,
+        "regular_loading_verified": True,
+        "beam_axial_forces_negligible_verified": True,
+        "frame_assessment_evidence_reference": "SWAY-FRAME-01",
+        "design_load_set_id": "ULS-SWAY-1",
+        "design_load_set_actions_verified": True,
+        "design_load_set_evidence_reference": "ULS-SWAY-1-ACTIONS",
+        "storeys": [
+            {
+                "storey_id": "LEVEL-1",
+                "columns": [
+                    {
+                        "column_id": "SW-COL-1A",
+                        "elastic_member_buckling_load_n_oms_kn": 900,
+                        "design_axial_force_n_star_kn": 300,
+                        "member_length_mm": 3000,
+                        "member_buckling_load_verified": True,
+                        "design_axial_force_verified": True,
+                        "member_length_verified": True,
+                        "evidence_reference": "SW-COL-1A-LOADS",
+                    },
+                    {
+                        "column_id": "SW-COL-1B",
+                        "elastic_member_buckling_load_n_oms_kn": 400,
+                        "design_axial_force_n_star_kn": -100,
+                        "member_length_mm": 3000,
+                        "member_buckling_load_verified": True,
+                        "design_axial_force_verified": True,
+                        "member_length_verified": True,
+                        "evidence_reference": "SW-COL-1B-LOADS",
+                    },
+                ],
+                "all_columns_in_storey_listed_verified": True,
+                "column_list_evidence_reference": "LEVEL-1-COLUMNS",
+            },
+            {
+                "storey_id": "LEVEL-2",
+                "columns": [
+                    {
+                        "column_id": "SW-COL-2A",
+                        "elastic_member_buckling_load_n_oms_kn": 1000,
+                        "design_axial_force_n_star_kn": 400,
+                        "member_length_mm": 3000,
+                        "member_buckling_load_verified": True,
+                        "design_axial_force_verified": True,
+                        "member_length_verified": True,
+                        "evidence_reference": "SW-COL-2A-LOADS",
+                    }
+                ],
+                "all_columns_in_storey_listed_verified": True,
+                "column_list_evidence_reference": "LEVEL-2-COLUMNS",
+            },
+        ],
+        "all_storeys_in_frame_listed_verified": True,
+        "storey_list_evidence_reference": "SWAY-FRAME-STOREYS",
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_sway_frame_buckling_factor_includes_tension_and_selects_lowest_storey():
+    r = run(sway_frame_buckling_factor())
+    values = r["values"]
+    assert r["checked_conditions_satisfied"]
+    assert r["clauses"] == ["4.7.1", "4.7.2.2"]
+    assert values["storeys"][0]["lambda_ms"] == pytest.approx(6.5)
+    assert values["storeys"][0]["sum_n_star_over_l_kn_per_mm"] == pytest.approx(200 / 3000)
+    assert values["storeys"][1]["lambda_ms"] == pytest.approx(2.5)
+    assert values["governing_storey_id"] == "LEVEL-2"
+    assert values["lambda_c"] == pytest.approx(2.5)
+    assert values["design_load_set_id"] == "ULS-SWAY-1"
+
+
+def test_sway_frame_buckling_factor_rejects_nonpositive_storey_axial_sum():
+    inputs = sway_frame_buckling_factor()
+    inputs["storeys"][0]["columns"][0]["design_axial_force_n_star_kn"] = 50
+    inputs["storeys"][0]["columns"][1]["design_axial_force_n_star_kn"] = -100
+    with pytest.raises(ValueError, match="sum per length must be positive"):
+        run(inputs)
+
+
 def rectangular_frame_stiffness_ratio(**overrides):
     inputs = {
         "operation": "rectangular_frame_stiffness_ratio",

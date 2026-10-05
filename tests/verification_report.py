@@ -190,6 +190,123 @@ def clause_4_6_3_5_triangulated_member_buckling():
     }
 
 
+def clause_4_7_2_rectangular_frame_buckling_factors():
+    braced = run_design_actions(
+        {
+            "operation": "braced_frame_buckling_factor",
+            "rectangular_frame_verified": True,
+            "all_members_braced_verified": True,
+            "regular_loading_verified": True,
+            "beam_axial_forces_negligible_verified": True,
+            "frame_assessment_evidence_reference": "BENCHMARK-BRACED-FRAME",
+            "design_load_set_id": "BENCHMARK-ULS-BRACED",
+            "design_load_set_actions_verified": True,
+            "design_load_set_evidence_reference": "BENCHMARK-ULS-BRACED-ACTIONS",
+            "columns": [
+                {
+                    "column_id": "BENCHMARK-BR-COL-01",
+                    "elastic_member_buckling_load_n_omb_kn": 900,
+                    "design_axial_force_n_star_kn": 300,
+                    "member_buckling_load_verified": True,
+                    "design_axial_force_verified": True,
+                    "evidence_reference": "BENCHMARK-BR-COL-01-LOADS",
+                },
+                {
+                    "column_id": "BENCHMARK-BR-COL-02",
+                    "elastic_member_buckling_load_n_omb_kn": 1500,
+                    "design_axial_force_n_star_kn": 300,
+                    "member_buckling_load_verified": True,
+                    "design_axial_force_verified": True,
+                    "evidence_reference": "BENCHMARK-BR-COL-02-LOADS",
+                },
+            ],
+            "all_columns_in_frame_listed_verified": True,
+            "column_list_evidence_reference": "BENCHMARK-BRACED-COLUMNS",
+        }
+    )
+    sway = run_design_actions(
+        {
+            "operation": "sway_frame_buckling_factor",
+            "rectangular_frame_verified": True,
+            "sway_member_classification_verified": True,
+            "regular_loading_verified": True,
+            "beam_axial_forces_negligible_verified": True,
+            "frame_assessment_evidence_reference": "BENCHMARK-SWAY-FRAME",
+            "design_load_set_id": "BENCHMARK-ULS-SWAY",
+            "design_load_set_actions_verified": True,
+            "design_load_set_evidence_reference": "BENCHMARK-ULS-SWAY-ACTIONS",
+            "storeys": [
+                {
+                    "storey_id": "BENCHMARK-LEVEL-1",
+                    "columns": [
+                        {
+                            "column_id": "BENCHMARK-SW-COL-1A",
+                            "elastic_member_buckling_load_n_oms_kn": 900,
+                            "design_axial_force_n_star_kn": 300,
+                            "member_length_mm": 3000,
+                            "member_buckling_load_verified": True,
+                            "design_axial_force_verified": True,
+                            "member_length_verified": True,
+                            "evidence_reference": "BENCHMARK-SW-COL-1A-LOADS",
+                        },
+                        {
+                            "column_id": "BENCHMARK-SW-COL-1B",
+                            "elastic_member_buckling_load_n_oms_kn": 400,
+                            "design_axial_force_n_star_kn": -100,
+                            "member_length_mm": 3000,
+                            "member_buckling_load_verified": True,
+                            "design_axial_force_verified": True,
+                            "member_length_verified": True,
+                            "evidence_reference": "BENCHMARK-SW-COL-1B-LOADS",
+                        },
+                    ],
+                    "all_columns_in_storey_listed_verified": True,
+                    "column_list_evidence_reference": "BENCHMARK-LEVEL-1-COLUMNS",
+                },
+                {
+                    "storey_id": "BENCHMARK-LEVEL-2",
+                    "columns": [
+                        {
+                            "column_id": "BENCHMARK-SW-COL-2A",
+                            "elastic_member_buckling_load_n_oms_kn": 1000,
+                            "design_axial_force_n_star_kn": 400,
+                            "member_length_mm": 3000,
+                            "member_buckling_load_verified": True,
+                            "design_axial_force_verified": True,
+                            "member_length_verified": True,
+                            "evidence_reference": "BENCHMARK-SW-COL-2A-LOADS",
+                        }
+                    ],
+                    "all_columns_in_storey_listed_verified": True,
+                    "column_list_evidence_reference": "BENCHMARK-LEVEL-2-COLUMNS",
+                },
+            ],
+            "all_storeys_in_frame_listed_verified": True,
+            "storey_list_evidence_reference": "BENCHMARK-SWAY-STOREYS",
+        }
+    )
+    if not braced["checked_conditions_satisfied"] or not sway["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.7.2 rectangular-frame evidence checks failed")
+    braced_values = braced["values"]
+    sway_values = sway["values"]
+    if braced_values["lambda_c"] != 3:
+        raise AssertionError("Clause 4.7.2.1 lowest braced-column factor should be 3")
+    expected_storey_factors = [6.5, 2.5]
+    observed_storey_factors = [storey["lambda_ms"] for storey in sway_values["storeys"]]
+    if len(observed_storey_factors) != len(expected_storey_factors) or any(
+        not isclose(observed, expected, rel_tol=0, abs_tol=1e-12)
+        for observed, expected in zip(observed_storey_factors, expected_storey_factors, strict=True)
+    ):
+        raise AssertionError("Clause 4.7.2.2 storey factors should be 6.5 and 2.5")
+    if sway_values["lambda_c"] != 2.5:
+        raise AssertionError("Clause 4.7.2.2 lowest sway-storey factor should be 2.5")
+    return {
+        "braced_frame_lambda_c": braced_values["lambda_c"],
+        "sway_storey_factors": [storey["lambda_ms"] for storey in sway_values["storeys"]],
+        "sway_frame_lambda_c": sway_values["lambda_c"],
+    }
+
+
 def clause_4_6_3_4_rectangular_frame_stiffness_ratio():
     result = run_design_actions(
         {
@@ -2362,6 +2479,9 @@ def main():
         "clause_4_6_3_3_chart_factor_buckling": clause_4_6_3_3_chart_factor_buckling,
         "clause_4_6_3_5_triangulated_member_buckling": (
             clause_4_6_3_5_triangulated_member_buckling
+        ),
+        "clause_4_7_2_rectangular_frame_buckling_factors": (
+            clause_4_7_2_rectangular_frame_buckling_factors
         ),
         "clause_4_6_3_4_rectangular_frame_stiffness_ratio": (
             clause_4_6_3_4_rectangular_frame_stiffness_ratio
