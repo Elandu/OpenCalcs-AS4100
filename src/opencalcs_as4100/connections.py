@@ -500,6 +500,50 @@ FIELDS = {
             },
         },
     },
+    "angle_hole_deduction": {
+        "gross_area_mm2": P,
+        "thickness_mm": P,
+        "straight_hole_width_sum_mm": P,
+        "straight_hole_width_sum_verified": {"const": True},
+        "angle_geometry_and_back_marks_verified": {"const": True},
+        "candidate_paths_complete_and_ordered_verified": {"const": True},
+        "candidate_paths": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["path_id", "holes"],
+                "properties": {
+                    "path_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "holes": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 100,
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": [
+                                "hole_id",
+                                "angle_leg_id",
+                                "longitudinal_mm",
+                                "back_mark_mm",
+                                "gross_hole_width_mm",
+                            ],
+                            "properties": {
+                                "hole_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                                "angle_leg_id": {"enum": ["leg_1", "leg_2"]},
+                                "longitudinal_mm": SIGNED,
+                                "back_mark_mm": P,
+                                "gross_hole_width_mm": P,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
     "minimum_beam_shear_action": {
         "actual_design_shear_kn": N,
         "member_design_shear_capacity_kn": P,
@@ -1059,6 +1103,77 @@ def _hole_deduction_layout(d):
                 "net_deduction_width_mm": zigzag_width,
             },
             "zigzag_transitions_considered": transitions_considered,
+            "governing_path_type": governing_path_type,
+            "governing_deduction_width_mm": deduction_width,
+            "deduction_mm2": deduction_area,
+            "net_area_mm2": net_area,
+        },
+    )
+
+
+def _angle_hole_deduction(d):
+    path_ids = [path["path_id"] for path in d["candidate_paths"]]
+    if len(set(path_ids)) != len(path_ids):
+        raise ValueError("Angle hole candidate path IDs must be unique.")
+    paths = []
+    for path in d["candidate_paths"]:
+        holes = path["holes"]
+        hole_ids = [hole["hole_id"] for hole in holes]
+        hole_positions = [
+            (hole["angle_leg_id"], hole["longitudinal_mm"], hole["back_mark_mm"]) for hole in holes
+        ]
+        if len(set(hole_ids)) != len(hole_ids):
+            raise ValueError("Hole IDs must be unique within each angle candidate path.")
+        if len(set(hole_positions)) != len(hole_positions):
+            raise ValueError("Hole positions must be distinct within each angle candidate path.")
+
+        stagger_pairs = []
+        for first, second in zip(holes, holes[1:], strict=False):
+            pitch = abs(second["longitudinal_mm"] - first["longitudinal_mm"])
+            if first["angle_leg_id"] == second["angle_leg_id"]:
+                gauge = abs(second["back_mark_mm"] - first["back_mark_mm"])
+            else:
+                gauge = first["back_mark_mm"] + second["back_mark_mm"] - d["thickness_mm"]
+            if gauge <= 0:
+                raise ValueError(
+                    "Angle stagger gauges must be positive; check back marks and leg thickness."
+                )
+            stagger_pairs.append(
+                {
+                    "from_hole_id": first["hole_id"],
+                    "to_hole_id": second["hole_id"],
+                    "staggered_pitch_mm": pitch,
+                    "gauge_mm": gauge,
+                    "correction_width_mm": pitch * pitch / (4 * gauge),
+                }
+            )
+        hole_width_sum = fsum(hole["gross_hole_width_mm"] for hole in holes)
+        correction_width = fsum(pair["correction_width_mm"] for pair in stagger_pairs)
+        paths.append(
+            {
+                "path_id": path["path_id"],
+                "hole_ids": hole_ids,
+                "hole_width_sum_mm": hole_width_sum,
+                "stagger_pairs": stagger_pairs,
+                "stagger_correction_width_mm": correction_width,
+                "net_deduction_width_mm": hole_width_sum - correction_width,
+            }
+        )
+    controlling_path = max(paths, key=lambda candidate: candidate["net_deduction_width_mm"])
+    straight_width = d["straight_hole_width_sum_mm"]
+    zigzag_width = controlling_path["net_deduction_width_mm"]
+    governing_path_type = "straight" if straight_width >= zigzag_width else "zigzag"
+    deduction_width = max(straight_width, zigzag_width)
+    deduction_area = deduction_width * d["thickness_mm"]
+    net_area = d["gross_area_mm2"] - deduction_area
+    if net_area <= 0:
+        raise ValueError("Hole deductions must leave positive net area.")
+    return (
+        {"net_area": {"satisfied": True, "clause": "9.1.10.1; 9.1.10.2; 9.1.10.3"}},
+        {
+            "straight_hole_width_sum_mm": straight_width,
+            "candidate_paths": paths,
+            "controlling_zigzag_path_id": controlling_path["path_id"],
             "governing_path_type": governing_path_type,
             "governing_deduction_width_mm": deduction_width,
             "deduction_mm2": deduction_area,
@@ -3050,6 +3165,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         c["net_area"] = {"satisfied": True, "clause": "9.1.10"}
     elif k == "hole_deduction_layout":
         c, intermediate = _hole_deduction_layout(d)
+    elif k == "angle_hole_deduction":
+        c, intermediate = _angle_hole_deduction(d)
     else:
         c, intermediate = _weld_group(d)
     if k == "slip_factor_test":
@@ -3195,6 +3312,16 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "completeness of the layout. Angle sections with holes in both legs, other section "
             "geometries, net-section modulus calculations and block-shear rupture paths require "
             "separate assessment."
+        )
+    elif k == "angle_hole_deduction":
+        scope = (
+            "Clause 9.1.10.1–3 compares the supplied straight-row hole-width sum with each "
+            "supplied ordered zig-zag path. For consecutive holes in opposite angle legs, the "
+            "gauge is calculated from the Figure 9.1.10.3(B) back marks less the common leg "
+            "thickness; holes in one leg use their back-mark difference. Verify the complete "
+            "straight and zig-zag candidate sets, hole widths, back marks and path order. The "
+            "operation does not derive angle geometry, enumerate paths, or calculate member "
+            "capacity."
         )
     else:
         scope = (

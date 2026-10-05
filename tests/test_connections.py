@@ -2201,6 +2201,109 @@ def test_hole_layout_uses_the_maximum_straight_section_when_it_controls():
     assert result["intermediate"]["net_area_mm2"] == pytest.approx(1340)
 
 
+def test_angle_hole_deduction_uses_figure_9_1_10_3_b_cross_leg_gauge():
+    result = run_connections(
+        {
+            "check_type": "angle_hole_deduction",
+            "gross_area_mm2": 4000,
+            "thickness_mm": 10,
+            "straight_hole_width_sum_mm": 25,
+            "straight_hole_width_sum_verified": True,
+            "angle_geometry_and_back_marks_verified": True,
+            "candidate_paths_complete_and_ordered_verified": True,
+            "candidate_paths": [
+                {
+                    "path_id": "opposite-legs",
+                    "holes": [
+                        {
+                            "hole_id": "A",
+                            "angle_leg_id": "leg_1",
+                            "longitudinal_mm": 0,
+                            "back_mark_mm": 20,
+                            "gross_hole_width_mm": 20,
+                        },
+                        {
+                            "hole_id": "B",
+                            "angle_leg_id": "leg_2",
+                            "longitudinal_mm": 40,
+                            "back_mark_mm": 30,
+                            "gross_hole_width_mm": 20,
+                        },
+                    ],
+                },
+                {
+                    "path_id": "same-leg",
+                    "holes": [
+                        {
+                            "hole_id": "C",
+                            "angle_leg_id": "leg_1",
+                            "longitudinal_mm": 0,
+                            "back_mark_mm": 10,
+                            "gross_hole_width_mm": 18,
+                        },
+                        {
+                            "hole_id": "D",
+                            "angle_leg_id": "leg_1",
+                            "longitudinal_mm": 30,
+                            "back_mark_mm": 40,
+                            "gross_hole_width_mm": 18,
+                        },
+                    ],
+                },
+            ],
+        }
+    )
+
+    result_data = result["intermediate"]
+    cross_leg_path = result_data["candidate_paths"][0]
+    same_leg_path = result_data["candidate_paths"][1]
+    assert cross_leg_path["stagger_pairs"][0]["gauge_mm"] == pytest.approx(40)
+    assert cross_leg_path["stagger_pairs"][0]["correction_width_mm"] == pytest.approx(10)
+    assert same_leg_path["stagger_pairs"][0]["gauge_mm"] == pytest.approx(30)
+    assert same_leg_path["stagger_pairs"][0]["correction_width_mm"] == pytest.approx(7.5)
+    assert result_data["controlling_zigzag_path_id"] == "opposite-legs"
+    assert result_data["governing_path_type"] == "zigzag"
+    assert result_data["governing_deduction_width_mm"] == pytest.approx(30)
+    assert result_data["deduction_mm2"] == pytest.approx(300)
+    assert result_data["net_area_mm2"] == pytest.approx(3700)
+
+
+def test_angle_hole_deduction_rejects_nonpositive_cross_leg_gauge():
+    with pytest.raises(ValueError, match="Angle stagger gauges must be positive"):
+        run_connections(
+            {
+                "check_type": "angle_hole_deduction",
+                "gross_area_mm2": 4000,
+                "thickness_mm": 10,
+                "straight_hole_width_sum_mm": 20,
+                "straight_hole_width_sum_verified": True,
+                "angle_geometry_and_back_marks_verified": True,
+                "candidate_paths_complete_and_ordered_verified": True,
+                "candidate_paths": [
+                    {
+                        "path_id": "invalid-cross-leg-pair",
+                        "holes": [
+                            {
+                                "hole_id": "A",
+                                "angle_leg_id": "leg_1",
+                                "longitudinal_mm": 0,
+                                "back_mark_mm": 3,
+                                "gross_hole_width_mm": 20,
+                            },
+                            {
+                                "hole_id": "B",
+                                "angle_leg_id": "leg_2",
+                                "longitudinal_mm": 30,
+                                "back_mark_mm": 5,
+                                "gross_hole_width_mm": 20,
+                            },
+                        ],
+                    }
+                ],
+            }
+        )
+
+
 @pytest.mark.parametrize(
     ("changes", "message"),
     [

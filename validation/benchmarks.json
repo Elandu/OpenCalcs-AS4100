@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.5",
+  "package_version": "0.7.6",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -259,6 +259,27 @@
       "name": "Clause 9.1.10.2 straight-versus-zig-zag net area",
       "actual": 1500.0,
       "expected": 1500,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 9.1.10.3(B) opposite-leg gauge from back marks",
+      "actual": 40,
+      "expected": 40,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.10.3(B) stagger-corrected angle net width",
+      "actual": 30.0,
+      "expected": 30.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.10 angle net area after cross-leg deduction",
+      "actual": 3700.0,
+      "expected": 3700,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

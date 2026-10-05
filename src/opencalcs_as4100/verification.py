@@ -566,6 +566,54 @@ def verify():
         layout_holes["intermediate"]["net_area_mm2"],
         1500,
     )
+    angle_holes = run_connections(
+        {
+            "check_type": "angle_hole_deduction",
+            "gross_area_mm2": 4000,
+            "thickness_mm": 10,
+            "straight_hole_width_sum_mm": 25,
+            "straight_hole_width_sum_verified": True,
+            "angle_geometry_and_back_marks_verified": True,
+            "candidate_paths_complete_and_ordered_verified": True,
+            "candidate_paths": [
+                {
+                    "path_id": "opposite-legs",
+                    "holes": [
+                        {
+                            "hole_id": "A",
+                            "angle_leg_id": "leg_1",
+                            "longitudinal_mm": 0,
+                            "back_mark_mm": 20,
+                            "gross_hole_width_mm": 20,
+                        },
+                        {
+                            "hole_id": "B",
+                            "angle_leg_id": "leg_2",
+                            "longitudinal_mm": 40,
+                            "back_mark_mm": 30,
+                            "gross_hole_width_mm": 20,
+                        },
+                    ],
+                }
+            ],
+        }
+    )["intermediate"]
+    angle_pair = angle_holes["candidate_paths"][0]["stagger_pairs"][0]
+    record(
+        "Figure 9.1.10.3(B) opposite-leg gauge from back marks",
+        angle_pair["gauge_mm"],
+        20 + 30 - 10,
+    )
+    record(
+        "Clause 9.1.10.3(B) stagger-corrected angle net width",
+        angle_holes["governing_deduction_width_mm"],
+        40 - 40**2 / (4 * 40),
+    )
+    record(
+        "Clause 9.1.10 angle net area after cross-leg deduction",
+        angle_holes["net_area_mm2"],
+        4000 - 30 * 10,
+    )
     net_i_section = run_members(
         {
             "operation": "section_moduli",

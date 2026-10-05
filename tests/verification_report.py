@@ -2658,6 +2658,58 @@ def clause_9_1_10_coordinate_hole_deduction():
     }
 
 
+def figure_9_1_10_3b_angle_back_mark_gauge():
+    result = run_connections(
+        {
+            "check_type": "angle_hole_deduction",
+            "gross_area_mm2": 4000,
+            "thickness_mm": 10,
+            "straight_hole_width_sum_mm": 25,
+            "straight_hole_width_sum_verified": True,
+            "angle_geometry_and_back_marks_verified": True,
+            "candidate_paths_complete_and_ordered_verified": True,
+            "candidate_paths": [
+                {
+                    "path_id": "opposite-legs",
+                    "holes": [
+                        {
+                            "hole_id": "A",
+                            "angle_leg_id": "leg_1",
+                            "longitudinal_mm": 0,
+                            "back_mark_mm": 20,
+                            "gross_hole_width_mm": 20,
+                        },
+                        {
+                            "hole_id": "B",
+                            "angle_leg_id": "leg_2",
+                            "longitudinal_mm": 40,
+                            "back_mark_mm": 30,
+                            "gross_hole_width_mm": 20,
+                        },
+                    ],
+                }
+            ],
+        }
+    )["intermediate"]
+    pair = result["candidate_paths"][0]["stagger_pairs"][0]
+    expected_gauge_mm = 20 + 30 - 10
+    expected_correction_mm = 40**2 / (4 * expected_gauge_mm)
+    expected_deduction_width_mm = max(25, 2 * 20 - expected_correction_mm)
+    expected_net_area_mm2 = 4000 - 10 * expected_deduction_width_mm
+    if pair["gauge_mm"] != expected_gauge_mm:
+        raise AssertionError(
+            "Figure 9.1.10.3(B) opposite-leg gauge differs from its back-mark formula"
+        )
+    if result["governing_deduction_width_mm"] != expected_deduction_width_mm:
+        raise AssertionError("Clause 9.1.10.3(B) angle deduction differs from hand arithmetic")
+    if result["net_area_mm2"] != expected_net_area_mm2:
+        raise AssertionError("Clause 9.1.10 angle net area differs from hand arithmetic")
+    return {
+        "opposite_leg_gauge_mm": pair["gauge_mm"],
+        "net_area_mm2": result["net_area_mm2"],
+    }
+
+
 def clause_12_6_3_single_test_history():
     result = run_durability(
         {
@@ -2946,6 +2998,7 @@ def main():
         "clause_7_4_3_back_to_back_connection_layout": clause_7_4_3_back_to_back_connection_layout,
         "clause_9_1_9e_block_shear_path_set": clause_9_1_9e_block_shear_path_set,
         "clause_9_1_10_coordinate_hole_deduction": clause_9_1_10_coordinate_hole_deduction,
+        "figure_9_1_10_3b_angle_back_mark_gauge": figure_9_1_10_3b_angle_back_mark_gauge,
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
         "clause_12_10_2_web_protection": clause_12_10_2_web_protection,
