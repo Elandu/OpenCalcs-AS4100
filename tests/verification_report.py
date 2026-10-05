@@ -50,6 +50,37 @@ def clause_10_3_design_service_temperature():
     return expected
 
 
+def clause_10_4_3_4_nonconforming_steel_impact_test():
+    result = run_durability(
+        {
+            "check_type": "nonconforming_steel_impact_test",
+            "plate_thickness_mm": 8,
+            "specimen_thickness_mm": 7.5,
+            "absorbed_energy_j": [15, 20.25, 25.5],
+            "grade_standard_has_no_minimum_impact_properties_verified": True,
+            "permissible_temperature_unknown_or_warmer_than_design_verified": True,
+            "mock_up_grade_dimensions_and_strain_verified": True,
+            "three_specimens_from_maximum_strain_region_verified": True,
+            "tested_at_design_service_temperature_verified": True,
+            "specimen_thickness_selection_verified": True,
+            "evidence_reference": "BENCHMARK-CHARPY-REPORT-01",
+        }
+    )
+    values = result["results"]
+    expected = {
+        "energy_reduction_factor": 0.75,
+        "required_average_energy_j": 20.25,
+        "required_minimum_single_energy_j": 15,
+        "measured_average_energy_j": 20.25,
+        "minimum_measured_energy_j": 15,
+    }
+    for name, value in expected.items():
+        expect_close(values[name], value)
+    if result["clauses"] != ["10.4.3.4(d)", "10.4.3.4(e)"] or not values["check_satisfied"]:
+        raise AssertionError("Clause 10.4.3.4 Charpy energy thresholds failed")
+    return expected
+
+
 def fillet(length):
     return run_connections(
         {
@@ -3053,6 +3084,7 @@ def main():
         "clauses_10_3_2_10_3_3_design_service_temperature": (
             clause_10_3_design_service_temperature
         ),
+        "clause_10_4_3_4_subsize_charpy_energy": (clause_10_4_3_4_nonconforming_steel_impact_test),
         "fillet_lap_1700_mm": lambda: expect_close(fillet(1700), 98.784),
         "fillet_lap_8000_mm": lambda: expect_close(fillet(8000), 61.24608),
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),

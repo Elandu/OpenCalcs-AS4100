@@ -756,6 +756,26 @@ INPUT_SCHEMA = {
             },
         ),
         _operation(
+            "nonconforming_steel_impact_test",
+            {
+                "plate_thickness_mm": _POS,
+                "specimen_thickness_mm": _number(0, 10, True),
+                "absorbed_energy_j": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": _number(0, 1e6),
+                },
+                "grade_standard_has_no_minimum_impact_properties_verified": {"const": True},
+                "permissible_temperature_unknown_or_warmer_than_design_verified": {"const": True},
+                "mock_up_grade_dimensions_and_strain_verified": {"const": True},
+                "three_specimens_from_maximum_strain_region_verified": {"const": True},
+                "tested_at_design_service_temperature_verified": {"const": True},
+                "specimen_thickness_selection_verified": {"const": True},
+                "evidence_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            },
+        ),
+        _operation(
             "earthquake_audit",
             {
                 "structural_system": {"enum": list(_SEISMIC)},
@@ -1299,6 +1319,18 @@ _RESULT_SCHEMAS = {
         {
             "permissible_service_temperature_c": {"type": "number"},
             "strain_temperature_increase_c": _NUM,
+            "check_satisfied": _BOOL,
+        }
+    ),
+    "nonconforming_steel_impact_test": _result_schema(
+        {
+            "energy_reduction_factor": _NUM,
+            "required_average_energy_j": _NUM,
+            "required_minimum_single_energy_j": _NUM,
+            "measured_average_energy_j": _NUM,
+            "minimum_measured_energy_j": _NUM,
+            "average_energy_satisfied": _BOOL,
+            "minimum_single_energy_satisfied": _BOOL,
             "check_satisfied": _BOOL,
         }
     ),
@@ -2662,6 +2694,50 @@ def _brittle(d):
     )
 
 
+def _nonconforming_steel_impact_test(d):
+    plate_thickness = d["plate_thickness_mm"]
+    specimen_thickness = d["specimen_thickness_mm"]
+    if specimen_thickness < 10:
+        if plate_thickness >= 10:
+            raise ValueError("Use a 10 mm specimen when plate thickness does not prevent it.")
+        if specimen_thickness > plate_thickness:
+            raise ValueError("The specimen thickness must not exceed the plate thickness.")
+    elif plate_thickness < 10:
+        raise ValueError("A 10 mm specimen cannot be taken from this plate thickness.")
+    factor = specimen_thickness / 10
+    required_average = 27 * factor
+    required_minimum_single = 20 * factor
+    energies = d["absorbed_energy_j"]
+    average = fsum(energies) / 3
+    minimum_measured = min(energies)
+    average_satisfied = average >= required_average
+    minimum_single_satisfied = minimum_measured >= required_minimum_single
+    clauses = ["10.4.3.4(d)"]
+    if factor < 1:
+        clauses.append("10.4.3.4(e)")
+    return (
+        {
+            "energy_reduction_factor": factor,
+            "required_average_energy_j": required_average,
+            "required_minimum_single_energy_j": required_minimum_single,
+            "measured_average_energy_j": average,
+            "minimum_measured_energy_j": minimum_measured,
+            "average_energy_satisfied": average_satisfied,
+            "minimum_single_energy_satisfied": minimum_single_satisfied,
+            "check_satisfied": average_satisfied and minimum_single_satisfied,
+        },
+        clauses,
+        [
+            "Applies only when the product standard specifies no minimum impact properties for "
+            "the grade.",
+            "Verify the mock-up, specimen location, design-temperature test condition and closest "
+            "standard specimen thickness from laboratory records.",
+            "Sub-size energy limits use the specimen thickness divided by 10 mm; this operation "
+            "assumes a 10 mm specimen width.",
+        ],
+    )
+
+
 def _design_service_temperature(d):
     lodmat = d["lodmat_temperature_c"]
     adjustment = -5 if d["especially_low_local_ambient_conditions_verified"] else 0
@@ -3040,6 +3116,8 @@ def _run_durability(inputs):
             ]
     elif op == "design_service_temperature":
         result, clauses, warnings = _design_service_temperature(d)
+    elif op == "nonconforming_steel_impact_test":
+        result, clauses, warnings = _nonconforming_steel_impact_test(d)
     elif op == "brittle_fracture":
         result, clauses, warnings = _brittle(d)
     else:

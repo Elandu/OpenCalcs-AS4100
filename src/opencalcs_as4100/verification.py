@@ -66,6 +66,41 @@ def verify():
         service_temperature["design_service_temperature_c"],
         -25,
     )
+    impact_test = run_durability(
+        {
+            "check_type": "nonconforming_steel_impact_test",
+            "plate_thickness_mm": 8,
+            "specimen_thickness_mm": 7.5,
+            "absorbed_energy_j": [15, 20.25, 25.5],
+            "grade_standard_has_no_minimum_impact_properties_verified": True,
+            "permissible_temperature_unknown_or_warmer_than_design_verified": True,
+            "mock_up_grade_dimensions_and_strain_verified": True,
+            "three_specimens_from_maximum_strain_region_verified": True,
+            "tested_at_design_service_temperature_verified": True,
+            "specimen_thickness_selection_verified": True,
+            "evidence_reference": "BENCHMARK-CHARPY-REPORT-01",
+        }
+    )["results"]
+    record(
+        "Clause 10.4.3.4(e) sub-size specimen energy factor",
+        impact_test["energy_reduction_factor"],
+        7.5 / 10,
+    )
+    record(
+        "Clause 10.4.3.4(d)/(e) proportional average energy threshold",
+        impact_test["required_average_energy_j"],
+        27 * 7.5 / 10,
+    )
+    record(
+        "Clause 10.4.3.4(d)/(e) proportional individual minimum threshold",
+        impact_test["required_minimum_single_energy_j"],
+        20 * 7.5 / 10,
+    )
+    record(
+        "Clause 10.4.3.4 sub-size energy example acceptance",
+        int(impact_test["check_satisfied"]),
+        1,
+    )
 
     truss_stress_range = run_durability(
         {

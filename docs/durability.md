@@ -143,6 +143,15 @@ page images are not included in this package.
   temperature (10.4.1), and fabrication/erection requirements must be confirmed.
   Unavailable table cells fail explicitly. No geographic climate mapping or
   automatic grade-to-steel-type selection is performed.
+- `nonconforming_steel_impact_test`: For steel whose Table 10.4.1 permissible
+  temperature is unknown or warmer than design, Clause 10.4.3.4(d) checks the
+  27 J mean and 20 J individual Charpy energy limits for grades whose product
+  standard specifies no impact-energy minimum. Clause 10.4.3.4(e) scales both limits by
+  the verified specimen thickness divided by 10 mm for a sub-size specimen.
+  Mock-up, sample-location, test-temperature and specimen-selection conditions
+  are evidence gates; verify them against the laboratory and fabrication records.
+  The calculation assumes a 10 mm specimen width and does not apply the
+  product-standard-specific route for grades with specified impact properties.
 - `design_service_temperature`: Clause 10.3.2 applies the 5 °C reduction for
   verified exceptionally low local ambient conditions and selects a verified
   colder record temperature for critical structures. Clause 10.3.3 uses the

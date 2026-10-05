@@ -1488,6 +1488,93 @@ def test_d12_brittle_table_boundaries_and_strain():
     assert result(d)["permissible_service_temperature_c"] == -40
 
 
+def nonconforming_steel_impact_test(**changes):
+    return {
+        "check_type": "nonconforming_steel_impact_test",
+        "plate_thickness_mm": 12,
+        "specimen_thickness_mm": 10,
+        "absorbed_energy_j": [20, 27, 34],
+        "grade_standard_has_no_minimum_impact_properties_verified": True,
+        "permissible_temperature_unknown_or_warmer_than_design_verified": True,
+        "mock_up_grade_dimensions_and_strain_verified": True,
+        "three_specimens_from_maximum_strain_region_verified": True,
+        "tested_at_design_service_temperature_verified": True,
+        "specimen_thickness_selection_verified": True,
+        "evidence_reference": "CHARPY-MOCKUP-REPORT-01",
+        **changes,
+    }
+
+
+def test_clause_10_4_3_4_full_size_charpy_thresholds():
+    result = run_durability(nonconforming_steel_impact_test())
+    values = result["results"]
+    assert result["clauses"] == ["10.4.3.4(d)"]
+    assert values["energy_reduction_factor"] == 1
+    assert values["required_average_energy_j"] == 27
+    assert values["required_minimum_single_energy_j"] == 20
+    assert values["measured_average_energy_j"] == 27
+    assert values["minimum_measured_energy_j"] == 20
+    assert values["check_satisfied"]
+
+
+def test_clause_10_4_3_4_subsize_charpy_energy_thresholds_scale_proportionally():
+    result = run_durability(
+        nonconforming_steel_impact_test(
+            plate_thickness_mm=8,
+            specimen_thickness_mm=7.5,
+            absorbed_energy_j=[15, 20.25, 25.5],
+        )
+    )
+    values = result["results"]
+    assert result["clauses"] == ["10.4.3.4(d)", "10.4.3.4(e)"]
+    assert values["energy_reduction_factor"] == pytest.approx(0.75)
+    assert values["required_average_energy_j"] == pytest.approx(20.25)
+    assert values["required_minimum_single_energy_j"] == pytest.approx(15)
+    assert values["measured_average_energy_j"] == pytest.approx(20.25)
+    assert values["check_satisfied"]
+
+
+@pytest.mark.parametrize(
+    ("energies", "expected_average_satisfied", "expected_minimum_satisfied"),
+    [([20, 25, 30], False, True), ([19, 31, 31], True, False)],
+)
+def test_clause_10_4_3_4_requires_average_and_each_specimen_threshold(
+    energies, expected_average_satisfied, expected_minimum_satisfied
+):
+    values = run_durability(nonconforming_steel_impact_test(absorbed_energy_j=energies))["results"]
+    assert values["average_energy_satisfied"] is expected_average_satisfied
+    assert values["minimum_single_energy_satisfied"] is expected_minimum_satisfied
+    assert not values["check_satisfied"]
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        (
+            {"permissible_temperature_unknown_or_warmer_than_design_verified": False},
+            None,
+        ),
+        (
+            {"plate_thickness_mm": 12, "specimen_thickness_mm": 7.5},
+            "Use a 10 mm specimen",
+        ),
+        (
+            {"plate_thickness_mm": 7, "specimen_thickness_mm": 7.5},
+            "must not exceed the plate thickness",
+        ),
+        (
+            {"grade_standard_has_no_minimum_impact_properties_verified": False},
+            None,
+        ),
+    ],
+)
+def test_clause_10_4_3_4_rejects_inapplicable_or_invalid_specimens(changes, message):
+    with pytest.raises(ValueError) as exc_info:
+        run_durability(nonconforming_steel_impact_test(**changes))
+    if message is not None:
+        assert message in str(exc_info.value)
+
+
 def test_d13_unavailable_steel_and_seismic_audit():
     d = brittle()
     d.update(steel_type="8C", thickness_mm=13)
