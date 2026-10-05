@@ -2,7 +2,7 @@
 
 import argparse
 import json
-from math import isclose, sqrt
+from math import isclose, sqrt, tan
 from pathlib import Path
 
 from . import __version__
@@ -1434,6 +1434,95 @@ def verify():
         )
     if varying_compression["governing_buckling_axis"] != "minor":
         raise AssertionError("Clause 6.3.4 minor-axis flexural buckling should govern")
+    stepped_compression = run_advanced_members(
+        {
+            "operation": "varying_compression",
+            "section_capacity_schedule": [
+                {
+                    "section_id": "S1",
+                    "nominal_section_capacity_kn": 1200,
+                    "capacity_evidence_reference": "VERIFY-STEPPED-SECTION-S1",
+                },
+                {
+                    "section_id": "S2",
+                    "nominal_section_capacity_kn": 1000,
+                    "capacity_evidence_reference": "VERIFY-STEPPED-SECTION-S2",
+                },
+            ],
+            "section_capacity_schedule_complete_verified": True,
+            "section_capacity_schedule_reference": "VERIFY-STEPPED-MEMBER-SCHEDULE-01",
+            "flexural_mode_verified": True,
+            "elastic_buckling_model": "piecewise_constant_rigidity_pinned_ends",
+            "elastic_buckling_segments": [
+                {
+                    "segment_id": "SEG-1",
+                    "section_id": "S1",
+                    "length_mm": 2000,
+                    "major_axis_second_moment_mm4": 20e6,
+                    "minor_axis_second_moment_mm4": 5e6,
+                },
+                {
+                    "segment_id": "SEG-2",
+                    "section_id": "S2",
+                    "length_mm": 2000,
+                    "major_axis_second_moment_mm4": 5e6,
+                    "minor_axis_second_moment_mm4": 1.25e6,
+                },
+            ],
+            "segment_geometry_complete_verified": True,
+            "segment_geometry_reference": "VERIFY-STEPPED-GEOMETRY-01",
+            "stepped_member_assumptions_verified": True,
+            "stepped_member_assumptions_reference": "VERIFY-PINNED-MEMBER-MODEL-01",
+            "flexural_section_constants": [
+                {"axis": "major", "section_constant": 0},
+                {"axis": "minor", "section_constant": 0},
+            ],
+            "section_constants_verified": True,
+            "section_constants_reference": "VERIFY-TABLE-6.3.3-C-CLASSIFICATION-01",
+            "action_kn": 100,
+        }
+    )["values"]
+    stepped_modes = {mode["axis"]: mode for mode in stepped_compression["flexural_buckling_modes"]}
+    record(
+        "Clause 6.3.4 stepped major-axis elastic buckling load (kN)",
+        stepped_modes["major"]["elastic_buckling_load_kn"],
+        912.6298409,
+        tolerance=1e-7,
+    )
+    record(
+        "Clause 6.3.4 stepped minor-axis elastic buckling load (kN)",
+        stepped_modes["minor"]["elastic_buckling_load_kn"],
+        228.1574602,
+        tolerance=1e-7,
+    )
+    record(
+        "Clause 6.3.4 stepped major-axis modified slenderness",
+        stepped_modes["major"]["modified_slenderness"],
+        94.2096037,
+        tolerance=1e-7,
+    )
+    q1 = sqrt(stepped_modes["major"]["elastic_buckling_load_kn"] * 1000 / (200000 * 20e6)) * 2000
+    record(
+        "Clause 6.3.4 two-segment characteristic-equation residual",
+        2 * tan(q1) + tan(2 * q1),
+        0,
+        tolerance=1e-10,
+    )
+    record(
+        "Clause 6.3.4 stepped minor-axis modified slenderness",
+        stepped_modes["minor"]["modified_slenderness"],
+        188.4192074,
+        tolerance=1e-7,
+    )
+    for mode in stepped_modes.values():
+        buckling_analysis = mode["buckling_analysis"]
+        if not buckling_analysis["root_isolated_below_second_mode_lower_bound"]:
+            raise AssertionError("Clause 6.3.4 first stepped-member buckling root was not isolated")
+        if (
+            buckling_analysis["sinusoidal_trial_upper_bound_kn"]
+            >= buckling_analysis["second_mode_lower_bound_kn"]
+        ):
+            raise AssertionError("Clause 6.3.4 stepped-member first root bound was not valid")
     compression_capacity = run_members(
         {
             "operation": "compression",

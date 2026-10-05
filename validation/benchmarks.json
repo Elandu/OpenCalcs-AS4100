@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.36",
+  "package_version": "0.7.37",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -799,6 +799,41 @@
       "actual": 0.4206829731903497,
       "expected": 0.421,
       "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.4 stepped major-axis elastic buckling load (kN)",
+      "actual": 912.6298408648493,
+      "expected": 912.6298409,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.4 stepped minor-axis elastic buckling load (kN)",
+      "actual": 228.1574602162123,
+      "expected": 228.1574602,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.4 stepped major-axis modified slenderness",
+      "actual": 94.20960369839399,
+      "expected": 94.2096037,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.4 two-segment characteristic-equation residual",
+      "actual": -2.220446049250313e-15,
+      "expected": 0,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.4 stepped minor-axis modified slenderness",
+      "actual": 188.41920739678798,
+      "expected": 188.4192074,
+      "absolute_tolerance": 1e-07,
       "passed": true
     },
     {

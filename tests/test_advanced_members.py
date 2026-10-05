@@ -1,4 +1,4 @@
-from math import pi
+from math import pi, sqrt, tan
 
 import pytest
 
@@ -409,6 +409,56 @@ def varying_compression_schedule_inputs(**changes):
     }
 
 
+def varying_compression_stepped_inputs(**changes):
+    inputs = varying_compression_schedule_inputs()
+    inputs.pop("flexural_buckling_modes")
+    inputs.update(
+        {
+            "elastic_buckling_model": "piecewise_constant_rigidity_pinned_ends",
+            "elastic_buckling_segments": [
+                {
+                    "segment_id": "SEG-1",
+                    "section_id": "S1",
+                    "length_mm": 2000,
+                    "major_axis_second_moment_mm4": 20e6,
+                    "minor_axis_second_moment_mm4": 5e6,
+                },
+                {
+                    "segment_id": "SEG-2",
+                    "section_id": "S2",
+                    "length_mm": 2000,
+                    "major_axis_second_moment_mm4": 5e6,
+                    "minor_axis_second_moment_mm4": 1.25e6,
+                },
+            ],
+            "segment_geometry_complete_verified": True,
+            "segment_geometry_reference": "MEMBER-GEOMETRY-STEPPED-01",
+            "stepped_member_assumptions_verified": True,
+            "stepped_member_assumptions_reference": "MEMBER-BOUNDARY-MODEL-01",
+            "flexural_section_constants": [
+                {"axis": "major", "section_constant": 0},
+                {"axis": "minor", "section_constant": 0},
+            ],
+            "section_constants_verified": True,
+            "section_constants_reference": "TABLE-6.3.3-C-CLASSIFICATION-01",
+        }
+    )
+    inputs["section_capacity_schedule"] = [
+        {
+            "section_id": "S1",
+            "nominal_section_capacity_kn": 1200,
+            "capacity_evidence_reference": "SECTION-CALC-S1",
+        },
+        {
+            "section_id": "S2",
+            "nominal_section_capacity_kn": 1000,
+            "capacity_evidence_reference": "SECTION-CALC-S2",
+        },
+    ]
+    inputs.update(changes)
+    return inputs
+
+
 def test_varying_compression_schedule_uses_minimum_and_both_axes():
     out = run_advanced_members(varying_compression_schedule_inputs())
     values = out["values"]
@@ -424,6 +474,68 @@ def test_varying_compression_schedule_uses_minimum_and_both_axes():
     assert values["governing_buckling_axis"] == "minor"
     assert len(out["checks"]) == 2
     assert all(check["satisfied"] for check in out["checks"])
+
+
+def test_clause_6_3_4_stepped_member_buckling_matches_independent_exact_solution():
+    out = run_advanced_members(varying_compression_stepped_inputs(action_kn=100))
+    values = out["values"]
+    modes = {mode["axis"]: mode for mode in values["flexural_buckling_modes"]}
+
+    assert values["elastic_buckling_method"] == "piecewise_constant_rigidity_pinned_ends"
+    assert modes["major"]["elastic_buckling_load_kn"] == pytest.approx(912.6298409, abs=1e-7)
+    assert modes["minor"]["elastic_buckling_load_kn"] == pytest.approx(228.1574602, abs=1e-7)
+    assert modes["major"]["modified_slenderness"] == pytest.approx(94.2096037, abs=1e-7)
+    assert modes["minor"]["modified_slenderness"] == pytest.approx(188.4192074, abs=1e-7)
+    assert modes["major"]["buckling_analysis"]["root_isolated_below_second_mode_lower_bound"]
+    assert (
+        modes["major"]["buckling_analysis"]["sinusoidal_trial_upper_bound_kn"]
+        < modes["major"]["buckling_analysis"]["second_mode_lower_bound_kn"]
+    )
+    assert values["governing_buckling_axis"] == "minor"
+    assert all(check["satisfied"] for check in out["checks"])
+    q1 = sqrt(modes["major"]["elastic_buckling_load_kn"] * 1000 / (200000 * 20e6)) * 2000
+    assert q1 == pytest.approx(0.9553166181245, abs=1e-10)
+    assert 2 * tan(q1) + tan(2 * q1) == pytest.approx(0, abs=1e-10)
+
+
+def test_clause_6_3_4_uniform_stepped_schedule_recovers_euler_load():
+    inputs = varying_compression_stepped_inputs(action_kn=100)
+    for segment in inputs["elastic_buckling_segments"]:
+        segment["major_axis_second_moment_mm4"] = 5e6
+
+    major = next(
+        mode
+        for mode in run_advanced_members(inputs)["values"]["flexural_buckling_modes"]
+        if mode["axis"] == "major"
+    )
+    expected = pi**2 * 200000 * 5e6 / 4000**2 / 1000
+    assert major["elastic_buckling_load_kn"] == pytest.approx(expected, abs=1e-10)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "segment_geometry_complete_verified",
+        "stepped_member_assumptions_verified",
+        "section_constants_verified",
+    ],
+)
+def test_clause_6_3_4_stepped_buckling_requires_verified_model_evidence(field):
+    with pytest.raises(ValueError):
+        run_advanced_members(varying_compression_stepped_inputs(**{field: False}))
+
+
+def test_clause_6_3_4_stepped_buckling_rejects_unmatched_sections_and_unisolated_roots():
+    inputs = varying_compression_stepped_inputs()
+    inputs["elastic_buckling_segments"][1]["section_id"] = "UNLISTED"
+    with pytest.raises(ValueError, match="cover every section"):
+        run_advanced_members(inputs)
+
+    inputs = varying_compression_stepped_inputs()
+    inputs["elastic_buckling_segments"][0]["major_axis_second_moment_mm4"] = 100e6
+    inputs["elastic_buckling_segments"][1]["major_axis_second_moment_mm4"] = 1e6
+    with pytest.raises(ValueError, match="does not isolate the first buckling root"):
+        run_advanced_members(inputs)
 
 
 def test_varying_compression_schedule_reports_every_tied_minimum():

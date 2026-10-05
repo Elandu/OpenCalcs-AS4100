@@ -2097,6 +2097,79 @@ def clause_6_3_4_varying_compression_both_axes():
     }
 
 
+def clause_6_3_4_stepped_member_elastic_buckling():
+    result = run_advanced_members(
+        {
+            "operation": "varying_compression",
+            "section_capacity_schedule": [
+                {
+                    "section_id": "S1",
+                    "nominal_section_capacity_kn": 1200,
+                    "capacity_evidence_reference": "BENCHMARK-SECTION-CALC-S1",
+                },
+                {
+                    "section_id": "S2",
+                    "nominal_section_capacity_kn": 1000,
+                    "capacity_evidence_reference": "BENCHMARK-SECTION-CALC-S2",
+                },
+            ],
+            "section_capacity_schedule_complete_verified": True,
+            "section_capacity_schedule_reference": "BENCHMARK-STEPPED-MEMBER-SCHEDULE-01",
+            "flexural_mode_verified": True,
+            "elastic_buckling_model": "piecewise_constant_rigidity_pinned_ends",
+            "elastic_buckling_segments": [
+                {
+                    "segment_id": "SEG-1",
+                    "section_id": "S1",
+                    "length_mm": 2000,
+                    "major_axis_second_moment_mm4": 20e6,
+                    "minor_axis_second_moment_mm4": 5e6,
+                },
+                {
+                    "segment_id": "SEG-2",
+                    "section_id": "S2",
+                    "length_mm": 2000,
+                    "major_axis_second_moment_mm4": 5e6,
+                    "minor_axis_second_moment_mm4": 1.25e6,
+                },
+            ],
+            "segment_geometry_complete_verified": True,
+            "segment_geometry_reference": "BENCHMARK-STEPPED-MEMBER-GEOMETRY-01",
+            "stepped_member_assumptions_verified": True,
+            "stepped_member_assumptions_reference": "BENCHMARK-PINNED-END-MODEL-01",
+            "flexural_section_constants": [
+                {"axis": "major", "section_constant": 0},
+                {"axis": "minor", "section_constant": 0},
+            ],
+            "section_constants_verified": True,
+            "section_constants_reference": "BENCHMARK-TABLE-6.3.3-C-CLASSIFICATION-01",
+            "action_kn": 100,
+        }
+    )
+    values = result["values"]
+    major = next(mode for mode in values["flexural_buckling_modes"] if mode["axis"] == "major")
+    minor = next(mode for mode in values["flexural_buckling_modes"] if mode["axis"] == "minor")
+    for mode, expected_load, expected_slenderness in (
+        (major, 912.6298409, 94.2096037),
+        (minor, 228.1574602, 188.4192074),
+    ):
+        if not isclose(mode["elastic_buckling_load_kn"], expected_load, rel_tol=0, abs_tol=1e-7):
+            raise AssertionError("Clause 6.3.4 stepped-member elastic buckling load was incorrect")
+        if not isclose(mode["modified_slenderness"], expected_slenderness, rel_tol=0, abs_tol=1e-7):
+            raise AssertionError("Clause 6.3.4 stepped-member modified slenderness was incorrect")
+        bound = mode["buckling_analysis"]
+        if not bound["root_isolated_below_second_mode_lower_bound"]:
+            raise AssertionError("Stepped-member first buckling root was not isolated")
+        if bound["sinusoidal_trial_upper_bound_kn"] >= bound["second_mode_lower_bound_kn"]:
+            raise AssertionError("Stepped-member trial bound did not isolate the first root")
+    return {
+        "major_axis_elastic_buckling_load_kn": major["elastic_buckling_load_kn"],
+        "minor_axis_elastic_buckling_load_kn": minor["elastic_buckling_load_kn"],
+        "major_axis_modified_slenderness": major["modified_slenderness"],
+        "minor_axis_modified_slenderness": minor["modified_slenderness"],
+    }
+
+
 def appendix_h4_amended_closed_section_torsion_constant():
     result = run_advanced_members(
         {
@@ -4293,6 +4366,9 @@ def main():
         "clause_8_4_6_amended_angle_interaction": clause_8_4_6_amended_angle_interaction,
         "clause_6_3_3_c_amended_lambda_20_row": clause_6_3_3_c_amended_lambda_20_row,
         "clause_6_3_4_varying_compression_both_axes": clause_6_3_4_varying_compression_both_axes,
+        "clause_6_3_4_stepped_member_elastic_buckling": (
+            clause_6_3_4_stepped_member_elastic_buckling
+        ),
         "appendix_h4_amended_closed_section_torsion_constant": (
             appendix_h4_amended_closed_section_torsion_constant
         ),

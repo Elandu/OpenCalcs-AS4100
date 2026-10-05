@@ -989,6 +989,50 @@ SCHEMAS = {
                     }
                 ),
             },
+            "elastic_buckling_model": {"const": "piecewise_constant_rigidity_pinned_ends"},
+            "elastic_buckling_segments": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "segment_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                        "section_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                        "length_mm": P,
+                        "major_axis_second_moment_mm4": P,
+                        "minor_axis_second_moment_mm4": P,
+                    }
+                ),
+            },
+            "segment_geometry_complete_verified": VERIFIED,
+            "segment_geometry_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+            },
+            "stepped_member_assumptions_verified": VERIFIED,
+            "stepped_member_assumptions_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+            },
+            "flexural_section_constants": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": object_schema(
+                    {
+                        "axis": {"enum": ["major", "minor"]},
+                        "section_constant": {"enum": [-1, -0.5, 0, 0.5, 1]},
+                    }
+                ),
+            },
+            "section_constants_verified": VERIFIED,
+            "section_constants_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+            },
         },
         optional=(
             "minimum_section_capacity_kn",
@@ -998,6 +1042,15 @@ SCHEMAS = {
             "section_capacity_schedule_complete_verified",
             "section_capacity_schedule_reference",
             "flexural_buckling_modes",
+            "elastic_buckling_model",
+            "elastic_buckling_segments",
+            "segment_geometry_complete_verified",
+            "segment_geometry_reference",
+            "stepped_member_assumptions_verified",
+            "stepped_member_assumptions_reference",
+            "flexural_section_constants",
+            "section_constants_verified",
+            "section_constants_reference",
         ),
     ),
     "torsional_flexural_compression": _schema(
@@ -1994,6 +2047,122 @@ def _varying_compression_axis(section_capacity, elastic_buckling_load, section_c
     }
 
 
+def _stepped_member_buckling_determinant(dimensionless_load, segments):
+    states = [[0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+    for fraction, rigidity_ratio in segments:
+        wave_number = sqrt(dimensionless_load / rigidity_ratio)
+        phase = wave_number * fraction
+        sine = sin(phase)
+        cosine = cos(phase)
+        one_minus_cosine = 2 * sin(phase / 2) ** 2
+        if abs(phase) < 1e-4:
+            phase2 = phase * phase
+            sinc = 1 - phase2 / 6 + phase2**2 / 120 - phase2**3 / 5040
+            one_minus_sinc = phase2 / 6 - phase2**2 / 120 + phase2**3 / 5040
+        else:
+            sinc = sine / phase
+            one_minus_sinc = 1 - sinc
+        sine_over_wave_number = fraction * sinc
+        fraction_minus_sine_over_wave_number = fraction * one_minus_sinc
+        for state in states:
+            displacement, rotation, moment, shear = state
+            state[:] = [
+                displacement
+                + sine_over_wave_number * rotation
+                + one_minus_cosine / dimensionless_load * moment
+                + shear / dimensionless_load * fraction_minus_sine_over_wave_number,
+                cosine * rotation
+                + sine_over_wave_number / rigidity_ratio * moment
+                + one_minus_cosine / dimensionless_load * shear,
+                -rigidity_ratio * wave_number * sine * rotation
+                + cosine * moment
+                + rigidity_ratio * wave_number * sine / dimensionless_load * shear,
+                shear,
+            ]
+    displacement_rotation, displacement_shear = states
+    return fsum(
+        (
+            displacement_rotation[0] * displacement_shear[2],
+            -displacement_shear[0] * displacement_rotation[2],
+        )
+    )
+
+
+def _stepped_member_elastic_buckling_load(segments, axis):
+    inertia_field = f"{axis}_axis_second_moment_mm4"
+    lengths = [segment["length_mm"] for segment in segments]
+    length = fsum(lengths)
+    rigidities = [ELASTIC_MODULUS_MPA * segment[inertia_field] for segment in segments]
+    minimum_rigidity = min(rigidities)
+    ratios = [rigidity / minimum_rigidity for rigidity in rigidities]
+    fractions = [segment_length / length for segment_length in lengths]
+    dimensionless_segments = list(zip(fractions, ratios, strict=True))
+    if all(ratio == 1 for ratio in ratios):
+        dimensionless_load = pi**2
+        trial_bound = dimensionless_load
+    else:
+        wave_number = pi / length
+        position = 0.0
+        weighted_integral_terms = []
+        for segment_length, rigidity in zip(lengths, rigidities, strict=True):
+            phase_midpoint = 2 * wave_number * (position + segment_length / 2)
+            half_phase = wave_number * segment_length
+            if abs(half_phase) < 1e-4:
+                phase2 = half_phase * half_phase
+                one_minus_sinc = phase2 / 6 - phase2**2 / 120 + phase2**3 / 5040
+            else:
+                one_minus_sinc = 1 - sin(half_phase) / half_phase
+            cosine_midpoint = cos(phase_midpoint)
+            one_minus_cosine_midpoint = 2 * sin(phase_midpoint / 2) ** 2
+            sine_squared_integral = (
+                segment_length / 2 * (one_minus_cosine_midpoint + cosine_midpoint * one_minus_sinc)
+            )
+            weighted_integral_terms.append(rigidity * max(0.0, sine_squared_integral))
+            position += segment_length
+        sine_weighted_rigidity = 2 * fsum(weighted_integral_terms) / length
+        trial_bound = pi**2 * sine_weighted_rigidity / minimum_rigidity
+        second_mode_lower_bound = 4 * pi**2
+        if trial_bound >= second_mode_lower_bound * (1 - 1e-10):
+            raise ValueError(
+                "This stepped member does not isolate the first buckling root below the "
+                "second-mode lower bound; supply a referenced rational buckling analysis."
+            )
+        low = pi**2
+        high = trial_bound + 1e-9 * (second_mode_lower_bound - trial_bound)
+        low_value = _stepped_member_buckling_determinant(low, dimensionless_segments)
+        high_value = _stepped_member_buckling_determinant(high, dimensionless_segments)
+        if low_value == 0:
+            dimensionless_load = low
+        elif low_value * high_value >= 0:
+            raise ValueError(
+                "The first stepped-member buckling root could not be bracketed; supply a "
+                "referenced rational buckling analysis."
+            )
+        else:
+            for _ in range(100):
+                middle = (low + high) / 2
+                middle_value = _stepped_member_buckling_determinant(middle, dimensionless_segments)
+                if middle_value == 0 or high - low <= 2e-14 * max(1.0, middle):
+                    low = high = middle
+                    break
+                if low_value * middle_value > 0:
+                    low, low_value = middle, middle_value
+                else:
+                    high = middle
+            dimensionless_load = (low + high) / 2
+
+    elastic_load_kn = dimensionless_load * minimum_rigidity / length**2 / 1000
+    return {
+        "elastic_buckling_load_kn": elastic_load_kn,
+        "member_length_mm": length,
+        "dimensionless_load_parameter": dimensionless_load,
+        "minimum_flexural_rigidity_n_mm2": minimum_rigidity,
+        "sinusoidal_trial_upper_bound_kn": trial_bound * minimum_rigidity / length**2 / 1000,
+        "second_mode_lower_bound_kn": 4 * pi**2 * minimum_rigidity / length**2 / 1000,
+        "root_isolated_below_second_mode_lower_bound": True,
+    }
+
+
 def run_advanced_members(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
@@ -2559,14 +2728,26 @@ def run_advanced_members(inputs):
             "section_capacity_schedule",
             "section_capacity_schedule_complete_verified",
             "section_capacity_schedule_reference",
-            "flexural_buckling_modes",
         }
-        supplied_schedule_fields = schedule_fields.intersection(d)
-        if supplied_schedule_fields:
-            if supplied_schedule_fields != schedule_fields:
+        elastic_model_fields = {
+            "elastic_buckling_model",
+            "elastic_buckling_segments",
+            "segment_geometry_complete_verified",
+            "segment_geometry_reference",
+            "stepped_member_assumptions_verified",
+            "stepped_member_assumptions_reference",
+            "flexural_section_constants",
+            "section_constants_verified",
+            "section_constants_reference",
+        }
+        schedule_related_fields = (
+            schedule_fields | elastic_model_fields | {"flexural_buckling_modes"}
+        )
+        if schedule_related_fields.intersection(d):
+            if schedule_fields.intersection(d) != schedule_fields:
                 raise ValueError(
-                    "The complete section-capacity schedule and both flexural buckling modes "
-                    "must be supplied together."
+                    "The complete section-capacity schedule, completeness declaration and "
+                    "reference must be supplied together."
                 )
             if any(
                 field in d
@@ -2587,6 +2768,18 @@ def run_advanced_members(inputs):
             schedule_reference = d["section_capacity_schedule_reference"].strip()
             if not schedule_reference:
                 raise ValueError("Section-capacity schedule reference must not be blank.")
+            supplied_elastic_model_fields = elastic_model_fields.intersection(d)
+            has_external_modes = "flexural_buckling_modes" in d
+            if has_external_modes and supplied_elastic_model_fields:
+                raise ValueError(
+                    "Supply either both externally referenced flexural buckling loads or the "
+                    "complete pinned stepped-member model, not both."
+                )
+            if not has_external_modes and supplied_elastic_model_fields != elastic_model_fields:
+                raise ValueError(
+                    "Supply both referenced flexural buckling loads or every field for the "
+                    "pinned stepped-member model."
+                )
             schedule = [
                 {
                     "section_id": section["section_id"].strip(),
@@ -2612,35 +2805,108 @@ def run_advanced_members(inputs):
                 if section["nominal_section_capacity_kn"]
                 == governing_section["nominal_section_capacity_kn"]
             ]
-            modes = d["flexural_buckling_modes"]
-            axes = [mode["axis"] for mode in modes]
-            if len(set(axes)) != 2 or set(axes) != {"major", "minor"}:
-                raise ValueError(
-                    "Supply exactly one verified flexural buckling result for each axis."
-                )
-            if any(not mode["analysis_reference"].strip() for mode in modes):
-                raise ValueError("Each flexural buckling analysis reference must not be blank.")
-            if any(not mode["analysis_verified"] for mode in modes):
-                raise ValueError("Both flexural buckling analyses must be verified.")
+            if has_external_modes:
+                modes = d["flexural_buckling_modes"]
+                axes = [mode["axis"] for mode in modes]
+                if len(set(axes)) != 2 or set(axes) != {"major", "minor"}:
+                    raise ValueError(
+                        "Supply exactly one verified flexural buckling result for each axis."
+                    )
+                if any(not mode["analysis_reference"].strip() for mode in modes):
+                    raise ValueError("Each flexural buckling analysis reference must not be blank.")
+                if any(not mode["analysis_verified"] for mode in modes):
+                    raise ValueError("Both flexural buckling analyses must be verified.")
+                buckling_method = "referenced_rational_analysis"
+                model_assumptions_reference = None
+                section_constants_reference = None
+            else:
+                if not d["segment_geometry_complete_verified"]:
+                    raise ValueError(
+                        "The complete stepped-member segment geometry must be verified."
+                    )
+                if not d["stepped_member_assumptions_verified"]:
+                    raise ValueError("The stepped-member buckling assumptions must be verified.")
+                if not d["section_constants_verified"]:
+                    raise ValueError("Both flexural section constants must be verified.")
+                geometry_reference = d["segment_geometry_reference"].strip()
+                model_assumptions_reference = d["stepped_member_assumptions_reference"].strip()
+                section_constants_reference = d["section_constants_reference"].strip()
+                if not geometry_reference or not model_assumptions_reference:
+                    raise ValueError(
+                        "Stepped-member geometry and model references must not be blank."
+                    )
+                if not section_constants_reference:
+                    raise ValueError("The flexural section-constant reference must not be blank.")
+                segments = [
+                    {
+                        "segment_id": segment["segment_id"].strip(),
+                        "section_id": segment["section_id"].strip(),
+                        "length_mm": segment["length_mm"],
+                        "major_axis_second_moment_mm4": segment["major_axis_second_moment_mm4"],
+                        "minor_axis_second_moment_mm4": segment["minor_axis_second_moment_mm4"],
+                    }
+                    for segment in d["elastic_buckling_segments"]
+                ]
+                segment_ids = [segment["segment_id"] for segment in segments]
+                segment_section_ids = {segment["section_id"] for segment in segments}
+                if any(not segment_id for segment_id in segment_ids):
+                    raise ValueError("Stepped-member segment identifiers must not be blank.")
+                if len(set(segment_ids)) != len(segment_ids):
+                    raise ValueError("Stepped-member segment identifiers must be unique.")
+                if segment_section_ids != set(section_ids):
+                    raise ValueError(
+                        "The buckling segments must cover every section in the complete "
+                        "section-capacity schedule."
+                    )
+                section_constants = d["flexural_section_constants"]
+                constant_axes = [item["axis"] for item in section_constants]
+                if len(set(constant_axes)) != 2 or set(constant_axes) != {"major", "minor"}:
+                    raise ValueError(
+                        "Supply exactly one verified compression section constant per axis."
+                    )
+                buckling_method = "piecewise_constant_rigidity_pinned_ends"
+                modes = []
+                for axis in ("major", "minor"):
+                    buckling_analysis = _stepped_member_elastic_buckling_load(segments, axis)
+                    modes.append(
+                        {
+                            "axis": axis,
+                            "elastic_buckling_load_kn": buckling_analysis[
+                                "elastic_buckling_load_kn"
+                            ],
+                            "section_constant": next(
+                                item["section_constant"]
+                                for item in section_constants
+                                if item["axis"] == axis
+                            ),
+                            "analysis_reference": geometry_reference,
+                            "analysis_verified": True,
+                            "buckling_analysis": buckling_analysis,
+                            "section_constants_reference": section_constants_reference,
+                        }
+                    )
 
             ns = governing_section["nominal_section_capacity_kn"]
             axis_results = []
             for axis in ("major", "minor"):
                 mode = next(item for item in modes if item["axis"] == axis)
-                axis_results.append(
-                    {
-                        "axis": axis,
-                        "elastic_buckling_load_kn": mode["elastic_buckling_load_kn"],
-                        "section_constant": mode["section_constant"],
-                        "analysis_reference": mode["analysis_reference"].strip(),
-                        "analysis_verified": mode["analysis_verified"],
-                        **_varying_compression_axis(
-                            ns,
-                            mode["elastic_buckling_load_kn"],
-                            mode["section_constant"],
-                        ),
-                    }
-                )
+                axis_result = {
+                    "axis": axis,
+                    "elastic_buckling_load_kn": mode["elastic_buckling_load_kn"],
+                    "section_constant": mode["section_constant"],
+                    "analysis_reference": mode["analysis_reference"].strip(),
+                    "analysis_verified": mode["analysis_verified"],
+                    "analysis_method": buckling_method,
+                    **_varying_compression_axis(
+                        ns,
+                        mode["elastic_buckling_load_kn"],
+                        mode["section_constant"],
+                    ),
+                }
+                if "buckling_analysis" in mode:
+                    axis_result["buckling_analysis"] = mode["buckling_analysis"]
+                    axis_result["section_constants_reference"] = mode["section_constants_reference"]
+                axis_results.append(axis_result)
             governing_mode = min(axis_results, key=lambda mode: mode["nominal_member_capacity_kn"])
             clauses = ["6.3.3", "6.3.4"]
             checks = [
@@ -2662,6 +2928,7 @@ def run_advanced_members(inputs):
                 "section_capacity_schedule_reference": schedule_reference,
                 "section_capacity_count": len(schedule),
                 "flexural_mode_verified": d["flexural_mode_verified"],
+                "elastic_buckling_method": buckling_method,
                 "flexural_buckling_modes": axis_results,
                 "governing_buckling_axis": governing_mode["axis"],
                 "modified_slenderness": governing_mode["modified_slenderness"],
@@ -2671,11 +2938,33 @@ def run_advanced_members(inputs):
             limitations = [
                 "The supplied section-capacity schedule and its completeness declaration must "
                 "cover the minimum nominal section capacity along the entire member.",
-                "Both rational elastic flexural buckling loads are supplied and referenced; "
-                "the analyses and their boundary conditions are not independently authenticated.",
                 "This route calculates the two flexural axes. Assess the applicable torsional-"
                 "flexural buckling route separately under Clause 6.3.3.",
             ]
+            if has_external_modes:
+                limitations.insert(
+                    1,
+                    "Both rational elastic flexural buckling loads are supplied and referenced; "
+                    "the analyses and their boundary conditions are not independently "
+                    "authenticated.",
+                )
+            else:
+                values["stepped_member_assumptions_reference"] = model_assumptions_reference
+                limitations.insert(
+                    1,
+                    "Elastic flexural buckling loads are calculated by exact transfer across "
+                    "piecewise-constant rigidity segments for ideal pinned ends, aligned "
+                    "principal axes and a uniform axial force; the first root is isolated below "
+                    "the second-mode lower bound.",
+                )
+                limitations.insert(
+                    2,
+                    "The calculated route excludes intermediate restraints, frame sway, "
+                    "non-prismatic transitions with local flexibility, shear deformation, "
+                    "principal-axis rotation, torsion/warping, local buckling, initial "
+                    "imperfections and transverse loads. "
+                    "Use a referenced rational analysis outside this scope.",
+                )
             return result(op, clauses, values, checks, limitations)
 
         scalar_fields = (
