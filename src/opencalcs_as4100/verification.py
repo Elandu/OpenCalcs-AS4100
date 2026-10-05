@@ -4334,6 +4334,58 @@ def verify():
         back_to_back["checks"][-1]["design_demand_kn"],
         7.5 * 3.141592653589793,
     )
+    compression_interconnections = run_advanced_members(
+        {
+            "operation": "compression_built_up_interconnection_design",
+            "connection_arrangement": "separated",
+            "section_capacity_kn": 1000,
+            "member_capacity_kn": 500,
+            "modified_member_slenderness": 100,
+            "axial_action_kn": 100,
+            "all_interconnections_assessed_verified": True,
+            "interconnection_evidence_reference": (
+                "independent compression interconnection benchmark"
+            ),
+            "interconnections": [
+                {
+                    "connection_id": "C1",
+                    "component_length_between_connections_mm": 1200,
+                    "minimum_radius_of_gyration_mm": 20,
+                    "design_capacity_kn": 100,
+                    "geometry_verified": True,
+                    "capacity_verified": True,
+                },
+                {
+                    "connection_id": "C2",
+                    "component_length_between_connections_mm": 1600,
+                    "minimum_radius_of_gyration_mm": 20,
+                    "design_capacity_kn": 100,
+                    "geometry_verified": True,
+                    "capacity_verified": True,
+                },
+            ],
+        }
+    )
+    record(
+        "Clause 6.4.1 shear used by compression interconnection check",
+        compression_interconnections["values"]["transverse_design_shear_kn"],
+        3.141592653589793,
+    )
+    record(
+        "Clause 6.5.1.5 first compression interconnection demand",
+        compression_interconnections["checks"][0]["design_demand_kn"],
+        15 * 3.141592653589793,
+    )
+    record(
+        "Clause 6.5.1.5 second compression interconnection demand",
+        compression_interconnections["checks"][1]["design_demand_kn"],
+        20 * 3.141592653589793,
+    )
+    record(
+        "Clause 6.5.1.5 every listed compression interconnection checked",
+        len(compression_interconnections["checks"]),
+        2,
+    )
     compression_lacing_actions = run_advanced_members(
         {
             "operation": "compression_built_up_member_actions",

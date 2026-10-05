@@ -820,6 +820,37 @@ SCHEMAS = {
         ]
     },
     "compression_built_up_connection_layout": _compression_built_up_connection_layout_schema(),
+    "compression_built_up_interconnection_design": _schema(
+        "compression_built_up_interconnection_design",
+        {
+            "connection_arrangement": {"enum": ["separated", "in_contact"]},
+            "section_capacity_kn": P,
+            "member_capacity_kn": P,
+            "modified_member_slenderness": P,
+            "axial_action_kn": P,
+            "all_interconnections_assessed_verified": VERIFIED,
+            "interconnection_evidence_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+            },
+            "interconnections": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "connection_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                        "component_length_between_connections_mm": P,
+                        "minimum_radius_of_gyration_mm": P,
+                        "design_capacity_kn": P,
+                        "geometry_verified": VERIFIED,
+                        "capacity_verified": VERIFIED,
+                    }
+                ),
+            },
+        },
+    ),
     "lacing": _schema(
         "lacing",
         {
@@ -2172,6 +2203,81 @@ def run_advanced_members(inputs):
             },
             checks,
             limitations,
+        )
+    if op == "compression_built_up_interconnection_design":
+        section_capacity = d["section_capacity_kn"]
+        member_capacity = d["member_capacity_kn"]
+        axial_action = d["axial_action_kn"]
+        slenderness = d["modified_member_slenderness"]
+        if member_capacity > section_capacity:
+            raise ValueError("Member capacity cannot exceed section capacity.")
+
+        interconnections = d["interconnections"]
+        connection_ids = [item["connection_id"] for item in interconnections]
+        if len(connection_ids) != len(set(connection_ids)):
+            raise ValueError("Interconnection connection_id values must be unique.")
+
+        transverse_shear, minimum_shear, strength_shear = _clause_6_4_1_transverse_shear(
+            section_capacity, member_capacity, axial_action, slenderness
+        )
+        connection_clause = "6.5.1.5" if d["connection_arrangement"] == "separated" else "6.5.2.5"
+        clauses = ["6.4.1", "6.5.1.5"]
+        if d["connection_arrangement"] == "in_contact":
+            clauses.append("6.5.2.5")
+
+        checks = []
+        interconnection_results = []
+        for interconnection in interconnections:
+            component_slenderness = (
+                interconnection["component_length_between_connections_mm"]
+                / interconnection["minimum_radius_of_gyration_mm"]
+            )
+            demand = 0.25 * transverse_shear * component_slenderness
+            capacity = interconnection["design_capacity_kn"]
+            check = {
+                "clause": connection_clause,
+                "connection_id": interconnection["connection_id"],
+                "component_slenderness": component_slenderness,
+                "design_demand_kn": demand,
+                "verified_design_capacity_kn": capacity,
+                "utilisation": demand / capacity,
+                "satisfied": demand <= capacity,
+            }
+            checks.append(check)
+            interconnection_results.append(
+                {
+                    "connection_id": interconnection["connection_id"],
+                    "component_slenderness": component_slenderness,
+                    "design_longitudinal_shear_kn": demand,
+                    "verified_design_capacity_kn": capacity,
+                }
+            )
+
+        return result(
+            op,
+            clauses,
+            {
+                "connection_arrangement": d["connection_arrangement"],
+                "section_capacity_kn": section_capacity,
+                "member_capacity_kn": member_capacity,
+                "design_axial_action_kn": axial_action,
+                "modified_member_slenderness": slenderness,
+                "transverse_design_shear_kn": transverse_shear,
+                "one_percent_minimum_shear_kn": minimum_shear,
+                "strength_based_shear_kn": strength_shear,
+                "interconnection_evidence_reference": d["interconnection_evidence_reference"],
+                "interconnections": interconnection_results,
+            },
+            checks,
+            [
+                "Section and member capacities, modified member slenderness and axial action "
+                "must be a conservative Clause 6.4.1 envelope for the member.",
+                "Include every interconnection in the member and verify each component length, "
+                "minimum radius of gyration and Clause 9 design capacity from project records.",
+                "The supplied interconnection capacities and evidence reference are not "
+                "authenticated; connection geometry, fastener or weld design, and other load "
+                "effects remain separate assessments.",
+            ],
         )
     if op == "compression_built_up_member_actions":
         ns = d["section_capacity_kn"]

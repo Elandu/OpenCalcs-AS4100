@@ -2638,6 +2638,50 @@ def clause_6_5_1_5_interconnection():
     return {"interconnection_design_demand_kn": check["design_demand_kn"]}
 
 
+def clause_6_5_1_5_compression_interconnections():
+    result = run_advanced_members(
+        {
+            "operation": "compression_built_up_interconnection_design",
+            "connection_arrangement": "separated",
+            "section_capacity_kn": 1000,
+            "member_capacity_kn": 500,
+            "modified_member_slenderness": 100,
+            "axial_action_kn": 100,
+            "all_interconnections_assessed_verified": True,
+            "interconnection_evidence_reference": "independent two-connection benchmark",
+            "interconnections": [
+                {
+                    "connection_id": "C1",
+                    "component_length_between_connections_mm": 1200,
+                    "minimum_radius_of_gyration_mm": 20,
+                    "design_capacity_kn": 15 * 3.141592653589793,
+                    "geometry_verified": True,
+                    "capacity_verified": True,
+                },
+                {
+                    "connection_id": "C2",
+                    "component_length_between_connections_mm": 1600,
+                    "minimum_radius_of_gyration_mm": 20,
+                    "design_capacity_kn": 20 * 3.141592653589793,
+                    "geometry_verified": True,
+                    "capacity_verified": True,
+                },
+            ],
+        }
+    )
+    first, second = result["values"]["interconnections"]
+    expect_close(result["values"]["transverse_design_shear_kn"], 3.141592653589793)
+    expect_close(first["design_longitudinal_shear_kn"], 15 * 3.141592653589793)
+    expect_close(second["design_longitudinal_shear_kn"], 20 * 3.141592653589793)
+    if result["clauses"] != ["6.4.1", "6.5.1.5"] or not result["checked_conditions_satisfied"]:
+        raise AssertionError("Compression interconnection demand or clause route failed")
+    return {
+        "transverse_design_shear_kn": result["values"]["transverse_design_shear_kn"],
+        "first_interconnection_demand_kn": first["design_longitudinal_shear_kn"],
+        "second_interconnection_demand_kn": second["design_longitudinal_shear_kn"],
+    }
+
+
 def clause_7_3_1_uniform_connection_capacity():
     result = run_members(
         {
@@ -3680,6 +3724,9 @@ def main():
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
         "clause_5_11_5_2_tension_field_evidence": clause_5_11_5_2_tension_field_evidence,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
+        "clause_6_5_1_5_compression_interconnections": (
+            clause_6_5_1_5_compression_interconnections
+        ),
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
         "clause_7_3_2_table_factor_lookup": clause_7_3_2_table_factor_lookup,

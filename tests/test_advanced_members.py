@@ -1,3 +1,5 @@
+from math import pi
+
 import pytest
 
 from opencalcs_as4100.advanced_members import run_advanced_members
@@ -1802,6 +1804,96 @@ def test_tension_back_to_back_connection_layout_routes():
     del separated["fasteners_per_connection_line_at_each_end"]
     with pytest.raises(ValueError, match="Fastener end connections"):
         run_advanced_members(separated)
+
+
+def compression_built_up_interconnection_design(**changes):
+    data = {
+        "operation": "compression_built_up_interconnection_design",
+        "connection_arrangement": "separated",
+        "section_capacity_kn": 1000,
+        "member_capacity_kn": 500,
+        "modified_member_slenderness": 100,
+        "axial_action_kn": 100,
+        "all_interconnections_assessed_verified": True,
+        "interconnection_evidence_reference": "checked connection schedule",
+        "interconnections": [
+            {
+                "connection_id": "C1",
+                "component_length_between_connections_mm": 1200,
+                "minimum_radius_of_gyration_mm": 20,
+                "design_capacity_kn": 15 * pi,
+                "geometry_verified": True,
+                "capacity_verified": True,
+            },
+            {
+                "connection_id": "C2",
+                "component_length_between_connections_mm": 1600,
+                "minimum_radius_of_gyration_mm": 20,
+                "design_capacity_kn": 20 * pi - 0.001,
+                "geometry_verified": True,
+                "capacity_verified": True,
+            },
+        ],
+    }
+    data.update(changes)
+    return data
+
+
+def test_compression_built_up_interconnection_derives_shear_and_checks_every_connection():
+    out = run_advanced_members(compression_built_up_interconnection_design())
+    values = out["values"]
+    assert out["clauses"] == ["6.4.1", "6.5.1.5"]
+    assert values["transverse_design_shear_kn"] == pytest.approx(pi)
+    assert values["one_percent_minimum_shear_kn"] == pytest.approx(1)
+    assert values["strength_based_shear_kn"] == pytest.approx(pi)
+    assert [item["connection_id"] for item in values["interconnections"]] == ["C1", "C2"]
+    assert [item["component_slenderness"] for item in values["interconnections"]] == [60, 80]
+    assert values["interconnections"][0]["design_longitudinal_shear_kn"] == pytest.approx(15 * pi)
+    assert values["interconnections"][1]["design_longitudinal_shear_kn"] == pytest.approx(20 * pi)
+    assert out["checks"][0]["satisfied"]
+    assert not out["checks"][1]["satisfied"]
+    assert not out["checked_conditions_satisfied"]
+    assert out["full_standard_compliance"] is False
+
+
+def test_compression_built_up_interconnection_in_contact_minimum_shear_and_exact_capacity():
+    data = compression_built_up_interconnection_design(
+        connection_arrangement="in_contact",
+        member_capacity_kn=900,
+        modified_member_slenderness=500,
+        interconnections=[
+            {
+                "connection_id": "C1",
+                "component_length_between_connections_mm": 400,
+                "minimum_radius_of_gyration_mm": 20,
+                "design_capacity_kn": 5,
+                "geometry_verified": True,
+                "capacity_verified": True,
+            }
+        ],
+    )
+    out = run_advanced_members(data)
+    assert out["clauses"] == ["6.4.1", "6.5.1.5", "6.5.2.5"]
+    assert out["checks"][0]["clause"] == "6.5.2.5"
+    assert out["values"]["transverse_design_shear_kn"] == pytest.approx(1)
+    assert out["checks"][0]["design_demand_kn"] == pytest.approx(5)
+    assert out["checked_conditions_satisfied"]
+
+
+def test_compression_built_up_interconnection_rejects_incomplete_or_invalid_records():
+    data = compression_built_up_interconnection_design()
+    data["interconnections"][1]["connection_id"] = "C1"
+    with pytest.raises(ValueError, match="connection_id values must be unique"):
+        run_advanced_members(data)
+
+    data = compression_built_up_interconnection_design(member_capacity_kn=1000.01)
+    with pytest.raises(ValueError, match="Member capacity cannot exceed section capacity"):
+        run_advanced_members(data)
+
+    data = compression_built_up_interconnection_design()
+    data["all_interconnections_assessed_verified"] = False
+    with pytest.raises(ValueError, match="all_interconnections_assessed_verified"):
+        run_advanced_members(data)
 
 
 def tension_built_up_interconnection(**changes):

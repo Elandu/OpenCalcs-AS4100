@@ -31,7 +31,7 @@ not authenticate certificates or material/installation evidence; the other
 Clause 2.3 fastener, weld, stud and anchor provisions and Clause 2.4 castings
 remain assessed.
 
-Version 0.7.22 exposes twelve installed calculation families. The code implements
+Version 0.7.23 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing
@@ -50,6 +50,11 @@ The Clause 6.5 connection-layout route checks the separated and in-contact
 member arrangements, minimum bay count, full member coverage, approximately
 equal-bay evidence and end fastener/equivalent-weld conditions. Clause 6.5
 capacity checks and detailed connection design remain separate.
+The compression interconnection route calculates the Clause 6.4.1 shear envelope,
+then evaluates `0.25 V* (l_e/r)_c` for each listed interconnection and compares its
+supplied design capacity. In-contact members trace Clause 6.5.2.5 back to Clause
+6.5.1.5. Completeness, geometry, capacity and connection detailing remain
+externally assessed; the operation does not authenticate their evidence.
 
 The original axial section equations were also compared with
 [steel-as](https://github.com/Folded-Structures-Lab/steel-as),
