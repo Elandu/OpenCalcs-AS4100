@@ -1064,10 +1064,7 @@ def verify():
     )
     record(
         "Clause 4.5.1 member span moment equilibrium with position cross force",
-        max(
-            abs(component)
-            for component in member_span_values["moment_resultant_about_start_knm"]
-        ),
+        max(abs(component) for component in member_span_values["moment_resultant_about_start_knm"]),
         0,
     )
     record(

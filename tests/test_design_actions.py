@@ -43,9 +43,7 @@ def test_euler_buckling_uses_clause_2_2_4_elastic_modulus():
         ("sway_top_fixed_bottom_pinned", 2.2),
     ],
 )
-def test_idealized_end_restraint_cases_feed_euler_buckling(
-    end_restraint_case, expected_factor
-):
+def test_idealized_end_restraint_cases_feed_euler_buckling(end_restraint_case, expected_factor):
     r = run(
         {
             "operation": "idealized_member_buckling",

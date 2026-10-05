@@ -179,9 +179,7 @@ SCHEMAS = {
             "operation": {"const": "idealized_member_buckling"},
             "second_moment_mm4": POSITIVE,
             "member_length_mm": POSITIVE,
-            "idealized_end_restraint_case": {
-                "enum": list(_IDEALIZED_END_RESTRAINT_FACTORS)
-            },
+            "idealized_end_restraint_case": {"enum": list(_IDEALIZED_END_RESTRAINT_FACTORS)},
             "idealized_end_restraint_verified": _BOOL,
             "end_restraint_evidence_reference": _REFERENCE,
             "member_length_centre_to_centre_verified": _BOOL,
@@ -1034,8 +1032,7 @@ def run_design_actions(inputs):
                 abs(component) <= d["force_tolerance_kn"] for component in force_resultant
             )
             moment_satisfied = all(
-                abs(component) <= d["moment_tolerance_knm"]
-                for component in moment_resultant
+                abs(component) <= d["moment_tolerance_knm"] for component in moment_resultant
             )
             member_equilibrium_satisfied = force_satisfied and moment_satisfied
             member_results.append(

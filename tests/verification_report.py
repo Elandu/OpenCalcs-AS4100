@@ -2211,9 +2211,7 @@ def main():
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
-        "clause_4_6_3_2_idealized_member_buckling": (
-            clause_4_6_3_2_idealized_member_buckling
-        ),
+        "clause_4_6_3_2_idealized_member_buckling": (clause_4_6_3_2_idealized_member_buckling),
         "clause_4_5_1_global_equilibrium": clause_4_5_1_global_equilibrium,
         "clause_4_5_1_joint_equilibrium": clause_4_5_1_joint_equilibrium,
         "clause_4_5_1_member_span_equilibrium": clause_4_5_1_member_span_equilibrium,
