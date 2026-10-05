@@ -127,6 +127,97 @@ def test_frame_chart_member_buckling_uses_verified_factor_for_euler_load():
 
 
 @pytest.mark.parametrize(
+    ("frame_type", "gamma_1", "gamma_2", "expected_factor"),
+    [
+        ("braced", 0.1, 0.4, 0.6030256304844271),
+        ("braced", 1.0, 1.0, 0.7742650686480755),
+        ("braced", 0.8, 1.2, 0.7708101517503944),
+        ("sway", 0.1, 0.4, 1.082506704547602),
+        ("sway", 1.0, 1.0, 1.3172751026289122),
+        ("sway", 0.8, 1.2, 1.3156717092299173),
+    ],
+)
+def test_frame_chart_member_buckling_solves_alignment_equation(
+    frame_type, gamma_1, gamma_2, expected_factor
+):
+    inputs = frame_chart_member_buckling(
+        frame_type=frame_type,
+        stiffness_ratio_at_end_1=gamma_1,
+        stiffness_ratio_at_end_2=gamma_2,
+    )
+    inputs.pop("effective_length_factor")
+    inputs.pop("effective_length_factor_chart_verified")
+    inputs.pop("chart_evidence_reference")
+
+    r = run(inputs)
+    values = r["values"]
+
+    assert r["checked_conditions_satisfied"]
+    assert values["effective_length_factor"] == pytest.approx(expected_factor, abs=1e-12)
+    assert values["effective_length_factor_source"] == "alignment_chart_equation"
+    assert values["effective_length_mm"] == pytest.approx(expected_factor * 4000)
+    assert values["elastic_buckling_load_kn"] == pytest.approx(
+        pi**2 * 200000 * 8e6 / (expected_factor * 4000) ** 2 / 1000
+    )
+    assert r["checks"][3]["satisfied"]
+    assert r["checks"][4]["satisfied"]
+    assert r["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    ("frame_type", "gamma_1", "gamma_2", "expected_factor"),
+    [
+        ("braced", 0, 0, 0.5),
+        ("braced", 0, 1000, 0.6990480148522852),
+        ("braced", 50, 50, 0.9920235235222336),
+        ("sway", 0, 0, 1.0),
+        ("sway", 0, 1000, 1.9951601164997164),
+    ],
+)
+def test_frame_chart_alignment_equation_limits(frame_type, gamma_1, gamma_2, expected_factor):
+    inputs = frame_chart_member_buckling(
+        frame_type=frame_type,
+        stiffness_ratio_at_end_1=gamma_1,
+        stiffness_ratio_at_end_2=gamma_2,
+    )
+    inputs.pop("effective_length_factor")
+    inputs.pop("effective_length_factor_chart_verified")
+    inputs.pop("chart_evidence_reference")
+
+    values = run(inputs)["values"]
+    assert values["effective_length_factor"] == pytest.approx(expected_factor, abs=1e-12)
+
+
+def test_frame_chart_alignment_equations_are_symmetric_in_end_ratios():
+    for frame_type in ("braced", "sway"):
+        forward = frame_chart_member_buckling(
+            frame_type=frame_type,
+            stiffness_ratio_at_end_1=0.25,
+            stiffness_ratio_at_end_2=2.5,
+        )
+        reverse = frame_chart_member_buckling(
+            frame_type=frame_type,
+            stiffness_ratio_at_end_1=2.5,
+            stiffness_ratio_at_end_2=0.25,
+        )
+        for inputs in (forward, reverse):
+            inputs.pop("effective_length_factor")
+            inputs.pop("effective_length_factor_chart_verified")
+            inputs.pop("chart_evidence_reference")
+        assert run(forward)["values"]["effective_length_factor"] == pytest.approx(
+            run(reverse)["values"]["effective_length_factor"], abs=1e-13
+        )
+
+
+def test_frame_chart_factor_reading_requires_chart_evidence():
+    inputs = frame_chart_member_buckling()
+    inputs.pop("effective_length_factor_chart_verified")
+    inputs.pop("chart_evidence_reference")
+    with pytest.raises(ValueError):
+        run(inputs)
+
+
+@pytest.mark.parametrize(
     ("frame_type", "effective_length_factor", "expected"),
     [
         ("braced", 0.5, True),

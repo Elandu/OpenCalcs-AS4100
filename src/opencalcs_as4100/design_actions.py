@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """AS 4100 sections 3/4 numerical design-action checks, reviewed against scanned text."""
 
-from math import isfinite, pi
+from math import isfinite, pi, tan
 
 from .standards import ELASTIC_MODULUS_MPA
 from .validation import NONNEGATIVE, POSITIVE, SIGNED, object_schema, result, validate
@@ -22,6 +22,64 @@ _FRAME_STIFFNESS_MODIFIERS = {
     "braced": {"pinned": 1.5, "rigidly_connected_to_column": 1.0, "fixed": 2.0},
     "sway": {"pinned": 0.5, "rigidly_connected_to_column": 1.0, "fixed": 0.67},
 }
+
+_FRAME_CHART = object_schema(
+    {
+        "operation": {"const": "frame_chart_member_buckling"},
+        "member_id": _REFERENCE,
+        "frame_type": {"enum": ["braced", "sway"]},
+        "frame_type_verified": _BOOL,
+        "rigid_jointed_frame_verified": _BOOL,
+        "frame_classification_evidence_reference": _REFERENCE,
+        "stiffness_ratio_at_end_1": NONNEGATIVE,
+        "stiffness_ratio_at_end_2": NONNEGATIVE,
+        "stiffness_ratios_verified": _BOOL,
+        "stiffness_ratio_evidence_reference": _REFERENCE,
+        "effective_length_factor": POSITIVE,
+        "effective_length_factor_chart_verified": _BOOL,
+        "chart_evidence_reference": _REFERENCE,
+        "second_moment_mm4": POSITIVE,
+        "second_moment_about_buckling_axis_verified": _BOOL,
+        "section_evidence_reference": _REFERENCE,
+        "member_length_mm": POSITIVE,
+        "member_length_centre_to_centre_verified": _BOOL,
+        "member_length_evidence_reference": _REFERENCE,
+    },
+    required=[
+        "operation",
+        "member_id",
+        "frame_type",
+        "frame_type_verified",
+        "rigid_jointed_frame_verified",
+        "frame_classification_evidence_reference",
+        "stiffness_ratio_at_end_1",
+        "stiffness_ratio_at_end_2",
+        "stiffness_ratios_verified",
+        "stiffness_ratio_evidence_reference",
+        "second_moment_mm4",
+        "second_moment_about_buckling_axis_verified",
+        "section_evidence_reference",
+        "member_length_mm",
+        "member_length_centre_to_centre_verified",
+        "member_length_evidence_reference",
+    ],
+)
+_FRAME_CHART["allOf"] = [
+    {
+        "if": {"required": ["effective_length_factor"]},
+        "then": {
+            "required": ["effective_length_factor_chart_verified", "chart_evidence_reference"]
+        },
+        "else": {
+            "not": {
+                "anyOf": [
+                    {"required": ["effective_length_factor_chart_verified"]},
+                    {"required": ["chart_evidence_reference"]},
+                ]
+            }
+        },
+    }
+]
 
 _PLASTIC_MATERIAL = object_schema(
     {
@@ -240,29 +298,7 @@ SCHEMAS = {
             "member_length_evidence_reference": _REFERENCE,
         }
     ),
-    "frame_chart_member_buckling": object_schema(
-        {
-            "operation": {"const": "frame_chart_member_buckling"},
-            "member_id": _REFERENCE,
-            "frame_type": {"enum": ["braced", "sway"]},
-            "frame_type_verified": _BOOL,
-            "rigid_jointed_frame_verified": _BOOL,
-            "frame_classification_evidence_reference": _REFERENCE,
-            "stiffness_ratio_at_end_1": NONNEGATIVE,
-            "stiffness_ratio_at_end_2": NONNEGATIVE,
-            "stiffness_ratios_verified": _BOOL,
-            "stiffness_ratio_evidence_reference": _REFERENCE,
-            "effective_length_factor": POSITIVE,
-            "effective_length_factor_chart_verified": _BOOL,
-            "chart_evidence_reference": _REFERENCE,
-            "second_moment_mm4": POSITIVE,
-            "second_moment_about_buckling_axis_verified": _BOOL,
-            "section_evidence_reference": _REFERENCE,
-            "member_length_mm": POSITIVE,
-            "member_length_centre_to_centre_verified": _BOOL,
-            "member_length_evidence_reference": _REFERENCE,
-        }
-    ),
+    "frame_chart_member_buckling": _FRAME_CHART,
     "triangulated_member_buckling": object_schema(
         {
             "operation": {"const": "triangulated_member_buckling"},
@@ -501,6 +537,72 @@ def _elastic_buckling_load(second_moment_mm4, member_length_mm, effective_length
     if not isfinite(load) or load <= 0:
         raise ValueError("Invalid elastic buckling load.")
     return load
+
+
+def _z_cot(z):
+    if abs(z) < 1e-4:
+        z2 = z * z
+        return 1 - z2 / 3 - z2 * z2 / 45 - 2 * z2 * z2 * z2 / 945
+    return z / tan(z)
+
+
+def _frame_chart_effective_length_factor(frame_type, gamma_1, gamma_2):
+    """Solve the Figure 4.6.3.3 alignment-chart equations for the first mode."""
+    stiffness_sum = gamma_1 + gamma_2
+    if frame_type == "braced":
+        if stiffness_sum <= 1e-14:
+            return 0.5
+        if min(gamma_1, gamma_2) >= 1e14:
+            return 1.0
+
+        def residual(z):
+            return (
+                gamma_1 * gamma_2 * z * z / 4
+                + stiffness_sum / 2 * (1 - _z_cot(z))
+                + 2 * tan(z / 2) / z
+                - 1
+            )
+
+        lower_delta = max(4e-15, 1e-6 / max(gamma_1, gamma_2, 1))
+        upper_delta = max(4e-15, min(1e-3, stiffness_sum * 1e-3))
+        lower = pi + lower_delta
+        upper = 2 * pi - upper_delta
+        lower_value = residual(lower)
+        upper_value = residual(upper)
+        if lower_value >= 0 or upper_value <= 0:
+            raise ValueError("Could not bracket the braced Figure 4.6.3.3 factor.")
+        for _ in range(120):
+            middle = (lower + upper) / 2
+            middle_value = residual(middle)
+            if middle_value > 0:
+                upper = middle
+            else:
+                lower = middle
+        return pi / ((lower + upper) / 2)
+
+    if stiffness_sum <= 1e-14:
+        return 1.0
+
+    smaller = min(gamma_1, gamma_2)
+    larger = max(gamma_1, gamma_2)
+    product_over_sum = smaller / (1 + smaller / larger) if larger else 0.0
+
+    def residual(z):
+        right_hand_side = (product_over_sum * z * z - 36 / stiffness_sum) / 6
+        return _z_cot(z) - right_hand_side
+
+    upper_delta = max(4e-15, min(1e-3, stiffness_sum * 0.1))
+    lower = 0.0
+    upper = pi - upper_delta
+    if residual(lower) <= 0 or residual(upper) >= 0:
+        raise ValueError("Could not bracket the sway Figure 4.6.3.3 factor.")
+    for _ in range(120):
+        middle = (lower + upper) / 2
+        if residual(middle) > 0:
+            lower = middle
+        else:
+            upper = middle
+    return pi / ((lower + upper) / 2)
 
 
 def _run_braced_frame_buckling_factor(d):
@@ -802,7 +904,16 @@ def run_design_actions(inputs):
         )
     if op == "frame_chart_member_buckling":
         frame_type = d["frame_type"]
-        effective_length_factor = d["effective_length_factor"]
+        chart_factor_supplied = "effective_length_factor" in d
+        effective_length_factor = (
+            d["effective_length_factor"]
+            if chart_factor_supplied
+            else _frame_chart_effective_length_factor(
+                frame_type,
+                d["stiffness_ratio_at_end_1"],
+                d["stiffness_ratio_at_end_2"],
+            )
+        )
         chart_factor_range_satisfied = (
             0.5 <= effective_length_factor <= 1.0
             if frame_type == "braced"
@@ -814,6 +925,22 @@ def run_design_actions(inputs):
             effective_length_factor,
         )
         figure = "Figure 4.6.3.3(a)" if frame_type == "braced" else "Figure 4.6.3.3(b)"
+        chart_factor_check = {
+            "clause": "4.6.3.3",
+            "condition": (
+                "effective length factor is assessed from the applicable chart"
+                if chart_factor_supplied
+                else "effective length factor is calculated from the applicable "
+                "alignment-chart equation"
+            ),
+            "effective_length_factor": effective_length_factor,
+            "figure": figure,
+            "satisfied": (
+                d["effective_length_factor_chart_verified"] if chart_factor_supplied else True
+            ),
+        }
+        if chart_factor_supplied:
+            chart_factor_check["evidence_reference"] = d["chart_evidence_reference"]
         return result(
             op,
             ["4.6.2", "4.6.3.3"],
@@ -823,6 +950,11 @@ def run_design_actions(inputs):
                 "stiffness_ratio_at_end_1": d["stiffness_ratio_at_end_1"],
                 "stiffness_ratio_at_end_2": d["stiffness_ratio_at_end_2"],
                 "effective_length_factor": effective_length_factor,
+                "effective_length_factor_source": (
+                    "external_chart_reading"
+                    if chart_factor_supplied
+                    else "alignment_chart_equation"
+                ),
                 "effective_length_factor_figure": figure,
                 "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
                 "second_moment_mm4": d["second_moment_mm4"],
@@ -854,12 +986,7 @@ def run_design_actions(inputs):
                     "evidence_reference": d["stiffness_ratio_evidence_reference"],
                 },
                 {
-                    "clause": "4.6.3.3",
-                    "condition": "effective length factor is assessed from the applicable chart",
-                    "effective_length_factor": effective_length_factor,
-                    "figure": figure,
-                    "satisfied": d["effective_length_factor_chart_verified"],
-                    "evidence_reference": d["chart_evidence_reference"],
+                    **chart_factor_check,
                 },
                 {
                     "clause": "4.6.3.3",
@@ -882,11 +1009,10 @@ def run_design_actions(inputs):
                 },
             ],
             limitations=[
-                "The effective length factor is an externally assessed Figure 4.6.3.3 chart "
-                "reading; this operation does not interpolate the figure or calculate the end "
-                "stiffness ratios.",
-                "Use Clause 4.6.3.4 for rectangular-frame end ratios or Appendix G where "
-                "applicable. "
+                "The alignment-chart equation assumes the idealized elastic frame restraints "
+                "represented by Figure 4.6.3.3; verify frame classification and both end ratios.",
+                "End stiffness ratios are not calculated here; use Clause 4.6.3.4 for "
+                "rectangular-frame ratios or Appendix G where applicable. "
                 "This is an elastic buckling load, not a Clause 6.3 member design capacity or a "
                 "whole-frame buckling analysis.",
             ],

@@ -2,7 +2,7 @@
 
 import json
 import sys
-from math import isclose, sqrt
+from math import isclose, pi, sqrt
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -294,6 +294,56 @@ def clause_4_6_3_3_chart_factor_buckling():
         "effective_length_mm": values["effective_length_mm"],
         "elastic_buckling_load_kn": values["elastic_buckling_load_kn"],
     }
+
+
+def clause_4_6_3_3_alignment_equation_buckling():
+    base = {
+        "operation": "frame_chart_member_buckling",
+        "member_id": "BENCHMARK-COL-ALIGNMENT-01",
+        "frame_type_verified": True,
+        "rigid_jointed_frame_verified": True,
+        "frame_classification_evidence_reference": "BENCHMARK-FRAME-CLASSIFICATION",
+        "stiffness_ratios_verified": True,
+        "stiffness_ratio_evidence_reference": "BENCHMARK-END-RATIOS",
+        "second_moment_mm4": 8e6,
+        "second_moment_about_buckling_axis_verified": True,
+        "section_evidence_reference": "BENCHMARK-SECTION-01",
+        "member_length_mm": 4000,
+        "member_length_centre_to_centre_verified": True,
+        "member_length_evidence_reference": "BENCHMARK-MEMBER-LENGTH-01",
+    }
+    braced = run_design_actions(
+        {
+            **base,
+            "frame_type": "braced",
+            "stiffness_ratio_at_end_1": 0.1,
+            "stiffness_ratio_at_end_2": 0.4,
+        }
+    )
+    sway = run_design_actions(
+        {
+            **base,
+            "frame_type": "sway",
+            "stiffness_ratio_at_end_1": 1.0,
+            "stiffness_ratio_at_end_2": 1.0,
+        }
+    )
+    braced_factor = braced["values"]["effective_length_factor"]
+    sway_factor = sway["values"]["effective_length_factor"]
+    if not braced["checked_conditions_satisfied"] or not sway["checked_conditions_satisfied"]:
+        raise AssertionError("Figure 4.6.3.3 alignment-equation evidence gates failed")
+    if not isclose(braced_factor, 0.603, rel_tol=0, abs_tol=0.0005):
+        raise AssertionError(
+            "Braced factor does not match the published exact alignment-chart value"
+        )
+    if not isclose(sway_factor, 1.30, rel_tol=0, abs_tol=0.03):
+        raise AssertionError("Sway factor does not match the Figure 4.6.3.3 contour reading")
+    for result, factor in ((braced, braced_factor), (sway, sway_factor)):
+        values = result["values"]
+        expected_load = pi**2 * 200000 * 8e6 / (factor * 4000) ** 2 / 1000
+        if not isclose(values["elastic_buckling_load_kn"], expected_load, rel_tol=0, abs_tol=1e-9):
+            raise AssertionError("Euler load does not match independent hand arithmetic")
+    return {"braced_factor": braced_factor, "sway_factor": sway_factor}
 
 
 def clause_4_6_3_5_triangulated_member_buckling():
@@ -3301,6 +3351,7 @@ def main():
         "clause_9_7_4_combined_weld_types": combined_weld_types,
         "clause_4_6_3_2_idealized_member_buckling": (clause_4_6_3_2_idealized_member_buckling),
         "clause_4_6_3_3_chart_factor_buckling": clause_4_6_3_3_chart_factor_buckling,
+        "clause_4_6_3_3_alignment_equation_buckling": (clause_4_6_3_3_alignment_equation_buckling),
         "clause_4_6_3_5_triangulated_member_buckling": (
             clause_4_6_3_5_triangulated_member_buckling
         ),

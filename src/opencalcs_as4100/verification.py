@@ -1315,6 +1315,50 @@ def verify():
         1e-9,
     )
 
+    alignment_chart_inputs = {
+        "operation": "frame_chart_member_buckling",
+        "member_id": "VERIFY-COL-ALIGNMENT-01",
+        "frame_type_verified": True,
+        "rigid_jointed_frame_verified": True,
+        "frame_classification_evidence_reference": "VERIFY-FRAME-CLASSIFICATION",
+        "stiffness_ratios_verified": True,
+        "stiffness_ratio_evidence_reference": "VERIFY-END-RATIOS",
+        "second_moment_mm4": 8e6,
+        "second_moment_about_buckling_axis_verified": True,
+        "section_evidence_reference": "VERIFY-SECTION-01",
+        "member_length_mm": 4000,
+        "member_length_centre_to_centre_verified": True,
+        "member_length_evidence_reference": "VERIFY-MEMBER-LENGTH-01",
+    }
+    braced_alignment = run_design_actions(
+        {
+            **alignment_chart_inputs,
+            "frame_type": "braced",
+            "stiffness_ratio_at_end_1": 0.1,
+            "stiffness_ratio_at_end_2": 0.4,
+        }
+    )
+    record(
+        "Figure 4.6.3.3(a) braced alignment factor, published value 0.603",
+        braced_alignment["values"]["effective_length_factor"],
+        0.603,
+        0.0005,
+    )
+    sway_alignment = run_design_actions(
+        {
+            **alignment_chart_inputs,
+            "frame_type": "sway",
+            "stiffness_ratio_at_end_1": 1.0,
+            "stiffness_ratio_at_end_2": 1.0,
+        }
+    )
+    record(
+        "Figure 4.6.3.3(b) sway alignment factor, contour reading 1.30",
+        sway_alignment["values"]["effective_length_factor"],
+        1.30,
+        0.03,
+    )
+
     triangulated_buckling = run_design_actions(
         {
             "operation": "triangulated_member_buckling",

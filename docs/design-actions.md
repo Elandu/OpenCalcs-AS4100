@@ -32,21 +32,41 @@ frame, or calculate a Clause 6.3 design capacity.
 ## Frame chart factor and Euler buckling load
 
 `frame_chart_member_buckling` calculates the Clause 4.6.2 elastic buckling load
-from an effective-length factor assessed against Figure 4.6.3.3. Supply the
-rigid-jointed frame's braced or sway classification, both end stiffness ratios,
-and the factor read from the matching chart. The operation records the selected
-figure and checks that the supplied factor falls within the corresponding chart
-branch range.
+and can solve the Figure 4.6.3.3 alignment-chart equation directly. Supply the
+rigid-jointed frame's braced or sway classification and both end stiffness
+ratios. If an independently read chart factor is supplied instead, also supply
+`effective_length_factor_chart_verified` and `chart_evidence_reference`; the
+operation retains this route for existing integrations.
 
-The rigid-jointed frame classification, frame type, end ratios, chart reading,
-second moment of area about the buckling axis, and centre-to-centre member length
-each require a verified declaration and evidence reference. Determine the end
+The numerical route solves the classic elastic alignment-chart equations for
+`z = pi / k_e`. For braced members, it solves
+
+`(gamma_1 gamma_2 z^2)/4 + ((gamma_1 + gamma_2)/2)(1 - z cot z) + 2 tan(z/2)/z = 1`
+
+for `pi < z < 2 pi`. For sway members, it solves
+
+`(gamma_1 gamma_2 z^2 - 36)/(6(gamma_1 + gamma_2)) = z cot z`
+
+for `0 < z < pi`. The zero-stiffness limiting cases are `k_e = 0.5` for
+braced members and `k_e = 1.0` for sway members. These characteristic
+equations are documented as exact numerical forms of the alignment charts by
+Dumonteil, “Simple Equations for Effective Length Factors,” *AISC Engineering
+Journal*, Third Quarter 1992, pp. 111–115. The solver uses bracketed bisection
+on the applicable first-mode interval.
+
+The rigid-jointed frame classification, frame type, end ratios, second moment
+of area about the buckling axis, and centre-to-centre member length each require
+a verified declaration and evidence reference. A supplied chart reading also
+requires its own verification flag and evidence reference. Determine the end
 ratios under Clause 4.6.3.4 for rectangular frames or Appendix G where
 applicable.
 
-This operation does not read or interpolate Figure 4.6.3.3 and does not
-calculate the end ratios. It returns an elastic buckling load, not a Clause 6.3
-member design capacity or a whole-frame buckling analysis.
+The equation route calculates the factor from the supplied stiffness ratios;
+the chart-reading route accepts the separately verified factor. Neither route
+calculates the stiffness ratios or checks whether the complete frame model
+satisfies the chart's idealized assumptions. The result is an elastic buckling
+load, not a Clause 6.3 member design capacity or a whole-frame buckling
+analysis.
 
 ## Triangulated-member effective length
 
