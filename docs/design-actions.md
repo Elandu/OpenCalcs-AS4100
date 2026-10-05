@@ -48,6 +48,21 @@ This operation does not read or interpolate Figure 4.6.3.3 and does not
 calculate the end ratios. It returns an elastic buckling load, not a Clause 6.3
 member design capacity or a whole-frame buckling analysis.
 
+## Triangulated-member effective length
+
+`triangulated_member_buckling` calculates the Clause 4.6.2 elastic buckling
+load for a Clause 4.6.3.5 member. It uses the centre-to-centre length between
+member intersections as the minimum effective length. If the supplied
+effective length is shorter and no Appendix G-consistent rational elastic
+buckling analysis is verified, it raises the value used to that minimum.
+
+The triangulated-structure classification, intersection length, effective
+length assessment and second moment about the buckling axis require verified
+declarations and evidence references. A shorter effective length is accepted
+only when the rational-analysis consistency declaration is verified. This
+operation does not perform that analysis and does not calculate Clause 6.3
+member capacity.
+
 ## Rectangular-frame end stiffness ratio
 
 `rectangular_frame_stiffness_ratio` calculates one end's `gamma` value under

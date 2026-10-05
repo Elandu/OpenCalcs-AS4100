@@ -233,6 +233,24 @@ SCHEMAS = {
             "member_length_evidence_reference": _REFERENCE,
         }
     ),
+    "triangulated_member_buckling": object_schema(
+        {
+            "operation": {"const": "triangulated_member_buckling"},
+            "member_id": _REFERENCE,
+            "triangulated_structure_verified": _BOOL,
+            "triangulated_structure_evidence_reference": _REFERENCE,
+            "second_moment_mm4": POSITIVE,
+            "second_moment_about_buckling_axis_verified": _BOOL,
+            "section_evidence_reference": _REFERENCE,
+            "member_length_between_intersections_mm": POSITIVE,
+            "member_length_between_intersections_verified": _BOOL,
+            "member_geometry_evidence_reference": _REFERENCE,
+            "effective_length_mm": POSITIVE,
+            "effective_length_assessment_verified": _BOOL,
+            "effective_length_evidence_reference": _REFERENCE,
+            "rational_buckling_analysis_consistent_with_appendix_g_verified": _BOOL,
+        }
+    ),
     "rectangular_frame_stiffness_ratio": object_schema(
         {
             "operation": {"const": "rectangular_frame_stiffness_ratio"},
@@ -573,6 +591,84 @@ def run_design_actions(inputs):
                 "applicable. "
                 "This is an elastic buckling load, not a Clause 6.3 member design capacity or a "
                 "whole-frame buckling analysis.",
+            ],
+        )
+    if op == "triangulated_member_buckling":
+        member_length = d["member_length_between_intersections_mm"]
+        assessed_effective_length = d["effective_length_mm"]
+        rational_analysis_verified = d[
+            "rational_buckling_analysis_consistent_with_appendix_g_verified"
+        ]
+        minimum_length_correction_applied = (
+            assessed_effective_length < member_length and not rational_analysis_verified
+        )
+        effective_length = (
+            member_length if minimum_length_correction_applied else assessed_effective_length
+        )
+        effective_length_factor = effective_length / member_length
+        elastic_buckling_load = _elastic_buckling_load(
+            d["second_moment_mm4"], member_length, effective_length_factor
+        )
+        return result(
+            op,
+            ["4.6.2", "4.6.3.5"],
+            {
+                "member_id": d["member_id"],
+                "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+                "second_moment_mm4": d["second_moment_mm4"],
+                "member_length_between_intersections_mm": member_length,
+                "assessed_effective_length_mm": assessed_effective_length,
+                "effective_length_mm": effective_length,
+                "minimum_length_correction_applied": minimum_length_correction_applied,
+                "effective_length_factor": effective_length_factor,
+                "elastic_buckling_load_kn": elastic_buckling_load,
+            },
+            [
+                {
+                    "clause": "4.6.3.5",
+                    "condition": "member is verified as part of a triangulated structure",
+                    "satisfied": d["triangulated_structure_verified"],
+                    "evidence_reference": d["triangulated_structure_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.3.5",
+                    "condition": "member length is verified centre-to-centre between intersections",
+                    "satisfied": d["member_length_between_intersections_verified"],
+                    "evidence_reference": d["member_geometry_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.3.5",
+                    "condition": (
+                        "effective length is not less than member length unless an "
+                        "Appendix G-consistent rational buckling analysis justifies a shorter value"
+                    ),
+                    "assessed_effective_length_mm": assessed_effective_length,
+                    "effective_length_used_mm": effective_length,
+                    "rational_analysis_verified": rational_analysis_verified,
+                    "satisfied": effective_length >= member_length or rational_analysis_verified,
+                    "evidence_reference": d["effective_length_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.2",
+                    "condition": "effective length assessment is verified",
+                    "satisfied": d["effective_length_assessment_verified"],
+                    "evidence_reference": d["effective_length_evidence_reference"],
+                },
+                {
+                    "clause": "4.6.2",
+                    "condition": "second moment of area is verified about the buckling axis",
+                    "satisfied": d["second_moment_about_buckling_axis_verified"],
+                    "evidence_reference": d["section_evidence_reference"],
+                },
+            ],
+            limitations=[
+                "This operation applies the Clause 4.6.3.5 centre-to-centre minimum unless "
+                "a shorter "
+                "effective length is supported by externally verified rational elastic buckling "
+                "analysis consistent with Appendix G.",
+                "Appendix G analysis is not performed. The result is an elastic buckling load, "
+                "not a "
+                "Clause 6.3 design capacity or complete triangulated-member assessment.",
             ],
         )
     if op == "rectangular_frame_stiffness_ratio":

@@ -154,6 +154,42 @@ def clause_4_6_3_3_chart_factor_buckling():
     }
 
 
+def clause_4_6_3_5_triangulated_member_buckling():
+    result = run_design_actions(
+        {
+            "operation": "triangulated_member_buckling",
+            "member_id": "BENCHMARK-TRUSS-MEMBER-01",
+            "triangulated_structure_verified": True,
+            "triangulated_structure_evidence_reference": "BENCHMARK-TRUSS-01",
+            "second_moment_mm4": 4.5e6,
+            "second_moment_about_buckling_axis_verified": True,
+            "section_evidence_reference": "BENCHMARK-TRUSS-SECTION-01",
+            "member_length_between_intersections_mm": 3000,
+            "member_length_between_intersections_verified": True,
+            "member_geometry_evidence_reference": "BENCHMARK-TRUSS-GEOMETRY-01",
+            "effective_length_mm": 2400,
+            "effective_length_assessment_verified": True,
+            "effective_length_evidence_reference": "BENCHMARK-TRUSS-EFFECTIVE-LENGTH-01",
+            "rational_buckling_analysis_consistent_with_appendix_g_verified": False,
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.6.3.5 triangulated-member evidence checks failed")
+    values = result["values"]
+    if not values["minimum_length_correction_applied"]:
+        raise AssertionError("Clause 4.6.3.5 should apply the centre-to-centre minimum")
+    if values["effective_length_mm"] != 3000:
+        raise AssertionError("Clause 4.6.3.5 effective length should be at least 3000 mm")
+    expected_load = 986.9604401089358
+    if not isclose(values["elastic_buckling_load_kn"], expected_load, rel_tol=0, abs_tol=1e-9):
+        raise AssertionError("Clause 4.6.2 Euler load failed triangulated-member hand arithmetic")
+    return {
+        "effective_length_mm": values["effective_length_mm"],
+        "minimum_length_correction_applied": values["minimum_length_correction_applied"],
+        "elastic_buckling_load_kn": values["elastic_buckling_load_kn"],
+    }
+
+
 def clause_4_6_3_4_rectangular_frame_stiffness_ratio():
     result = run_design_actions(
         {
@@ -2324,6 +2360,9 @@ def main():
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_4_6_3_2_idealized_member_buckling": (clause_4_6_3_2_idealized_member_buckling),
         "clause_4_6_3_3_chart_factor_buckling": clause_4_6_3_3_chart_factor_buckling,
+        "clause_4_6_3_5_triangulated_member_buckling": (
+            clause_4_6_3_5_triangulated_member_buckling
+        ),
         "clause_4_6_3_4_rectangular_frame_stiffness_ratio": (
             clause_4_6_3_4_rectangular_frame_stiffness_ratio
         ),

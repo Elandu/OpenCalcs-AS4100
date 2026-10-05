@@ -177,6 +177,75 @@ def test_frame_chart_member_buckling_rejects_negative_stiffness_ratios():
         run(frame_chart_member_buckling(stiffness_ratio_at_end_1=-0.1))
 
 
+def triangulated_member_buckling(**overrides):
+    inputs = {
+        "operation": "triangulated_member_buckling",
+        "member_id": "TRUSS-MEMBER-01",
+        "triangulated_structure_verified": True,
+        "triangulated_structure_evidence_reference": "TRUSS-01",
+        "second_moment_mm4": 4.5e6,
+        "second_moment_about_buckling_axis_verified": True,
+        "section_evidence_reference": "SECTION-TRUSS-01",
+        "member_length_between_intersections_mm": 3000,
+        "member_length_between_intersections_verified": True,
+        "member_geometry_evidence_reference": "TRUSS-GEOMETRY-01",
+        "effective_length_mm": 3000,
+        "effective_length_assessment_verified": True,
+        "effective_length_evidence_reference": "TRUSS-EFFECTIVE-LENGTH-01",
+        "rational_buckling_analysis_consistent_with_appendix_g_verified": False,
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_triangulated_member_buckling_uses_centre_to_centre_minimum():
+    r = run(triangulated_member_buckling())
+    values = r["values"]
+    assert r["checked_conditions_satisfied"]
+    assert r["clauses"] == ["4.6.2", "4.6.3.5"]
+    assert values["effective_length_factor"] == 1.0
+    assert values["effective_length_mm"] == 3000
+    assert values["elastic_buckling_load_kn"] == pytest.approx(986.9604401089358)
+
+
+@pytest.mark.parametrize(
+    ("assessed_length_mm", "rational_analysis_verified", "used_length_mm", "corrected"),
+    [
+        (2400, False, 3000, True),
+        (3600, False, 3600, False),
+        (2400, True, 2400, False),
+    ],
+)
+def test_triangulated_member_buckling_effective_length_boundaries(
+    assessed_length_mm, rational_analysis_verified, used_length_mm, corrected
+):
+    r = run(
+        triangulated_member_buckling(
+            effective_length_mm=assessed_length_mm,
+            rational_buckling_analysis_consistent_with_appendix_g_verified=(
+                rational_analysis_verified
+            ),
+        )
+    )
+    values = r["values"]
+    assert r["checked_conditions_satisfied"]
+    assert values["effective_length_mm"] == used_length_mm
+    assert values["minimum_length_correction_applied"] is corrected
+
+
+def test_triangulated_member_buckling_requires_structure_length_and_section_evidence():
+    r = run(
+        triangulated_member_buckling(
+            triangulated_structure_verified=False,
+            member_length_between_intersections_verified=False,
+            effective_length_assessment_verified=False,
+            second_moment_about_buckling_axis_verified=False,
+        )
+    )
+    assert not r["checked_conditions_satisfied"]
+    assert [check["satisfied"] for check in r["checks"]] == [False, False, True, False, False]
+
+
 def rectangular_frame_stiffness_ratio(**overrides):
     inputs = {
         "operation": "rectangular_frame_stiffness_ratio",

@@ -951,6 +951,37 @@ def verify():
         1e-9,
     )
 
+    triangulated_buckling = run_design_actions(
+        {
+            "operation": "triangulated_member_buckling",
+            "member_id": "VERIFY-TRUSS-MEMBER-01",
+            "triangulated_structure_verified": True,
+            "triangulated_structure_evidence_reference": "VERIFY-TRUSS-01",
+            "second_moment_mm4": 4.5e6,
+            "second_moment_about_buckling_axis_verified": True,
+            "section_evidence_reference": "VERIFY-TRUSS-SECTION-01",
+            "member_length_between_intersections_mm": 3000,
+            "member_length_between_intersections_verified": True,
+            "member_geometry_evidence_reference": "VERIFY-TRUSS-GEOMETRY-01",
+            "effective_length_mm": 2400,
+            "effective_length_assessment_verified": True,
+            "effective_length_evidence_reference": "VERIFY-TRUSS-EFFECTIVE-LENGTH-01",
+            "rational_buckling_analysis_consistent_with_appendix_g_verified": False,
+        }
+    )
+    triangulated_values = triangulated_buckling["values"]
+    record(
+        "Clause 4.6.3.5 triangulated member effective-length minimum",
+        triangulated_values["effective_length_mm"],
+        3000,
+    )
+    record(
+        "Clause 4.6.2 Euler load at triangulated member length minimum",
+        triangulated_values["elastic_buckling_load_kn"],
+        986.9604401089358,
+        1e-9,
+    )
+
     def frame_stiffness_inputs(frame_type="braced", column_base_condition="not_column_base"):
         return {
             "operation": "rectangular_frame_stiffness_ratio",
