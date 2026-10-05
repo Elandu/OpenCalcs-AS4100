@@ -3,7 +3,7 @@ requires = ["hatchling>=1.26,<2"]
 build-backend = "hatchling.build"
 [project]
 name = "opencalcs-as4100"
-version = "0.7.27"
+version = "0.7.28"
 description = "Clause-traced AS 4100 steel design calculations for OpenCalcs."
 readme = "README.md"
 requires-python = ">=3.12"

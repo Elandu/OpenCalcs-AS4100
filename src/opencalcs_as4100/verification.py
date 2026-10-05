@@ -3758,18 +3758,96 @@ def verify():
     unequal_flange_inputs.pop("flange_centroid_spacing_mm")
     unequal_flange_inputs.pop("compression_flange_minor_inertia_mm4")
     unequal_flange_inputs["beta_x_method"] = "section_integral"
-    unequal_flange_inputs["beta_x_mm"] = -64
-    unequal_flange_inputs["beta_x_integral_verified"] = True
+    unequal_flange_inputs.update(
+        {
+            "compression_flange": "larger",
+            "rectangular_section_elements": [
+                {
+                    "x_min_mm": -70,
+                    "x_max_mm": 70,
+                    "y_min_mm": 0,
+                    "y_max_mm": 16,
+                },
+                {
+                    "x_min_mm": -6,
+                    "x_max_mm": 6,
+                    "y_min_mm": 16,
+                    "y_max_mm": 296,
+                },
+                {
+                    "x_min_mm": -110,
+                    "x_max_mm": 110,
+                    "y_min_mm": 296,
+                    "y_max_mm": 320,
+                },
+            ],
+            "section_geometry_verified": True,
+            "section_geometry_reference": "TEST-UNEQUAL-I-GEOMETRY-01",
+            "unequal_flange_i_applicability_verified": True,
+            "shear_centre_y_mm": -40,
+            "shear_centre_verified": True,
+            "shear_centre_reference": "TEST-SHEAR-CENTRE-01",
+        }
+    )
     unequal_flange_integral = run_advanced_members(unequal_flange_inputs)
     record(
-        "Clause 5.6.1.2 section-integral beta_x, smaller flange in compression",
+        "Clause 5.6.1.2 rectangular-section I_x, hand integration",
+        unequal_flange_integral["values"]["section_integral_ix_mm4"],
+        172914045.49019608,
+        1e-5,
+    )
+    record(
+        "Clause 5.6.1.2 rectangular-section centroid, hand first moments",
+        unequal_flange_integral["values"]["section_centroid_y_mm"],
+        199.2941176470588,
+        1e-10,
+    )
+    record(
+        "Clause 5.6.1.2 rectangular-section integral, hand integration",
+        unequal_flange_integral["values"]["section_integral_mm5"],
+        -10352934373.425606,
+        0.05,
+    )
+    record(
+        "Clause 5.6.1.2 positive beta_x with larger flange in compression",
         unequal_flange_integral["values"]["beta_x_mm"],
-        -64,
+        20.126700846793844,
+        1e-8,
+    )
+    record(
+        "Clause 5.6.1.2 section-integral reference buckling moment, hand arithmetic",
+        unequal_flange_integral["values"]["reference_buckling_moment_knm"],
+        198.89809447640857,
+        1e-10,
+    )
+    record(
+        "Clause 5.6.1.2 section-integral member moment capacity, hand arithmetic",
+        unequal_flange_integral["values"]["member_capacity_knm"],
+        143.60194389204455,
+        1e-10,
+    )
+    smaller_flange_integral_inputs = dict(unequal_flange_inputs)
+    smaller_flange_integral_inputs["compression_flange"] = "smaller"
+    smaller_flange_integral_inputs["rectangular_section_elements"] = [
+        {
+            **element,
+            "y_min_mm": -element["y_max_mm"],
+            "y_max_mm": -element["y_min_mm"],
+        }
+        for element in unequal_flange_inputs["rectangular_section_elements"]
+    ]
+    smaller_flange_integral_inputs["shear_centre_y_mm"] = 40
+    smaller_flange_integral = run_advanced_members(smaller_flange_integral_inputs)
+    record(
+        "Clause 5.6.1.2 negative beta_x with smaller flange in compression",
+        smaller_flange_integral["values"]["beta_x_mm"],
+        -20.126700846793844,
+        1e-8,
     )
     record(
         "Clause 5.6.1.2 negative-beta reference buckling moment, hand arithmetic",
-        unequal_flange_integral["values"]["reference_buckling_moment_knm"],
-        180.90296197251985,
+        smaller_flange_integral["values"]["reference_buckling_moment_knm"],
+        190.06953557615756,
         1e-10,
     )
     varying_bending = run_advanced_members(

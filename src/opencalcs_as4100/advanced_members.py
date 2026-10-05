@@ -179,8 +179,34 @@ def _unequal_flange_bending_schema():
             "compression_flange_minor_inertia_mm4": P,
         },
         "section_integral": {
-            "beta_x_mm": S,
-            "beta_x_integral_verified": VERIFIED,
+            "compression_flange": {"enum": ["larger", "smaller"]},
+            "rectangular_section_elements": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 100,
+                "items": object_schema(
+                    {
+                        "x_min_mm": S,
+                        "x_max_mm": S,
+                        "y_min_mm": S,
+                        "y_max_mm": S,
+                    }
+                ),
+            },
+            "section_geometry_verified": VERIFIED,
+            "section_geometry_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+            },
+            "unequal_flange_i_applicability_verified": VERIFIED,
+            "shear_centre_y_mm": S,
+            "shear_centre_verified": VERIFIED,
+            "shear_centre_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+            },
         },
     }
     variants = []
@@ -193,6 +219,94 @@ def _unequal_flange_bending_schema():
         }
         variants.append(object_schema(variant_properties))
     return {"oneOf": variants}
+
+
+def _section_integral_beta_x(data):
+    """Calculate Clause 5.6.1.2(a)(ii) beta_x from a rectangular area partition."""
+    if not data["section_geometry_reference"].strip():
+        raise ValueError("Section geometry reference must not be blank.")
+    if not data["shear_centre_reference"].strip():
+        raise ValueError("Shear-centre reference must not be blank.")
+    elements = data["rectangular_section_elements"]
+    extents = []
+    for index, element in enumerate(elements):
+        x_min, x_max = element["x_min_mm"], element["x_max_mm"]
+        y_min, y_max = element["y_min_mm"], element["y_max_mm"]
+        if x_max <= x_min or y_max <= y_min:
+            raise ValueError(
+                f"Rectangular section element {index} must have positive width and depth."
+            )
+        extents.append((x_min, x_max, y_min, y_max))
+
+    section_width = max(x_max for _, x_max, _, _ in extents) - min(
+        x_min for x_min, _, _, _ in extents
+    )
+    section_depth = max(y_max for _, _, _, y_max in extents) - min(
+        y_min for _, _, y_min, _ in extents
+    )
+    geometry_tolerance = max(section_width, section_depth, 1.0) * 1e-10
+    for index, first in enumerate(extents):
+        for second in extents[index + 1 :]:
+            overlap_x = min(first[1], second[1]) - max(first[0], second[0])
+            overlap_y = min(first[3], second[3]) - max(first[2], second[2])
+            if overlap_x > geometry_tolerance and overlap_y > geometry_tolerance:
+                raise ValueError(
+                    "Rectangular section elements must form a non-overlapping area partition."
+                )
+
+    area_terms = []
+    x_first_moment_terms = []
+    y_first_moment_terms = []
+    for x_min, x_max, y_min, y_max in extents:
+        width = x_max - x_min
+        depth = y_max - y_min
+        x_centroid = (x_min + x_max) / 2
+        y_centroid = (y_min + y_max) / 2
+        area = width * depth
+        area_terms.append(area)
+        x_first_moment_terms.append(area * x_centroid)
+        y_first_moment_terms.append(area * y_centroid)
+
+    area = fsum(area_terms)
+    if not isfinite(area) or area <= 0:
+        raise ValueError("Rectangular section area must be positive and finite.")
+    section_centroid_x = fsum(x_first_moment_terms) / area
+    section_centroid_y = fsum(y_first_moment_terms) / area
+
+    ix_terms = []
+    integral_terms = []
+    for x_min, x_max, y_min, y_max in extents:
+        width = x_max - x_min
+        depth = y_max - y_min
+        x_centroid = (x_min + x_max) / 2 - section_centroid_x
+        y_centroid = (y_min + y_max) / 2 - section_centroid_y
+        element_area = width * depth
+        ix_terms.append(element_area * (y_centroid**2 + depth**2 / 12))
+        integral_terms.append(
+            element_area
+            * y_centroid
+            * (x_centroid**2 + width**2 / 12 + y_centroid**2 + depth**2 / 4)
+        )
+
+    ix = fsum(ix_terms)
+    if not isfinite(ix) or ix <= 0:
+        raise ValueError("Section-integral I_x must be positive and finite.")
+    section_integral = fsum(integral_terms)
+    beta_x = section_integral / ix - 2 * data["shear_centre_y_mm"]
+    expected_sign = 1 if data["compression_flange"] == "larger" else -1
+    if beta_x * expected_sign <= 0:
+        raise ValueError(
+            "Calculated beta_x sign conflicts with the compression flange; verify the "
+            "section axes and shear-centre coordinate."
+        )
+    return {
+        "beta_x_mm": beta_x,
+        "section_integral_ix_mm4": ix,
+        "section_integral_mm5": section_integral,
+        "section_area_mm2": area,
+        "section_centroid_x_mm": section_centroid_x,
+        "section_centroid_y_mm": section_centroid_y,
+    }
 
 
 def _moment_modification_factor_schema():
@@ -2475,6 +2589,7 @@ def run_advanced_members(inputs):
             ],
         )
     if op == "unequal_flange_bending":
+        section_integral_values = {}
         if d["beta_x_method"] == "compression_flange_inertia":
             iy = d["iy_mm4"]
             inertia_ratio = d["compression_flange_minor_inertia_mm4"] / iy
@@ -2484,7 +2599,19 @@ def run_advanced_members(inputs):
                 )
             beta_x = 0.8 * d["flange_centroid_spacing_mm"] * (2 * inertia_ratio - 1)
         else:
-            beta_x = d["beta_x_mm"]
+            section_integral_values = {
+                **_section_integral_beta_x(d),
+                "compression_flange": d["compression_flange"],
+                "section_geometry_verified": d["section_geometry_verified"],
+                "section_geometry_reference": d["section_geometry_reference"],
+                "unequal_flange_i_applicability_verified": d[
+                    "unequal_flange_i_applicability_verified"
+                ],
+                "shear_centre_y_mm": d["shear_centre_y_mm"],
+                "shear_centre_verified": d["shear_centre_verified"],
+                "shear_centre_reference": d["shear_centre_reference"],
+            }
+            beta_x = section_integral_values["beta_x_mm"]
 
         iy = d["iy_mm4"]
         length = d["effective_length_mm"]
@@ -2511,6 +2638,7 @@ def run_advanced_members(inputs):
             {
                 "beta_x_method": d["beta_x_method"],
                 "beta_x_mm": beta_x,
+                **section_integral_values,
                 "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
                 "shear_modulus_mpa": SHEAR_MODULUS_MPA,
                 "reference_buckling_moment_knm": mo,
@@ -2528,8 +2656,12 @@ def run_advanced_members(inputs):
                 "and negative for the smaller flange in compression.",
                 "The supplied moment factor must be independently selected under Clause "
                 "5.6.1.1; the operation does not derive it from the member moment diagram.",
-                "The section-integral beta_x route requires independent verification of "
-                "the Clause 5.6.1.2 integral and shear-centre coordinate.",
+                "The section-integral beta_x route evaluates the Clause 5.6.1.2 integral "
+                "exactly for the supplied non-overlapping rectangular area partition. "
+                "Verify that the geometry represents the actual unequal-flange I-section, "
+                "that positive y is toward the compression flange, and that the supplied "
+                "shear-centre coordinate is independently established relative to the "
+                "section centroid in that same axis system.",
                 "The elastic buckling-analysis alternative under Clause 5.6.1.2(b) is "
                 "available through the separate buckling-analysis operation.",
             ],

@@ -757,10 +757,35 @@ def unequal_flange_bending(beta_method="compression_flange_inertia", **updates):
     if beta_method == "section_integral":
         inputs.pop("flange_centroid_spacing_mm")
         inputs.pop("compression_flange_minor_inertia_mm4")
-        inputs["beta_x_mm"] = -64
-        inputs["beta_x_integral_verified"] = True
+        inputs.update(
+            {
+                "compression_flange": "smaller",
+                "rectangular_section_elements": unequal_flange_section_elements("smaller"),
+                "section_geometry_verified": True,
+                "section_geometry_reference": "TEST-UNEQUAL-I-GEOMETRY-01",
+                "unequal_flange_i_applicability_verified": True,
+                "shear_centre_y_mm": 40,
+                "shear_centre_verified": True,
+                "shear_centre_reference": "TEST-SHEAR-CENTRE-01",
+            }
+        )
     inputs.update(updates)
     return inputs
+
+
+def unequal_flange_section_elements(compression_flange="larger"):
+    elements = [
+        {"x_min_mm": -70, "x_max_mm": 70, "y_min_mm": 0, "y_max_mm": 16},
+        {"x_min_mm": -6, "x_max_mm": 6, "y_min_mm": 16, "y_max_mm": 296},
+        {"x_min_mm": -110, "x_max_mm": 110, "y_min_mm": 296, "y_max_mm": 320},
+    ]
+    if compression_flange == "smaller":
+        for element in elements:
+            element["y_min_mm"], element["y_max_mm"] = (
+                -element["y_max_mm"],
+                -element["y_min_mm"],
+            )
+    return elements
 
 
 def test_unequal_flange_bending_from_compression_flange_inertia():
@@ -791,12 +816,87 @@ def test_unequal_flange_inertia_method_sets_beta_sign(flange_inertia, beta_x, re
     assert out["values"]["reference_buckling_moment_knm"] == pytest.approx(reference_moment)
 
 
-def test_unequal_flange_bending_accepts_verified_negative_integral_beta():
+def test_unequal_flange_bending_calculates_negative_integral_beta_from_geometry():
     out = run_advanced_members(unequal_flange_bending("section_integral"))
     assert out["values"]["beta_x_method"] == "section_integral"
-    assert out["values"]["beta_x_mm"] == -64
-    assert out["values"]["reference_buckling_moment_knm"] == pytest.approx(180.90296197251985)
-    assert out["values"]["member_capacity_knm"] == pytest.approx(136.69231914794057)
+    assert out["values"]["beta_x_mm"] == pytest.approx(-20.1267008468)
+    assert out["values"]["section_integral_ix_mm4"] == pytest.approx(172914045.4902)
+    assert out["values"]["section_integral_mm5"] == pytest.approx(10352934373.4256)
+    assert out["values"]["reference_buckling_moment_knm"] == pytest.approx(190.0695355762)
+
+
+def test_unequal_flange_section_integral_uses_exact_rectangular_geometry():
+    inputs = unequal_flange_bending("section_integral")
+    inputs["compression_flange"] = "larger"
+    inputs["rectangular_section_elements"] = unequal_flange_section_elements("larger")
+    inputs["shear_centre_y_mm"] = -40
+    out = run_advanced_members(inputs)
+    values = out["values"]
+    assert values["beta_x_mm"] == pytest.approx(20.1267008468)
+    assert values["section_integral_ix_mm4"] == pytest.approx(172914045.4902)
+    assert values["section_integral_mm5"] == pytest.approx(-10352934373.4256)
+    assert values["section_area_mm2"] == pytest.approx(10880)
+    assert values["section_centroid_x_mm"] == pytest.approx(0, abs=1e-9)
+    assert values["section_centroid_y_mm"] == pytest.approx(199.2941176471)
+    assert values["section_geometry_reference"] == "TEST-UNEQUAL-I-GEOMETRY-01"
+    assert values["shear_centre_reference"] == "TEST-SHEAR-CENTRE-01"
+    assert values["unequal_flange_i_applicability_verified"]
+
+
+@pytest.mark.parametrize(
+    "element_index,element_update,error",
+    [
+        (0, {"x_max_mm": -70}, "positive width and depth"),
+        (0, {"y_max_mm": 18}, "non-overlapping area partition"),
+        (1, {"y_min_mm": 10}, "non-overlapping area partition"),
+    ],
+)
+def test_unequal_flange_section_integral_rejects_invalid_rectangles(
+    element_index, element_update, error
+):
+    inputs = unequal_flange_bending("section_integral")
+    inputs["compression_flange"] = "larger"
+    inputs["rectangular_section_elements"] = unequal_flange_section_elements("larger")
+    inputs["shear_centre_y_mm"] = -40
+    inputs["rectangular_section_elements"][element_index].update(element_update)
+    with pytest.raises(ValueError, match=error):
+        run_advanced_members(inputs)
+
+
+def test_unequal_flange_section_integral_is_origin_invariant_and_checks_sign():
+    inputs = unequal_flange_bending("section_integral")
+    inputs["compression_flange"] = "larger"
+    inputs["rectangular_section_elements"] = unequal_flange_section_elements("larger")
+    inputs["shear_centre_y_mm"] = -40
+    baseline = run_advanced_members(inputs)
+    translated = unequal_flange_bending("section_integral")
+    translated["compression_flange"] = "larger"
+    translated["rectangular_section_elements"] = unequal_flange_section_elements("larger")
+    translated["shear_centre_y_mm"] = -40
+    for element in translated["rectangular_section_elements"]:
+        element["x_min_mm"] += 1000
+        element["x_max_mm"] += 1000
+        element["y_min_mm"] += 2000
+        element["y_max_mm"] += 2000
+    translated_result = run_advanced_members(translated)
+    assert translated_result["values"]["beta_x_mm"] == pytest.approx(
+        baseline["values"]["beta_x_mm"]
+    )
+
+    inputs["shear_centre_y_mm"] = 40
+    with pytest.raises(ValueError, match="beta_x sign conflicts"):
+        run_advanced_members(inputs)
+
+
+@pytest.mark.parametrize(
+    "reference_field",
+    ["section_geometry_reference", "shear_centre_reference"],
+)
+def test_unequal_flange_section_integral_rejects_blank_evidence_reference(reference_field):
+    inputs = unequal_flange_bending("section_integral")
+    inputs[reference_field] = "  "
+    with pytest.raises(ValueError, match="reference must not be blank"):
+        run_advanced_members(inputs)
 
 
 def test_unequal_flange_bending_caps_member_capacity_at_section_capacity():

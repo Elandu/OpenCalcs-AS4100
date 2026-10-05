@@ -639,6 +639,41 @@ def test_family_http_validation(suffix):
         (
             "advanced_members",
             {
+                "operation": "unequal_flange_bending",
+                "section_capacity_knm": 200,
+                "iy_mm4": 50_000_000,
+                "torsion_constant_mm4": 200_000,
+                "warping_constant_mm6": 8_000_000_000_000,
+                "effective_length_mm": 15_000,
+                "moment_factor": 1.2,
+                "moment_factor_verified": True,
+                "both_ends_restrained_verified": True,
+                "action_knm": 120,
+                "section_properties_verified": True,
+                "constant_cross_section_verified": True,
+                "beta_x_method": "section_integral",
+                "compression_flange": "larger",
+                "rectangular_section_elements": [
+                    {"x_min_mm": -70, "x_max_mm": 70, "y_min_mm": 0, "y_max_mm": 16},
+                    {"x_min_mm": -6, "x_max_mm": 6, "y_min_mm": 16, "y_max_mm": 296},
+                    {
+                        "x_min_mm": -110,
+                        "x_max_mm": 110,
+                        "y_min_mm": 296,
+                        "y_max_mm": 320,
+                    },
+                ],
+                "section_geometry_verified": True,
+                "section_geometry_reference": "HOST-UNEQUAL-I-GEOMETRY-01",
+                "unequal_flange_i_applicability_verified": True,
+                "shear_centre_y_mm": -40,
+                "shear_centre_verified": True,
+                "shear_centre_reference": "HOST-SHEAR-CENTRE-01",
+            },
+        ),
+        (
+            "advanced_members",
+            {
                 "operation": "varying_section_bending",
                 "design_method": "critical_section_reduced_reference",
                 "section_capacity_knm": 120,
@@ -844,7 +879,13 @@ def test_extended_family_successful_http_execution(suffix, inputs):
         if inputs.get("operation") == "moment_modification_factor":
             assert response.json()["values"]["moment_factor"] == pytest.approx(1.1258525035052873)
         if inputs.get("operation") == "unequal_flange_bending":
-            assert response.json()["values"]["beta_x_mm"] == pytest.approx(64)
+            if inputs["beta_x_method"] == "compression_flange_inertia":
+                assert response.json()["values"]["beta_x_mm"] == pytest.approx(64)
+            else:
+                assert response.json()["values"]["beta_x_mm"] == pytest.approx(20.1267008468)
+                assert response.json()["values"]["shear_centre_reference"] == (
+                    "HOST-SHEAR-CENTRE-01"
+                )
             assert response.json()["clauses"][-1] == "5.6.1.2"
         if inputs.get("operation") == "varying_section_bending":
             assert response.json()["values"]["alpha_st"] == pytest.approx(0.76)
