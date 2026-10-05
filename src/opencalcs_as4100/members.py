@@ -228,6 +228,30 @@ INPUT_SCHEMA = {
                     ],
                     "additionalProperties": False,
                 },
+                "net_channel_geometry": {
+                    "type": "object",
+                    "properties": {
+                        "overall_depth_mm": P,
+                        "flange_thickness_mm": P,
+                        "web_thickness_mm": P,
+                        "bending_axis": {"const": "major"},
+                        "sharp_corner_channel_horizontal_symmetry_verified": {"const": True},
+                        "flange_only_holes_verified": {"const": True},
+                        "net_hole_layout_preserves_major_axis_verified": {"const": True},
+                        "net_flange_areas_deducted_under_clause_9_1_10_verified": {"const": True},
+                    },
+                    "required": [
+                        "overall_depth_mm",
+                        "flange_thickness_mm",
+                        "web_thickness_mm",
+                        "bending_axis",
+                        "sharp_corner_channel_horizontal_symmetry_verified",
+                        "flange_only_holes_verified",
+                        "net_hole_layout_preserves_major_axis_verified",
+                        "net_flange_areas_deducted_under_clause_9_1_10_verified",
+                    ],
+                    "additionalProperties": False,
+                },
             },
             [
                 "method",
@@ -901,19 +925,39 @@ def _section_moduli(d):
         if net / gross < minimum_net_flange_ratio
     ]
     gross_permitted = not excessive_flange_indices
-    i_section_geometry = d.get("net_i_section_geometry")
-    rhs_geometry = d.get("net_rhs_geometry")
-    if i_section_geometry is not None and rhs_geometry is not None:
+    geometry_keys = (
+        "net_i_section_geometry",
+        "net_rhs_geometry",
+        "net_channel_geometry",
+    )
+    supplied_geometries = {key: d[key] for key in geometry_keys if d.get(key) is not None}
+    if len(supplied_geometries) > 1:
         raise ValueError("Supply one derived net-section geometry form only.")
-    geometry = i_section_geometry or rhs_geometry
-    is_rhs = rhs_geometry is not None
-    section_form = "RHS/SHS" if is_rhs else "I-section"
+    geometry_key = next(iter(supplied_geometries), None)
+    geometry = supplied_geometries.get(geometry_key)
+    is_rhs = geometry_key == "net_rhs_geometry"
+    is_channel = geometry_key == "net_channel_geometry"
+    section_form = "RHS/SHS" if is_rhs else ("channel" if is_channel else "I-section")
+    geometry_description = (
+        "sharp-corner symmetric RHS/SHS"
+        if is_rhs
+        else (
+            "sharp-corner channel with horizontal symmetry"
+            if is_channel
+            else "sharp-corner symmetric I-section"
+        )
+    )
     net_properties = None
     if geometry is not None:
         if len(gross_flanges) != 2 or len(net_flanges) != 2:
             raise ValueError("Derived net geometry requires top and bottom flange areas only.")
         if not isclose(gross_flanges[0], gross_flanges[1], rel_tol=1e-9, abs_tol=1e-6):
             raise ValueError(f"Net {section_form} geometry requires equal gross flange areas.")
+        if is_channel and not isclose(net_flanges[0], net_flanges[1], rel_tol=1e-9, abs_tol=1e-6):
+            raise ValueError(
+                "Net channel geometry requires equal net flange areas to preserve its "
+                "horizontal symmetry axis."
+            )
         depth = geometry["overall_depth_mm"]
         flange_thickness = geometry["flange_thickness_mm"]
         web_thickness = geometry["web_thickness_mm"]
@@ -1023,8 +1067,8 @@ def _section_moduli(d):
             "Clause 5.2.2–5.2.5 check.",
             *(
                 [
-                    f"Derived net properties apply only to the verified sharp-corner symmetric "
-                    f"{section_form} geometry with major-axis bending and flange-only holes. "
+                    f"Derived net properties apply only to the verified {geometry_description} "
+                    "with major-axis bending and flange-only holes. "
                     "Verify that the net hole layout preserves the principal major axis, and "
                     "confirm the net flange areas and Clause 9.1.10 deductions against the "
                     "connection geometry; the input attestations are not independently "

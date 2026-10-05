@@ -274,6 +274,33 @@ def net_rhs_section_input(**changes):
     return data
 
 
+def net_channel_section_input(**changes):
+    data = {
+        "operation": "section_moduli",
+        "method": "net_section",
+        "yield_strength_mpa": 300,
+        "ultimate_strength_mpa": 400,
+        "gross_area_mm2": 4800,
+        "gross_web_area_mm2": 2800,
+        "gross_flange_areas_mm2": [1000, 1000],
+        "net_flange_areas_mm2": [800, 800],
+        "gross_elastic_modulus_mm3": 402400,
+        "gross_plastic_modulus_mm3": 486000,
+        "net_channel_geometry": {
+            "overall_depth_mm": 300,
+            "flange_thickness_mm": 10,
+            "web_thickness_mm": 10,
+            "bending_axis": "major",
+            "sharp_corner_channel_horizontal_symmetry_verified": True,
+            "flange_only_holes_verified": True,
+            "net_hole_layout_preserves_major_axis_verified": True,
+            "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
+        },
+    }
+    data.update(changes)
+    return data
+
+
 def test_hole_modulus_gross_section_is_permitted_below_and_at_limit():
     below = section_moduli(net_flange_areas_mm2=[900, 1000])["values"]
     assert below["gross_section_moduli_permitted"] is True
@@ -454,6 +481,42 @@ def test_hole_modulus_net_rhs_section_checks_both_web_walls_fit_flange():
     data = net_rhs_section_input()
     data["net_rhs_geometry"]["web_thickness_mm"] = 80
     with pytest.raises(ValueError, match="Web thickness must not exceed"):
+        run_members(data)
+
+
+def test_hole_modulus_net_channel_derives_major_axis_properties():
+    values = run_members(net_channel_section_input())["values"]
+
+    assert values["selected_method"] == "net_section"
+    assert values["net_area_mm2"] == 4400
+    assert values["elastic_modulus_mm3"] == pytest.approx(346311.1111111111)
+    assert values["plastic_modulus_mm3"] == pytest.approx(428000)
+    assert values["net_section_properties"]["centroid_from_top_mm"] == pytest.approx(150)
+    assert values["net_section_properties"]["plastic_neutral_axis_from_top_mm"] == pytest.approx(
+        150
+    )
+    assert values["net_section_properties"]["second_moment_of_area_mm4"] == pytest.approx(
+        51946666.666666664
+    )
+    assert values["net_section_properties"]["elastic_modulus_top_mm3"] == pytest.approx(
+        346311.1111111111
+    )
+    assert values["net_section_properties"]["elastic_modulus_bottom_mm3"] == pytest.approx(
+        346311.1111111111
+    )
+    assert values["net_section_properties"]["governing_fibre"] == "top"
+
+
+def test_hole_modulus_net_channel_requires_equal_net_flange_areas():
+    data = net_channel_section_input(net_flange_areas_mm2=[800, 1000])
+    with pytest.raises(ValueError, match="equal net flange areas"):
+        run_members(data)
+
+
+def test_hole_modulus_net_channel_is_limited_to_major_axis_bending():
+    data = net_channel_section_input()
+    data["net_channel_geometry"]["bending_axis"] = "minor"
+    with pytest.raises(ValueError):
         run_members(data)
 
 

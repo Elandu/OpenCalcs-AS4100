@@ -12,7 +12,7 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 | --- | --- | --- |
 | `plate` | 5.2.2–5.2.5, 6.2.3–6.2.4 | Table-selected slenderness limits; compact/noncompact/slender effective bending modulus, including slender internal-gradient reduction; uniform-compression effective width or CHS effective diameter. Each call is one controlling element. |
 | `section_moment_capacity` | 5.2.1–5.2.5 | Selects the flat compression plate element with the greatest element-slenderness/yield-limit ratio, applies its compact/non-compact/slender rules to the supplied section moduli, then calculates nominal `Ms=fy Ze`. Requires all relevant compression elements, their support/stress/residual-stress classifications, and section moduli. Use `section_moduli` for the separate 5.2.6 fastener-hole route. |
-| `section_moduli` | 5.2.6 | Checks each flange's fastener-hole area reduction and selects gross moduli, the `An/Ag` area-ratio method, supplied net-section moduli, or derived net properties for verified sharp-corner symmetric I-sections and RHS/SHS with major-axis bending and flange-only holes whose net layout preserves that principal axis. The geometry route reports centroid, plastic neutral axis, second moment, elastic moduli at both extreme fibres and plastic modulus; it uses the lower extreme-fibre elastic modulus. Net flange areas are supplied top-to-bottom after 9.1.10 deductions. For RHS/SHS, gross web area is the sum of both side walls. The area-ratio method uses net flange areas plus gross web area for `An`. |
+| `section_moduli` | 5.2.6 | Checks each flange's fastener-hole area reduction and selects gross moduli, the `An/Ag` area-ratio method, supplied net-section moduli, or derived net properties for verified sharp-corner symmetric I-sections and RHS/SHS, plus horizontally symmetric sharp-corner channels, with major-axis bending and flange-only holes whose net layout preserves that principal axis. Channel derivation requires equal gross and net top/bottom flange areas and models one web. The geometry route reports centroid, plastic neutral axis, second moment, elastic moduli at both extreme fibres and plastic modulus; it uses the lower extreme-fibre elastic modulus. Net flange areas are supplied top-to-bottom after 9.1.10 deductions. For RHS/SHS, gross web area is the sum of both side walls. The area-ratio method uses net flange areas plus gross web area for `An`. |
 | `compression` | 6.2.1–6.3.3 | Effective-area form factor, net-section capacity and constant-section flexural buckling about both axes. Only doubly symmetric/RHS/CHS member modes are supported. |
 | `bending` | 5.3.2.1, 5.6.1.1 | Constant equal-flanged open section with both segment ends fully/partially restrained; reference elastic buckling moment and lateral-buckling reduction. Reports the capacity-based full-restraint route when nominal Mb reaches Ms. E=200000 MPa and G=80000 MPa. `moment_modification_factor` in `advanced_members` calculates 5.6.1.1(a)(iii) from the segment moment diagram. |
 | `bending_design` | 5.1 | Compares the elastic major-axis action with both supplied nominal section and member moment capacities; compares the elastic minor-axis action with nominal section moment capacity; or checks the plastic-method section capacity and evidence gates for compact hinge sections, full lateral restraint and Clause 5.10.6 web compliance. Applies `phi=0.9`. Design actions and nominal capacities must be established under the referenced analysis/capacity clauses. |
@@ -48,9 +48,11 @@ The following cannot currently be claimed as completed by these member primitive
 
 - 5.2.6: fastener-hole deductions under 9.1.10 remain assessed. The area-ratio path is
   limited to inputs where the supplied flange and gross-web areas make up the gross section.
-  Derived net moduli support only verified sharp-corner symmetric I-sections and RHS/SHS with
-  major-axis bending, flange-only holes and a net hole layout that preserves the principal axis;
-  other axes and net-section geometries still require independently established net moduli.
+  Derived net moduli support only verified sharp-corner symmetric I-sections and RHS/SHS or
+  horizontally symmetric sharp-corner channels with major-axis bending, flange-only holes and a
+  net hole layout that preserves the principal axis. Channels also require equal gross and net
+  top/bottom flange areas and use one web. Other axes and net-section geometries still require
+  independently established net moduli.
 - 5.3–5.5: restraint stiffness/strength, critical flange/section, continuity and load position.
 - 5.6.1.1(b)(iii) elastic buckling-analysis alternative and calculation of the elastic
   buckling moment under 5.6.2(ii)/5.6.4 still require independently verified analysis inputs.

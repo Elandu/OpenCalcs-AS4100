@@ -2347,10 +2347,49 @@ def clause_5_2_6_hole_moduli():
     expect_close(values["plastic_modulus_mm3"], 123500)
     if values["selected_method"] != "area_ratio":
         raise AssertionError("Clause 5.2.6 did not select the area-ratio method")
+    # Independent channel benchmark: net area 4,400 mm2, Ix 51,946,666.67 mm4,
+    # elastic modulus 346,311.11 mm3, and plastic modulus 428,000 mm3.
+    channel = run_members(
+        {
+            "operation": "section_moduli",
+            "method": "net_section",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 400,
+            "gross_area_mm2": 4800,
+            "gross_web_area_mm2": 2800,
+            "gross_flange_areas_mm2": [1000, 1000],
+            "net_flange_areas_mm2": [800, 800],
+            "gross_elastic_modulus_mm3": 402400,
+            "gross_plastic_modulus_mm3": 486000,
+            "net_channel_geometry": {
+                "overall_depth_mm": 300,
+                "flange_thickness_mm": 10,
+                "web_thickness_mm": 10,
+                "bending_axis": "major",
+                "sharp_corner_channel_horizontal_symmetry_verified": True,
+                "flange_only_holes_verified": True,
+                "net_hole_layout_preserves_major_axis_verified": True,
+                "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
+            },
+        }
+    )
+    channel_values = channel["values"]
+    channel_properties = channel_values["net_section_properties"]
+    expect_close(channel_values["net_area_mm2"], 4400)
+    expect_close(channel_properties["centroid_from_top_mm"], 150)
+    expect_close(channel_properties["second_moment_of_area_mm4"], 51946666.666666664)
+    expect_close(channel_properties["elastic_modulus_top_mm3"], 346311.1111111111)
+    expect_close(channel_properties["elastic_modulus_bottom_mm3"], 346311.1111111111)
+    expect_close(channel_properties["plastic_neutral_axis_from_top_mm"], 150)
+    expect_close(channel_properties["plastic_modulus_mm3"], 428000)
+    if channel_values["selected_method"] != "net_section":
+        raise AssertionError("Clause 5.2.6 did not select channel net-section properties")
     return {
         "net_to_gross_area_ratio": values["net_to_gross_area_ratio"],
         "elastic_modulus_mm3": values["elastic_modulus_mm3"],
         "plastic_modulus_mm3": values["plastic_modulus_mm3"],
+        "net_channel_elastic_modulus_mm3": channel_values["elastic_modulus_mm3"],
+        "net_channel_plastic_modulus_mm3": channel_values["plastic_modulus_mm3"],
     }
 
 

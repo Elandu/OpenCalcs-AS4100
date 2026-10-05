@@ -1129,6 +1129,79 @@ def verify():
         600026.4519467081,
         1e-7,
     )
+    # Hand partition for a 300 x 100 x 10 mm channel: each net flange is
+    # 800 mm2 (80 mm wide), the web is 10 x 280 mm, Ix is 2(80*10^3/12 +
+    # 800*145^2) + 10*280^3/12 = 51,946,666.67 mm4, and Zx is
+    # 2(800*145 + 1400*70) = 428,000 mm3.
+    net_channel_section = run_members(
+        {
+            "operation": "section_moduli",
+            "method": "net_section",
+            "yield_strength_mpa": 300,
+            "ultimate_strength_mpa": 400,
+            "gross_area_mm2": 4800,
+            "gross_web_area_mm2": 2800,
+            "gross_flange_areas_mm2": [1000, 1000],
+            "net_flange_areas_mm2": [800, 800],
+            "gross_elastic_modulus_mm3": 402400,
+            "gross_plastic_modulus_mm3": 486000,
+            "net_channel_geometry": {
+                "overall_depth_mm": 300,
+                "flange_thickness_mm": 10,
+                "web_thickness_mm": 10,
+                "bending_axis": "major",
+                "sharp_corner_channel_horizontal_symmetry_verified": True,
+                "flange_only_holes_verified": True,
+                "net_hole_layout_preserves_major_axis_verified": True,
+                "net_flange_areas_deducted_under_clause_9_1_10_verified": True,
+            },
+        }
+    )
+    channel_properties = net_channel_section["values"]["net_section_properties"]
+    record(
+        "Clause 5.2.6(b) net channel flange deductions",
+        net_channel_section["values"]["net_area_mm2"],
+        4400,
+    )
+    record(
+        "Clause 5.2.6(b) net channel centroid from top",
+        channel_properties["centroid_from_top_mm"],
+        150,
+    )
+    record(
+        "Clause 5.2.6(b) net channel second moment",
+        channel_properties["second_moment_of_area_mm4"],
+        51946666.666666664,
+        1e-6,
+    )
+    record(
+        "Clause 5.2.6(b) net channel plastic neutral axis",
+        channel_properties["plastic_neutral_axis_from_top_mm"],
+        150,
+    )
+    record(
+        "Clause 5.2.6(b) net channel top elastic modulus",
+        channel_properties["elastic_modulus_top_mm3"],
+        346311.1111111111,
+        1e-7,
+    )
+    record(
+        "Clause 5.2.6(b) net channel bottom elastic modulus",
+        channel_properties["elastic_modulus_bottom_mm3"],
+        346311.1111111111,
+        1e-7,
+    )
+    record(
+        "Clause 5.2.6(b) net channel plastic modulus, hand integration",
+        channel_properties["plastic_modulus_mm3"],
+        428000,
+    )
+    record(
+        "Clause 5.2.6(b) selects net channel elastic modulus",
+        net_channel_section["values"]["elastic_modulus_mm3"],
+        346311.1111111111,
+        1e-7,
+    )
 
     compact_interaction = run_members(
         {

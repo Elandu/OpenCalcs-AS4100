@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.39",
+  "package_version": "0.7.40",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -567,6 +567,62 @@
       "name": "Clause 5.2.6(b) selects lower net RHS extreme-fibre modulus",
       "actual": 600026.4519467081,
       "expected": 600026.4519467081,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net channel flange deductions",
+      "actual": 4400,
+      "expected": 4400,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net channel centroid from top",
+      "actual": 150.0,
+      "expected": 150,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net channel second moment",
+      "actual": 51946666.66666667,
+      "expected": 51946666.666666664,
+      "absolute_tolerance": 1e-06,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net channel plastic neutral axis",
+      "actual": 150.0,
+      "expected": 150,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net channel top elastic modulus",
+      "actual": 346311.1111111111,
+      "expected": 346311.1111111111,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net channel bottom elastic modulus",
+      "actual": 346311.1111111111,
+      "expected": 346311.1111111111,
+      "absolute_tolerance": 1e-07,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) net channel plastic modulus, hand integration",
+      "actual": 428000.0,
+      "expected": 428000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.2.6(b) selects net channel elastic modulus",
+      "actual": 346311.1111111111,
+      "expected": 346311.1111111111,
       "absolute_tolerance": 1e-07,
       "passed": true
     },
