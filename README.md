@@ -14,7 +14,7 @@ an engineering assessment supported by evidence.
 | `advanced_members` | Selected full-restraint length limits, critical-section/flange checks, variable/built-up member, buckling-analysis, plastic, restraint, separator/diaphragm, lacing, batten and pin/angle geometry checks. |
 | `connection_design` | Selected bolts, pins, welds, groups, holes and connection detailing. |
 | `durability` | Selected brittle-fracture, fatigue, fire and earthquake checks. |
-| `design_actions` | Stability, serviceability, notional load, selected buckling/amplification calculations and plastic-analysis checks under Clauses 4.5.2–4.5.3 ([details](docs/design-actions.md)). |
+| `design_actions` | Stability, serviceability, notional load, selected buckling/amplification calculations, a global force/moment equilibrium check under Clause 4.5.1, and selected plastic-analysis checks under Clauses 4.5.2–4.5.3 ([details](docs/design-actions.md)). |
 | `webs` | Selected web thickness/opening limits, bearing, bearing/bending and stiffener checks. |
 | `fabrication` | Selected Clause 14.1 acceptance routes, 14.2 material/fabrication checks, 14.3 hole and bolt-assembly checks, and 14.4 tolerance paths. |
 | `erection` | Selected Clause 15.1.1 acceptance routes, 15.1.2 safety, 15.2 erection and bolt tensioning, and 15.3 tolerance checks. |

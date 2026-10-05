@@ -9,6 +9,7 @@ from .validation import NONNEGATIVE, POSITIVE, SIGNED, object_schema, result, va
 _BOOL = {"type": "boolean"}
 _REFERENCE = {"type": "string", "minLength": 1, "maxLength": 160}
 _YIELD_STRESS = {"type": "number", "exclusiveMinimum": 0, "maximum": 690}
+_VECTOR3 = {"type": "array", "minItems": 3, "maxItems": 3, "items": SIGNED}
 
 _PLASTIC_MATERIAL = object_schema(
     {
@@ -60,6 +61,16 @@ _PLASTIC_HINGE = object_schema(
         "rotation_capacity_rad": POSITIVE,
         "rotation_demand_assessment_verified": _BOOL,
         "rotation_capacity_assessment_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_GLOBAL_ACTION = object_schema(
+    {
+        "action_id": _REFERENCE,
+        "action_type": {"enum": ["applied_load", "support_reaction"]},
+        "force_kn": _VECTOR3,
+        "moment_knm": _VECTOR3,
+        "position_mm": _VECTOR3,
         "evidence_reference": _REFERENCE,
     }
 )
@@ -123,6 +134,16 @@ SCHEMAS = {
             "analysis_evidence_reference": _REFERENCE,
             "connections": {"type": "array", "minItems": 1, "items": _PLASTIC_CONNECTION},
             "plastic_hinges": {"type": "array", "minItems": 1, "items": _PLASTIC_HINGE},
+        }
+    ),
+    "plastic_global_equilibrium": object_schema(
+        {
+            "operation": {"const": "plastic_global_equilibrium"},
+            "actions": {"type": "array", "minItems": 1, "items": _GLOBAL_ACTION},
+            "force_tolerance_kn": NONNEGATIVE,
+            "moment_tolerance_knm": NONNEGATIVE,
+            "boundary_conditions_verified": _BOOL,
+            "boundary_conditions_evidence_reference": _REFERENCE,
         }
     ),
     "notional_horizontal_load": object_schema(
@@ -506,6 +527,80 @@ def run_design_actions(inputs):
                 "rotation assessments are supplied evidence and are not authenticated here.",
                 "This does not verify global equilibrium, boundary conditions, the collapse "
                 "mechanism or the underlying plastic analysis results.",
+            ],
+        )
+    if op == "plastic_global_equilibrium":
+        force_resultant = [0.0, 0.0, 0.0]
+        moment_resultant = [0.0, 0.0, 0.0]
+        action_counts = {"applied_load": 0, "support_reaction": 0}
+        for action in d["actions"]:
+            action_counts[action["action_type"]] += 1
+            force = action["force_kn"]
+            position = [coordinate / 1000 for coordinate in action["position_mm"]]
+            couple = action["moment_knm"]
+            lever_moment = [
+                position[1] * force[2] - position[2] * force[1],
+                position[2] * force[0] - position[0] * force[2],
+                position[0] * force[1] - position[1] * force[0],
+            ]
+            for axis in range(3):
+                force_resultant[axis] += force[axis]
+                moment_resultant[axis] += couple[axis] + lever_moment[axis]
+
+        force_satisfied = all(
+            abs(component) <= d["force_tolerance_kn"] for component in force_resultant
+        )
+        moment_satisfied = all(
+            abs(component) <= d["moment_tolerance_knm"] for component in moment_resultant
+        )
+        action_types_satisfied = all(count > 0 for count in action_counts.values())
+        checks = [
+            {
+                "clause": "4.5.1",
+                "condition": "global force equilibrium",
+                "resultant_force_kn": force_resultant,
+                "maximum_component_residual_kn": max(abs(value) for value in force_resultant),
+                "tolerance_kn": d["force_tolerance_kn"],
+                "satisfied": force_satisfied,
+            },
+            {
+                "clause": "4.5.1",
+                "condition": "global moment equilibrium about the supplied origin",
+                "resultant_moment_knm": moment_resultant,
+                "maximum_component_residual_knm": max(abs(value) for value in moment_resultant),
+                "tolerance_knm": d["moment_tolerance_knm"],
+                "satisfied": moment_satisfied,
+            },
+            {
+                "clause": "4.5.1",
+                "condition": "boundary conditions are verified",
+                "satisfied": d["boundary_conditions_verified"],
+                "evidence_reference": d["boundary_conditions_evidence_reference"],
+            },
+            {
+                "clause": "4.5.1",
+                "condition": "applied loads and support reactions are both supplied",
+                "action_counts": action_counts,
+                "satisfied": action_types_satisfied,
+            },
+        ]
+        return result(
+            op,
+            ["4.5.1"],
+            {
+                "force_resultant_kn": force_resultant,
+                "moment_resultant_knm": moment_resultant,
+                "action_counts": action_counts,
+                "global_equilibrium_satisfied": (
+                    force_satisfied and moment_satisfied and action_types_satisfied
+                ),
+            },
+            checks,
+            limitations=[
+                "The global resultants are calculated from supplied action effects; include all "
+                "applied loads and support reactions with consistent signs and coordinates.",
+                "This does not check member/joint equilibrium, the plastic action distribution, or "
+                "the underlying structural analysis. Boundary conditions remain supplied evidence.",
             ],
         )
     if op == "notional_horizontal_load":

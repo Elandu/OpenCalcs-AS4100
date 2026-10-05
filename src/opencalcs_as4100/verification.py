@@ -879,6 +879,48 @@ def verify():
         986.9604401089358,
         1e-8,
     )
+    plastic_equilibrium = run_design_actions(
+        {
+            "operation": "plastic_global_equilibrium",
+            "actions": [
+                {
+                    "action_id": "LOAD-01",
+                    "action_type": "applied_load",
+                    "force_kn": [1, 2, 3],
+                    "moment_knm": [0, 0, 0],
+                    "position_mm": [2000, -1000, 500],
+                    "evidence_reference": "VERIFY-LOAD-01",
+                },
+                {
+                    "action_id": "SUPPORT-01",
+                    "action_type": "support_reaction",
+                    "force_kn": [-1, -2, -3],
+                    "moment_knm": [4, 5.5, -5],
+                    "position_mm": [0, 0, 0],
+                    "evidence_reference": "VERIFY-REACTION-01",
+                },
+            ],
+            "force_tolerance_kn": 0,
+            "moment_tolerance_knm": 0,
+            "boundary_conditions_verified": True,
+            "boundary_conditions_evidence_reference": "VERIFY-SUPPORTS-01",
+        }
+    )
+    record(
+        "Clause 4.5.1 global force equilibrium, three axes",
+        max(abs(component) for component in plastic_equilibrium["values"]["force_resultant_kn"]),
+        0,
+    )
+    record(
+        "Clause 4.5.1 global moment equilibrium with position cross force",
+        max(abs(component) for component in plastic_equilibrium["values"]["moment_resultant_knm"]),
+        0,
+    )
+    record(
+        "Clause 4.5.1 boundary-condition evidence gate",
+        int(plastic_equilibrium["checks"][2]["satisfied"]),
+        1,
+    )
     plastic_limits = run_design_actions(
         {
             "operation": "plastic_analysis_limits",

@@ -59,6 +59,47 @@ def fatigue_welded_coped_splice():
     return {"detail_category_mpa": result["detail_category_mpa"]}
 
 
+def clause_4_5_1_global_equilibrium():
+    result = run_design_actions(
+        {
+            "operation": "plastic_global_equilibrium",
+            "actions": [
+                {
+                    "action_id": "LOAD-01",
+                    "action_type": "applied_load",
+                    "force_kn": [1, 2, 3],
+                    "moment_knm": [0, 0, 0],
+                    "position_mm": [2000, -1000, 500],
+                    "evidence_reference": "BENCHMARK-LOAD-01",
+                },
+                {
+                    "action_id": "SUPPORT-01",
+                    "action_type": "support_reaction",
+                    "force_kn": [-1, -2, -3],
+                    "moment_knm": [4, 5.5, -5],
+                    "position_mm": [0, 0, 0],
+                    "evidence_reference": "BENCHMARK-REACTION-01",
+                },
+            ],
+            "force_tolerance_kn": 0,
+            "moment_tolerance_knm": 0,
+            "boundary_conditions_verified": True,
+            "boundary_conditions_evidence_reference": "BENCHMARK-SUPPORTS-01",
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.5.1 global equilibrium benchmark failed")
+    if result["values"]["force_resultant_kn"] != [0.0, 0.0, 0.0]:
+        raise AssertionError("Clause 4.5.1 three-axis force resultants should balance")
+    if result["values"]["moment_resultant_knm"] != [0.0, 0.0, 0.0]:
+        raise AssertionError("Clause 4.5.1 moment and position cross force should balance")
+    return {
+        "force_resultant_kn": result["values"]["force_resultant_kn"],
+        "moment_resultant_knm": result["values"]["moment_resultant_knm"],
+        "boundary_conditions_satisfied": result["checks"][2]["satisfied"],
+    }
+
+
 def clause_4_5_2_plastic_analysis_limits():
     result = run_design_actions(
         {
@@ -1902,6 +1943,7 @@ def main():
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
+        "clause_4_5_1_global_equilibrium": clause_4_5_1_global_equilibrium,
         "clause_4_5_2_plastic_analysis_limits": clause_4_5_2_plastic_analysis_limits,
         "clause_4_5_3_plastic_connections": clause_4_5_3_plastic_connections,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,

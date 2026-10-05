@@ -299,6 +299,85 @@ def test_plastic_analysis_connection_and_hinge_failures(
     assert any(check["clause"] == clause and not check["satisfied"] for check in r["checks"])
 
 
+def plastic_global_equilibrium(**overrides):
+    actions = [
+        {
+            "action_id": "LOAD-1",
+            "action_type": "applied_load",
+            "force_kn": [0, -100, 0],
+            "moment_knm": [0, 0, 0],
+            "position_mm": [2000, 0, 0],
+            "evidence_reference": "LOADS-01",
+        },
+        {
+            "action_id": "REACTION-1",
+            "action_type": "support_reaction",
+            "force_kn": [0, 50, 0],
+            "moment_knm": [0, 0, 0],
+            "position_mm": [0, 0, 0],
+            "evidence_reference": "REACTIONS-01",
+        },
+        {
+            "action_id": "REACTION-2",
+            "action_type": "support_reaction",
+            "force_kn": [0, 50, 0],
+            "moment_knm": [0, 0, 0],
+            "position_mm": [4000, 0, 0],
+            "evidence_reference": "REACTIONS-02",
+        },
+    ]
+    inputs = {
+        "operation": "plastic_global_equilibrium",
+        "actions": actions,
+        "force_tolerance_kn": 0,
+        "moment_tolerance_knm": 0,
+        "boundary_conditions_verified": True,
+        "boundary_conditions_evidence_reference": "SUPPORTS-01",
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_plastic_global_equilibrium_force_and_moment_hand_benchmark():
+    r = run(plastic_global_equilibrium())
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["force_resultant_kn"] == [0, 0, 0]
+    assert r["values"]["moment_resultant_knm"] == [0, 0, 0]
+    assert r["values"]["action_counts"] == {"applied_load": 1, "support_reaction": 2}
+    assert r["full_standard_compliance"] is False
+
+
+def test_plastic_global_equilibrium_tolerance_is_inclusive():
+    inputs = plastic_global_equilibrium(force_tolerance_kn=1, moment_tolerance_knm=4)
+    inputs["actions"][2]["force_kn"] = [0, 49, 0]
+    r = run(inputs)
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["force_resultant_kn"] == [0, -1, 0]
+    assert r["values"]["moment_resultant_knm"] == [0, 0, -4]
+
+
+def test_plastic_global_equilibrium_checks_moments_and_boundary_evidence():
+    inputs = plastic_global_equilibrium(moment_tolerance_knm=0.499)
+    inputs["actions"][2]["position_mm"] = [3990, 0, 0]
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert r["checks"][0]["satisfied"]
+    assert not r["checks"][1]["satisfied"]
+
+    inputs = plastic_global_equilibrium(boundary_conditions_verified=False)
+    r = run(inputs)
+    assert r["values"]["global_equilibrium_satisfied"]
+    assert not r["checked_conditions_satisfied"]
+    assert not r["checks"][2]["satisfied"]
+
+    inputs = plastic_global_equilibrium()
+    inputs["actions"] = [{**inputs["actions"][0], "force_kn": [0, 0, 0]}]
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert r["values"]["global_equilibrium_satisfied"] is False
+    assert not r["checks"][3]["satisfied"]
+
+
 def test_notional_and_stability_checks():
     assert (
         run({"operation": "notional_horizontal_load", "floor_vertical_design_load_kn": 1000})[
