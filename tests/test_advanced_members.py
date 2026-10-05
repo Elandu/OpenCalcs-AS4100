@@ -1460,6 +1460,97 @@ def test_tension_connection_actions_are_shared_equally_between_parallel_planes()
         )
 
 
+def tension_built_up_member_actions(**changes):
+    data = {
+        "operation": "tension_built_up_member_actions",
+        "connection_type": "batten",
+        "bending_axis": "major_x",
+        "parallel_connection_planes": 3,
+        "connection_plane_count_verified": True,
+        "member_action_analysis_verified": True,
+        "all_connection_bays_assessed_verified": True,
+        "member_action_analysis_reference": "verified member analysis case 17",
+        "batten_connection_centroid_distance_mm": 200,
+        "bays": [
+            {
+                "start_station_mm": 0,
+                "end_station_mm": 600,
+                "start_design_moment_knm": 0,
+                "end_design_moment_knm": 6,
+                "linear_moment_distribution_verified": True,
+            },
+            {
+                "start_station_mm": 600,
+                "end_station_mm": 1800,
+                "start_design_moment_knm": 6,
+                "end_design_moment_knm": 18,
+                "linear_moment_distribution_verified": True,
+            },
+        ],
+    }
+    data.update(changes)
+    return data
+
+
+def test_tension_built_up_batten_actions_from_member_moment_gradient():
+    out = run_advanced_members(tension_built_up_member_actions())
+    assert out["clauses"] == ["7.4.2"]
+    first, second = out["values"]["action_intervals"]
+    assert first["signed_member_transverse_shear_kn"] == pytest.approx(10)
+    assert first["design_transverse_shear_per_plane_kn"] == pytest.approx(10 / 3)
+    assert first["design_batten_longitudinal_shear_per_plane_kn"] == pytest.approx(10)
+    assert first["design_batten_moment_per_plane_knm"] == pytest.approx(1)
+    assert second["local_design_transverse_shear_kn"] == pytest.approx(10)
+    assert second["design_batten_longitudinal_shear_per_plane_kn"] == pytest.approx(20)
+    assert second["design_batten_moment_per_plane_knm"] == pytest.approx(2)
+    assert "does not invoke the Clause 6.4.3.7" in " ".join(out["limitations"])
+    assert out["checked_conditions_satisfied"]
+
+
+def test_tension_built_up_lacing_actions_and_angle_boundary():
+    data = tension_built_up_member_actions(
+        connection_type="lacing",
+        bending_axis="minor_y",
+        parallel_connection_planes=2,
+        lacing_arrangement="double",
+        lacing_connection_spacing_mm=600,
+        bays=[
+            {
+                "start_station_mm": 0,
+                "end_station_mm": 600,
+                "start_design_moment_knm": 12,
+                "end_design_moment_knm": 0,
+                "linear_moment_distribution_verified": True,
+            }
+        ],
+    )
+    del data["batten_connection_centroid_distance_mm"]
+    out = run_advanced_members(data)
+    action = out["values"]["action_intervals"][0]
+    assert out["clauses"] == ["7.4.2", "7.4.4", "6.4.2.3"]
+    assert action["signed_member_transverse_shear_kn"] == pytest.approx(-20)
+    assert action["lacing_angle_degrees"] == pytest.approx(45)
+    assert action["design_lacing_bar_force_per_plane_kn"] == pytest.approx(20 / (2**0.5))
+    assert out["checked_conditions_satisfied"]
+
+    data["lacing_connection_spacing_mm"] = 300
+    out = run_advanced_members(data)
+    assert not out["checks"][-1]["satisfied"]
+    assert not out["checked_conditions_satisfied"]
+
+
+def test_tension_built_up_action_analysis_requires_complete_verified_linear_bays():
+    data = tension_built_up_member_actions()
+    data["bays"][0]["linear_moment_distribution_verified"] = False
+    with pytest.raises(ValueError, match="linear_moment_distribution_verified"):
+        run_advanced_members(data)
+
+    data = tension_built_up_member_actions()
+    data["bays"][1]["start_station_mm"] = 601
+    with pytest.raises(ValueError, match="ordered and contiguous"):
+        run_advanced_members(data)
+
+
 def test_tension_back_to_back_connection_layout_routes():
     separated = {
         "operation": "tension_built_up_connection_layout",

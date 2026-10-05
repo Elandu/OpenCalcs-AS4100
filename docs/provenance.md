@@ -31,14 +31,18 @@ not authenticate certificates or material/installation evidence; the other
 Clause 2.3 fastener, weld, stud and anchor provisions and Clause 2.4 castings
 remain assessed.
 
-Version 0.7.18 exposes twelve installed calculation families. The code implements
+Version 0.7.19 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing
 work. The family notes give operation-level boundaries. `design_review` can
 assemble results and an evidence register, but does not authenticate evidence,
 decide every provision's applicability or certify a design. Its
-`full_standard_compliance` result remains false.
+`full_standard_compliance` result remains false. The selected Clause 7.4.2
+operation now derives the transverse shear and per-plane tension-lacing or
+tension-batten actions from verified piecewise-linear member moment diagrams.
+It does not check connector capacities or cover nonlinear, biaxial, or direct
+inter-component load cases.
 
 The original axial section equations were also compared with
 [steel-as](https://github.com/Folded-Structures-Lab/steel-as),

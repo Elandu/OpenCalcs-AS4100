@@ -1,6 +1,6 @@
 # OpenCalcs AS 4100
 
-OpenCalcs plugin version 0.7.18 provides twelve bounded calculation families for
+OpenCalcs plugin version 0.7.19 provides twelve bounded calculation families for
 AS 4100:2020 steel design. It evaluates selected equations and declared
 conditions; it does not establish full standard or project compliance. Every
 applicable member, connection, action, detail and construction requirement needs
@@ -11,7 +11,7 @@ an engineering assessment supported by evidence.
 | `materials` | Table 2.1 strength lookups; Clauses 2.2.3 and 2.2.4, Clause 2.2.5 Z-quality comparison, and Appendix M.2 Table M.2 `ZEd` calculation linked to the Clause 2.2.5 class check. |
 | `section_analysis` | Axial tension and compression section capacities (7.2, 6.2.1). |
 | `member_design` | Clause 5.1 elastic major/minor-axis and plastic-method design comparisons; Clause 5.2.1–5.2.5 flat-plate section moment capacity with automatic controlling-element selection; 5.2.6 net/gross section modulus selection for fastener holes, compression, selected bending, flat-web and CHS shear, selected flange-restraint enhancement and Clause 5.12.2 proportioning, combined actions and tension distribution. |
-| `advanced_members` | Selected cross-section restraint classification and full-restraint length limits, critical-section/flange checks, variable/built-up member, buckling-analysis, plastic, restraint, separator/diaphragm, lacing, batten and pin/angle geometry checks. |
+| `advanced_members` | Selected cross-section restraint classification and full-restraint length limits, critical-section/flange checks, variable/built-up member, buckling-analysis, plastic, restraint, separator/diaphragm, lacing, batten and pin/angle geometry checks; derives selected Clause 7.4.2 lacing/batten actions from verified member moment diagrams. |
 | `connection_design` | Selected bolts, pins, welds, groups, holes and connection detailing. |
 | `durability` | Selected brittle-fracture, fatigue, fire and earthquake checks. |
 | `design_actions` | Stability, serviceability, notional load, selected buckling/amplification calculations, global/joint equilibrium and support-boundary comparisons under Clause 4.5.1, prescriptive Clause 4.5.2 limits and an alternative-ductility evidence assessment, plus selected Clause 4.5.3 checks ([details](docs/design-actions.md)). |

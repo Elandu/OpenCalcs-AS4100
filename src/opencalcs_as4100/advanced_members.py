@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Further member provisions with explicit external analysis prerequisites."""
 
-from math import cos, isclose, isfinite, pi, radians, sqrt
+from math import atan2, cos, degrees, isclose, isfinite, pi, radians, sin, sqrt
 
 from .standards import ELASTIC_MODULUS_MPA, SHEAR_MODULUS_MPA
 from .validation import (
@@ -747,6 +747,48 @@ SCHEMAS = {
             "total_design_moment_knm": S,
         },
         optional=("total_design_moment_knm",),
+    ),
+    "tension_built_up_member_actions": _schema(
+        "tension_built_up_member_actions",
+        {
+            "connection_type": {"enum": ["lacing", "batten"]},
+            "bending_axis": {"enum": ["major_x", "minor_y"]},
+            "parallel_connection_planes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+            },
+            "connection_plane_count_verified": VERIFIED,
+            "member_action_analysis_verified": VERIFIED,
+            "all_connection_bays_assessed_verified": VERIFIED,
+            "member_action_analysis_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+            },
+            "lacing_arrangement": {"enum": ["single", "double"]},
+            "lacing_connection_spacing_mm": P,
+            "batten_connection_centroid_distance_mm": P,
+            "bays": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "start_station_mm": N,
+                        "end_station_mm": N,
+                        "start_design_moment_knm": S,
+                        "end_design_moment_knm": S,
+                        "linear_moment_distribution_verified": VERIFIED,
+                    }
+                ),
+            },
+        },
+        optional=(
+            "lacing_arrangement",
+            "lacing_connection_spacing_mm",
+            "batten_connection_centroid_distance_mm",
+        ),
     ),
     "tension_built_up_connection_layout": _schema(
         "tension_built_up_connection_layout",
@@ -2040,6 +2082,149 @@ def run_advanced_members(inputs):
                 "Opposed lacing and transverse members require 6.4.2.6 torsional-effect"
                 " assessment.",
             ],
+        )
+    if op == "tension_built_up_member_actions":
+        connection_type = d["connection_type"]
+        planes = d["parallel_connection_planes"]
+        if connection_type == "lacing":
+            if "batten_connection_centroid_distance_mm" in d:
+                raise ValueError("Batten connection geometry is not used for lacing actions.")
+            if "lacing_arrangement" not in d or "lacing_connection_spacing_mm" not in d:
+                raise ValueError("Lacing actions require the arrangement and connection spacing.")
+            transverse_spacing = d["lacing_connection_spacing_mm"]
+            lacing_arrangement = d["lacing_arrangement"]
+        else:
+            if "lacing_connection_spacing_mm" in d or "lacing_arrangement" in d:
+                raise ValueError("Lacing geometry is not used for batten actions.")
+            if "batten_connection_centroid_distance_mm" not in d:
+                raise ValueError("Batten actions require the connection-group centroid distance.")
+            batten_connection_distance = d["batten_connection_centroid_distance_mm"]
+
+        actions = []
+        checks = []
+        previous_end = None
+        for index, bay in enumerate(d["bays"], start=1):
+            start = bay["start_station_mm"]
+            end = bay["end_station_mm"]
+            if end <= start:
+                raise ValueError(f"Connection bay {index} must have positive length.")
+            if previous_end is not None and not isclose(
+                start, previous_end, rel_tol=1e-9, abs_tol=1e-6
+            ):
+                raise ValueError("Connection bays must be ordered and contiguous.")
+            previous_end = end
+
+            length = end - start
+            signed_shear = (
+                (bay["end_design_moment_knm"] - bay["start_design_moment_knm"]) * 1000 / length
+            )
+            shear = abs(signed_shear)
+            action = {
+                "bay_index": index,
+                "start_station_mm": start,
+                "end_station_mm": end,
+                "bay_length_mm": length,
+                "start_design_moment_knm": bay["start_design_moment_knm"],
+                "end_design_moment_knm": bay["end_design_moment_knm"],
+                "signed_member_transverse_shear_kn": signed_shear,
+                "local_design_transverse_shear_kn": shear,
+                "design_transverse_shear_per_plane_kn": shear / planes,
+            }
+            checks.extend(
+                [
+                    {
+                        "clause": "7.4.2",
+                        "action": "member transverse shear from the moment gradient",
+                        "bay_index": index,
+                        "local_design_transverse_shear_kn": shear,
+                        "satisfied": True,
+                    },
+                    {
+                        "clause": "7.4.2",
+                        "action": "equal distribution among parallel connection planes",
+                        "bay_index": index,
+                        "parallel_connection_planes": planes,
+                        "design_transverse_shear_per_plane_kn": shear / planes,
+                        "satisfied": True,
+                    },
+                ]
+            )
+
+            if connection_type == "batten":
+                batten_shear = shear * length / (planes * batten_connection_distance)
+                batten_moment = shear * length / (2 * planes * 1000)
+                action.update(
+                    {
+                        "design_batten_longitudinal_shear_per_plane_kn": batten_shear,
+                        "design_batten_moment_per_plane_knm": batten_moment,
+                    }
+                )
+            else:
+                angle = degrees(atan2(transverse_spacing, length))
+                lower, upper = (50.0, 70.0) if lacing_arrangement == "single" else (40.0, 50.0)
+                bar_force = shear / (planes * sin(radians(angle)))
+                action.update(
+                    {
+                        "lacing_angle_degrees": angle,
+                        "design_lacing_bar_force_per_plane_kn": bar_force,
+                    }
+                )
+                checks.append(
+                    {
+                        "clause": "6.4.2.3",
+                        "bay_index": index,
+                        "lacing_arrangement": lacing_arrangement,
+                        "angle_degrees": angle,
+                        "minimum_angle_degrees": lower,
+                        "maximum_angle_degrees": upper,
+                        "satisfied": lower <= angle <= upper,
+                    }
+                )
+            actions.append(action)
+
+        clauses = ["7.4.2"]
+        manual = [
+            "This calculates actions for the supplied verified member-action diagram and "
+            "connection geometry; it does not calculate lacing, batten or Clause 9 connection "
+            "capacities.",
+            "The moment diagram must be linear within every connection bay so its gradient "
+            "gives the constant transverse shear there. Resolve load points into bay boundaries "
+            "and assess any non-linear or interior shear peak separately.",
+            "Repeat for each load combination and orthogonal bending direction. Combined-axis "
+            "interactions, direct loads applied between components and end-connection force "
+            "transfer remain separate checks.",
+            "Connection-plane count, direction and equal participation must match the actual "
+            "verified detail.",
+        ]
+        if connection_type == "lacing":
+            clauses = ["7.4.2", "7.4.4", "6.4.2.3"]
+            manual.append(
+                "The reported axial demand assumes one active diagonal per plane carries the "
+                "plane shear for each loading direction; check the opposing diagonals, their "
+                "member capacities and their connections for reversed actions."
+            )
+        else:
+            manual.extend(
+                [
+                    "Batten actions come from equilibrium using the actual member shear and "
+                    "bay spacing; this does not invoke the Clause 6.4.3.7 compression-member "
+                    "minimum for a tension member.",
+                    "The batten moment and connection shear are reported per parallel plane. "
+                    "Check their simultaneous capacity and the attached component connections.",
+                ]
+            )
+        return result(
+            op,
+            clauses,
+            {
+                "connection_type": connection_type,
+                "bending_axis": d["bending_axis"],
+                "parallel_connection_planes": planes,
+                "member_action_analysis_reference": d["member_action_analysis_reference"],
+                "action_intervals": actions,
+            },
+            checks,
+            manual,
         )
     if op == "tension_connection_plane_distribution":
         if d["connection_type"] == "lacing" and "total_design_moment_knm" in d:

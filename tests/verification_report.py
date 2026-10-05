@@ -2,7 +2,7 @@
 
 import json
 import sys
-from math import isclose, pi, sqrt
+from math import isclose, pi, sin, sqrt
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -2905,6 +2905,81 @@ def clause_7_4_2_connection_plane_distribution():
     }
 
 
+def clause_7_4_2_member_actions_from_member_analysis():
+    batten = run_advanced_members(
+        {
+            "operation": "tension_built_up_member_actions",
+            "connection_type": "batten",
+            "bending_axis": "major_x",
+            "parallel_connection_planes": 2,
+            "connection_plane_count_verified": True,
+            "member_action_analysis_verified": True,
+            "all_connection_bays_assessed_verified": True,
+            "member_action_analysis_reference": "independent two-component beam example",
+            "batten_connection_centroid_distance_mm": 300,
+            "bays": [
+                {
+                    "start_station_mm": 0,
+                    "end_station_mm": 1200,
+                    "start_design_moment_knm": 2,
+                    "end_design_moment_knm": 14,
+                    "linear_moment_distribution_verified": True,
+                }
+            ],
+        }
+    )
+    batten_action = batten["values"]["action_intervals"][0]
+    expect_close(batten_action["local_design_transverse_shear_kn"], 10)
+    expect_close(batten_action["design_transverse_shear_per_plane_kn"], 5)
+    expect_close(batten_action["design_batten_longitudinal_shear_per_plane_kn"], 20)
+    expect_close(batten_action["design_batten_moment_per_plane_knm"], 3)
+    if batten["clauses"] != ["7.4.2"] or not batten["checked_conditions_satisfied"]:
+        raise AssertionError("Batten actions from the verified moment gradient failed")
+
+    lacing = run_advanced_members(
+        {
+            "operation": "tension_built_up_member_actions",
+            "connection_type": "lacing",
+            "bending_axis": "minor_y",
+            "parallel_connection_planes": 2,
+            "connection_plane_count_verified": True,
+            "member_action_analysis_verified": True,
+            "all_connection_bays_assessed_verified": True,
+            "member_action_analysis_reference": "independent two-plane lacing example",
+            "lacing_arrangement": "double",
+            "lacing_connection_spacing_mm": 1200,
+            "bays": [
+                {
+                    "start_station_mm": 0,
+                    "end_station_mm": 1200,
+                    "start_design_moment_knm": 0,
+                    "end_design_moment_knm": 15,
+                    "linear_moment_distribution_verified": True,
+                }
+            ],
+        }
+    )
+    lacing_action = lacing["values"]["action_intervals"][0]
+    expect_close(lacing_action["local_design_transverse_shear_kn"], 12.5)
+    expect_close(lacing_action["lacing_angle_degrees"], 45)
+    expect_close(lacing_action["design_lacing_bar_force_per_plane_kn"], 12.5 / sqrt(2))
+    expect_close(
+        lacing_action["design_lacing_bar_force_per_plane_kn"]
+        * sin(pi / 4)
+        * lacing["values"]["parallel_connection_planes"],
+        lacing_action["local_design_transverse_shear_kn"],
+    )
+    if lacing["clauses"] != ["7.4.2", "7.4.4", "6.4.2.3"]:
+        raise AssertionError("Lacing action clause route was mislabeled")
+    if not lacing["checked_conditions_satisfied"]:
+        raise AssertionError("Lacing actions from the verified moment gradient failed")
+    return {
+        "batten_shear_per_plane_kn": batten_action["design_batten_longitudinal_shear_per_plane_kn"],
+        "batten_moment_per_plane_knm": batten_action["design_batten_moment_per_plane_knm"],
+        "lacing_bar_force_per_plane_kn": lacing_action["design_lacing_bar_force_per_plane_kn"],
+    }
+
+
 def clause_7_4_3_back_to_back_connection_layout():
     result = run_advanced_members(
         {
@@ -3431,6 +3506,9 @@ def main():
         "clause_7_4_4_tension_lacing_tie_thickness": clause_7_4_4_tension_lacing_tie_thickness,
         "clause_7_4_5_tension_batten_geometry": clause_7_4_5_tension_batten_geometry,
         "clause_7_4_2_connection_plane_distribution": clause_7_4_2_connection_plane_distribution,
+        "clause_7_4_2_member_actions_from_member_analysis": (
+            clause_7_4_2_member_actions_from_member_analysis
+        ),
         "clause_7_4_3_back_to_back_connection_layout": clause_7_4_3_back_to_back_connection_layout,
         "clause_9_1_9e_block_shear_path_set": clause_9_1_9e_block_shear_path_set,
         "clause_9_1_10_coordinate_hole_deduction": clause_9_1_10_coordinate_hole_deduction,
