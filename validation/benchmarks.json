@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.32",
+  "package_version": "0.7.33",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -764,6 +764,41 @@
       "actual": 2800.0,
       "expected": 2800,
       "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.4 minimum section nominal capacity (kN)",
+      "actual": 810,
+      "expected": 810,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.4 major-axis modified slenderness",
+      "actual": 100.0,
+      "expected": 100,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3(C) major-axis reduction, table to 0.001",
+      "actual": 0.5408956234175578,
+      "expected": 0.541,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.4 minor-axis modified slenderness",
+      "actual": 120.0,
+      "expected": 120,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3(C) minor-axis reduction, table to 0.001",
+      "actual": 0.4206829731903497,
+      "expected": 0.421,
+      "absolute_tolerance": 0.00051,
       "passed": true
     },
     {

@@ -949,7 +949,56 @@ SCHEMAS = {
             "section_constant": {"enum": [-1, -0.5, 0, 0.5, 1]},
             "action_kn": N,
             "flexural_mode_verified": VERIFIED,
+            "section_capacity_schedule": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "section_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                        "nominal_section_capacity_kn": P,
+                        "capacity_evidence_reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300,
+                        },
+                    }
+                ),
+            },
+            "section_capacity_schedule_complete_verified": VERIFIED,
+            "section_capacity_schedule_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+            },
+            "flexural_buckling_modes": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": object_schema(
+                    {
+                        "axis": {"enum": ["major", "minor"]},
+                        "elastic_buckling_load_kn": P,
+                        "section_constant": {"enum": [-1, -0.5, 0, 0.5, 1]},
+                        "analysis_reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 300,
+                        },
+                        "analysis_verified": VERIFIED,
+                    }
+                ),
+            },
         },
+        optional=(
+            "minimum_section_capacity_kn",
+            "elastic_buckling_load_kn",
+            "section_constant",
+            "section_capacity_schedule",
+            "section_capacity_schedule_complete_verified",
+            "section_capacity_schedule_reference",
+            "flexural_buckling_modes",
+        ),
     ),
     "torsional_flexural_compression": _schema(
         "torsional_flexural_compression",
@@ -1892,6 +1941,26 @@ def _multi_cell_torsion_data(data):
     return cell_ids, areas, matrix, wall_results, perimeter_wall_count, shared_wall_count
 
 
+def _varying_compression_axis(section_capacity, elastic_buckling_load, section_constant):
+    modified_slenderness = 90 * sqrt(section_capacity / elastic_buckling_load)
+    alpha_a = (
+        2100
+        * (modified_slenderness - 13.5)
+        / (modified_slenderness**2 - 15.3 * modified_slenderness + 2050)
+    )
+    slenderness = max(0, modified_slenderness + alpha_a * section_constant)
+    q = (slenderness / 90) ** 2
+    eta = max(0, 0.00326 * (slenderness - 13.5))
+    a = 1 + q + eta
+    reduction = min(1, 2 / (a + sqrt(max(0, a * a - 4 * q))))
+    return {
+        "modified_slenderness": modified_slenderness,
+        "buckling_slenderness": slenderness,
+        "reduction": reduction,
+        "nominal_member_capacity_kn": reduction * section_capacity,
+    }
+
+
 def run_advanced_members(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
@@ -2453,23 +2522,150 @@ def run_advanced_members(inputs):
             ],
         )
     if op == "varying_compression":
+        schedule_fields = {
+            "section_capacity_schedule",
+            "section_capacity_schedule_complete_verified",
+            "section_capacity_schedule_reference",
+            "flexural_buckling_modes",
+        }
+        supplied_schedule_fields = schedule_fields.intersection(d)
+        if supplied_schedule_fields:
+            if supplied_schedule_fields != schedule_fields:
+                raise ValueError(
+                    "The complete section-capacity schedule and both flexural buckling modes "
+                    "must be supplied together."
+                )
+            if any(
+                field in d
+                for field in (
+                    "minimum_section_capacity_kn",
+                    "elastic_buckling_load_kn",
+                    "section_constant",
+                )
+            ):
+                raise ValueError(
+                    "Use either the assessed scalar inputs or the section schedule with both "
+                    "buckling modes, not both."
+                )
+            if not d["section_capacity_schedule_complete_verified"]:
+                raise ValueError("The complete section-capacity schedule must be verified.")
+            if not d["flexural_mode_verified"]:
+                raise ValueError("Applicability of the flexural buckling route must be verified.")
+            schedule_reference = d["section_capacity_schedule_reference"].strip()
+            if not schedule_reference:
+                raise ValueError("Section-capacity schedule reference must not be blank.")
+            schedule = [
+                {
+                    "section_id": section["section_id"].strip(),
+                    "nominal_section_capacity_kn": section["nominal_section_capacity_kn"],
+                    "capacity_evidence_reference": section["capacity_evidence_reference"].strip(),
+                }
+                for section in d["section_capacity_schedule"]
+            ]
+            section_ids = [section["section_id"] for section in schedule]
+            if any(not section_id for section_id in section_ids):
+                raise ValueError("Section identifiers must not be blank.")
+            if len(set(section_ids)) != len(section_ids):
+                raise ValueError("Section identifiers in the capacity schedule must be unique.")
+            if any(not section["capacity_evidence_reference"] for section in schedule):
+                raise ValueError("Every section capacity needs a non-blank evidence reference.")
+
+            governing_section = min(
+                schedule, key=lambda section: section["nominal_section_capacity_kn"]
+            )
+            minimum_section_ids = [
+                section["section_id"]
+                for section in schedule
+                if section["nominal_section_capacity_kn"]
+                == governing_section["nominal_section_capacity_kn"]
+            ]
+            modes = d["flexural_buckling_modes"]
+            axes = [mode["axis"] for mode in modes]
+            if len(set(axes)) != 2 or set(axes) != {"major", "minor"}:
+                raise ValueError(
+                    "Supply exactly one verified flexural buckling result for each axis."
+                )
+            if any(not mode["analysis_reference"].strip() for mode in modes):
+                raise ValueError("Each flexural buckling analysis reference must not be blank.")
+            if any(not mode["analysis_verified"] for mode in modes):
+                raise ValueError("Both flexural buckling analyses must be verified.")
+
+            ns = governing_section["nominal_section_capacity_kn"]
+            axis_results = []
+            for axis in ("major", "minor"):
+                mode = next(item for item in modes if item["axis"] == axis)
+                axis_results.append(
+                    {
+                        "axis": axis,
+                        "elastic_buckling_load_kn": mode["elastic_buckling_load_kn"],
+                        "section_constant": mode["section_constant"],
+                        "analysis_reference": mode["analysis_reference"].strip(),
+                        "analysis_verified": mode["analysis_verified"],
+                        **_varying_compression_axis(
+                            ns,
+                            mode["elastic_buckling_load_kn"],
+                            mode["section_constant"],
+                        ),
+                    }
+                )
+            governing_mode = min(axis_results, key=lambda mode: mode["nominal_member_capacity_kn"])
+            clauses = ["6.3.3", "6.3.4"]
+            checks = [
+                capacity_check(
+                    f"6.3.4 {mode['axis']}-axis flexural buckling",
+                    mode["nominal_member_capacity_kn"],
+                    d["action_kn"],
+                )
+                for mode in axis_results
+            ]
+            values = {
+                "minimum_section_capacity_kn": ns,
+                "minimum_section_id": governing_section["section_id"],
+                "minimum_section_ids": minimum_section_ids,
+                "minimum_section_capacity_evidence_reference": governing_section[
+                    "capacity_evidence_reference"
+                ].strip(),
+                "section_capacity_schedule": schedule,
+                "section_capacity_schedule_reference": schedule_reference,
+                "section_capacity_count": len(schedule),
+                "flexural_mode_verified": d["flexural_mode_verified"],
+                "flexural_buckling_modes": axis_results,
+                "governing_buckling_axis": governing_mode["axis"],
+                "modified_slenderness": governing_mode["modified_slenderness"],
+                "reduction": governing_mode["reduction"],
+                "member_capacity_kn": governing_mode["nominal_member_capacity_kn"],
+            }
+            limitations = [
+                "The supplied section-capacity schedule and its completeness declaration must "
+                "cover the minimum nominal section capacity along the entire member.",
+                "Both rational elastic flexural buckling loads are supplied and referenced; "
+                "the analyses and their boundary conditions are not independently authenticated.",
+                "This route calculates the two flexural axes. Assess the applicable torsional-"
+                "flexural buckling route separately under Clause 6.3.3.",
+            ]
+            return result(op, clauses, values, checks, limitations)
+
+        scalar_fields = (
+            "minimum_section_capacity_kn",
+            "elastic_buckling_load_kn",
+            "section_constant",
+        )
+        if any(field not in d for field in scalar_fields):
+            raise ValueError(
+                "Supply the assessed minimum section capacity, elastic buckling load and "
+                "section constant, or the complete section schedule and both buckling modes."
+            )
         ns, nom = d["minimum_section_capacity_kn"], d["elastic_buckling_load_kn"]
-        ln = 90 * sqrt(ns / nom)
-        aa = 2100 * (ln - 13.5) / (ln * ln - 15.3 * ln + 2050)
-        lam = max(0, ln + aa * d["section_constant"])
-        q, eta = (lam / 90) ** 2, max(0, 0.00326 * (lam - 13.5))
-        a = 1 + q + eta
-        alpha = min(1, 2 / (a + sqrt(max(0, a * a - 4 * q))))
-        nc = alpha * ns
+        calculation = _varying_compression_axis(ns, nom, d["section_constant"])
         return result(
             op,
             ["6.3.3", "6.3.4"],
             {
-                "modified_slenderness": ln,
-                "reduction": alpha,
-                "member_capacity_kn": nc,
+                "modified_slenderness": calculation["modified_slenderness"],
+                "reduction": calculation["reduction"],
+                "member_capacity_kn": calculation["nominal_member_capacity_kn"],
             },
-            [capacity_check("6.3.4", nc, d["action_kn"])],
+            [capacity_check("6.3.4", calculation["nominal_member_capacity_kn"], d["action_kn"])],
             [
                 "Minimum section capacity must include every cross-section and hole deduction.",
                 "Elastic flexural buckling load requires rational analysis of actual "

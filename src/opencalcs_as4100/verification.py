@@ -1365,6 +1365,75 @@ def verify():
         compression_lengths["effective_length_y_mm"],
         2800,
     )
+    varying_compression = run_advanced_members(
+        {
+            "operation": "varying_compression",
+            "section_capacity_schedule": [
+                {
+                    "section_id": "S1",
+                    "nominal_section_capacity_kn": 1000,
+                    "capacity_evidence_reference": "VERIFY-SECTION-CALC-S1",
+                },
+                {
+                    "section_id": "S2",
+                    "nominal_section_capacity_kn": 810,
+                    "capacity_evidence_reference": "VERIFY-SECTION-CALC-S2",
+                },
+                {
+                    "section_id": "S3",
+                    "nominal_section_capacity_kn": 900,
+                    "capacity_evidence_reference": "VERIFY-SECTION-CALC-S3",
+                },
+            ],
+            "section_capacity_schedule_complete_verified": True,
+            "section_capacity_schedule_reference": "VERIFY-MEMBER-SCHEDULE-01",
+            "flexural_mode_verified": True,
+            "flexural_buckling_modes": [
+                {
+                    "axis": "major",
+                    "elastic_buckling_load_kn": 656.1,
+                    "section_constant": 0,
+                    "analysis_reference": "VERIFY-BUCKLING-MAJOR-01",
+                    "analysis_verified": True,
+                },
+                {
+                    "axis": "minor",
+                    "elastic_buckling_load_kn": 455.625,
+                    "section_constant": 0,
+                    "analysis_reference": "VERIFY-BUCKLING-MINOR-01",
+                    "analysis_verified": True,
+                },
+            ],
+            "action_kn": 300,
+        }
+    )["values"]
+    if varying_compression["minimum_section_id"] != "S2":
+        raise AssertionError("Clause 6.3.4 did not select the minimum section capacity")
+    record(
+        "Clause 6.3.4 minimum section nominal capacity (kN)",
+        varying_compression["minimum_section_capacity_kn"],
+        810,
+    )
+    for axis, expected_slenderness, expected_reduction in (
+        ("major", 100, 0.541),
+        ("minor", 120, 0.421),
+    ):
+        axis_result = next(
+            mode for mode in varying_compression["flexural_buckling_modes"] if mode["axis"] == axis
+        )
+        record(
+            f"Clause 6.3.4 {axis}-axis modified slenderness",
+            axis_result["modified_slenderness"],
+            expected_slenderness,
+        )
+        record(
+            f"Clause 6.3.3(C) {axis}-axis reduction, table to 0.001",
+            axis_result["reduction"],
+            expected_reduction,
+            tolerance=0.00051,
+        )
+    if varying_compression["governing_buckling_axis"] != "minor":
+        raise AssertionError("Clause 6.3.4 minor-axis flexural buckling should govern")
     compression_capacity = run_members(
         {
             "operation": "compression",

@@ -935,7 +935,7 @@ def run_design_actions(inputs):
                 ),
                 "satisfied": d["member_length_centre_to_centre_verified"],
                 "evidence_reference": d["member_length_evidence_reference"],
-            }
+            },
         ]
         for axis in "xy":
             case_key = f"effective_length_case_{axis}"
@@ -951,9 +951,7 @@ def run_design_actions(inputs):
             checks.append(
                 {
                     "clause": "4.6.3.2",
-                    "condition": (
-                        f"{axis}-axis restraint classification matches Figure 4.6.3.2"
-                    ),
+                    "condition": (f"{axis}-axis restraint classification matches Figure 4.6.3.2"),
                     "satisfied": d[f"{case_key}_verified"],
                     "evidence_reference": d[f"{case_key}_reference"],
                 }

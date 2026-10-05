@@ -2008,6 +2008,78 @@ def clause_6_3_3_c_amended_lambda_20_row():
     return {"amended_lambda_20_reduction_factors": observed}
 
 
+def clause_6_3_4_varying_compression_both_axes():
+    result = run_advanced_members(
+        {
+            "operation": "varying_compression",
+            "section_capacity_schedule": [
+                {
+                    "section_id": "S1",
+                    "nominal_section_capacity_kn": 1000,
+                    "capacity_evidence_reference": "BENCHMARK-SECTION-CALC-S1",
+                },
+                {
+                    "section_id": "S2",
+                    "nominal_section_capacity_kn": 810,
+                    "capacity_evidence_reference": "BENCHMARK-SECTION-CALC-S2",
+                },
+                {
+                    "section_id": "S3",
+                    "nominal_section_capacity_kn": 900,
+                    "capacity_evidence_reference": "BENCHMARK-SECTION-CALC-S3",
+                },
+            ],
+            "section_capacity_schedule_complete_verified": True,
+            "section_capacity_schedule_reference": "BENCHMARK-MEMBER-SCHEDULE-01",
+            "flexural_mode_verified": True,
+            "flexural_buckling_modes": [
+                {
+                    "axis": "major",
+                    "elastic_buckling_load_kn": 656.1,
+                    "section_constant": 0,
+                    "analysis_reference": "BENCHMARK-BUCKLING-MAJOR-01",
+                    "analysis_verified": True,
+                },
+                {
+                    "axis": "minor",
+                    "elastic_buckling_load_kn": 455.625,
+                    "section_constant": 0,
+                    "analysis_reference": "BENCHMARK-BUCKLING-MINOR-01",
+                    "analysis_verified": True,
+                },
+            ],
+            "action_kn": 300,
+        }
+    )
+    values = result["values"]
+    if values["minimum_section_id"] != "S2" or values["minimum_section_capacity_kn"] != 810:
+        raise AssertionError("Clause 6.3.4 should select the minimum 810 kN section capacity")
+    observed = {}
+    for axis, expected_slenderness, expected_reduction in (
+        ("major", 100, 0.541),
+        ("minor", 120, 0.421),
+    ):
+        mode = next(item for item in values["flexural_buckling_modes"] if item["axis"] == axis)
+        if not isclose(mode["modified_slenderness"], expected_slenderness, rel_tol=0, abs_tol=1e-9):
+            raise AssertionError(f"Clause 6.3.4 {axis} modified slenderness was incorrect")
+        if not isclose(mode["reduction"], expected_reduction, rel_tol=0, abs_tol=0.00051):
+            raise AssertionError(f"Table 6.3.3(C) {axis} reduction did not match the table value")
+        observed[axis] = {
+            "modified_slenderness": mode["modified_slenderness"],
+            "reduction": mode["reduction"],
+            "nominal_member_capacity_kn": mode["nominal_member_capacity_kn"],
+        }
+    if values["governing_buckling_axis"] != "minor":
+        raise AssertionError("Clause 6.3.4 minor axis should govern this benchmark")
+    if len(result["checks"]) != 2 or not all(check["satisfied"] for check in result["checks"]):
+        raise AssertionError("Clause 6.3.4 should return passing capacity checks for both axes")
+    return {
+        "minimum_section_capacity_kn": values["minimum_section_capacity_kn"],
+        "governing_buckling_axis": values["governing_buckling_axis"],
+        "axis_results": observed,
+    }
+
+
 def appendix_h4_amended_closed_section_torsion_constant():
     result = run_advanced_members(
         {
@@ -4067,6 +4139,7 @@ def main():
         "clause_16_existing_structure_modification": clause_16_existing_structure_modification,
         "clause_8_4_6_amended_angle_interaction": clause_8_4_6_amended_angle_interaction,
         "clause_6_3_3_c_amended_lambda_20_row": clause_6_3_3_c_amended_lambda_20_row,
+        "clause_6_3_4_varying_compression_both_axes": clause_6_3_4_varying_compression_both_axes,
         "appendix_h4_amended_closed_section_torsion_constant": (
             appendix_h4_amended_closed_section_torsion_constant
         ),

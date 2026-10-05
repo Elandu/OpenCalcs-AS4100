@@ -365,6 +365,148 @@ def test_varying_compression_independent_table_reference():
     assert out["checks"][0]["satisfied"]
 
 
+def varying_compression_schedule_inputs(**changes):
+    return {
+        "operation": "varying_compression",
+        "section_capacity_schedule": [
+            {
+                "section_id": "S1",
+                "nominal_section_capacity_kn": 1000,
+                "capacity_evidence_reference": "SECTION-CALC-S1",
+            },
+            {
+                "section_id": "S2",
+                "nominal_section_capacity_kn": 810,
+                "capacity_evidence_reference": "SECTION-CALC-S2",
+            },
+            {
+                "section_id": "S3",
+                "nominal_section_capacity_kn": 900,
+                "capacity_evidence_reference": "SECTION-CALC-S3",
+            },
+        ],
+        "section_capacity_schedule_complete_verified": True,
+        "section_capacity_schedule_reference": "MEMBER-SECTION-SCHEDULE-01",
+        "flexural_mode_verified": True,
+        "flexural_buckling_modes": [
+            {
+                "axis": "major",
+                "elastic_buckling_load_kn": 656.1,
+                "section_constant": 0,
+                "analysis_reference": "BUCKLING-MAJOR-01",
+                "analysis_verified": True,
+            },
+            {
+                "axis": "minor",
+                "elastic_buckling_load_kn": 455.625,
+                "section_constant": 0,
+                "analysis_reference": "BUCKLING-MINOR-01",
+                "analysis_verified": True,
+            },
+        ],
+        "action_kn": 300,
+        **changes,
+    }
+
+
+def test_varying_compression_schedule_uses_minimum_and_both_axes():
+    out = run_advanced_members(varying_compression_schedule_inputs())
+    values = out["values"]
+
+    assert values["minimum_section_capacity_kn"] == 810
+    assert values["minimum_section_id"] == "S2"
+    assert values["minimum_section_ids"] == ["S2"]
+    assert values["section_capacity_count"] == 3
+    assert values["flexural_buckling_modes"][0]["modified_slenderness"] == pytest.approx(100)
+    assert values["flexural_buckling_modes"][0]["reduction"] == pytest.approx(0.541, abs=0.0006)
+    assert values["flexural_buckling_modes"][1]["modified_slenderness"] == pytest.approx(120)
+    assert values["flexural_buckling_modes"][1]["reduction"] == pytest.approx(0.421, abs=0.0006)
+    assert values["governing_buckling_axis"] == "minor"
+    assert len(out["checks"]) == 2
+    assert all(check["satisfied"] for check in out["checks"])
+
+
+def test_varying_compression_schedule_reports_every_tied_minimum():
+    inputs = varying_compression_schedule_inputs()
+    inputs["section_capacity_schedule"][2]["nominal_section_capacity_kn"] = 810
+
+    values = run_advanced_members(inputs)["values"]
+
+    assert values["minimum_section_ids"] == ["S2", "S3"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {
+            "flexural_buckling_modes": [
+                {
+                    "axis": "major",
+                    "elastic_buckling_load_kn": 656.1,
+                    "section_constant": 0,
+                    "analysis_reference": "BUCKLING-MAJOR-01",
+                    "analysis_verified": True,
+                }
+            ]
+        },
+        {
+            "flexural_buckling_modes": [
+                {
+                    "axis": "major",
+                    "elastic_buckling_load_kn": 656.1,
+                    "section_constant": 0,
+                    "analysis_reference": "BUCKLING-MAJOR-01",
+                    "analysis_verified": True,
+                },
+                {
+                    "axis": "major",
+                    "elastic_buckling_load_kn": 455.625,
+                    "section_constant": 0,
+                    "analysis_reference": "BUCKLING-MINOR-01",
+                    "analysis_verified": True,
+                },
+            ]
+        },
+        {
+            "section_capacity_schedule": [
+                {
+                    "section_id": "S1",
+                    "nominal_section_capacity_kn": 1000,
+                    "capacity_evidence_reference": "SECTION-CALC-S1",
+                },
+                {
+                    "section_id": " S1 ",
+                    "nominal_section_capacity_kn": 810,
+                    "capacity_evidence_reference": "SECTION-CALC-S2",
+                },
+            ]
+        },
+        {"flexural_mode_verified": False},
+        {
+            "flexural_buckling_modes": [
+                {
+                    "axis": "major",
+                    "elastic_buckling_load_kn": 656.1,
+                    "section_constant": 0,
+                    "analysis_reference": "BUCKLING-MAJOR-01",
+                    "analysis_verified": False,
+                },
+                {
+                    "axis": "minor",
+                    "elastic_buckling_load_kn": 455.625,
+                    "section_constant": 0,
+                    "analysis_reference": "BUCKLING-MINOR-01",
+                    "analysis_verified": True,
+                },
+            ]
+        },
+    ],
+)
+def test_varying_compression_schedule_rejects_incomplete_or_unverified_inputs(changes):
+    with pytest.raises(ValueError):
+        run_advanced_members(varying_compression_schedule_inputs(**changes))
+
+
 def torsional_flexural_compression_inputs(**changes):
     return {
         "operation": "torsional_flexural_compression",
