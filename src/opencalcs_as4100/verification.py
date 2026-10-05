@@ -101,6 +101,39 @@ def verify():
         int(impact_test["check_satisfied"]),
         1,
     )
+    specified_impact_test = run_durability(
+        {
+            "check_type": "specified_impact_properties_test",
+            "plate_thickness_mm": 8,
+            "specimen_thickness_mm": 7.5,
+            "absorbed_energy_j": [13.5, 18, 22.5],
+            "specified_minimum_average_energy_j": 24,
+            "specified_minimum_single_energy_j": 18,
+            "grade_standard_minimums_verified": True,
+            "grade_standard_reference": "BENCHMARK-PRODUCT-STANDARD-CHARPY-01",
+            "permissible_temperature_unknown_or_warmer_than_design_verified": True,
+            "mock_up_grade_dimensions_and_strain_verified": True,
+            "three_specimens_from_maximum_strain_region_verified": True,
+            "tested_at_design_service_temperature_verified": True,
+            "specimen_thickness_selection_verified": True,
+            "evidence_reference": "BENCHMARK-CHARPY-REPORT-02",
+        }
+    )["results"]
+    record(
+        "Clause 10.4.3.4(c)/(e) supplied average minimum sub-size reduction",
+        specified_impact_test["required_average_energy_j"],
+        24 * 7.5 / 10,
+    )
+    record(
+        "Clause 10.4.3.4(c)/(e) supplied individual minimum sub-size reduction",
+        specified_impact_test["required_minimum_single_energy_j"],
+        18 * 7.5 / 10,
+    )
+    record(
+        "Clause 10.4.3.4(c) supplied product-standard minimum acceptance",
+        int(specified_impact_test["check_satisfied"]),
+        1,
+    )
 
     truss_stress_range = run_durability(
         {

@@ -395,6 +395,52 @@ _SEISMIC = {
     "eccentric": (4, 0.67),
     "other": (2, 0.77),
 }
+
+
+def _specified_impact_properties_operation():
+    schema = _operation(
+        "specified_impact_properties_test",
+        {
+            "plate_thickness_mm": _POS,
+            "specimen_thickness_mm": _number(0, 10, True),
+            "absorbed_energy_j": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": _number(0, 1e6),
+            },
+            "specified_minimum_average_energy_j": _number(0, 1e6, True),
+            "specified_minimum_single_energy_j": _number(0, 1e6, True),
+            "grade_standard_minimums_verified": {"const": True},
+            "grade_standard_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "permissible_temperature_unknown_or_warmer_than_design_verified": {"const": True},
+            "mock_up_grade_dimensions_and_strain_verified": {"const": True},
+            "three_specimens_from_maximum_strain_region_verified": {"const": True},
+            "tested_at_design_service_temperature_verified": {"const": True},
+            "specimen_thickness_selection_verified": {"const": True},
+            "evidence_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+        },
+        required=[
+            "plate_thickness_mm",
+            "specimen_thickness_mm",
+            "absorbed_energy_j",
+            "grade_standard_minimums_verified",
+            "grade_standard_reference",
+            "permissible_temperature_unknown_or_warmer_than_design_verified",
+            "mock_up_grade_dimensions_and_strain_verified",
+            "three_specimens_from_maximum_strain_region_verified",
+            "tested_at_design_service_temperature_verified",
+            "specimen_thickness_selection_verified",
+            "evidence_reference",
+        ],
+    )
+    schema["anyOf"] = [
+        {"required": ["specified_minimum_average_energy_j"]},
+        {"required": ["specified_minimum_single_energy_j"]},
+    ]
+    return schema
+
+
 INPUT_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "oneOf": [
@@ -775,6 +821,7 @@ INPUT_SCHEMA = {
                 "evidence_reference": {"type": "string", "minLength": 1, "maxLength": 200},
             },
         ),
+        _specified_impact_properties_operation(),
         _operation(
             "earthquake_audit",
             {
@@ -1331,6 +1378,18 @@ _RESULT_SCHEMAS = {
             "minimum_measured_energy_j": _NUM,
             "average_energy_satisfied": _BOOL,
             "minimum_single_energy_satisfied": _BOOL,
+            "check_satisfied": _BOOL,
+        }
+    ),
+    "specified_impact_properties_test": _result_schema(
+        {
+            "energy_reduction_factor": _NUM,
+            "required_average_energy_j": {"type": ["number", "null"], "minimum": 0},
+            "required_minimum_single_energy_j": {"type": ["number", "null"], "minimum": 0},
+            "measured_average_energy_j": _NUM,
+            "minimum_measured_energy_j": _NUM,
+            "average_energy_satisfied": {"type": ["boolean", "null"]},
+            "minimum_single_energy_satisfied": {"type": ["boolean", "null"]},
             "check_satisfied": _BOOL,
         }
     ),
@@ -2738,6 +2797,56 @@ def _nonconforming_steel_impact_test(d):
     )
 
 
+def _specified_impact_properties_test(d):
+    plate_thickness = d["plate_thickness_mm"]
+    specimen_thickness = d["specimen_thickness_mm"]
+    if specimen_thickness < 10:
+        if plate_thickness >= 10:
+            raise ValueError("Use a 10 mm specimen when plate thickness does not prevent it.")
+        if specimen_thickness > plate_thickness:
+            raise ValueError("The specimen thickness must not exceed the plate thickness.")
+    elif plate_thickness < 10:
+        raise ValueError("A 10 mm specimen cannot be taken from this plate thickness.")
+    factor = specimen_thickness / 10
+    energies = d["absorbed_energy_j"]
+    average = fsum(energies) / 3
+    minimum_measured = min(energies)
+    specified_average = d.get("specified_minimum_average_energy_j")
+    specified_single = d.get("specified_minimum_single_energy_j")
+    required_average = None if specified_average is None else specified_average * factor
+    required_single = None if specified_single is None else specified_single * factor
+    average_satisfied = required_average is None or average >= required_average
+    single_satisfied = required_single is None or minimum_measured >= required_single
+    clauses = ["10.4.3.4(a)", "10.4.3.4(b)", "10.4.3.4(c)"]
+    if factor < 1:
+        clauses.append("10.4.3.4(e)")
+    return (
+        {
+            "energy_reduction_factor": factor,
+            "required_average_energy_j": required_average,
+            "required_minimum_single_energy_j": required_single,
+            "measured_average_energy_j": average,
+            "minimum_measured_energy_j": minimum_measured,
+            "average_energy_satisfied": (
+                average_satisfied if required_average is not None else None
+            ),
+            "minimum_single_energy_satisfied": (
+                single_satisfied if required_single is not None else None
+            ),
+            "check_satisfied": average_satisfied and single_satisfied,
+        },
+        clauses,
+        [
+            "Supply the applicable Charpy energy minimums from the verified product standard; "
+            "this operation does not derive grade requirements.",
+            "Verify mock-up similarity, test temperature, specimen location and specimen-size "
+            "selection against laboratory and fabrication records.",
+            "Where a sub-size specimen is required, minimum energy requirements are scaled by "
+            "specimen thickness divided by 10 mm; this operation assumes a 10 mm specimen width.",
+        ],
+    )
+
+
 def _design_service_temperature(d):
     lodmat = d["lodmat_temperature_c"]
     adjustment = -5 if d["especially_low_local_ambient_conditions_verified"] else 0
@@ -3118,6 +3227,8 @@ def _run_durability(inputs):
         result, clauses, warnings = _design_service_temperature(d)
     elif op == "nonconforming_steel_impact_test":
         result, clauses, warnings = _nonconforming_steel_impact_test(d)
+    elif op == "specified_impact_properties_test":
+        result, clauses, warnings = _specified_impact_properties_test(d)
     elif op == "brittle_fracture":
         result, clauses, warnings = _brittle(d)
     else:

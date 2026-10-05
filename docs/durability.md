@@ -151,7 +151,17 @@ page images are not included in this package.
   Mock-up, sample-location, test-temperature and specimen-selection conditions
   are evidence gates; verify them against the laboratory and fabrication records.
   The calculation assumes a 10 mm specimen width and does not apply the
-  product-standard-specific route for grades with specified impact properties.
+  grade-standard-minimum route below.
+- `specified_impact_properties_test`: For grades whose product standard specifies
+  minimum Charpy energy properties, Clause 10.4.3.4(a)–(c) compares the measured
+  three-specimen average and, when specified, the minimum individual result with
+  supplied product-standard limits. It applies Clause 10.4.3.4(e) proportional
+  sub-size reduction to each supplied limit. Mock-up similarity, the maximum-
+  strain specimen location, test temperature, grade-standard minima and
+  specimen-size selection are evidence gates. Supply at least one specified
+  average or individual energy limit; the operation does not derive grade
+  minima or authenticate the referenced records. It assumes a 10 mm specimen
+  width.
 - `design_service_temperature`: Clause 10.3.2 applies the 5 °C reduction for
   verified exceptionally low local ambient conditions and selects a verified
   colder record temperature for critical structures. Clause 10.3.3 uses the

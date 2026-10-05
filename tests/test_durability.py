@@ -1505,6 +1505,27 @@ def nonconforming_steel_impact_test(**changes):
     }
 
 
+def specified_impact_properties_test(**changes):
+    inputs = {
+        "check_type": "specified_impact_properties_test",
+        "plate_thickness_mm": 8,
+        "specimen_thickness_mm": 7.5,
+        "absorbed_energy_j": [13.5, 18, 22.5],
+        "specified_minimum_average_energy_j": 24,
+        "specified_minimum_single_energy_j": 18,
+        "grade_standard_minimums_verified": True,
+        "grade_standard_reference": "PRODUCT-STANDARD-CHARPY-REQ-01",
+        "permissible_temperature_unknown_or_warmer_than_design_verified": True,
+        "mock_up_grade_dimensions_and_strain_verified": True,
+        "three_specimens_from_maximum_strain_region_verified": True,
+        "tested_at_design_service_temperature_verified": True,
+        "specimen_thickness_selection_verified": True,
+        "evidence_reference": "CHARPY-MOCKUP-REPORT-02",
+        **changes,
+    }
+    return {key: value for key, value in inputs.items() if value is not None}
+
+
 def test_clause_10_4_3_4_full_size_charpy_thresholds():
     result = run_durability(nonconforming_steel_impact_test())
     values = result["results"]
@@ -1573,6 +1594,53 @@ def test_clause_10_4_3_4_rejects_inapplicable_or_invalid_specimens(changes, mess
         run_durability(nonconforming_steel_impact_test(**changes))
     if message is not None:
         assert message in str(exc_info.value)
+
+
+def test_clause_10_4_3_4_specified_grade_minima_and_subsize_reduction():
+    result = run_durability(specified_impact_properties_test())
+    values = result["results"]
+    assert result["clauses"] == [
+        "10.4.3.4(a)",
+        "10.4.3.4(b)",
+        "10.4.3.4(c)",
+        "10.4.3.4(e)",
+    ]
+    assert values["energy_reduction_factor"] == pytest.approx(0.75)
+    assert values["required_average_energy_j"] == pytest.approx(18)
+    assert values["required_minimum_single_energy_j"] == pytest.approx(13.5)
+    assert values["measured_average_energy_j"] == pytest.approx(18)
+    assert values["minimum_measured_energy_j"] == pytest.approx(13.5)
+    assert values["average_energy_satisfied"]
+    assert values["minimum_single_energy_satisfied"]
+    assert values["check_satisfied"]
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected_average", "expected_single", "expected_check"),
+    [
+        ({"specified_minimum_average_energy_j": 25}, False, True, False),
+        ({"specified_minimum_single_energy_j": 19}, True, False, False),
+        ({"specified_minimum_single_energy_j": None}, True, None, True),
+        ({"specified_minimum_average_energy_j": None}, None, True, True),
+    ],
+)
+def test_clause_10_4_3_4_specified_minima_are_checked_independently(
+    changes, expected_average, expected_single, expected_check
+):
+    values = run_durability(specified_impact_properties_test(**changes))["results"]
+    assert values["average_energy_satisfied"] is expected_average
+    assert values["minimum_single_energy_satisfied"] is expected_single
+    assert values["check_satisfied"] is expected_check
+
+
+def test_clause_10_4_3_4_specified_minimum_route_requires_a_product_standard_threshold():
+    with pytest.raises(ValueError):
+        run_durability(
+            specified_impact_properties_test(
+                specified_minimum_average_energy_j=None,
+                specified_minimum_single_energy_j=None,
+            )
+        )
 
 
 def test_d13_unavailable_steel_and_seismic_audit():
