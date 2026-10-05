@@ -89,6 +89,134 @@ def test_idealized_member_buckling_requires_verified_case_and_member_length():
         run(inputs)
 
 
+def rectangular_frame_stiffness_ratio(**overrides):
+    inputs = {
+        "operation": "rectangular_frame_stiffness_ratio",
+        "frame_type": "braced",
+        "member_under_consideration_id": "COL-01",
+        "compression_members": [
+            {
+                "member_id": "COL-01",
+                "second_moment_mm4": 8e6,
+                "member_length_mm": 4000,
+                "rigid_connection_at_joint_verified": True,
+                "stiffness_evidence_reference": "COL-01-SECTION-01",
+            },
+            {
+                "member_id": "COL-02",
+                "second_moment_mm4": 12e6,
+                "member_length_mm": 6000,
+                "rigid_connection_at_joint_verified": True,
+                "stiffness_evidence_reference": "COL-02-SECTION-01",
+            },
+        ],
+        "compression_members_at_joint_complete_verified": True,
+        "compression_members_evidence_reference": "JOINT-COLUMNS-01",
+        "beams": [
+            {
+                "beam_id": "BEAM-01",
+                "second_moment_mm4": 10e6,
+                "member_length_mm": 5000,
+                "near_end_rigid_connection_verified": True,
+                "far_end_fixity": "pinned",
+                "far_end_fixity_verified": True,
+                "stiffness_evidence_reference": "BEAM-01-SECTION-01",
+            },
+            {
+                "beam_id": "BEAM-02",
+                "second_moment_mm4": 6e6,
+                "member_length_mm": 3000,
+                "near_end_rigid_connection_verified": True,
+                "far_end_fixity": "rigidly_connected_to_column",
+                "far_end_fixity_verified": True,
+                "stiffness_evidence_reference": "BEAM-02-SECTION-01",
+            },
+        ],
+        "beams_at_joint_complete_verified": True,
+        "beams_evidence_reference": "JOINT-BEAMS-01",
+        "rectangular_frame_geometry_verified": True,
+        "regular_loading_verified": True,
+        "beam_axial_forces_negligible_verified": True,
+        "frame_assessment_evidence_reference": "FRAME-ANALYSIS-BASIS-01",
+        "column_base_condition": "not_column_base",
+        "column_base_condition_verified": True,
+        "column_base_evidence_reference": "COLUMN-BASE-SCHEDULE-01",
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_rectangular_frame_stiffness_ratio_hand_benchmark():
+    r = run(rectangular_frame_stiffness_ratio())
+    values = r["values"]
+    assert r["checked_conditions_satisfied"]
+    assert r["clauses"] == ["4.6.3.4", "Table 4.6.3.4"]
+    assert values["compression_stiffness_sum_mm3"] == 4000
+    assert values["weighted_beam_stiffness_sum_mm3"] == 5000
+    assert values["stiffness_ratio_at_end_gamma"] == pytest.approx(0.8)
+    assert [beam["beta_e"] for beam in values["beams"]] == [1.5, 1.0]
+    assert [beam["weighted_stiffness_mm3"] for beam in values["beams"]] == [3000, 2000]
+    assert r["full_standard_compliance"] is False
+
+
+@pytest.mark.parametrize(
+    ("frame_type", "far_end_fixity", "expected_beta"),
+    [
+        ("braced", "pinned", 1.5),
+        ("braced", "rigidly_connected_to_column", 1.0),
+        ("braced", "fixed", 2.0),
+        ("sway", "pinned", 0.5),
+        ("sway", "rigidly_connected_to_column", 1.0),
+        ("sway", "fixed", 0.67),
+    ],
+)
+def test_rectangular_frame_stiffness_ratio_table_modifiers(
+    frame_type, far_end_fixity, expected_beta
+):
+    inputs = rectangular_frame_stiffness_ratio(frame_type=frame_type)
+    inputs["beams"][0]["far_end_fixity"] = far_end_fixity
+    r = run(inputs)
+    assert r["values"]["beams"][0]["beta_e"] == expected_beta
+
+
+def test_rectangular_frame_stiffness_ratio_base_minimum_and_evidence_gates():
+    inputs = rectangular_frame_stiffness_ratio(column_base_condition="rigidly_connected_to_footing")
+    r = run(inputs)
+    assert r["values"]["minimum_gamma"] == 0.6
+    assert r["values"]["minimum_gamma_satisfied"]
+    assert r["checked_conditions_satisfied"]
+
+    inputs = rectangular_frame_stiffness_ratio(
+        column_base_condition="not_rigidly_connected_to_footing"
+    )
+    r = run(inputs)
+    assert r["values"]["minimum_gamma"] == 10
+    assert not r["values"]["minimum_gamma_satisfied"]
+    assert not r["checked_conditions_satisfied"]
+
+    inputs = rectangular_frame_stiffness_ratio(
+        rectangular_frame_geometry_verified=False,
+        regular_loading_verified=False,
+        beam_axial_forces_negligible_verified=False,
+        compression_members_at_joint_complete_verified=False,
+        beams_at_joint_complete_verified=False,
+        column_base_condition_verified=False,
+    )
+    r = run(inputs)
+    assert r["values"]["stiffness_ratio_at_end_gamma"] == pytest.approx(0.8)
+    assert not r["checked_conditions_satisfied"]
+
+
+def test_rectangular_frame_stiffness_ratio_requires_unique_target_and_far_end_evidence():
+    inputs = rectangular_frame_stiffness_ratio()
+    inputs["compression_members"][1]["member_id"] = "COL-01"
+    inputs["beams"][0]["far_end_fixity_verified"] = False
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not r["checks"][6]["satisfied"]
+    assert not r["checks"][-1]["satisfied"]
+
+
 def test_moment_amplification_and_instability_gate():
     d = {
         "operation": "moment_amplification",

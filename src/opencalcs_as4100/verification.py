@@ -914,6 +914,112 @@ def verify():
         2014.2049798141545,
         1e-8,
     )
+
+    def frame_stiffness_inputs(frame_type="braced", column_base_condition="not_column_base"):
+        return {
+            "operation": "rectangular_frame_stiffness_ratio",
+            "frame_type": frame_type,
+            "member_under_consideration_id": "COL-01",
+            "compression_members": [
+                {
+                    "member_id": "COL-01",
+                    "second_moment_mm4": 8e6,
+                    "member_length_mm": 4000,
+                    "rigid_connection_at_joint_verified": True,
+                    "stiffness_evidence_reference": "VERIFY-COL-01",
+                },
+                {
+                    "member_id": "COL-02",
+                    "second_moment_mm4": 12e6,
+                    "member_length_mm": 6000,
+                    "rigid_connection_at_joint_verified": True,
+                    "stiffness_evidence_reference": "VERIFY-COL-02",
+                },
+            ],
+            "compression_members_at_joint_complete_verified": True,
+            "compression_members_evidence_reference": "VERIFY-JOINT-COLUMNS",
+            "beams": [
+                {
+                    "beam_id": "BEAM-01",
+                    "second_moment_mm4": 10e6,
+                    "member_length_mm": 5000,
+                    "near_end_rigid_connection_verified": True,
+                    "far_end_fixity": "pinned",
+                    "far_end_fixity_verified": True,
+                    "stiffness_evidence_reference": "VERIFY-BEAM-01",
+                },
+                {
+                    "beam_id": "BEAM-02",
+                    "second_moment_mm4": 6e6,
+                    "member_length_mm": 3000,
+                    "near_end_rigid_connection_verified": True,
+                    "far_end_fixity": "rigidly_connected_to_column",
+                    "far_end_fixity_verified": True,
+                    "stiffness_evidence_reference": "VERIFY-BEAM-02",
+                },
+            ],
+            "beams_at_joint_complete_verified": True,
+            "beams_evidence_reference": "VERIFY-JOINT-BEAMS",
+            "rectangular_frame_geometry_verified": True,
+            "regular_loading_verified": True,
+            "beam_axial_forces_negligible_verified": True,
+            "frame_assessment_evidence_reference": "VERIFY-FRAME-BASIS",
+            "column_base_condition": column_base_condition,
+            "column_base_condition_verified": True,
+            "column_base_evidence_reference": "VERIFY-COLUMN-BASE",
+        }
+
+    stiffness_modifiers = {
+        "braced": {"pinned": 1.5, "rigidly_connected_to_column": 1.0, "fixed": 2.0},
+        "sway": {"pinned": 0.5, "rigidly_connected_to_column": 1.0, "fixed": 0.67},
+    }
+    for frame_type, fixity_factors in stiffness_modifiers.items():
+        for far_end_fixity, expected_beta in fixity_factors.items():
+            stiffness_inputs = frame_stiffness_inputs(frame_type)
+            stiffness_inputs["beams"][0]["far_end_fixity"] = far_end_fixity
+            stiffness_result = run_design_actions(stiffness_inputs)
+            record(
+                f"Table 4.6.3.4 {frame_type} beam modifier: {far_end_fixity}",
+                stiffness_result["values"]["beams"][0]["beta_e"],
+                expected_beta,
+            )
+
+    frame_stiffness = run_design_actions(frame_stiffness_inputs())
+    frame_stiffness_values = frame_stiffness["values"]
+    record(
+        "Clause 4.6.3.4 connected compression-member stiffness sum",
+        frame_stiffness_values["compression_stiffness_sum_mm3"],
+        4000,
+        1e-12,
+    )
+    record(
+        "Clause 4.6.3.4 beta-adjusted beam stiffness sum",
+        frame_stiffness_values["weighted_beam_stiffness_sum_mm3"],
+        5000,
+        1e-12,
+    )
+    record(
+        "Clause 4.6.3.4 rectangular-frame end stiffness ratio",
+        frame_stiffness_values["stiffness_ratio_at_end_gamma"],
+        0.8,
+        1e-12,
+    )
+    rigid_base_gamma = run_design_actions(
+        frame_stiffness_inputs(column_base_condition="rigidly_connected_to_footing")
+    )
+    record(
+        "Clause 4.6.3.4 rigid-base minimum gamma check",
+        int(rigid_base_gamma["values"]["minimum_gamma_satisfied"]),
+        1,
+    )
+    unrestrained_base_gamma = run_design_actions(
+        frame_stiffness_inputs(column_base_condition="not_rigidly_connected_to_footing")
+    )
+    record(
+        "Clause 4.6.3.4 unrestrained-base minimum gamma boundary",
+        int(unrestrained_base_gamma["values"]["minimum_gamma_satisfied"]),
+        0,
+    )
     plastic_equilibrium = run_design_actions(
         {
             "operation": "plastic_global_equilibrium",

@@ -115,6 +115,78 @@ def clause_4_6_3_2_idealized_member_buckling():
     }
 
 
+def clause_4_6_3_4_rectangular_frame_stiffness_ratio():
+    result = run_design_actions(
+        {
+            "operation": "rectangular_frame_stiffness_ratio",
+            "frame_type": "braced",
+            "member_under_consideration_id": "COL-01",
+            "compression_members": [
+                {
+                    "member_id": "COL-01",
+                    "second_moment_mm4": 8e6,
+                    "member_length_mm": 4000,
+                    "rigid_connection_at_joint_verified": True,
+                    "stiffness_evidence_reference": "BENCHMARK-COL-01",
+                },
+                {
+                    "member_id": "COL-02",
+                    "second_moment_mm4": 12e6,
+                    "member_length_mm": 6000,
+                    "rigid_connection_at_joint_verified": True,
+                    "stiffness_evidence_reference": "BENCHMARK-COL-02",
+                },
+            ],
+            "compression_members_at_joint_complete_verified": True,
+            "compression_members_evidence_reference": "BENCHMARK-JOINT-COLUMNS",
+            "beams": [
+                {
+                    "beam_id": "BEAM-01",
+                    "second_moment_mm4": 10e6,
+                    "member_length_mm": 5000,
+                    "near_end_rigid_connection_verified": True,
+                    "far_end_fixity": "pinned",
+                    "far_end_fixity_verified": True,
+                    "stiffness_evidence_reference": "BENCHMARK-BEAM-01",
+                },
+                {
+                    "beam_id": "BEAM-02",
+                    "second_moment_mm4": 6e6,
+                    "member_length_mm": 3000,
+                    "near_end_rigid_connection_verified": True,
+                    "far_end_fixity": "rigidly_connected_to_column",
+                    "far_end_fixity_verified": True,
+                    "stiffness_evidence_reference": "BENCHMARK-BEAM-02",
+                },
+            ],
+            "beams_at_joint_complete_verified": True,
+            "beams_evidence_reference": "BENCHMARK-JOINT-BEAMS",
+            "rectangular_frame_geometry_verified": True,
+            "regular_loading_verified": True,
+            "beam_axial_forces_negligible_verified": True,
+            "frame_assessment_evidence_reference": "BENCHMARK-FRAME-BASIS",
+            "column_base_condition": "not_column_base",
+            "column_base_condition_verified": True,
+            "column_base_evidence_reference": "BENCHMARK-COLUMN-BASE",
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.6.3.4 frame stiffness ratio benchmark failed")
+    values = result["values"]
+    if not isclose(values["compression_stiffness_sum_mm3"], 4000, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 4.6.3.4 compression-member stiffness sum should be 4000")
+    if not isclose(values["weighted_beam_stiffness_sum_mm3"], 5000, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 4.6.3.4 beta-adjusted beam stiffness should be 5000")
+    if not isclose(values["stiffness_ratio_at_end_gamma"], 0.8, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 4.6.3.4 end stiffness ratio should be 0.8")
+    return {
+        "compression_stiffness_sum_mm3": values["compression_stiffness_sum_mm3"],
+        "weighted_beam_stiffness_sum_mm3": values["weighted_beam_stiffness_sum_mm3"],
+        "stiffness_ratio_at_end_gamma": values["stiffness_ratio_at_end_gamma"],
+        "beta_e_values": [beam["beta_e"] for beam in values["beams"]],
+    }
+
+
 def clause_4_5_1_global_equilibrium():
     result = run_design_actions(
         {
@@ -2212,6 +2284,9 @@ def main():
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_4_6_3_2_idealized_member_buckling": (clause_4_6_3_2_idealized_member_buckling),
+        "clause_4_6_3_4_rectangular_frame_stiffness_ratio": (
+            clause_4_6_3_4_rectangular_frame_stiffness_ratio
+        ),
         "clause_4_5_1_global_equilibrium": clause_4_5_1_global_equilibrium,
         "clause_4_5_1_joint_equilibrium": clause_4_5_1_joint_equilibrium,
         "clause_4_5_1_member_span_equilibrium": clause_4_5_1_member_span_equilibrium,

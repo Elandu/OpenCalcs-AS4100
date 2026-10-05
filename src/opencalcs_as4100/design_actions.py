@@ -18,6 +18,10 @@ _IDEALIZED_END_RESTRAINT_FACTORS = {
     "sway_top_free_bottom_fixed": 2.2,
     "sway_top_fixed_bottom_pinned": 2.2,
 }
+_FRAME_STIFFNESS_MODIFIERS = {
+    "braced": {"pinned": 1.5, "rigidly_connected_to_column": 1.0, "fixed": 2.0},
+    "sway": {"pinned": 0.5, "rigidly_connected_to_column": 1.0, "fixed": 0.67},
+}
 
 _PLASTIC_MATERIAL = object_schema(
     {
@@ -128,6 +132,26 @@ _PLASTIC_MEMBER_SPAN = object_schema(
         "span_actions_evidence_reference": _REFERENCE,
     }
 )
+_FRAME_COMPRESSION_MEMBER = object_schema(
+    {
+        "member_id": _REFERENCE,
+        "second_moment_mm4": POSITIVE,
+        "member_length_mm": POSITIVE,
+        "rigid_connection_at_joint_verified": _BOOL,
+        "stiffness_evidence_reference": _REFERENCE,
+    }
+)
+_FRAME_BEAM = object_schema(
+    {
+        "beam_id": _REFERENCE,
+        "second_moment_mm4": POSITIVE,
+        "member_length_mm": POSITIVE,
+        "near_end_rigid_connection_verified": _BOOL,
+        "far_end_fixity": {"enum": ["pinned", "rigidly_connected_to_column", "fixed"]},
+        "far_end_fixity_verified": _BOOL,
+        "stiffness_evidence_reference": _REFERENCE,
+    }
+)
 _PLASTIC_JOINT = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -184,6 +208,36 @@ SCHEMAS = {
             "end_restraint_evidence_reference": _REFERENCE,
             "member_length_centre_to_centre_verified": _BOOL,
             "member_length_evidence_reference": _REFERENCE,
+        }
+    ),
+    "rectangular_frame_stiffness_ratio": object_schema(
+        {
+            "operation": {"const": "rectangular_frame_stiffness_ratio"},
+            "frame_type": {"enum": ["braced", "sway"]},
+            "member_under_consideration_id": _REFERENCE,
+            "compression_members": {
+                "type": "array",
+                "minItems": 1,
+                "items": _FRAME_COMPRESSION_MEMBER,
+            },
+            "compression_members_at_joint_complete_verified": _BOOL,
+            "compression_members_evidence_reference": _REFERENCE,
+            "beams": {"type": "array", "minItems": 1, "items": _FRAME_BEAM},
+            "beams_at_joint_complete_verified": _BOOL,
+            "beams_evidence_reference": _REFERENCE,
+            "rectangular_frame_geometry_verified": _BOOL,
+            "regular_loading_verified": _BOOL,
+            "beam_axial_forces_negligible_verified": _BOOL,
+            "frame_assessment_evidence_reference": _REFERENCE,
+            "column_base_condition": {
+                "enum": [
+                    "not_column_base",
+                    "rigidly_connected_to_footing",
+                    "not_rigidly_connected_to_footing",
+                ]
+            },
+            "column_base_condition_verified": _BOOL,
+            "column_base_evidence_reference": _REFERENCE,
         }
     ),
     "moment_amplification": object_schema(
@@ -405,6 +459,159 @@ def run_design_actions(inputs):
                 "The elastic buckling load uses the supplied section second moment and verified "
                 "centre-to-centre member length. It is not a Clause 6.3 design capacity or a "
                 "frame stability analysis.",
+            ],
+        )
+    if op == "rectangular_frame_stiffness_ratio":
+        compression_member_ids = [member["member_id"] for member in d["compression_members"]]
+        beam_ids = [beam["beam_id"] for beam in d["beams"]]
+        unique_compression_member_ids = len(compression_member_ids) == len(
+            set(compression_member_ids)
+        )
+        unique_beam_ids = len(beam_ids) == len(set(beam_ids))
+        target_member_count = compression_member_ids.count(d["member_under_consideration_id"])
+        target_member_verified = target_member_count == 1 and all(
+            member["rigid_connection_at_joint_verified"]
+            for member in d["compression_members"]
+            if member["member_id"] == d["member_under_consideration_id"]
+        )
+
+        compression_stiffness_terms = [
+            member["second_moment_mm4"] / member["member_length_mm"]
+            for member in d["compression_members"]
+        ]
+        compression_stiffness_sum = sum(compression_stiffness_terms)
+        beam_results = []
+        weighted_beam_stiffness_sum = 0.0
+        for beam in d["beams"]:
+            beta_e = _FRAME_STIFFNESS_MODIFIERS[d["frame_type"]][beam["far_end_fixity"]]
+            stiffness = beam["second_moment_mm4"] / beam["member_length_mm"]
+            weighted_stiffness = beta_e * stiffness
+            weighted_beam_stiffness_sum += weighted_stiffness
+            beam_results.append(
+                {
+                    "beam_id": beam["beam_id"],
+                    "far_end_fixity": beam["far_end_fixity"],
+                    "beta_e": beta_e,
+                    "beam_stiffness_mm3": stiffness,
+                    "weighted_stiffness_mm3": weighted_stiffness,
+                    "near_end_rigid_connection_verified": beam[
+                        "near_end_rigid_connection_verified"
+                    ],
+                    "far_end_fixity_verified": beam["far_end_fixity_verified"],
+                    "stiffness_evidence_reference": beam["stiffness_evidence_reference"],
+                }
+            )
+        if weighted_beam_stiffness_sum <= 0:
+            raise ValueError("At least one positive rigidly connected beam stiffness is required.")
+
+        gamma = compression_stiffness_sum / weighted_beam_stiffness_sum
+        base_condition = d["column_base_condition"]
+        minimum_gamma = (
+            10.0
+            if base_condition == "not_rigidly_connected_to_footing"
+            else 0.6
+            if base_condition == "rigidly_connected_to_footing"
+            else None
+        )
+        base_condition_satisfied = d["column_base_condition_verified"]
+        minimum_gamma_satisfied = minimum_gamma is None or gamma >= minimum_gamma
+        all_compression_members_verified = all(
+            member["rigid_connection_at_joint_verified"] for member in d["compression_members"]
+        )
+        all_near_beam_connections_verified = all(
+            beam["near_end_rigid_connection_verified"] for beam in d["beams"]
+        )
+        all_far_end_fixities_verified = all(beam["far_end_fixity_verified"] for beam in d["beams"])
+        checks = [
+            {
+                "clause": "4.6.3.4",
+                "condition": "the rectangular frame geometry is verified",
+                "satisfied": d["rectangular_frame_geometry_verified"],
+                "evidence_reference": d["frame_assessment_evidence_reference"],
+            },
+            {
+                "clause": "4.6.3.4",
+                "condition": "frame loading is regular",
+                "satisfied": d["regular_loading_verified"],
+                "evidence_reference": d["frame_assessment_evidence_reference"],
+            },
+            {
+                "clause": "4.6.3.4",
+                "condition": "beam axial forces are negligible",
+                "satisfied": d["beam_axial_forces_negligible_verified"],
+                "evidence_reference": d["frame_assessment_evidence_reference"],
+            },
+            {
+                "clause": "4.6.3.4",
+                "condition": "all compression members rigidly connected at the joint are listed",
+                "satisfied": d["compression_members_at_joint_complete_verified"]
+                and all_compression_members_verified,
+                "member_count": len(compression_member_ids),
+                "evidence_reference": d["compression_members_evidence_reference"],
+            },
+            {
+                "clause": "4.6.3.4",
+                "condition": "the member under consideration is listed once",
+                "member_occurrences": target_member_count,
+                "satisfied": target_member_verified,
+            },
+            {
+                "clause": "4.6.3.4",
+                "condition": "all rigidly connected beams at the joint are listed",
+                "satisfied": d["beams_at_joint_complete_verified"]
+                and all_near_beam_connections_verified,
+                "beam_count": len(beam_ids),
+                "evidence_reference": d["beams_evidence_reference"],
+            },
+            {
+                "clause": "Table 4.6.3.4",
+                "condition": "beam far-end fixity classifications are verified",
+                "satisfied": all_far_end_fixities_verified,
+                "evidence_reference": d["beams_evidence_reference"],
+            },
+            {
+                "clause": "4.6.3.4(a)/(b)",
+                "condition": "the column-base or non-base joint condition is verified",
+                "satisfied": base_condition_satisfied,
+                "evidence_reference": d["column_base_evidence_reference"],
+            },
+            {
+                "clause": "4.6.3.4(a)/(b)",
+                "condition": "the calculated end stiffness ratio meets the base minimum",
+                "stiffness_ratio_gamma": gamma,
+                "minimum_gamma": minimum_gamma,
+                "satisfied": minimum_gamma_satisfied,
+            },
+            {
+                "clause": "4.6.3.4",
+                "condition": "compression-member and beam identifiers are unique",
+                "satisfied": unique_compression_member_ids and unique_beam_ids,
+            },
+        ]
+        return result(
+            op,
+            ["4.6.3.4", "Table 4.6.3.4"],
+            {
+                "frame_type": d["frame_type"],
+                "member_under_consideration_id": d["member_under_consideration_id"],
+                "compression_member_count": len(compression_member_ids),
+                "compression_stiffness_sum_mm3": compression_stiffness_sum,
+                "beams": beam_results,
+                "weighted_beam_stiffness_sum_mm3": weighted_beam_stiffness_sum,
+                "stiffness_ratio_at_end_gamma": gamma,
+                "minimum_gamma": minimum_gamma,
+                "minimum_gamma_satisfied": minimum_gamma_satisfied,
+            },
+            checks,
+            limitations=[
+                "This calculates one end stiffness ratio for the Clause 4.6.3.4 rectangular-frame "
+                "route. Calculate the opposite-end ratio separately and assess the "
+                "effective-length factor from Figure 4.6.3.3.",
+                "Member stiffness properties, frame classification, joint connectivity, beam "
+                "far-end fixity, base restraint, loading regularity and negligible "
+                "beam axial force are verified inputs, not authenticated model facts.",
+                "A rational-analysis alternative to the Clause 4.6.3.4(a)/(b) minimum gamma values "
+                "and the whole-frame buckling analysis remain external.",
             ],
         )
     if op == "moment_amplification":

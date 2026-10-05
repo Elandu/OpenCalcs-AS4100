@@ -29,6 +29,36 @@ evidence reference. These are the figure's idealized cases; the operation does
 not determine actual restraint stiffness, select the buckling axis, analyse the
 frame, or calculate a Clause 6.3 design capacity.
 
+## Rectangular-frame end stiffness ratio
+
+`rectangular_frame_stiffness_ratio` calculates one end's `gamma` value under
+Clause 4.6.3.4:
+
+`gamma = sum(I/l for connected compression members) / sum(beta_e * I/l for rigidly connected beams)`
+
+Include the member under consideration in `compression_members`. List all
+compression members rigidly connected at that joint. List all beams rigidly
+connected to the column there; pin-connected beams at that end are excluded.
+`second_moment_mm4 / member_length_mm` is the member's in-plane stiffness term.
+For each beam, `far_end_fixity` selects `beta_e` from Table 4.6.3.4:
+
+| Far-end condition | Braced member | Sway member |
+| --- | ---: | ---: |
+| Pinned | 1.50 | 0.50 |
+| Rigidly connected to a column | 1.00 | 1.00 |
+| Fixed | 2.00 | 0.67 |
+
+The operation requires verified rectangular-frame geometry, regular loading,
+negligible beam axial forces, member connectivity, beam far-end fixity and the
+column-base condition. At a column base, it checks the Clause 4.6.3.4 minimum
+`gamma` of 10 for a base not rigidly connected to a footing or 0.6 for a rigidly
+connected base. A rational-analysis alternative remains external.
+
+This returns one end ratio only. Repeat it for the opposite end and use both
+values to assess `k_e` from Figure 4.6.3.3. The operation does not read that
+figure, calculate a whole-frame buckling load, or validate the supplied frame
+model and evidence.
+
 ## Global plastic-analysis equilibrium
 
 `plastic_global_equilibrium` checks the three components of total force and
