@@ -92,6 +92,33 @@ _PLASTIC_JOINT = object_schema(
         "joint_actions_evidence_reference": _REFERENCE,
     }
 )
+_TRANSLATION_CONSTRAINT = object_schema(
+    {
+        "dof": {"enum": ["ux", "uy", "uz"]},
+        "prescribed_translation_mm": SIGNED,
+        "calculated_translation_mm": SIGNED,
+        "tolerance_mm": NONNEGATIVE,
+        "analysis_result_evidence_reference": _REFERENCE,
+    }
+)
+_ROTATION_CONSTRAINT = object_schema(
+    {
+        "dof": {"enum": ["rx", "ry", "rz"]},
+        "prescribed_rotation_rad": SIGNED,
+        "calculated_rotation_rad": SIGNED,
+        "tolerance_rad": NONNEGATIVE,
+        "analysis_result_evidence_reference": _REFERENCE,
+    }
+)
+_SUPPORT_CONSTRAINT = {"oneOf": [_TRANSLATION_CONSTRAINT, _ROTATION_CONSTRAINT]}
+_PLASTIC_SUPPORT = object_schema(
+    {
+        "support_id": _REFERENCE,
+        "constraints": {"type": "array", "minItems": 1, "items": _SUPPORT_CONSTRAINT},
+        "support_restraint_verified": _BOOL,
+        "support_evidence_reference": _REFERENCE,
+    }
+)
 
 SCHEMAS = {
     "euler_buckling": object_schema(
@@ -170,6 +197,14 @@ SCHEMAS = {
             "joints": {"type": "array", "minItems": 1, "items": _PLASTIC_JOINT},
             "force_tolerance_kn": NONNEGATIVE,
             "moment_tolerance_knm": NONNEGATIVE,
+        }
+    ),
+    "plastic_support_boundary_conditions": object_schema(
+        {
+            "operation": {"const": "plastic_support_boundary_conditions"},
+            "supports": {"type": "array", "minItems": 1, "items": _PLASTIC_SUPPORT},
+            "all_supports_listed_verified": _BOOL,
+            "support_list_evidence_reference": _REFERENCE,
         }
     ),
     "notional_horizontal_load": object_schema(
@@ -725,6 +760,119 @@ def run_design_actions(inputs):
                 "convention; position offsets are measured from each joint.",
                 "The completeness declaration is supplied evidence. The operation does not "
                 "verify member-span equilibrium, boundary conditions or analysis validity.",
+            ],
+        )
+    if op == "plastic_support_boundary_conditions":
+        support_results = []
+        checks = []
+        for support in d["supports"]:
+            constraint_results = []
+            dofs = []
+            for constraint in support["constraints"]:
+                dof = constraint["dof"]
+                dofs.append(dof)
+                if "prescribed_translation_mm" in constraint:
+                    unit = "mm"
+                    prescribed = constraint["prescribed_translation_mm"]
+                    calculated = constraint["calculated_translation_mm"]
+                    tolerance = constraint["tolerance_mm"]
+                else:
+                    unit = "rad"
+                    prescribed = constraint["prescribed_rotation_rad"]
+                    calculated = constraint["calculated_rotation_rad"]
+                    tolerance = constraint["tolerance_rad"]
+                residual = calculated - prescribed
+                satisfied = abs(residual) <= tolerance
+                constraint_results.append(
+                    {
+                        "dof": dof,
+                        "unit": unit,
+                        "prescribed_value": prescribed,
+                        "calculated_value": calculated,
+                        "residual": residual,
+                        "tolerance": tolerance,
+                        "satisfied": satisfied,
+                        "analysis_result_evidence_reference": constraint[
+                            "analysis_result_evidence_reference"
+                        ],
+                    }
+                )
+                checks.append(
+                    {
+                        "clause": "4.5.1",
+                        "support_id": support["support_id"],
+                        "condition": f"{dof} meets the prescribed boundary value",
+                        "residual": residual,
+                        "unit": unit,
+                        "tolerance": tolerance,
+                        "satisfied": satisfied,
+                        "evidence_reference": constraint["analysis_result_evidence_reference"],
+                    }
+                )
+            unique_dofs = len(dofs) == len(set(dofs))
+            checks.extend(
+                [
+                    {
+                        "clause": "4.5.1",
+                        "support_id": support["support_id"],
+                        "condition": "each restrained degree of freedom is listed once",
+                        "satisfied": unique_dofs,
+                    },
+                    {
+                        "clause": "4.5.1",
+                        "support_id": support["support_id"],
+                        "condition": "support restraint is verified",
+                        "satisfied": support["support_restraint_verified"],
+                        "evidence_reference": support["support_evidence_reference"],
+                    },
+                ]
+            )
+            support_results.append(
+                {
+                    "support_id": support["support_id"],
+                    "constraints": constraint_results,
+                    "support_conditions_satisfied": all(
+                        item["satisfied"] for item in constraint_results
+                    )
+                    and unique_dofs
+                    and support["support_restraint_verified"],
+                }
+            )
+        support_ids = [support["support_id"] for support in d["supports"]]
+        unique_supports = len(support_ids) == len(set(support_ids))
+        checks.extend(
+            [
+                {
+                    "clause": "4.5.1",
+                    "condition": "support identifiers are unique",
+                    "satisfied": unique_supports,
+                },
+                {
+                    "clause": "4.5.1",
+                    "condition": "all model supports are listed",
+                    "satisfied": d["all_supports_listed_verified"],
+                    "evidence_reference": d["support_list_evidence_reference"],
+                },
+            ]
+        )
+        return result(
+            op,
+            ["4.5.1"],
+            {
+                "supports": support_results,
+                "all_support_conditions_satisfied": all(
+                    support["support_conditions_satisfied"] for support in support_results
+                )
+                and unique_supports
+                and d["all_supports_listed_verified"],
+            },
+            checks,
+            limitations=[
+                "Tolerances are project-selected; the operation compares supplied analysis "
+                "translations and rotations with the declared support restraints.",
+                "Support identity, restraint selection and list completeness are supplied "
+                "evidence. Other member restraints, member-span equilibrium and analysis "
+                "validity are not checked.",
             ],
         )
     if op == "notional_horizontal_load":

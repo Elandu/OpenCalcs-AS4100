@@ -453,6 +453,81 @@ def test_plastic_joint_equilibrium_inclusive_tolerance_and_evidence_gates():
     assert not r["checks"][2]["satisfied"]
 
 
+def plastic_support_boundary_conditions(**overrides):
+    inputs = {
+        "operation": "plastic_support_boundary_conditions",
+        "supports": [
+            {
+                "support_id": "SUPPORT-01",
+                "constraints": [
+                    {
+                        "dof": "ux",
+                        "prescribed_translation_mm": 0,
+                        "calculated_translation_mm": 0.01,
+                        "tolerance_mm": 0.01,
+                        "analysis_result_evidence_reference": "SUPPORT-01-UX-RESULT",
+                    },
+                    {
+                        "dof": "uy",
+                        "prescribed_translation_mm": 0,
+                        "calculated_translation_mm": 0,
+                        "tolerance_mm": 0,
+                        "analysis_result_evidence_reference": "SUPPORT-01-UY-RESULT",
+                    },
+                    {
+                        "dof": "rz",
+                        "prescribed_rotation_rad": 0,
+                        "calculated_rotation_rad": 0.001,
+                        "tolerance_rad": 0.001,
+                        "analysis_result_evidence_reference": "SUPPORT-01-RZ-RESULT",
+                    },
+                ],
+                "support_restraint_verified": True,
+                "support_evidence_reference": "SUPPORT-01-DRAWING",
+            }
+        ],
+        "all_supports_listed_verified": True,
+        "support_list_evidence_reference": "SUPPORT-SCHEDULE-01",
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_plastic_support_boundary_conditions_translation_rotation_benchmark():
+    r = run(plastic_support_boundary_conditions())
+    assert r["checked_conditions_satisfied"]
+    assert r["values"]["all_support_conditions_satisfied"]
+    constraints = r["values"]["supports"][0]["constraints"]
+    assert [item["residual"] for item in constraints] == [0.01, 0, 0.001]
+    assert [item["unit"] for item in constraints] == ["mm", "mm", "rad"]
+    assert r["full_standard_compliance"] is False
+
+
+def test_plastic_support_boundary_conditions_limits_and_evidence():
+    inputs = plastic_support_boundary_conditions()
+    inputs["supports"][0]["constraints"][0]["calculated_translation_mm"] = 0.0101
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not r["checks"][0]["satisfied"]
+
+    inputs = plastic_support_boundary_conditions()
+    inputs["supports"][0]["support_restraint_verified"] = False
+    inputs["all_supports_listed_verified"] = False
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not r["values"]["all_support_conditions_satisfied"]
+    assert all(item["satisfied"] for item in r["checks"][:3])
+    assert not r["checks"][4]["satisfied"]
+    assert not r["checks"][6]["satisfied"]
+
+    inputs = plastic_support_boundary_conditions()
+    duplicate_constraint = dict(inputs["supports"][0]["constraints"][0])
+    inputs["supports"][0]["constraints"].append(duplicate_constraint)
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not r["checks"][4]["satisfied"]
+
+
 def test_notional_and_stability_checks():
     assert (
         run({"operation": "notional_horizontal_load", "floor_vertical_design_load_kn": 1000})[

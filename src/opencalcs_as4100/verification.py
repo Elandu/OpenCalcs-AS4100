@@ -980,6 +980,62 @@ def verify():
         ),
         1,
     )
+    plastic_support_conditions = run_design_actions(
+        {
+            "operation": "plastic_support_boundary_conditions",
+            "supports": [
+                {
+                    "support_id": "SUPPORT-01",
+                    "constraints": [
+                        {
+                            "dof": "ux",
+                            "prescribed_translation_mm": 0,
+                            "calculated_translation_mm": 0.01,
+                            "tolerance_mm": 0.01,
+                            "analysis_result_evidence_reference": "VERIFY-SUPPORT-UX-01",
+                        },
+                        {
+                            "dof": "uy",
+                            "prescribed_translation_mm": 0,
+                            "calculated_translation_mm": 0,
+                            "tolerance_mm": 0,
+                            "analysis_result_evidence_reference": "VERIFY-SUPPORT-UY-01",
+                        },
+                        {
+                            "dof": "rz",
+                            "prescribed_rotation_rad": 0,
+                            "calculated_rotation_rad": 0.001,
+                            "tolerance_rad": 0.001,
+                            "analysis_result_evidence_reference": "VERIFY-SUPPORT-RZ-01",
+                        },
+                    ],
+                    "support_restraint_verified": True,
+                    "support_evidence_reference": "VERIFY-SUPPORT-DRAWING-01",
+                }
+            ],
+            "all_supports_listed_verified": True,
+            "support_list_evidence_reference": "VERIFY-SUPPORT-SCHEDULE-01",
+        }
+    )
+    support_constraints = plastic_support_conditions["values"]["supports"][0]["constraints"]
+    record(
+        "Clause 4.5.1 support translation residual at inclusive tolerance",
+        abs(support_constraints[0]["residual"]),
+        0.01,
+    )
+    record(
+        "Clause 4.5.1 support rotation residual at inclusive tolerance",
+        abs(support_constraints[2]["residual"]),
+        0.001,
+    )
+    record(
+        "Clause 4.5.1 support and restrained-DOF evidence gates",
+        int(
+            plastic_support_conditions["values"]["all_support_conditions_satisfied"]
+            and plastic_support_conditions["checks"][3]["satisfied"]
+        ),
+        1,
+    )
     plastic_limits = run_design_actions(
         {
             "operation": "plastic_analysis_limits",

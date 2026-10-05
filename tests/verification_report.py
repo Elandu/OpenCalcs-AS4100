@@ -155,6 +155,58 @@ def clause_4_5_1_joint_equilibrium():
     }
 
 
+def clause_4_5_1_support_boundary_conditions():
+    result = run_design_actions(
+        {
+            "operation": "plastic_support_boundary_conditions",
+            "supports": [
+                {
+                    "support_id": "SUPPORT-01",
+                    "constraints": [
+                        {
+                            "dof": "ux",
+                            "prescribed_translation_mm": 0,
+                            "calculated_translation_mm": 0.01,
+                            "tolerance_mm": 0.01,
+                            "analysis_result_evidence_reference": "BENCHMARK-SUPPORT-UX-01",
+                        },
+                        {
+                            "dof": "uy",
+                            "prescribed_translation_mm": 0,
+                            "calculated_translation_mm": 0,
+                            "tolerance_mm": 0,
+                            "analysis_result_evidence_reference": "BENCHMARK-SUPPORT-UY-01",
+                        },
+                        {
+                            "dof": "rz",
+                            "prescribed_rotation_rad": 0,
+                            "calculated_rotation_rad": 0.001,
+                            "tolerance_rad": 0.001,
+                            "analysis_result_evidence_reference": "BENCHMARK-SUPPORT-RZ-01",
+                        },
+                    ],
+                    "support_restraint_verified": True,
+                    "support_evidence_reference": "BENCHMARK-SUPPORT-DRAWING-01",
+                }
+            ],
+            "all_supports_listed_verified": True,
+            "support_list_evidence_reference": "BENCHMARK-SUPPORT-SCHEDULE-01",
+        }
+    )
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.5.1 support boundary benchmark failed")
+    constraints = result["values"]["supports"][0]["constraints"]
+    if not isclose(abs(constraints[0]["residual"]), 0.01, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 4.5.1 support translation residual should be 0.01 mm")
+    if not isclose(abs(constraints[2]["residual"]), 0.001, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 4.5.1 support rotation residual should be 0.001 rad")
+    return {
+        "support_conditions_satisfied": result["values"]["all_support_conditions_satisfied"],
+        "translation_residual_mm": constraints[0]["residual"],
+        "rotation_residual_rad": constraints[2]["residual"],
+    }
+
+
 def clause_4_5_2_plastic_analysis_limits():
     result = run_design_actions(
         {
@@ -2000,6 +2052,7 @@ def main():
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
         "clause_4_5_1_global_equilibrium": clause_4_5_1_global_equilibrium,
         "clause_4_5_1_joint_equilibrium": clause_4_5_1_joint_equilibrium,
+        "clause_4_5_1_support_boundary_conditions": clause_4_5_1_support_boundary_conditions,
         "clause_4_5_2_plastic_analysis_limits": clause_4_5_2_plastic_analysis_limits,
         "clause_4_5_3_plastic_connections": clause_4_5_3_plastic_connections,
         "clause_9_6_2_macro_test_throat_increase": incomplete_butt_macro_test_weld,

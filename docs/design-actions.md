@@ -9,7 +9,7 @@ does not authenticate those records.
 
 `plastic_global_equilibrium` checks the three components of total force and
 moment resultants for Clause 4.5.1. Supply all applied loads and support
-reactions, with at least one of each, using consistent signs, a common
+reactions, with at least one of each, using consistent signs, a right-handed
 coordinate system and one origin.
 For each action, `position_mm` locates its force vector and `moment_knm` is its
 applied couple; the operation converts the position to metres and adds
@@ -31,7 +31,7 @@ the declared boundary-condition evidence.
 at each supplied joint under Clause 4.5.1. At least two actions must be listed
 at each joint, including at least one member-end action. Enter member-end
 actions, nodal loads and support reactions using consistent signs in one
-coordinate system. Forces are in kN, supplied moments in kN·m, and
+right-handed coordinate system. Forces are in kN, supplied moments in kN·m, and
 `position_offset_mm` is measured from the joint; the operation converts offsets
 to metres and adds `position offset × force` to each supplied moment vector.
 
@@ -41,6 +41,20 @@ reference record the user's declaration that the listed joint actions are
 complete. The calculation does not authenticate that declaration, confirm
 member connectivity, check member-span equilibrium, verify support conditions,
 or validate the structural analysis.
+
+## Support boundary-condition checks
+
+`plastic_support_boundary_conditions` compares supplied analysis translations
+and rotations at restrained support degrees of freedom with their prescribed
+values. Use `ux`, `uy` and `uz` with millimetre values and tolerances, and `rx`,
+`ry` and `rz` with radian values and tolerances. Each restrained degree of
+freedom may be listed once per support. Tolerances are project-selected; the
+standard does not prescribe values through this operation.
+
+The support restraint and complete support-list declarations require evidence
+references. The calculation checks the listed analysis values against the
+declared restraints; it does not authenticate support identity, decide which
+restraints apply, check other member restraints or solve the structural model.
 
 ## Plastic-analysis limits
 
