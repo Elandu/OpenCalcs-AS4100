@@ -862,6 +862,87 @@ def verify():
         angle_layout["net_area_mm2"],
         1900 - 57.25 * 10,
     )
+    fastener_detailing = run_connections(
+        {
+            "check_type": "fastener_detailing",
+            "fastener_type": "bolt",
+            "fasteners": [
+                {"fastener_id": "B1", "x_mm": 0, "y_mm": 0, "nominal_diameter_mm": 20},
+                {"fastener_id": "B2", "x_mm": 50, "y_mm": 0, "nominal_diameter_mm": 20},
+            ],
+            "pitch_lines": [
+                {
+                    "line_id": "row-1",
+                    "fastener_ids": ["B1", "B2"],
+                    "maximum_pitch_case": "general",
+                }
+            ],
+            "connected_plies": [
+                {
+                    "ply_id": "outer-a",
+                    "thickness_mm": 10,
+                    "outer_connected_ply": True,
+                    "in_contact": True,
+                },
+                {
+                    "ply_id": "outer-b",
+                    "thickness_mm": 12,
+                    "outer_connected_ply": True,
+                    "in_contact": True,
+                },
+            ],
+            "edge_measurements": [
+                {
+                    "fastener_id": fastener_id,
+                    "ply_id": ply_id,
+                    "edge_id": edge_id,
+                    "edge_condition": edge_condition,
+                    "hole_type": "standard",
+                    "centre_to_physical_edge_mm": distance,
+                }
+                for fastener_id in ("B1", "B2")
+                for ply_id in ("outer-a", "outer-b")
+                for edge_id, edge_condition, distance in (
+                    ("cut", "sheared_or_hand_flame_cut", 35),
+                    ("machined", "machined_sawn_or_planed", 30),
+                    ("rolled", "rolled_edge", 25),
+                )
+            ],
+            "complete_fastener_layout_and_pitch_lines_verified": True,
+            "complete_connected_plies_and_physical_edges_verified": True,
+            "maximum_pitch_case_classification_verified": True,
+            "layout_evidence_reference": "BENCHMARK-9.5-LAYOUT-01",
+            "holes_conform_to_as_nzs_5131": True,
+            "hole_compliance_evidence_reference": "BENCHMARK-9.5-HOLES-01",
+        }
+    )["checks"]
+    record(
+        "Clause 9.5.1 M20 minimum pitch",
+        fastener_detailing["minimum_pitch"]["governing_pair"]["required_minimum_pitch_mm"],
+        2.5 * 20,
+    )
+    record(
+        "Table 9.5.2 sheared-edge M20 minimum distance",
+        fastener_detailing["minimum_edge_distance"]["governing_edge"][
+            "required_minimum_edge_distance_mm"
+        ],
+        1.75 * 20,
+    )
+    record(
+        "Clause 9.5.3 general maximum pitch",
+        fastener_detailing["maximum_pitch"]["line_checks"][0]["maximum_permitted_pitch_mm"],
+        min(15 * 10, 200),
+    )
+    record(
+        "Clause 9.5.4 maximum edge distance",
+        fastener_detailing["maximum_edge_distance"]["maximum_permitted_distance_mm"],
+        min(12 * 10, 150),
+    )
+    record(
+        "Clause 9.5.5 AS/NZS 5131 hole evidence gate",
+        int(fastener_detailing["hole_provisions"]["satisfied"]),
+        1,
+    )
     net_i_section = run_members(
         {
             "operation": "section_moduli",

@@ -3244,3 +3244,178 @@ def test_packing_construction_thin_and_extended_routes():
     assert result["checks"]["welded_to_fitted_piece"]["satisfied"]
     data["extends_beyond_member_edges"] = False
     assert not run_connections(data)["checks"]["extends_beyond_edges"]["satisfied"]
+
+
+def _fastener_detailing_input():
+    fasteners = [
+        {"fastener_id": "B1", "x_mm": 0, "y_mm": 0, "nominal_diameter_mm": 20},
+        {"fastener_id": "B2", "x_mm": 50, "y_mm": 0, "nominal_diameter_mm": 20},
+    ]
+    plies = [
+        {"ply_id": "outer-a", "thickness_mm": 10, "outer_connected_ply": True, "in_contact": True},
+        {"ply_id": "outer-b", "thickness_mm": 12, "outer_connected_ply": True, "in_contact": True},
+    ]
+    edges = []
+    for fastener in fasteners:
+        for ply in plies:
+            for edge_id, condition in (
+                ("cut", "sheared_or_hand_flame_cut"),
+                ("machined", "machined_sawn_or_planed"),
+                ("rolled", "rolled_edge"),
+            ):
+                edges.append(
+                    {
+                        "fastener_id": fastener["fastener_id"],
+                        "ply_id": ply["ply_id"],
+                        "edge_id": edge_id,
+                        "edge_condition": condition,
+                        "hole_type": "standard",
+                        "centre_to_physical_edge_mm": 35,
+                    }
+                )
+    return {
+        "check_type": "fastener_detailing",
+        "fastener_type": "bolt",
+        "fasteners": fasteners,
+        "pitch_lines": [
+            {
+                "line_id": "row-1",
+                "fastener_ids": ["B1", "B2"],
+                "maximum_pitch_case": "general",
+            }
+        ],
+        "connected_plies": plies,
+        "edge_measurements": edges,
+        "complete_fastener_layout_and_pitch_lines_verified": True,
+        "complete_connected_plies_and_physical_edges_verified": True,
+        "maximum_pitch_case_classification_verified": True,
+        "layout_evidence_reference": "DETAIL-DRAWING-01",
+        "holes_conform_to_as_nzs_5131": True,
+        "hole_compliance_evidence_reference": "HOLE-INSPECTION-01",
+    }
+
+
+def test_fastener_detailing_clause_9_5_boundaries_and_table_factors():
+    result = run_connections(_fastener_detailing_input())
+    checks = result["checks"]
+    assert checks["minimum_pitch"]["governing_pair"]["measured_pitch_mm"] == pytest.approx(50)
+    assert checks["minimum_pitch"]["governing_pair"]["required_minimum_pitch_mm"] == pytest.approx(
+        50
+    )
+    assert checks["minimum_edge_distance"]["satisfied"]
+    assert [
+        row["required_minimum_edge_distance_mm"]
+        for row in checks["minimum_edge_distance"]["failed_edge_checks"]
+    ] == []
+    assert checks["maximum_pitch"]["line_checks"][0]["maximum_permitted_pitch_mm"] == pytest.approx(
+        150
+    )
+    assert checks["maximum_edge_distance"]["maximum_permitted_distance_mm"] == pytest.approx(120)
+    assert all(check["satisfied"] for check in checks.values())
+
+    for edge_type, required_mm in (
+        ("sheared_or_hand_flame_cut", 35),
+        ("machined_sawn_or_planed", 30),
+        ("rolled_edge", 25),
+    ):
+        data = _fastener_detailing_input()
+        for edge in data["edge_measurements"]:
+            edge["edge_condition"] = edge_type
+            edge["centre_to_physical_edge_mm"] = required_mm
+        result = run_connections(data)
+        assert result["checks"]["minimum_edge_distance"]["satisfied"]
+        data["edge_measurements"][0]["centre_to_physical_edge_mm"] = required_mm - 0.001
+        assert not run_connections(data)["checks"]["minimum_edge_distance"]["satisfied"]
+
+
+def test_fastener_detailing_nonstandard_hole_and_maximum_pitch_exceptions():
+    data = _fastener_detailing_input()
+    for edge in data["edge_measurements"]:
+        edge["hole_type"] = "non_standard"
+        edge["hole_edge_clearance_mm"] = 25
+        edge["centre_to_physical_edge_mm"] = 35
+    result = run_connections(data)
+    assert result["checks"]["minimum_edge_distance"]["satisfied"]
+    assert result["checks"]["minimum_edge_distance"]["governing_edge"][
+        "measured_clause_edge_distance_mm"
+    ] == pytest.approx(35)
+
+    data["edge_measurements"][0]["hole_edge_clearance_mm"] = 24.999
+    result = run_connections(data)
+    assert not result["checks"]["minimum_edge_distance"]["satisfied"]
+
+    data = _fastener_detailing_input()
+    data["fasteners"][1]["x_mm"] = 300
+    data["pitch_lines"][0]["maximum_pitch_case"] = "no_design_action_noncorrosive"
+    result = run_connections(data)
+    assert result["checks"]["maximum_pitch"]["line_checks"][0][
+        "maximum_permitted_pitch_mm"
+    ] == pytest.approx(300)
+    assert result["checks"]["maximum_pitch"]["satisfied"]
+
+    data["fasteners"][1]["x_mm"] = 140
+    data["pitch_lines"][0]["maximum_pitch_case"] = "outside_line_in_action_direction"
+    result = run_connections(data)
+    assert result["checks"]["maximum_pitch"]["line_checks"][0][
+        "maximum_permitted_pitch_mm"
+    ] == pytest.approx(140)
+    assert result["checks"]["maximum_pitch"]["satisfied"]
+    data["fasteners"][1]["x_mm"] = 140.001
+    assert not run_connections(data)["checks"]["maximum_pitch"]["satisfied"]
+
+
+def test_fastener_detailing_maximum_edge_cap_and_incomplete_geometry_rejection():
+    data = _fastener_detailing_input()
+    for edge in data["edge_measurements"]:
+        edge["centre_to_physical_edge_mm"] = 120
+    result = run_connections(data)
+    assert result["checks"]["maximum_edge_distance"]["satisfied"]
+    for edge in data["edge_measurements"]:
+        if edge["fastener_id"] == "B1":
+            edge["centre_to_physical_edge_mm"] = 120.001
+    assert not run_connections(data)["checks"]["maximum_edge_distance"]["satisfied"]
+
+    data = _fastener_detailing_input()
+    for ply in data["connected_plies"]:
+        ply["thickness_mm"] = 20
+    for edge in data["edge_measurements"]:
+        edge["centre_to_physical_edge_mm"] = 150
+    result = run_connections(data)
+    assert result["checks"]["maximum_edge_distance"][
+        "maximum_permitted_distance_mm"
+    ] == pytest.approx(150)
+    assert result["checks"]["maximum_edge_distance"]["satisfied"]
+
+    data = _fastener_detailing_input()
+    data["edge_measurements"].pop()
+    with pytest.raises(ValueError, match="physical edge inventory"):
+        run_connections(data)
+
+    data = _fastener_detailing_input()
+    data["fasteners"].append(
+        {"fastener_id": "B3", "x_mm": 100, "y_mm": 2, "nominal_diameter_mm": 20}
+    )
+    data["pitch_lines"][0]["fastener_ids"].append("B3")
+    for ply in data["connected_plies"]:
+        for edge_id, condition in (
+            ("cut", "sheared_or_hand_flame_cut"),
+            ("machined", "machined_sawn_or_planed"),
+            ("rolled", "rolled_edge"),
+        ):
+            data["edge_measurements"].append(
+                {
+                    "fastener_id": "B3",
+                    "ply_id": ply["ply_id"],
+                    "edge_id": edge_id,
+                    "edge_condition": condition,
+                    "hole_type": "standard",
+                    "centre_to_physical_edge_mm": 35,
+                }
+            )
+    with pytest.raises(ValueError, match="must be collinear"):
+        run_connections(data)
+
+    data = _fastener_detailing_input()
+    data["fastener_type"] = "pin"
+    with pytest.raises(ValueError):
+        run_connections(data)

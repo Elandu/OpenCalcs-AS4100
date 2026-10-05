@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.37",
+  "package_version": "0.7.38",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -399,6 +399,41 @@
       "name": "Clause 9.1.10 two-leg angle net area",
       "actual": 1327.5,
       "expected": 1327.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.5.1 M20 minimum pitch",
+      "actual": 50.0,
+      "expected": 50.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 9.5.2 sheared-edge M20 minimum distance",
+      "actual": 35.0,
+      "expected": 35.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.5.3 general maximum pitch",
+      "actual": 150,
+      "expected": 150,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.5.4 maximum edge distance",
+      "actual": 120,
+      "expected": 120,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.5.5 AS/NZS 5131 hole evidence gate",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

@@ -758,6 +758,113 @@ FIELDS = {
         "impact_or_vibration_present": BOOL,
         "service_and_dynamic_action_assessment_verified": {"const": True},
     },
+    "fastener_detailing": {
+        "fastener_type": {"const": "bolt"},
+        "fasteners": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["fastener_id", "x_mm", "y_mm", "nominal_diameter_mm"],
+                "properties": {
+                    "fastener_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "x_mm": SIGNED,
+                    "y_mm": SIGNED,
+                    "nominal_diameter_mm": P,
+                },
+            },
+        },
+        "pitch_lines": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["line_id", "fastener_ids", "maximum_pitch_case"],
+                "properties": {
+                    "line_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "fastener_ids": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 100,
+                        "items": {"type": "string", "minLength": 1, "maxLength": 64},
+                    },
+                    "maximum_pitch_case": {
+                        "enum": [
+                            "general",
+                            "no_design_action_noncorrosive",
+                            "outside_line_in_action_direction",
+                        ]
+                    },
+                },
+            },
+        },
+        "connected_plies": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["ply_id", "thickness_mm", "outer_connected_ply", "in_contact"],
+                "properties": {
+                    "ply_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "thickness_mm": P,
+                    "outer_connected_ply": BOOL,
+                    "in_contact": BOOL,
+                },
+            },
+        },
+        "edge_measurements": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20000,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "fastener_id",
+                    "ply_id",
+                    "edge_id",
+                    "edge_condition",
+                    "hole_type",
+                    "centre_to_physical_edge_mm",
+                ],
+                "properties": {
+                    "fastener_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "ply_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "edge_id": {"type": "string", "minLength": 1, "maxLength": 64},
+                    "edge_condition": {
+                        "enum": [
+                            "sheared_or_hand_flame_cut",
+                            "machined_sawn_or_planed",
+                            "rolled_edge",
+                        ]
+                    },
+                    "hole_type": {"enum": ["standard", "non_standard"]},
+                    "centre_to_physical_edge_mm": N,
+                    "hole_edge_clearance_mm": N,
+                },
+                "allOf": [
+                    {
+                        "if": {
+                            "properties": {"hole_type": {"const": "non_standard"}},
+                            "required": ["hole_type"],
+                        },
+                        "then": {"required": ["hole_edge_clearance_mm"]},
+                    }
+                ],
+            },
+        },
+        "complete_fastener_layout_and_pitch_lines_verified": {"const": True},
+        "complete_connected_plies_and_physical_edges_verified": {"const": True},
+        "maximum_pitch_case_classification_verified": {"const": True},
+        "layout_evidence_reference": TEXT_REFERENCE,
+        "holes_conform_to_as_nzs_5131": BOOL,
+        "hole_compliance_evidence_reference": TEXT_REFERENCE,
+    },
     "combined_connection_action_assignment": {
         "component_groups": {
             "type": "array",
@@ -2225,6 +2332,278 @@ def run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("Connection calculation exceeds the finite numeric domain.") from exc
 
 
+def _fastener_detailing(d):
+    fasteners = {item["fastener_id"]: item for item in d["fasteners"]}
+    if len(fasteners) != len(d["fasteners"]):
+        raise ValueError("Fastener IDs must be unique.")
+    positions = [(item["x_mm"], item["y_mm"]) for item in d["fasteners"]]
+    if len(set(positions)) != len(positions):
+        raise ValueError("Fastener centre coordinates must be distinct.")
+
+    plies = {item["ply_id"]: item for item in d["connected_plies"]}
+    if len(plies) != len(d["connected_plies"]):
+        raise ValueError("Connected-ply IDs must be unique.")
+    outer_contact_plies = [
+        item for item in d["connected_plies"] if item["outer_connected_ply"] and item["in_contact"]
+    ]
+    if not outer_contact_plies:
+        raise ValueError(
+            "At least one outer connected ply in contact is required for Clause 9.5.4."
+        )
+
+    edge_sets = {(fastener_id, ply_id): set() for fastener_id in fasteners for ply_id in plies}
+    edge_conditions = {}
+    hole_types = {}
+    edge_rows = {}
+    for edge in d["edge_measurements"]:
+        fastener_id, ply_id, edge_id = edge["fastener_id"], edge["ply_id"], edge["edge_id"]
+        if fastener_id not in fasteners or ply_id not in plies:
+            raise ValueError(
+                "Every edge measurement must identify a supplied fastener and connected ply."
+            )
+        pair = (fastener_id, ply_id)
+        if edge_id in edge_sets[pair]:
+            raise ValueError("Each fastener-to-ply physical edge must appear once.")
+        edge_sets[pair].add(edge_id)
+        edge_rows[(fastener_id, ply_id, edge_id)] = edge
+        physical_edge = (ply_id, edge_id)
+        old_condition = edge_conditions.setdefault(physical_edge, edge["edge_condition"])
+        if old_condition != edge["edge_condition"]:
+            raise ValueError("An edge must use one consistent Clause 9.5.2 edge classification.")
+        old_hole_type = hole_types.setdefault(fastener_id, edge["hole_type"])
+        if old_hole_type != edge["hole_type"]:
+            raise ValueError(
+                "A fastener must use one consistent hole classification across its plies."
+            )
+
+    for ply_id in plies:
+        reference_edge_set = None
+        for fastener_id in fasteners:
+            edge_ids = edge_sets[(fastener_id, ply_id)]
+            if not edge_ids:
+                raise ValueError(
+                    "Every fastener must have edge measurements for every connected ply."
+                )
+            if reference_edge_set is None:
+                reference_edge_set = edge_ids
+            elif edge_ids != reference_edge_set:
+                raise ValueError(
+                    "Every fastener on a ply must use the same complete physical edge inventory."
+                )
+
+    min_pitch_margin = None
+    min_pitch_governing = None
+    pair_count = 0
+    for i, first in enumerate(sorted(d["fasteners"], key=lambda item: item["fastener_id"])):
+        for second in sorted(d["fasteners"], key=lambda item: item["fastener_id"])[i + 1 :]:
+            pair_count += 1
+            measured = hypot(first["x_mm"] - second["x_mm"], first["y_mm"] - second["y_mm"])
+            required = 2.5 * max(first["nominal_diameter_mm"], second["nominal_diameter_mm"])
+            margin = measured - required
+            pair_key = (first["fastener_id"], second["fastener_id"])
+            if min_pitch_margin is None or (margin, pair_key) < (
+                min_pitch_margin,
+                tuple(min_pitch_governing["fastener_ids"]),
+            ):
+                min_pitch_margin = margin
+                min_pitch_governing = {
+                    "fastener_ids": list(pair_key),
+                    "diameter_basis_mm": max(
+                        first["nominal_diameter_mm"], second["nominal_diameter_mm"]
+                    ),
+                    "measured_pitch_mm": measured,
+                    "required_minimum_pitch_mm": required,
+                    "margin_mm": margin,
+                }
+    min_pitch_check = {
+        "clause": "9.5.1",
+        "applicable": bool(pair_count),
+        "fastener_pair_count": pair_count,
+        "governing_pair": min_pitch_governing,
+        "satisfied": min_pitch_margin is None or min_pitch_margin >= 0,
+    }
+
+    edge_factors = {
+        "sheared_or_hand_flame_cut": 1.75,
+        "machined_sawn_or_planed": 1.50,
+        "rolled_edge": 1.25,
+    }
+    edge_checks = []
+    for (fastener_id, ply_id, edge_id), edge in sorted(edge_rows.items()):
+        diameter = fasteners[fastener_id]["nominal_diameter_mm"]
+        if edge["hole_type"] == "standard":
+            measured = edge["centre_to_physical_edge_mm"]
+            measurement_basis = "hole_centre_to_physical_edge"
+        else:
+            measured = edge["hole_edge_clearance_mm"] + diameter / 2
+            measurement_basis = "hole_edge_clearance_plus_half_fastener_diameter"
+        required = edge_factors[edge["edge_condition"]] * diameter
+        edge_checks.append(
+            {
+                "fastener_id": fastener_id,
+                "ply_id": ply_id,
+                "edge_id": edge_id,
+                "edge_condition": edge["edge_condition"],
+                "hole_type": edge["hole_type"],
+                "measurement_basis": measurement_basis,
+                "measured_clause_edge_distance_mm": measured,
+                "required_minimum_edge_distance_mm": required,
+                "margin_mm": measured - required,
+                "satisfied": measured >= required,
+            }
+        )
+    governing_edge = min(
+        edge_checks,
+        key=lambda row: (row["margin_mm"], row["fastener_id"], row["ply_id"], row["edge_id"]),
+    )
+    failed_edge_checks = [row for row in edge_checks if not row["satisfied"]]
+    min_edge_check = {
+        "clause": "9.5.2",
+        "edge_check_count": len(edge_checks),
+        "governing_edge": governing_edge,
+        "failed_edge_checks": failed_edge_checks,
+        "satisfied": not failed_edge_checks,
+    }
+
+    if len(fasteners) > 1 and not d["pitch_lines"]:
+        raise ValueError(
+            "Every multi-fastener layout must include its complete consecutive pitch lines."
+        )
+    line_ids = [line["line_id"] for line in d["pitch_lines"]]
+    if len(set(line_ids)) != len(line_ids):
+        raise ValueError("Pitch-line IDs must be unique.")
+    line_results = []
+    fasteners_in_lines = set()
+    thin_connected_ply = min(item["thickness_mm"] for item in d["connected_plies"])
+    for line in sorted(d["pitch_lines"], key=lambda item: item["line_id"]):
+        ids = line["fastener_ids"]
+        if len(set(ids)) != len(ids):
+            raise ValueError("A pitch line must not repeat a fastener.")
+        if any(fastener_id not in fasteners for fastener_id in ids):
+            raise ValueError("Every pitch-line fastener must exist in the fastener layout.")
+        fasteners_in_lines.update(ids)
+        points = [
+            (fasteners[fastener_id]["x_mm"], fasteners[fastener_id]["y_mm"]) for fastener_id in ids
+        ]
+        dx, dy = points[-1][0] - points[0][0], points[-1][1] - points[0][1]
+        line_length = hypot(dx, dy)
+        if line_length == 0:
+            raise ValueError("Pitch-line end points must be distinct.")
+        projections = []
+        for x, y in points:
+            perpendicular = abs(dx * (y - points[0][1]) - dy * (x - points[0][0])) / line_length
+            if perpendicular > max(1e-6, line_length * 1e-9):
+                raise ValueError("Fasteners in each pitch line must be collinear.")
+            projections.append(((x - points[0][0]) * dx + (y - points[0][1]) * dy) / line_length)
+        if any(
+            after <= before for before, after in zip(projections, projections[1:], strict=False)
+        ):
+            raise ValueError("Pitch-line fasteners must be ordered from one end to the other.")
+
+        case = line["maximum_pitch_case"]
+        if case == "no_design_action_noncorrosive":
+            maximum_pitch = min(32 * thin_connected_ply, 300)
+        elif case == "outside_line_in_action_direction":
+            maximum_pitch = min(4 * thin_connected_ply + 100, 200)
+        else:
+            maximum_pitch = min(15 * thin_connected_ply, 200)
+        adjacent_pitches = [
+            {
+                "fastener_ids": [ids[index], ids[index + 1]],
+                "pitch_mm": hypot(
+                    points[index + 1][0] - points[index][0],
+                    points[index + 1][1] - points[index][1],
+                ),
+            }
+            for index in range(len(points) - 1)
+        ]
+        worst_pitch = max(
+            adjacent_pitches, key=lambda item: (item["pitch_mm"], item["fastener_ids"])
+        )
+        line_results.append(
+            {
+                "line_id": line["line_id"],
+                "maximum_pitch_case": case,
+                "governing_adjacent_pitch": worst_pitch,
+                "maximum_permitted_pitch_mm": maximum_pitch,
+                "satisfied": worst_pitch["pitch_mm"] <= maximum_pitch,
+            }
+        )
+    if len(fasteners) > 1 and fasteners_in_lines != set(fasteners):
+        raise ValueError("Pitch lines must include every fastener in the verified layout.")
+    max_pitch_check = {
+        "clause": "9.5.3",
+        "applicable": bool(line_results),
+        "thinnest_connected_ply_mm": thin_connected_ply,
+        "line_checks": line_results,
+        "satisfied": all(line["satisfied"] for line in line_results),
+    }
+
+    thinnest_outer_ply = min(item["thickness_mm"] for item in outer_contact_plies)
+    maximum_edge_limit = min(12 * thinnest_outer_ply, 150)
+    edge_by_fastener = {}
+    for fastener_id in sorted(fasteners):
+        contacting_edges = [
+            (edge["centre_to_physical_edge_mm"], ply_id, edge_id)
+            for (edge_fastener_id, ply_id, edge_id), edge in edge_rows.items()
+            if edge_fastener_id == fastener_id and plies[ply_id]["in_contact"]
+        ]
+        if not contacting_edges:
+            raise ValueError(
+                "Every fastener must have a measured edge in a contacting connected ply."
+            )
+        nearest_distance, nearest_ply, nearest_edge = min(
+            contacting_edges, key=lambda row: (row[0], row[1], row[2])
+        )
+        edge_by_fastener[fastener_id] = {
+            "nearest_centre_to_edge_mm": nearest_distance,
+            "nearest_ply_id": nearest_ply,
+            "nearest_edge_id": nearest_edge,
+            "satisfied": nearest_distance <= maximum_edge_limit,
+        }
+    max_edge_governing_id = max(
+        edge_by_fastener,
+        key=lambda fastener_id: (
+            edge_by_fastener[fastener_id]["nearest_centre_to_edge_mm"],
+            fastener_id,
+        ),
+    )
+    max_edge_check = {
+        "clause": "9.5.4",
+        "thinnest_outer_connected_ply_mm": thinnest_outer_ply,
+        "maximum_permitted_distance_mm": maximum_edge_limit,
+        "fastener_checks": edge_by_fastener,
+        "governing_fastener_id": max_edge_governing_id,
+        "governing_distance_mm": edge_by_fastener[max_edge_governing_id][
+            "nearest_centre_to_edge_mm"
+        ],
+        "satisfied": all(row["satisfied"] for row in edge_by_fastener.values()),
+    }
+    hole_conformity = {
+        "clause": "9.5.5",
+        "requirement": "Holes for bolts and pins conform to AS/NZS 5131",
+        "satisfied": d["holes_conform_to_as_nzs_5131"],
+        "evidence_reference": d["hole_compliance_evidence_reference"],
+        "assessment_source": "externally verified evidence",
+    }
+    checks = {
+        "minimum_pitch": min_pitch_check,
+        "minimum_edge_distance": min_edge_check,
+        "maximum_pitch": max_pitch_check,
+        "maximum_edge_distance": max_edge_check,
+        "hole_provisions": hole_conformity,
+    }
+    intermediate = {
+        "clauses": ["9.5.1", "9.5.2", "9.5.3", "9.5.4", "9.5.5"],
+        "standard": "AS 4100:2020",
+        "fastener_type": d["fastener_type"],
+        "table_9_5_2_edge_factors": edge_factors,
+        "complete_layout_evidence_reference": d["layout_evidence_reference"],
+        "hole_compliance_evidence_reference": d["hole_compliance_evidence_reference"],
+    }
+    return checks, intermediate
+
+
 def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
     """Evaluate the tagged component check; actions include externally assessed prying."""
     if not isinstance(inputs, Mapping):
@@ -2251,6 +2630,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError("Clause 9.1.4 excludes lacing, sag-rod, purlin and girt connections.")
     if k == "slip_factor_test":
         c, intermediate = _appendix_j_slip_factor(d)
+    elif k == "fastener_detailing":
+        c, intermediate = _fastener_detailing(d)
     elif k == "minimum_beam_shear_action":
         actual = d["actual_design_shear_kn"]
         member_capacity = d["member_design_shear_capacity_kn"]
@@ -3809,6 +4190,29 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
                     "moment; separately verify connection strength, local components, installation "
                     "and detailing."
                 )
+    elif k == "fastener_detailing":
+        scope = (
+            "Clauses 9.5.1–9.5.4 calculate bolt pitch and edge-distance limits from the supplied "
+            "complete fastener coordinates, consecutive pitch lines, connected plies and physical "
+            "edge measurements. Minimum pitch checks every fastener pair using the larger pair "
+            "diameter; maximum pitch checks adjacent fasteners in each ordered line. Clause 9.5.2 "
+            "applies Table 9.5.2 to standard holes or the stated hole-edge-clearance basis for "
+            "non-standard holes; Clause 9.5.3 applies its general or classified exception limit; "
+            "Clause 9.5.4 uses the nearest edge and thinnest outer connected ply. The numeric "
+            "route is bolt-only; pin bearing and detailing require separate assessment. Clause "
+            "9.5.5 records an external AS/NZS 5131 hole-conformity review for bolt and pin holes. "
+            "The calculation does not authenticate source drawings, edge conditions, corrosion "
+            "exposure, fastener-line categories, physical edge inventories or AS/NZS 5131 records. "
+            "Bolt capacity, net-section resistance and complete connection design remain separate."
+        )
+    elif k == "layout":
+        scope = (
+            "Clauses 9.5.1–9.5.4 single-pitch/single-edge check for one supplied bolt diameter, "
+            "standard-hole edge type and maximum-pitch case. The single thinnest_ply_mm input is "
+            "used for both the Clause 9.5.3 maximum-pitch limit and 9.5.4 maximum-edge limit, so "
+            "this route applies only when those thickness bases coincide. Use fastener_detailing "
+            "for a complete layout, per-ply edges, non-standard holes or differentiated exceptions."
+        )
     elif k == "joint_eccentricity_action":
         scope = (
             "Clause 9.1.5 signed eccentric moments only; verify axis convergence where "
