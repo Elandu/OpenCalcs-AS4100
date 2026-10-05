@@ -1938,6 +1938,66 @@ def appendix_h4_amended_closed_section_torsion_constant():
     return {"square_closed_section_torsion_constant_mm4": value}
 
 
+def appendix_h4_multi_cell_torsion_compatibility():
+    walls = [
+        ("left-top", 100, "a", "b", ["left"]),
+        ("shared", 100, "b", "c", ["left", "right"]),
+        ("left-bottom", 100, "c", "d", ["left"]),
+        ("left-side", 100, "d", "a", ["left"]),
+        ("right-side", 200, "c", "f", ["right"]),
+        ("right-bottom", 100, "f", "e", ["right"]),
+        ("right-top", 200, "e", "b", ["right"]),
+    ]
+    result = run_advanced_members(
+        {
+            "operation": "multi_cell_closed_section_torsion_constant",
+            "cell_areas": [
+                {"cell_id": "left", "enclosed_median_line_area_mm2": 10_000},
+                {"cell_id": "right", "enclosed_median_line_area_mm2": 20_000},
+            ],
+            "wall_segments": [
+                {
+                    "wall_id": wall_id,
+                    "median_line_length_mm": length,
+                    "thickness_mm": 4,
+                    "start_vertex_id": start,
+                    "end_vertex_id": end,
+                    "cell_ids": cell_ids,
+                }
+                for wall_id, length, start, end, cell_ids in walls
+            ],
+            "median_line_cell_geometry_verified": True,
+            "geometry_evidence_reference": "INDEPENDENT-TWO-CELL-SECTION-01",
+        }
+    )
+    values = result["values"]
+    expected_matrix = [[100, -25], [-25, 150]]
+    if values["compatibility_matrix"] != expected_matrix:
+        raise AssertionError(
+            f"Two-cell compatibility matrix expected {expected_matrix}, "
+            f"observed {values['compatibility_matrix']}"
+        )
+    expected_cell_values = [3200 / 23, 3600 / 23]
+    actual_cell_values = [cell["compatibility_solution_mm2"] for cell in values["cell_results"]]
+    if any(
+        not isclose(actual, expected, rel_tol=0, abs_tol=1e-9)
+        for actual, expected in zip(actual_cell_values, expected_cell_values, strict=True)
+    ):
+        raise AssertionError(
+            f"Two-cell compatibility solution expected {expected_cell_values}, "
+            f"observed {actual_cell_values}"
+        )
+    expected_j = 416_000_000 / 23
+    actual_j = values["torsion_constant_j_mm4"]
+    if not isclose(actual_j, expected_j, rel_tol=0, abs_tol=1e-8):
+        raise AssertionError(
+            f"Two-cell torsion constant expected {expected_j}, observed {actual_j}"
+        )
+    if result["full_standard_compliance"] or not result["checked_conditions_satisfied"]:
+        raise AssertionError("Supplemental torsion property must remain outside compliance claims")
+    return {"multi_cell_torsion_constant_mm4": actual_j}
+
+
 def appendix_h4_open_section_torsion_constant():
     result = run_advanced_members(
         {
@@ -3912,6 +3972,9 @@ def main():
         "clause_6_3_3_c_amended_lambda_20_row": clause_6_3_3_c_amended_lambda_20_row,
         "appendix_h4_amended_closed_section_torsion_constant": (
             appendix_h4_amended_closed_section_torsion_constant
+        ),
+        "appendix_h4_supplemental_multi_cell_torsion": (
+            appendix_h4_multi_cell_torsion_compatibility
         ),
         "appendix_h4_open_section_torsion_constant": appendix_h4_open_section_torsion_constant,
         "appendix_h4_section_warping_constants": appendix_h4_section_warping_constants,

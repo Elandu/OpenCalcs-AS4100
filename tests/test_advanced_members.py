@@ -21,6 +21,77 @@ def closed_torsion_constant_inputs(**changes):
     }
 
 
+def multi_cell_torsion_constant_inputs(**changes):
+    return {
+        "operation": "multi_cell_closed_section_torsion_constant",
+        "cell_areas": [
+            {"cell_id": "left", "enclosed_median_line_area_mm2": 10_000},
+            {"cell_id": "right", "enclosed_median_line_area_mm2": 20_000},
+        ],
+        "wall_segments": [
+            {
+                "wall_id": "left-top",
+                "median_line_length_mm": 100,
+                "thickness_mm": 4,
+                "start_vertex_id": "a",
+                "end_vertex_id": "b",
+                "cell_ids": ["left"],
+            },
+            {
+                "wall_id": "shared",
+                "median_line_length_mm": 100,
+                "thickness_mm": 4,
+                "start_vertex_id": "b",
+                "end_vertex_id": "c",
+                "cell_ids": ["left", "right"],
+            },
+            {
+                "wall_id": "left-bottom",
+                "median_line_length_mm": 100,
+                "thickness_mm": 4,
+                "start_vertex_id": "c",
+                "end_vertex_id": "d",
+                "cell_ids": ["left"],
+            },
+            {
+                "wall_id": "left-side",
+                "median_line_length_mm": 100,
+                "thickness_mm": 4,
+                "start_vertex_id": "d",
+                "end_vertex_id": "a",
+                "cell_ids": ["left"],
+            },
+            {
+                "wall_id": "right-side",
+                "median_line_length_mm": 200,
+                "thickness_mm": 4,
+                "start_vertex_id": "c",
+                "end_vertex_id": "f",
+                "cell_ids": ["right"],
+            },
+            {
+                "wall_id": "right-bottom",
+                "median_line_length_mm": 100,
+                "thickness_mm": 4,
+                "start_vertex_id": "f",
+                "end_vertex_id": "e",
+                "cell_ids": ["right"],
+            },
+            {
+                "wall_id": "right-top",
+                "median_line_length_mm": 200,
+                "thickness_mm": 4,
+                "start_vertex_id": "e",
+                "end_vertex_id": "b",
+                "cell_ids": ["right"],
+            },
+        ],
+        "median_line_cell_geometry_verified": True,
+        "geometry_evidence_reference": "SECTION-DRAWING-01",
+        **changes,
+    }
+
+
 def open_torsion_constant_inputs(**changes):
     return {
         "operation": "open_section_torsion_constant",
@@ -83,6 +154,124 @@ def test_amendment_1_appendix_h4_closed_section_torsion_constant_hand_arithmetic
         ],
     )
     assert run_advanced_members(nonuniform)["values"]["torsion_constant_j_mm4"] == 3_200_000
+
+
+def test_supplemental_two_cell_torsion_compatibility_hand_arithmetic():
+    out = run_advanced_members(multi_cell_torsion_constant_inputs())
+    values = out["values"]
+    assert values["compatibility_matrix"] == [[100, -25], [-25, 150]]
+    assert [cell["compatibility_solution_mm2"] for cell in values["cell_results"]] == pytest.approx(
+        [3200 / 23, 3600 / 23]
+    )
+    assert values["torsion_constant_j_mm4"] == pytest.approx(416_000_000 / 23)
+    assert values["perimeter_wall_count"] == 6
+    assert values["shared_wall_count"] == 1
+    assert values["maximum_relative_solve_residual"] <= 1e-9
+    assert out["checked_conditions_satisfied"]
+    assert out["full_standard_compliance"] is False
+    assert "supplemental" in out["clauses"][0]
+
+
+def test_supplemental_equal_two_cell_torsion_matches_external_perimeter_formula():
+    inputs = multi_cell_torsion_constant_inputs(
+        cell_areas=[
+            {"cell_id": "left", "enclosed_median_line_area_mm2": 10_000},
+            {"cell_id": "right", "enclosed_median_line_area_mm2": 10_000},
+        ],
+        wall_segments=[
+            {**wall, "median_line_length_mm": 100, "thickness_mm": 2}
+            for wall in multi_cell_torsion_constant_inputs()["wall_segments"]
+        ],
+    )
+    out = run_advanced_members(inputs)
+    assert out["values"]["torsion_constant_j_mm4"] == pytest.approx(5_333_333.333333333)
+
+
+@pytest.mark.parametrize(
+    "changes,error",
+    [
+        (
+            {"cell_areas": [{"cell_id": "left", "enclosed_median_line_area_mm2": 10_000}] * 2},
+            "cell_id values must be unique",
+        ),
+        (
+            {
+                "wall_segments": [
+                    {**wall, "wall_id": "same"}
+                    for wall in multi_cell_torsion_constant_inputs()["wall_segments"]
+                ]
+            },
+            "wall_id values must be unique",
+        ),
+        (
+            {
+                "wall_segments": [
+                    {**wall, "cell_ids": ["missing"]} if wall["wall_id"] == "left-top" else wall
+                    for wall in multi_cell_torsion_constant_inputs()["wall_segments"]
+                ]
+            },
+            "unknown cell_id",
+        ),
+        (
+            {
+                "wall_segments": [
+                    {**wall, "end_vertex_id": wall["start_vertex_id"]}
+                    if wall["wall_id"] == "left-top"
+                    else wall
+                    for wall in multi_cell_torsion_constant_inputs()["wall_segments"]
+                ]
+            },
+            "distinct vertices",
+        ),
+        ({"median_line_cell_geometry_verified": False}, "Invalid input"),
+        ({"geometry_evidence_reference": " "}, "must not be blank"),
+    ],
+)
+def test_supplemental_multi_cell_torsion_rejects_invalid_or_unverified_schedule(changes, error):
+    with pytest.raises(ValueError, match=error):
+        run_advanced_members(multi_cell_torsion_constant_inputs(**changes))
+
+
+def test_supplemental_multi_cell_torsion_rejects_disconnected_cell_topology():
+    inputs = multi_cell_torsion_constant_inputs()
+    inputs["cell_areas"].append({"cell_id": "separate", "enclosed_median_line_area_mm2": 10_000})
+    inputs["wall_segments"].extend(
+        [
+            {
+                "wall_id": f"separate-{start}-{end}",
+                "median_line_length_mm": 100,
+                "thickness_mm": 4,
+                "start_vertex_id": start,
+                "end_vertex_id": end,
+                "cell_ids": ["separate"],
+            }
+            for start, end in (("x", "y"), ("y", "z"), ("z", "w"), ("w", "x"))
+        ]
+    )
+    with pytest.raises(ValueError, match="topology must be connected"):
+        run_advanced_members(inputs)
+
+
+def test_supplemental_multi_cell_torsion_requires_perimeter_wall_for_stable_solution():
+    inputs = multi_cell_torsion_constant_inputs(
+        cell_areas=[
+            {"cell_id": "left", "enclosed_median_line_area_mm2": 10_000},
+            {"cell_id": "right", "enclosed_median_line_area_mm2": 10_000},
+        ],
+        wall_segments=[
+            {
+                "wall_id": f"shared-{start}-{end}",
+                "median_line_length_mm": 100,
+                "thickness_mm": 4,
+                "start_vertex_id": start,
+                "end_vertex_id": end,
+                "cell_ids": ["left", "right"],
+            }
+            for start, end in (("a", "b"), ("b", "c"), ("c", "d"), ("d", "a"))
+        ],
+    )
+    with pytest.raises(ValueError, match="at least one perimeter wall"):
+        run_advanced_members(inputs)
 
 
 def test_appendix_h4_doubly_and_monosymmetric_i_warping_constants():

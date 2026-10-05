@@ -1,8 +1,29 @@
 {
-  "package_version": "0.7.26",
+  "package_version": "0.7.27",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
+    {
+      "name": "Supplemental two-cell torsion compatibility, unequal-cell J (mm4)",
+      "actual": 18086956.521739133,
+      "expected": 18086956.52173913,
+      "absolute_tolerance": 1e-08,
+      "passed": true
+    },
+    {
+      "name": "Supplemental two-cell torsion compatibility, first cell solution (mm2)",
+      "actual": 139.1304347826087,
+      "expected": 139.1304347826087,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Supplemental two-cell torsion compatibility, equal-cell J (mm4)",
+      "actual": 5333333.333333335,
+      "expected": 5333333.333333333,
+      "absolute_tolerance": 1e-08,
+      "passed": true
+    },
     {
       "name": "Clause 10.3.2(a) local ambient temperature adjustment",
       "actual": 1,

@@ -26,6 +26,7 @@ Supplied capacities are nominal; strength checks apply phi=0.9.
 | `lateral_buckling_effective_length` | 5.6.3 effective length from tabulated twist-restraint, gravity-load-height and end-rotation-restraint factors | Supply the applicable end arrangement, restraint spacing/sub-segment length and section dimensions; only listed gravity-load cases are supported. Effective rotation restraint needs assessment to 5.4.3.4. |
 | `nonprincipal_bending` | 5.7 section interaction and, for unconstrained deflection, biaxial member interaction | Rational analysis supplies principal moments, restraint forces and reduced member capacities. |
 | `closed_section_torsion_constant` | Amendment No. 1:2021 Appendix H.4 torsion constant `J = 4 Ae² / Σ(b/t)` for a thin-walled single-cell closed section | Supply verified enclosed median-line area and each wall's median-line length and thickness. Multi-cell and open sections, other section properties and member resistance are outside this operation. |
+| `multi_cell_closed_section_torsion_constant` | Supplemental thin-walled Bredt–Batho cell-compatibility solution `J = 4 Aᵀ C⁻¹ A` for connected multi-cell closed sections; returns the compatibility matrix, solved cell values and residual | Supply verified cell areas and a complete wall schedule with unique wall/cell IDs, shared-cell mapping, endpoint IDs forming one closed loop per cell, wall lengths and thicknesses, and a geometry evidence reference. The multi-cell equation is supplemental and is not stated as an AS 4100 equation. This returns the torsion property only; section-property verification, warping, member resistance and project compliance remain separate. |
 | `open_section_torsion_constant` | Informative Appendix H.4 approximation `J ≈ Σ(b t³ / 3)` for a thin-walled open section | Supply every verified median-line wall length and thickness for the verified thin-walled open geometry. This approximate property does not cover closed or multi-cell sections, other section properties or member resistance. |
 | `section_warping_constant` | Informative Appendix H.4 warping constant `Iw` for doubly symmetric and monosymmetric I-sections and channels, the stated zero for angles, tees and narrow rectangular sections, and the permitted zero approximation for hollow sections | Supply verified section type, dimensions and inertias. The operation does not calculate the torsion constant, elastic buckling moment or member resistance; other section forms remain external. |
 | `plastic_in_plane` | 8.4.3 member/web plastic hinge eligibility and uniaxial reduced plastic moment capacity | Compact doubly symmetric I section, actual-length Euler load, correct beta_m, plastic frame analysis/restraint provisions. |
@@ -64,8 +65,10 @@ label, and the Clause 8.4.6 single-angle compression–bending interaction. The
 supported 8.4.5.1 and 8.4.5.2 routes use the amendment's 1.4-power interactions.
 The corrected Table 6.3.3(C) row is regression-checked at all five imperfection
 constants. The corrected Appendix H.4 torsion-constant equation is implemented
-for a thin-walled single-cell closed section. Other torsion properties and warping
-constant `Iw` remain externally derived inputs.
+for a thin-walled single-cell closed section. A separate multi-cell operation
+uses a supplemental Bredt–Batho cell-compatibility formulation; that equation
+is not stated as an AS 4100 equation. The torsion operations return `J` only;
+other section properties, warping effects and member resistance remain separate.
 
 No operation performs elastic eigenvalue analysis. The external buckling load/moment
 must be checked against analytical benchmarks and account for the intended mode,

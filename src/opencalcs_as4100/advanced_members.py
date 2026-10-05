@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Further member provisions with explicit external analysis prerequisites."""
 
-from math import atan2, cos, degrees, isclose, isfinite, pi, radians, sin, sqrt
+from math import atan2, cos, degrees, fsum, isclose, isfinite, pi, radians, sin, sqrt
 
 from .standards import ELASTIC_MODULUS_MPA, SHEAR_MODULUS_MPA
 from .validation import (
@@ -671,6 +671,45 @@ SCHEMAS = {
             },
             "single_cell_thin_walled_closed_section_verified": VERIFIED,
             "median_line_geometry_verified": VERIFIED,
+        },
+    ),
+    "multi_cell_closed_section_torsion_constant": _schema(
+        "multi_cell_closed_section_torsion_constant",
+        {
+            "cell_areas": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 100,
+                "items": object_schema(
+                    {
+                        "cell_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                        "enclosed_median_line_area_mm2": P,
+                    }
+                ),
+            },
+            "wall_segments": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 10000,
+                "items": object_schema(
+                    {
+                        "wall_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                        "median_line_length_mm": P,
+                        "thickness_mm": P,
+                        "start_vertex_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                        "end_vertex_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                        "cell_ids": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 2,
+                            "uniqueItems": True,
+                            "items": {"type": "string", "minLength": 1, "maxLength": 128},
+                        },
+                    }
+                ),
+            },
+            "median_line_cell_geometry_verified": VERIFIED,
+            "geometry_evidence_reference": {"type": "string", "minLength": 1, "maxLength": 500},
         },
     ),
     "section_warping_constant": _section_warping_constant_schema(),
@@ -1561,6 +1600,178 @@ def _reduced_check(clause, moment, nominal):
     return capacity_check(clause, nominal, moment)
 
 
+def _solve_normalized_positive_definite(matrix, rhs):
+    """Solve a symmetric positive-definite system after diagonal scaling."""
+    size = len(rhs)
+    diagonal_scale = [sqrt(matrix[index][index]) for index in range(size)]
+    if any(not isfinite(value) or value <= 0 for value in diagonal_scale):
+        raise ValueError("Multi-cell torsion compatibility matrix has an invalid diagonal.")
+
+    scaled = [
+        [
+            matrix[row][column] / diagonal_scale[row] / diagonal_scale[column]
+            for column in range(size)
+        ]
+        for row in range(size)
+    ]
+    scaled_rhs = [rhs[index] / diagonal_scale[index] for index in range(size)]
+    lower = [[0.0] * size for _ in range(size)]
+    for row in range(size):
+        for column in range(row + 1):
+            value = scaled[row][column] - fsum(
+                lower[row][prior] * lower[column][prior] for prior in range(column)
+            )
+            if row == column:
+                if not isfinite(value) or value <= 1e-14:
+                    raise ValueError(
+                        "Multi-cell torsion compatibility system is singular or numerically "
+                        "unstable after scaling."
+                    )
+                lower[row][column] = sqrt(value)
+            else:
+                lower[row][column] = value / lower[column][column]
+
+    forward = [0.0] * size
+    for row in range(size):
+        forward[row] = (
+            scaled_rhs[row] - fsum(lower[row][column] * forward[column] for column in range(row))
+        ) / lower[row][row]
+
+    scaled_solution = [0.0] * size
+    for row in range(size - 1, -1, -1):
+        scaled_solution[row] = (
+            forward[row]
+            - fsum(lower[column][row] * scaled_solution[column] for column in range(row + 1, size))
+        ) / lower[row][row]
+    solution = [scaled_solution[index] / diagonal_scale[index] for index in range(size)]
+    if any(not isfinite(value) or value <= 0 for value in solution):
+        raise ValueError("Multi-cell torsion compatibility solution must be positive and finite.")
+
+    residuals = []
+    for row in range(size):
+        terms = [matrix[row][column] * solution[column] for column in range(size)]
+        residual = fsum(terms) - rhs[row]
+        residual_scale = max(abs(rhs[row]), fsum(abs(term) for term in terms), 1e-300)
+        residuals.append(abs(residual) / residual_scale)
+    maximum_relative_residual = max(residuals)
+    if not isfinite(maximum_relative_residual) or maximum_relative_residual > 1e-9:
+        raise ValueError("Multi-cell torsion compatibility solve failed its residual check.")
+    return solution, maximum_relative_residual
+
+
+def _multi_cell_torsion_data(data):
+    cells = data["cell_areas"]
+    cell_ids = [cell["cell_id"] for cell in cells]
+    if any(not cell_id.strip() == cell_id for cell_id in cell_ids):
+        raise ValueError("Multi-cell torsion cell_id values must not be blank or padded.")
+    if len(cell_ids) != len(set(cell_ids)):
+        raise ValueError("Multi-cell torsion cell_id values must be unique.")
+    cell_index = {cell_id: index for index, cell_id in enumerate(cell_ids)}
+    areas = [cell["enclosed_median_line_area_mm2"] for cell in cells]
+    cell_walls = {cell_id: [] for cell_id in cell_ids}
+    cell_vertex_edges = {cell_id: {} for cell_id in cell_ids}
+    cell_neighbors = {cell_id: set() for cell_id in cell_ids}
+    wall_ids = set()
+    perimeter_wall_count = 0
+    shared_wall_count = 0
+    diagonal_terms = [[] for _ in cell_ids]
+    shared_terms = {}
+    wall_results = []
+
+    for wall in data["wall_segments"]:
+        wall_id = wall["wall_id"]
+        start = wall["start_vertex_id"]
+        end = wall["end_vertex_id"]
+        adjacent_cells = wall["cell_ids"]
+        if any(not value.strip() == value for value in (wall_id, start, end, *adjacent_cells)):
+            raise ValueError("Multi-cell torsion IDs must not be blank or padded.")
+        if wall_id in wall_ids:
+            raise ValueError("Multi-cell torsion wall_id values must be unique.")
+        wall_ids.add(wall_id)
+        if start == end:
+            raise ValueError(f"Wall {wall_id} must connect two distinct vertices.")
+        if len(adjacent_cells) != len(set(adjacent_cells)):
+            raise ValueError(f"Wall {wall_id} repeats a cell_id.")
+        if any(cell_id not in cell_index for cell_id in adjacent_cells):
+            raise ValueError(f"Wall {wall_id} refers to an unknown cell_id.")
+
+        resistance = wall["median_line_length_mm"] / wall["thickness_mm"]
+        if not isfinite(resistance) or resistance <= 0:
+            raise ValueError(
+                f"Wall {wall_id} length-to-thickness ratio must be positive and finite."
+            )
+        wall_results.append(
+            {
+                "wall_id": wall_id,
+                "cell_ids": list(adjacent_cells),
+                "start_vertex_id": start,
+                "end_vertex_id": end,
+                "median_line_length_mm": wall["median_line_length_mm"],
+                "thickness_mm": wall["thickness_mm"],
+                "length_to_thickness_ratio": resistance,
+            }
+        )
+        for cell_id in adjacent_cells:
+            cell_walls[cell_id].append(wall_id)
+            vertex_edges = cell_vertex_edges[cell_id]
+            vertex_edges.setdefault(start, []).append(end)
+            vertex_edges.setdefault(end, []).append(start)
+            diagonal_terms[cell_index[cell_id]].append(resistance)
+        if len(adjacent_cells) == 1:
+            perimeter_wall_count += 1
+        else:
+            shared_wall_count += 1
+            left_id, right_id = adjacent_cells
+            cell_neighbors[left_id].add(right_id)
+            cell_neighbors[right_id].add(left_id)
+            left_index, right_index = cell_index[left_id], cell_index[right_id]
+            shared_terms.setdefault((left_index, right_index), []).append(-resistance)
+            shared_terms.setdefault((right_index, left_index), []).append(-resistance)
+
+    for cell_id in cell_ids:
+        edges = cell_walls[cell_id]
+        vertex_edges = cell_vertex_edges[cell_id]
+        if len(edges) < 3 or not vertex_edges:
+            raise ValueError(f"Cell {cell_id} must have at least three boundary walls.")
+        if any(len(neighbors) != 2 for neighbors in vertex_edges.values()):
+            raise ValueError(f"Cell {cell_id} wall endpoints must form a closed boundary loop.")
+        visited = set()
+        pending = [next(iter(vertex_edges))]
+        while pending:
+            vertex = pending.pop()
+            if vertex in visited:
+                continue
+            visited.add(vertex)
+            pending.extend(vertex_edges[vertex])
+        if len(visited) != len(vertex_edges):
+            raise ValueError(
+                f"Cell {cell_id} wall endpoints must form one connected boundary loop."
+            )
+
+    visited_cells = set()
+    pending_cells = [cell_ids[0]]
+    while pending_cells:
+        cell_id = pending_cells.pop()
+        if cell_id in visited_cells:
+            continue
+        visited_cells.add(cell_id)
+        pending_cells.extend(cell_neighbors[cell_id])
+    if len(visited_cells) != len(cell_ids):
+        raise ValueError("Multi-cell torsion cell topology must be connected by shared walls.")
+    if perimeter_wall_count == 0:
+        raise ValueError("Multi-cell torsion schedule must include at least one perimeter wall.")
+
+    size = len(cell_ids)
+    matrix = [[0.0] * size for _ in range(size)]
+    for index, terms in enumerate(diagonal_terms):
+        matrix[index][index] = fsum(terms)
+    for (row, column), terms in shared_terms.items():
+        matrix[row][column] = fsum(terms)
+    if any(not isfinite(value) for row in matrix for value in row):
+        raise ValueError("Multi-cell torsion compatibility matrix must be finite.")
+    return cell_ids, areas, matrix, wall_results, perimeter_wall_count, shared_wall_count
+
+
 def run_advanced_members(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
@@ -1700,6 +1911,74 @@ def run_advanced_members(inputs):
                 "median line, with its matching wall thickness; verify the closed-cell geometry.",
                 "Multi-cell and open sections are outside this operation. It calculates J only; "
                 "warping constant Iw and other section properties are separate.",
+            ],
+        )
+    if op == "multi_cell_closed_section_torsion_constant":
+        if not d["median_line_cell_geometry_verified"]:
+            raise ValueError("Multi-cell torsion requires verified cell and median-line geometry.")
+        evidence_reference = d["geometry_evidence_reference"].strip()
+        if not evidence_reference:
+            raise ValueError("Multi-cell torsion geometry evidence reference must not be blank.")
+        (
+            cell_ids,
+            areas,
+            compatibility_matrix,
+            wall_results,
+            perimeter_wall_count,
+            shared_wall_count,
+        ) = _multi_cell_torsion_data(d)
+        solution, maximum_relative_residual = _solve_normalized_positive_definite(
+            compatibility_matrix,
+            areas,
+        )
+        torsion_constant = 4 * fsum(
+            area * value for area, value in zip(areas, solution, strict=True)
+        )
+        if not isfinite(torsion_constant) or torsion_constant <= 0:
+            raise ValueError("Multi-cell torsion constant must be positive and finite.")
+        return result(
+            op,
+            ["Appendix H.4 property context; multi-cell compatibility method supplemental"],
+            {
+                "torsion_constant_j_mm4": torsion_constant,
+                "cell_results": [
+                    {
+                        "cell_id": cell_id,
+                        "enclosed_median_line_area_mm2": area,
+                        "compatibility_solution_mm2": value,
+                    }
+                    for cell_id, area, value in zip(cell_ids, areas, solution, strict=True)
+                ],
+                "compatibility_matrix": compatibility_matrix,
+                "wall_results": wall_results,
+                "perimeter_wall_count": perimeter_wall_count,
+                "shared_wall_count": shared_wall_count,
+                "maximum_relative_solve_residual": maximum_relative_residual,
+                "geometry_evidence_reference": evidence_reference,
+                "solver": "diagonally normalized Cholesky",
+            },
+            [
+                {
+                    "clause": "Supplemental multi-cell torsion compatibility",
+                    "satisfied": True,
+                    "maximum_relative_residual": maximum_relative_residual,
+                    "tolerance": 1e-9,
+                },
+                {
+                    "clause": "Verified connected closed-cell wall schedule",
+                    "satisfied": True,
+                    "cell_count": len(cell_ids),
+                    "wall_count": len(wall_results),
+                },
+            ],
+            [
+                "Uses the supplemental thin-walled Bredt–Batho cell-compatibility relation "
+                "J = 4 A^T C^-1 A; this multi-cell equation is not stated as an AS 4100 equation.",
+                "Verify the cell areas, wall lengths and thicknesses, shared-wall mapping, and "
+                "cross-section drawing represented by the closed endpoint loops. The supplied "
+                "evidence reference is retained for review.",
+                "Calculates the torsion property J only. It does not calculate member resistance, "
+                "warping effects, other section properties, or full standard compliance.",
             ],
         )
     if op == "open_section_torsion_constant":

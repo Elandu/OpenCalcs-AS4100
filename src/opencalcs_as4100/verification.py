@@ -33,6 +33,66 @@ def verify():
             }
         )
 
+    multi_cell_walls = [
+        ("left-top", 100, "a", "b", ["left"]),
+        ("shared", 100, "b", "c", ["left", "right"]),
+        ("left-bottom", 100, "c", "d", ["left"]),
+        ("left-side", 100, "d", "a", ["left"]),
+        ("right-side", 200, "c", "f", ["right"]),
+        ("right-bottom", 100, "f", "e", ["right"]),
+        ("right-top", 200, "e", "b", ["right"]),
+    ]
+
+    def multi_cell_torsion_input(left_area, right_area, walls, thickness=4):
+        return {
+            "operation": "multi_cell_closed_section_torsion_constant",
+            "cell_areas": [
+                {"cell_id": "left", "enclosed_median_line_area_mm2": left_area},
+                {"cell_id": "right", "enclosed_median_line_area_mm2": right_area},
+            ],
+            "wall_segments": [
+                {
+                    "wall_id": wall_id,
+                    "median_line_length_mm": length,
+                    "thickness_mm": thickness,
+                    "start_vertex_id": start,
+                    "end_vertex_id": end,
+                    "cell_ids": cell_ids,
+                }
+                for wall_id, length, start, end, cell_ids in walls
+            ],
+            "median_line_cell_geometry_verified": True,
+            "geometry_evidence_reference": "INDEPENDENT-TWO-CELL-SECTION-01",
+        }
+
+    two_cell_result = run_advanced_members(
+        multi_cell_torsion_input(10_000, 20_000, multi_cell_walls)
+    )["values"]
+    record(
+        "Supplemental two-cell torsion compatibility, unequal-cell J (mm4)",
+        two_cell_result["torsion_constant_j_mm4"],
+        416_000_000 / 23,
+        tolerance=1e-8,
+    )
+    record(
+        "Supplemental two-cell torsion compatibility, first cell solution (mm2)",
+        two_cell_result["cell_results"][0]["compatibility_solution_mm2"],
+        3200 / 23,
+    )
+    equal_cell_walls = [
+        (wall_id, 100, start, end, cell_ids)
+        for wall_id, _length, start, end, cell_ids in multi_cell_walls
+    ]
+    equal_cell_result = run_advanced_members(
+        multi_cell_torsion_input(10_000, 10_000, equal_cell_walls, thickness=2)
+    )["values"]
+    record(
+        "Supplemental two-cell torsion compatibility, equal-cell J (mm4)",
+        equal_cell_result["torsion_constant_j_mm4"],
+        5_333_333.333333333,
+        tolerance=1e-8,
+    )
+
     design_service_temperature = run_durability(
         {
             "check_type": "design_service_temperature",
