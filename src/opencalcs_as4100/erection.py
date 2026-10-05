@@ -5,6 +5,7 @@ from .validation import POSITIVE, SIGNED, object_schema, result, validate
 
 _BOOL = {"type": "boolean"}
 _TEXT = {"type": "string", "minLength": 1, "maxLength": 100}
+_REFERENCE = {"type": "string", "minLength": 1, "maxLength": 200}
 _TENSION = {"type": "number", "minimum": 0, "maximum": 1e12}
 
 # AS 4100:2020 Table 15.2.2.2, minimum bolt tension in kN.
@@ -70,6 +71,28 @@ _BOLTED_ASSEMBLY["allOf"] = [
     }
 ]
 
+_EQUIVALENT_FASTENER = object_schema(
+    {
+        "operation": {"const": "equivalent_high_strength_fastener"},
+        "fastener_reference": _TEXT,
+        "reference_nominal_bolt_diameter_mm": {"enum": [16, 20, 24, 30, 36]},
+        "equivalent_fastener_nominal_diameter_mm": POSITIVE,
+        "bolt_grade": {"enum": ["8.8", "10.9"]},
+        "reference_bolt_dimensions_match_nominal_size_verified": _BOOL,
+        "reference_bolt_body_diameter_mm": POSITIVE,
+        "equivalent_fastener_body_diameter_mm": POSITIVE,
+        "reference_head_bearing_area_mm2": POSITIVE,
+        "equivalent_fastener_head_bearing_area_mm2": POSITIVE,
+        "reference_nut_bearing_area_mm2": POSITIVE,
+        "equivalent_fastener_nut_bearing_area_mm2": POSITIVE,
+        "equivalent_fastener_minimum_tension_kn": _TENSION,
+        "chemical_composition_and_mechanical_properties_equivalent_verified": _BOOL,
+        "tensioning_and_inspection_procedure_checkable_verified": _BOOL,
+        "test_certificate_reference": _REFERENCE,
+        "installation_procedure_reference": _REFERENCE,
+    }
+)
+
 _ERECTION_PROCESS = object_schema(
     {
         "operation": {"const": "erection_safety_and_procedure"},
@@ -129,7 +152,13 @@ _ITEM_ACCEPTANCE = object_schema(
 
 INPUT_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "oneOf": [_BOLTED_ASSEMBLY, _ERECTION_PROCESS, _TOLERANCE, _ITEM_ACCEPTANCE],
+    "oneOf": [
+        _BOLTED_ASSEMBLY,
+        _EQUIVALENT_FASTENER,
+        _ERECTION_PROCESS,
+        _TOLERANCE,
+        _ITEM_ACCEPTANCE,
+    ],
 }
 OUTPUT_SCHEMA = {"type": "object"}
 
@@ -198,6 +227,96 @@ def _minimum_bolt_tension(d):
             "8.8 and 10.9 only.",
             "AS/NZS 5131 installation requirements are represented by an evidence "
             "declaration; they are not reproduced here.",
+        ],
+    )
+
+
+def _equivalent_high_strength_fastener(d):
+    reference_tension = MINIMUM_BOLT_TENSION_KN[
+        (d["reference_nominal_bolt_diameter_mm"], d["bolt_grade"])
+    ]
+    checks = [
+        {
+            "clause": "2.3.2(a)",
+            "check": "chemical_composition_and_mechanical_properties_equivalent",
+            "satisfied": d["chemical_composition_and_mechanical_properties_equivalent_verified"],
+        },
+        {
+            "clause": "2.3.2(b)",
+            "check": "reference_bolt_dimensions_match_nominal_size",
+            "satisfied": d["reference_bolt_dimensions_match_nominal_size_verified"],
+        },
+        {
+            "clause": "2.3.2(b)",
+            "check": "equivalent_fastener_has_same_nominal_diameter",
+            "reference_mm": d["reference_nominal_bolt_diameter_mm"],
+            "equivalent_mm": d["equivalent_fastener_nominal_diameter_mm"],
+            "satisfied": (
+                d["equivalent_fastener_nominal_diameter_mm"]
+                == d["reference_nominal_bolt_diameter_mm"]
+            ),
+        },
+        {
+            "clause": "2.3.2(b)",
+            "check": "body_diameter_not_less_than_reference_bolt",
+            "reference_mm": d["reference_bolt_body_diameter_mm"],
+            "equivalent_mm": d["equivalent_fastener_body_diameter_mm"],
+            "satisfied": (
+                d["equivalent_fastener_body_diameter_mm"] >= d["reference_bolt_body_diameter_mm"]
+            ),
+        },
+        {
+            "clause": "2.3.2(b)",
+            "check": "head_bearing_area_not_less_than_reference_bolt",
+            "reference_mm2": d["reference_head_bearing_area_mm2"],
+            "equivalent_mm2": d["equivalent_fastener_head_bearing_area_mm2"],
+            "satisfied": (
+                d["equivalent_fastener_head_bearing_area_mm2"]
+                >= d["reference_head_bearing_area_mm2"]
+            ),
+        },
+        {
+            "clause": "2.3.2(b)",
+            "check": "nut_bearing_area_not_less_than_reference_bolt",
+            "reference_mm2": d["reference_nut_bearing_area_mm2"],
+            "equivalent_mm2": d["equivalent_fastener_nut_bearing_area_mm2"],
+            "satisfied": (
+                d["equivalent_fastener_nut_bearing_area_mm2"] >= d["reference_nut_bearing_area_mm2"]
+            ),
+        },
+        {
+            "clause": "2.3.2(c)",
+            "check": "minimum_tension_not_less_than_table_15_2_2_2",
+            "required_kn": reference_tension,
+            "provided_kn": d["equivalent_fastener_minimum_tension_kn"],
+            "satisfied": d["equivalent_fastener_minimum_tension_kn"] >= reference_tension,
+        },
+        {
+            "clause": "2.3.2(c)",
+            "check": "tensioning_and_inspection_procedure_can_be_checked",
+            "satisfied": d["tensioning_and_inspection_procedure_checkable_verified"],
+        },
+    ]
+    return result(
+        "equivalent_high_strength_fastener",
+        ["2.3.2", "15.2.2.2"],
+        {
+            "fastener_reference": d["fastener_reference"],
+            "reference_nominal_bolt_diameter_mm": d["reference_nominal_bolt_diameter_mm"],
+            "equivalent_fastener_nominal_diameter_mm": d["equivalent_fastener_nominal_diameter_mm"],
+            "bolt_grade": d["bolt_grade"],
+            "table_15_2_2_2_reference_minimum_tension_kn": reference_tension,
+            "equivalent_fastener_minimum_tension_kn": d["equivalent_fastener_minimum_tension_kn"],
+            "test_certificate_reference": d["test_certificate_reference"],
+            "installation_procedure_reference": d["installation_procedure_reference"],
+        },
+        checks,
+        limitations=[
+            "Product identity, certificates, dimensional measurements and tensioning records "
+            "must be independently verified.",
+            "Chemical composition and mechanical properties are represented by an evidence "
+            "declaration; this operation does not test or authenticate the fastener.",
+            "This comparison does not calculate fastener or connection design capacity.",
         ],
     )
 
@@ -299,9 +418,11 @@ def _run_item_acceptance(d):
 
 
 def run_erection(inputs):
-    """Check selected AS 4100 erection-safety, procedure and acceptance provisions."""
+    """Check selected AS 4100 fastener, erection, bolt-tension and tolerance provisions."""
     d = validate(inputs, INPUT_SCHEMA)
     operation = d["operation"]
+    if operation == "equivalent_high_strength_fastener":
+        return _equivalent_high_strength_fastener(d)
     if operation == "bolted_connection_assembly":
         if d["connection_type"] == "fully_tensioned":
             return _minimum_bolt_tension(d)

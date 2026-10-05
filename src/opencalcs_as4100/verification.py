@@ -4893,6 +4893,32 @@ def verify():
             int(tension_result["checked_conditions_satisfied"]),
             1,
         )
+    equivalent_fastener = run_erection(
+        {
+            "operation": "equivalent_high_strength_fastener",
+            "fastener_reference": "BENCHMARK-EQUIVALENT-FASTENER-01",
+            "reference_nominal_bolt_diameter_mm": 20,
+            "equivalent_fastener_nominal_diameter_mm": 20,
+            "bolt_grade": "8.8",
+            "reference_bolt_dimensions_match_nominal_size_verified": True,
+            "reference_bolt_body_diameter_mm": 20,
+            "equivalent_fastener_body_diameter_mm": 20,
+            "reference_head_bearing_area_mm2": 300,
+            "equivalent_fastener_head_bearing_area_mm2": 300,
+            "reference_nut_bearing_area_mm2": 200,
+            "equivalent_fastener_nut_bearing_area_mm2": 200,
+            "equivalent_fastener_minimum_tension_kn": 145,
+            "chemical_composition_and_mechanical_properties_equivalent_verified": True,
+            "tensioning_and_inspection_procedure_checkable_verified": True,
+            "test_certificate_reference": "BENCHMARK-EQUIVALENT-FASTENER-CERT-01",
+            "installation_procedure_reference": "BENCHMARK-EQUIVALENT-FASTENER-INSTALL-01",
+        }
+    )
+    record(
+        "Clause 2.3.2 equivalent fastener comparison at Table 15.2.2.2 minimum",
+        int(equivalent_fastener["checked_conditions_satisfied"]),
+        1,
+    )
     erection_tolerance = run_erection(
         {
             "operation": "geometric_tolerance",

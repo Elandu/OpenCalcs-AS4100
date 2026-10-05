@@ -24,10 +24,14 @@ strengths with its limits or requires an attested full AS 1391 test. Clause
 calculations. Clause 2.2.5 compares an externally assessed Appendix M design
 Z-value with AS/NZS 3678 Z-quality class and thickness; it does not calculate
 the weld/detail demand. Material certification, test evidence, Table 2.1 notes,
-Clause 3.8 detailing and clauses 2.3–2.5 remain assessed outside these
-calculations.
+product/process effects, Clause 3.8 detailing, heat treatment and complete
+lamellar-tearing assessment remain external. The selected Clause 2.3.2 route
+compares supplied equivalent-fastener dimensions and minimum tension but does
+not authenticate certificates or material/installation evidence; the other
+Clause 2.3 fastener, weld, stud and anchor provisions and Clause 2.4 castings
+remain assessed.
 
-Version 0.7.14 exposes twelve installed calculation families. The code implements
+Version 0.7.15 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing

@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.14",
+  "package_version": "0.7.15",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2609,6 +2609,13 @@
     },
     {
       "name": "Table 15.2.2.2 M36 grade 10.9 exact minimum is accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.3.2 equivalent fastener comparison at Table 15.2.2.2 minimum",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

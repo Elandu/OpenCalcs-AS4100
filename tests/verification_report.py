@@ -1573,6 +1573,43 @@ def clause_14_fabrication_procedure_and_tolerances():
     }
 
 
+def clause_2_3_2_equivalent_high_strength_fastener():
+    reference = {
+        "operation": "equivalent_high_strength_fastener",
+        "fastener_reference": "VERIFY-EQUIVALENT-FASTENER-01",
+        "reference_nominal_bolt_diameter_mm": 20,
+        "equivalent_fastener_nominal_diameter_mm": 20,
+        "bolt_grade": "8.8",
+        "reference_bolt_dimensions_match_nominal_size_verified": True,
+        "reference_bolt_body_diameter_mm": 20,
+        "equivalent_fastener_body_diameter_mm": 20,
+        "reference_head_bearing_area_mm2": 300,
+        "equivalent_fastener_head_bearing_area_mm2": 300,
+        "reference_nut_bearing_area_mm2": 200,
+        "equivalent_fastener_nut_bearing_area_mm2": 200,
+        "equivalent_fastener_minimum_tension_kn": 145,
+        "chemical_composition_and_mechanical_properties_equivalent_verified": True,
+        "tensioning_and_inspection_procedure_checkable_verified": True,
+        "test_certificate_reference": "VERIFY-EQUIVALENT-FASTENER-CERT-01",
+        "installation_procedure_reference": "VERIFY-EQUIVALENT-FASTENER-INSTALL-01",
+    }
+    accepted = run_erection(reference)
+    if accepted["clauses"] != ["2.3.2", "15.2.2.2"]:
+        raise AssertionError("Equivalent-fastener clause trace was incomplete")
+    if accepted["values"]["table_15_2_2_2_reference_minimum_tension_kn"] != 145:
+        raise AssertionError("Equivalent-fastener reference tension was incorrect")
+    if not accepted["checked_conditions_satisfied"]:
+        raise AssertionError("Equivalent fastener at the reference minimum should pass")
+    below = run_erection({**reference, "equivalent_fastener_minimum_tension_kn": 144.99})
+    if below["checked_conditions_satisfied"]:
+        raise AssertionError("Equivalent fastener below the reference tension should fail")
+    return {
+        "table_reference_minimum_tension_kn": 145,
+        "equal_minimum_passes": True,
+        "below_minimum_fails": True,
+    }
+
+
 def clause_15_erection_and_tensioning():
     # Independently transcribed from licensed AS 4100:2020 Table 15.2.2.2.
     expected_tensions = {
@@ -3211,6 +3248,9 @@ def main():
         "clause_2_2_3_unidentified_steel_limits": unidentified_steel_limits,
         "clause_2_2_4_standard_properties": clause_2_2_4_properties,
         "clause_2_2_5_through_thickness_quality": clause_2_2_5_z_quality,
+        "clause_2_3_2_equivalent_high_strength_fastener": (
+            clause_2_3_2_equivalent_high_strength_fastener
+        ),
         "appendix_m_table_m2_z_quality": appendix_m_table_m2_z_quality,
         "clause_14_3_2_hole_sizes_and_use": clause_14_3_2_hole_sizes_and_use,
         "clause_14_fabrication_procedure_and_tolerances": (

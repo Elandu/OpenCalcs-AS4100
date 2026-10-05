@@ -1,10 +1,11 @@
 # Erection and bolt installation checks
 
-The `structural.as4100.erection` family implements selected provisions of AS
-4100:2020 Sections 15 and 17 acceptance cross-references. It evaluates one
-declared erection, bolted-assembly, tolerance or item-acceptance operation per
-call. This family does not design temporary works or determine whether a
-project is safe to erect.
+The `structural.as4100.erection` family implements a selected AS 4100:2020
+Clause 2.3.2 fastener-equivalence check, provisions of Section 15 and Section
+17 acceptance cross-references. It evaluates one declared equivalent fastener,
+erection, bolted-assembly, tolerance or item-acceptance operation per call.
+This family does not design temporary works or determine whether a project is
+safe to erect.
 
 `erection_safety_and_procedure` checks declarations for safety against erection
 loads, including equipment and wind, and for erection procedures and site
@@ -26,6 +27,16 @@ the selected part-turn or direct-tension-indicator method against its AS/NZS
 | M24 | 210 | 295 |
 | M30 | 335 | 465 |
 | M36 | 490 | 680 |
+
+The `equivalent_high_strength_fastener` operation checks the declared Clause
+2.3.2 route for a special high-strength fastener used in place of an
+AS/NZS 1252.1 assembly. It compares the supplied nominal and body diameters,
+head bearing area and nut bearing area with the reference bolt/nut, checks the
+equivalent fastener's minimum tension against Table 15.2.2.2 for the reference
+diameter and grade, and requires declarations for equivalent
+chemical/mechanical properties and a checkable tensioning and inspection
+procedure. Certificate, dimension and installation evidence is recorded but
+not authenticated. This is not a fastener or connection capacity calculation.
 
 The fully tensioned input requires a unique identifier and measured tension for
 each bolt. It cannot establish that every physical bolt has been recorded; the

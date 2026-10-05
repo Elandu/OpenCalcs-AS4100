@@ -70,6 +70,69 @@ def test_bolt_tension_below_table_value_fails_and_records_bolt():
     assert [check["bolt_id"] for check in output["checks"][-2:]] == ["B1", "B2"]
 
 
+def equivalent_high_strength_fastener(**changes):
+    return {
+        "operation": "equivalent_high_strength_fastener",
+        "fastener_reference": "FASTENER-EQ-01",
+        "reference_nominal_bolt_diameter_mm": 20,
+        "equivalent_fastener_nominal_diameter_mm": 20,
+        "bolt_grade": "8.8",
+        "reference_bolt_dimensions_match_nominal_size_verified": True,
+        "reference_bolt_body_diameter_mm": 20,
+        "equivalent_fastener_body_diameter_mm": 20,
+        "reference_head_bearing_area_mm2": 300,
+        "equivalent_fastener_head_bearing_area_mm2": 300,
+        "reference_nut_bearing_area_mm2": 200,
+        "equivalent_fastener_nut_bearing_area_mm2": 200,
+        "equivalent_fastener_minimum_tension_kn": 145,
+        "chemical_composition_and_mechanical_properties_equivalent_verified": True,
+        "tensioning_and_inspection_procedure_checkable_verified": True,
+        "test_certificate_reference": "FASTENER-CERT-01",
+        "installation_procedure_reference": "FASTENER-INSTALL-01",
+        **changes,
+    }
+
+
+def test_clause_2_3_2_equivalent_fastener_meets_reference_comparisons():
+    output = run_erection(equivalent_high_strength_fastener())
+    assert output["clauses"] == ["2.3.2", "15.2.2.2"]
+    assert output["values"]["table_15_2_2_2_reference_minimum_tension_kn"] == 145
+    assert output["checked_conditions_satisfied"]
+    assert all(check["satisfied"] for check in output["checks"])
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("reference_bolt_dimensions_match_nominal_size_verified", False),
+        ("equivalent_fastener_nominal_diameter_mm", 19.9),
+        ("equivalent_fastener_body_diameter_mm", 19.9),
+        ("equivalent_fastener_head_bearing_area_mm2", 299.9),
+        ("equivalent_fastener_nut_bearing_area_mm2", 199.9),
+        ("equivalent_fastener_minimum_tension_kn", 144.9),
+        ("chemical_composition_and_mechanical_properties_equivalent_verified", False),
+        ("tensioning_and_inspection_procedure_checkable_verified", False),
+    ],
+)
+def test_clause_2_3_2_rejects_equivalence_when_a_requirement_fails(field, value):
+    output = run_erection(equivalent_high_strength_fastener(**{field: value}))
+    assert not output["checked_conditions_satisfied"]
+    assert any(not check["satisfied"] for check in output["checks"])
+
+
+def test_clause_2_3_2_uses_reference_grade_and_diameter_minimum_tension():
+    output = run_erection(
+        equivalent_high_strength_fastener(
+            reference_nominal_bolt_diameter_mm=24,
+            equivalent_fastener_nominal_diameter_mm=24,
+            bolt_grade="10.9",
+            equivalent_fastener_minimum_tension_kn=294.9,
+        )
+    )
+    assert output["values"]["table_15_2_2_2_reference_minimum_tension_kn"] == 295
+    assert not output["checked_conditions_satisfied"]
+
+
 def test_duplicate_bolt_ids_are_rejected():
     inputs = {
         "operation": "bolted_connection_assembly",
