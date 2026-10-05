@@ -851,6 +851,52 @@ SCHEMAS = {
             },
         },
     ),
+    "compression_restraint_design": _schema(
+        "compression_restraint_design",
+        {
+            "maximum_axial_compression_force_kn": P,
+            "parallel_compression_forces_beyond_kn": {
+                "type": "array",
+                "maxItems": 6,
+                "items": P,
+            },
+            "analysis_restraint_force_kn": N,
+            "restraint_system_analysis_verified": VERIFIED,
+            "parallel_member_set_verified": VERIFIED,
+            "all_restraint_force_paths_assessed_verified": VERIFIED,
+            "restraint_analysis_reference": {"type": "string", "minLength": 1, "maxLength": 500},
+            "force_paths": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "path_id": {"type": "string", "minLength": 1, "maxLength": 128},
+                        "design_force_share_kn": N,
+                        "series_force_path_verified": VERIFIED,
+                        "components": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1000,
+                            "items": object_schema(
+                                {
+                                    "component_id": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 128,
+                                    },
+                                    "component_type": {"enum": ["restraint_member", "connection"]},
+                                    "design_capacity_kn": P,
+                                    "capacity_verified": VERIFIED,
+                                    "component_in_force_path_verified": VERIFIED,
+                                }
+                            ),
+                        },
+                    }
+                ),
+            },
+        },
+    ),
     "lacing": _schema(
         "lacing",
         {
@@ -1162,6 +1208,10 @@ def _clause_6_4_1_transverse_shear(section_capacity, member_capacity, axial_acti
     minimum = 0.01 * axial_action
     strength_based = pi * (section_capacity / member_capacity - 1) * axial_action / slenderness
     return max(minimum, strength_based), minimum, strength_based
+
+
+def _clause_6_6_restraint_force(connected_force, beyond_forces):
+    return 0.025 * connected_force + 0.0125 * sum(beyond_forces)
 
 
 def _reduced_check(clause, moment, nominal):
@@ -3163,7 +3213,7 @@ def run_advanced_members(inputs):
         beyond = d["beyond_forces_kn"]
         if d["type"] == "twist" and beyond:
             raise ValueError("Twist restraint operation applies to one member's critical flange.")
-        minimum = 0.025 * d["connected_force_kn"] + 0.0125 * sum(beyond)
+        minimum = _clause_6_6_restraint_force(d["connected_force_kn"], beyond)
         force = max(minimum, d["analysis_restraint_force_kn"])
         return result(
             op,
@@ -3181,6 +3231,134 @@ def run_advanced_members(inputs):
                 " to anchorage/reaction points.",
                 "Grouping closer restraints, stiffness, rotational slip and force "
                 "transfer remain engineering assessments.",
+            ],
+        )
+    if op == "compression_restraint_design":
+        beyond = d["parallel_compression_forces_beyond_kn"]
+        minimum = _clause_6_6_restraint_force(d["maximum_axial_compression_force_kn"], beyond)
+        design_force = max(minimum, d["analysis_restraint_force_kn"])
+        paths = d["force_paths"]
+        path_ids = [path["path_id"] for path in paths]
+        if len(path_ids) != len(set(path_ids)):
+            raise ValueError("Restraint force path path_id values must be unique.")
+        component_ids = [
+            component["component_id"] for path in paths for component in path["components"]
+        ]
+        component_count = len(component_ids)
+        if component_count > 10000:
+            raise ValueError("At most 10000 restraint force-path component checks are supported.")
+
+        allocated_force = sum(path["design_force_share_kn"] for path in paths)
+        if not isclose(allocated_force, design_force, rel_tol=1e-9, abs_tol=1e-9):
+            raise ValueError(
+                "Verified parallel force-path shares must sum to the design restraint force."
+            )
+
+        checks = [
+            {
+                "clause": "6.6.3" if beyond else "6.6.2",
+                "action": "minimum restraint force envelope",
+                "minimum_transverse_force_kn": minimum,
+                "design_restraint_force_kn": design_force,
+                "satisfied": design_force >= minimum,
+            },
+            {
+                "clause": "6.6.2",
+                "action": "analysis restraint force envelope",
+                "analysis_restraint_force_kn": d["analysis_restraint_force_kn"],
+                "design_restraint_force_kn": design_force,
+                "satisfied": design_force >= d["analysis_restraint_force_kn"],
+            },
+            {
+                "clause": "6.6.1",
+                "action": "force-path equilibrium",
+                "design_restraint_force_kn": design_force,
+                "allocated_force_kn": allocated_force,
+                "satisfied": True,
+            },
+        ]
+        path_results = []
+        component_demands = {}
+        for path in paths:
+            path_force = path["design_force_share_kn"]
+            path_component_ids = [item["component_id"] for item in path["components"]]
+            if len(path_component_ids) != len(set(path_component_ids)):
+                raise ValueError(f"Restraint force path {path['path_id']} repeats a component_id.")
+            for component in path["components"]:
+                component_id = component["component_id"]
+                capacity = component["design_capacity_kn"]
+                record = component_demands.get(component_id)
+                if record is None:
+                    record = {
+                        "component_type": component["component_type"],
+                        "verified_design_capacity_kn": capacity,
+                        "design_demand_kn": 0.0,
+                        "path_ids": [],
+                    }
+                    component_demands[component_id] = record
+                elif (
+                    record["component_type"] != component["component_type"]
+                    or record["verified_design_capacity_kn"] != capacity
+                ):
+                    raise ValueError(
+                        f"Shared restraint component {component_id} must use one component "
+                        "type and one design capacity."
+                    )
+                record["design_demand_kn"] += path_force
+                record["path_ids"].append(path["path_id"])
+            path_results.append(
+                {
+                    "path_id": path["path_id"],
+                    "design_force_share_kn": path_force,
+                    "series_force_path_verified": True,
+                    "component_ids": path_component_ids,
+                }
+            )
+        if len(component_demands) > 10000:
+            raise ValueError("At most 10000 restraint force-path component checks are supported.")
+        for component_id, component in component_demands.items():
+            demand = component["design_demand_kn"]
+            capacity = component["verified_design_capacity_kn"]
+            checks.append(
+                {
+                    "clause": "6.6.2",
+                    "component_id": component_id,
+                    "component_type": component["component_type"],
+                    "path_ids": component["path_ids"],
+                    "design_demand_kn": demand,
+                    "verified_design_capacity_kn": capacity,
+                    "utilisation": demand / capacity,
+                    "satisfied": demand <= capacity,
+                }
+            )
+
+        clauses = ["6.6.1", "6.6.2"]
+        if beyond:
+            clauses.append("6.6.3")
+        return result(
+            op,
+            clauses,
+            {
+                "maximum_axial_compression_force_kn": d["maximum_axial_compression_force_kn"],
+                "parallel_compression_forces_beyond_kn": beyond,
+                "minimum_transverse_force_kn": minimum,
+                "analysis_restraint_force_kn": d["analysis_restraint_force_kn"],
+                "design_restraint_force_kn": design_force,
+                "allocated_force_kn": allocated_force,
+                "restraint_analysis_reference": d["restraint_analysis_reference"],
+                "force_paths": path_results,
+            },
+            checks,
+            [
+                "The analysis restraint force must include applicable design loads, notional "
+                "horizontal forces, and the complete path to anchorage or reaction points.",
+                "For each parallel path, the supplied force share is assessed from a verified "
+                "load-distribution analysis; every listed series component is checked against "
+                "that path force, and forces from paths sharing one component are summed.",
+                "Design capacities and the evidence references are supplied and not "
+                "authenticated here. Restraint stiffness, rotational slip, detailed member and "
+                "connection design, and the closer-spacing force-reduction exception in Clause "
+                "6.6.2 remain separate assessments.",
             ],
         )
     if op == "separator_diaphragm":

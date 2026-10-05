@@ -4386,6 +4386,85 @@ def verify():
         len(compression_interconnections["checks"]),
         2,
     )
+    compression_restraint = run_advanced_members(
+        {
+            "operation": "compression_restraint_design",
+            "maximum_axial_compression_force_kn": 1000,
+            "parallel_compression_forces_beyond_kn": [400, 200],
+            "analysis_restraint_force_kn": 30,
+            "restraint_system_analysis_verified": True,
+            "parallel_member_set_verified": True,
+            "all_restraint_force_paths_assessed_verified": True,
+            "restraint_analysis_reference": "independent restraint equilibrium benchmark",
+            "force_paths": [
+                {
+                    "path_id": "P1",
+                    "design_force_share_kn": 20,
+                    "series_force_path_verified": True,
+                    "components": [
+                        {
+                            "component_id": "BR-1",
+                            "component_type": "restraint_member",
+                            "design_capacity_kn": 20,
+                            "capacity_verified": True,
+                            "component_in_force_path_verified": True,
+                        },
+                        {
+                            "component_id": "COL-1",
+                            "component_type": "connection",
+                            "design_capacity_kn": 32.5,
+                            "capacity_verified": True,
+                            "component_in_force_path_verified": True,
+                        },
+                    ],
+                },
+                {
+                    "path_id": "P2",
+                    "design_force_share_kn": 12.5,
+                    "series_force_path_verified": True,
+                    "components": [
+                        {
+                            "component_id": "BR-2",
+                            "component_type": "restraint_member",
+                            "design_capacity_kn": 12.5,
+                            "capacity_verified": True,
+                            "component_in_force_path_verified": True,
+                        },
+                        {
+                            "component_id": "COL-1",
+                            "component_type": "connection",
+                            "design_capacity_kn": 32.5,
+                            "capacity_verified": True,
+                            "component_in_force_path_verified": True,
+                        },
+                    ],
+                },
+            ],
+        }
+    )
+    restraint_component_checks = {
+        check.get("component_id"): check for check in compression_restraint["checks"]
+    }
+    record(
+        "Clause 6.6.3 parallel-member minimum restraint force",
+        compression_restraint["values"]["minimum_transverse_force_kn"],
+        32.5,
+    )
+    record(
+        "Clause 6.6.1 restraint force-path share equilibrium",
+        compression_restraint["values"]["allocated_force_kn"],
+        32.5,
+    )
+    record(
+        "Clause 6.6.2 shared collector carries summed parallel-path force",
+        restraint_component_checks["COL-1"]["design_demand_kn"],
+        32.5,
+    )
+    record(
+        "Clause 6.6.2 restraint path component capacity comparisons",
+        int(compression_restraint["checked_conditions_satisfied"]),
+        1,
+    )
     compression_lacing_actions = run_advanced_members(
         {
             "operation": "compression_built_up_member_actions",

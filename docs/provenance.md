@@ -31,7 +31,7 @@ not authenticate certificates or material/installation evidence; the other
 Clause 2.3 fastener, weld, stud and anchor provisions and Clause 2.4 castings
 remain assessed.
 
-Version 0.7.23 exposes twelve installed calculation families. The code implements
+Version 0.7.24 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing
@@ -55,6 +55,13 @@ then evaluates `0.25 V* (l_e/r)_c` for each listed interconnection and compares 
 supplied design capacity. In-contact members trace Clause 6.5.2.5 back to Clause
 6.5.1.5. Completeness, geometry, capacity and connection detailing remain
 externally assessed; the operation does not authenticate their evidence.
+The Clause 6.6 restraint route applies the greater of the analyzed restraint force
+and the minimum force for the connected compression member, adding the 6.6.3
+parallel-member allowance when supplied. It requires allocated path forces to
+balance the total and checks each listed member and connection capacity, summing
+shares for a component common to multiple paths. The analysis, path distribution,
+capacities and evidence are supplied; the closer-spacing force-reduction exception
+and complete restraint design remain outside this check.
 
 The original axial section equations were also compared with
 [steel-as](https://github.com/Folded-Structures-Lab/steel-as),

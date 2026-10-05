@@ -2682,6 +2682,77 @@ def clause_6_5_1_5_compression_interconnections():
     }
 
 
+def clause_6_6_compression_restraint_path():
+    result = run_advanced_members(
+        {
+            "operation": "compression_restraint_design",
+            "maximum_axial_compression_force_kn": 1000,
+            "parallel_compression_forces_beyond_kn": [400, 200],
+            "analysis_restraint_force_kn": 30,
+            "restraint_system_analysis_verified": True,
+            "parallel_member_set_verified": True,
+            "all_restraint_force_paths_assessed_verified": True,
+            "restraint_analysis_reference": "independent restraint equilibrium example",
+            "force_paths": [
+                {
+                    "path_id": "P1",
+                    "design_force_share_kn": 20,
+                    "series_force_path_verified": True,
+                    "components": [
+                        {
+                            "component_id": "BR-1",
+                            "component_type": "restraint_member",
+                            "design_capacity_kn": 20,
+                            "capacity_verified": True,
+                            "component_in_force_path_verified": True,
+                        },
+                        {
+                            "component_id": "COL-1",
+                            "component_type": "connection",
+                            "design_capacity_kn": 32.5,
+                            "capacity_verified": True,
+                            "component_in_force_path_verified": True,
+                        },
+                    ],
+                },
+                {
+                    "path_id": "P2",
+                    "design_force_share_kn": 12.5,
+                    "series_force_path_verified": True,
+                    "components": [
+                        {
+                            "component_id": "BR-2",
+                            "component_type": "restraint_member",
+                            "design_capacity_kn": 12.5,
+                            "capacity_verified": True,
+                            "component_in_force_path_verified": True,
+                        },
+                        {
+                            "component_id": "COL-1",
+                            "component_type": "connection",
+                            "design_capacity_kn": 32.5,
+                            "capacity_verified": True,
+                            "component_in_force_path_verified": True,
+                        },
+                    ],
+                },
+            ],
+        }
+    )
+    checks = {check.get("component_id"): check for check in result["checks"]}
+    expect_close(result["values"]["minimum_transverse_force_kn"], 32.5)
+    expect_close(result["values"]["design_restraint_force_kn"], 32.5)
+    expect_close(checks["COL-1"]["design_demand_kn"], 32.5)
+    if result["clauses"] != ["6.6.1", "6.6.2", "6.6.3"]:
+        raise AssertionError("Clause 6.6 restraint clause route failed")
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 6.6 restraint path capacity boundary failed")
+    return {
+        "minimum_restraint_force_kn": result["values"]["minimum_transverse_force_kn"],
+        "shared_collector_demand_kn": checks["COL-1"]["design_demand_kn"],
+    }
+
+
 def clause_7_3_1_uniform_connection_capacity():
     result = run_members(
         {
@@ -3727,6 +3798,7 @@ def main():
         "clause_6_5_1_5_compression_interconnections": (
             clause_6_5_1_5_compression_interconnections
         ),
+        "clause_6_6_compression_restraint_path": clause_6_6_compression_restraint_path,
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,
         "clause_7_3_2_table_factor_lookup": clause_7_3_2_table_factor_lookup,

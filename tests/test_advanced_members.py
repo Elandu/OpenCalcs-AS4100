@@ -2101,6 +2101,141 @@ def test_parallel_restraint_and_analysis_force_envelope():
         run_advanced_members(d)
 
 
+def compression_restraint_design(**changes):
+    data = {
+        "operation": "compression_restraint_design",
+        "maximum_axial_compression_force_kn": 1000,
+        "parallel_compression_forces_beyond_kn": [400, 200],
+        "analysis_restraint_force_kn": 40,
+        "restraint_system_analysis_verified": True,
+        "parallel_member_set_verified": True,
+        "all_restraint_force_paths_assessed_verified": True,
+        "restraint_analysis_reference": "verified bracing analysis and force-path schedule",
+        "force_paths": [
+            {
+                "path_id": "P1",
+                "design_force_share_kn": 25,
+                "series_force_path_verified": True,
+                "components": [
+                    {
+                        "component_id": "BR-1",
+                        "component_type": "restraint_member",
+                        "design_capacity_kn": 25,
+                        "capacity_verified": True,
+                        "component_in_force_path_verified": True,
+                    },
+                    {
+                        "component_id": "COL-1",
+                        "component_type": "connection",
+                        "design_capacity_kn": 40,
+                        "capacity_verified": True,
+                        "component_in_force_path_verified": True,
+                    },
+                ],
+            },
+            {
+                "path_id": "P2",
+                "design_force_share_kn": 15,
+                "series_force_path_verified": True,
+                "components": [
+                    {
+                        "component_id": "BR-2",
+                        "component_type": "restraint_member",
+                        "design_capacity_kn": 14,
+                        "capacity_verified": True,
+                        "component_in_force_path_verified": True,
+                    },
+                    {
+                        "component_id": "COL-1",
+                        "component_type": "connection",
+                        "design_capacity_kn": 40,
+                        "capacity_verified": True,
+                        "component_in_force_path_verified": True,
+                    },
+                ],
+            },
+        ],
+    }
+    data.update(changes)
+    return data
+
+
+def test_clause_6_6_restraint_force_and_all_parallel_load_path_capacities():
+    out = run_advanced_members(compression_restraint_design())
+    values = out["values"]
+    assert out["clauses"] == ["6.6.1", "6.6.2", "6.6.3"]
+    assert [check["clause"] for check in out["checks"][:3]] == ["6.6.3", "6.6.2", "6.6.1"]
+    assert values["minimum_transverse_force_kn"] == pytest.approx(32.5)
+    assert values["design_restraint_force_kn"] == pytest.approx(40)
+    assert values["allocated_force_kn"] == pytest.approx(40)
+    assert len(out["checks"]) == 6
+    by_id = {check.get("component_id"): check for check in out["checks"] if "component_id" in check}
+    assert by_id["BR-1"]["design_demand_kn"] == pytest.approx(25)
+    assert by_id["BR-1"]["satisfied"]
+    assert by_id["COL-1"]["design_demand_kn"] == pytest.approx(40)
+    assert by_id["COL-1"]["satisfied"]
+    assert by_id["BR-2"]["design_demand_kn"] == pytest.approx(15)
+    assert not by_id["BR-2"]["satisfied"]
+    assert not out["checked_conditions_satisfied"]
+
+
+def test_clause_6_6_restraint_uses_minimum_action_and_exact_capacity():
+    data = compression_restraint_design(
+        parallel_compression_forces_beyond_kn=[],
+        analysis_restraint_force_kn=20,
+        force_paths=[
+            {
+                "path_id": "P1",
+                "design_force_share_kn": 25,
+                "series_force_path_verified": True,
+                "components": [
+                    {
+                        "component_id": "BR-1",
+                        "component_type": "restraint_member",
+                        "design_capacity_kn": 25,
+                        "capacity_verified": True,
+                        "component_in_force_path_verified": True,
+                    }
+                ],
+            }
+        ],
+    )
+    out = run_advanced_members(data)
+    assert out["clauses"] == ["6.6.1", "6.6.2"]
+    assert out["checks"][0]["clause"] == "6.6.2"
+    assert out["values"]["design_restraint_force_kn"] == pytest.approx(25)
+    assert out["checks"][-1]["satisfied"]
+    assert out["checked_conditions_satisfied"]
+
+
+def test_clause_6_6_restraint_rejects_incomplete_force_distribution_and_ids():
+    data = compression_restraint_design(
+        force_paths=compression_restraint_design()["force_paths"][:1]
+    )
+    with pytest.raises(ValueError, match="shares must sum to the design restraint force"):
+        run_advanced_members(data)
+
+    data = compression_restraint_design()
+    data["force_paths"][1]["path_id"] = "P1"
+    with pytest.raises(ValueError, match="path_id values must be unique"):
+        run_advanced_members(data)
+
+    data = compression_restraint_design()
+    data["force_paths"][0]["series_force_path_verified"] = False
+    with pytest.raises(ValueError, match="series_force_path_verified"):
+        run_advanced_members(data)
+
+    data = compression_restraint_design()
+    data["parallel_member_set_verified"] = False
+    with pytest.raises(ValueError, match="parallel_member_set_verified"):
+        run_advanced_members(data)
+
+    data = compression_restraint_design()
+    data["parallel_compression_forces_beyond_kn"] = [100] * 7
+    with pytest.raises(ValueError, match="parallel_compression_forces_beyond_kn"):
+        run_advanced_members(data)
+
+
 def test_separator_diaphragm_minimum_and_equal_share():
     d = {
         "operation": "separator_diaphragm",
