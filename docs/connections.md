@@ -63,6 +63,7 @@ The source standard is not redistributed.
 | hole_deduction_layout | 9.1.10.1-3 derives the maximum straight-row deduction and searches every progressive zig-zag path for a complete flat, uniform-thickness plate. Supply hole-centre coordinates and each gross hole width across the plate; verify the member/action axes and complete layout. |
 | angle_hole_deduction | 9.1.10.1-3 compares a verified straight-row width with every supplied ordered zig-zag path. Same-leg gauges use back-mark differences; opposite-leg gauges use the sum of back marks less leg thickness under Figure 9.1.10.3(B). Supply the complete path set and verified angle geometry. |
 | angle_hole_deduction_layout | 9.1.10.1-3 derives straight rows and searches every progressive zig-zag chain through a complete two-leg angle hole layout. Leg 1 is ordered toe-to-heel and leg 2 heel-to-toe. Same-leg gauges use back-mark differences; cross-leg gauges use Figure 9.1.10.3(B). Supply all hole coordinates, gross hole widths and verified angle orientation, dimensions and action axis. |
+| combined_weld_types | 9.7.4 sums already-calculated Section 9 design capacities for at least two different weld types and compares the total with one force or moment action. Declare the complete non-overlapping component set and a common action basis/direction. It does not calculate individual weld capacities or apply another capacity factor. |
 | bolt_group | 9.3.1 rigid-group elastic superposition of centroidal signed Fx, Fy and Mz. Checks each bolt; identical bolts, in-plane actions only. Component actions must be zero. Separate ply bearing and detailing remain necessary. |
 | bolt_group_out_of_plane | 9.3.2–3 checks user-supplied per-bolt Fx/Fy/tension actions, their six-resultant equilibrium under 9.1.3(a), and each bolt's shear, tension, prying addition and combined interaction. Bolt tension acts along z; positions are (x,y) about the verified common action origin and moments follow right-handed `r × F`. Load distribution and component stability require verified analysis inputs. Check compression/contact actions and ply bearing separately. |
 | bolt_group_elastic_3d | 9.1.3(a), 9.3.2–3 resolves a planar bolt group's six centroidal resultants with rigid-plate, equal-bolt-stiffness linear elastic distribution, then checks equilibrium and each bolt's shear, tension, prying addition and interaction. Requires a non-collinear layout, verified method/experimental basis, and nonnegative calculated bolt tension. Compression/contact and slack-bolt redistribution, ply bearing and complete connection-component checks remain separate. |
@@ -99,6 +100,10 @@ nonstandard holes; weld preparation routes outside the listed non-prequalified
 single- and double-V throat formulas and macro-test route, compound weld geometry and
 built-up-member detailing outside the listed Clause 9.6.3.9 termination checks;
 fabrication, inspection and installation Sections 14/15 and referenced standards.
+Clause 9.7.4 sums capacities only when the supplied Section 9 capacities share
+one action basis and direction and represent the complete, non-overlapping set
+of weld components. Verify the component capacity calculations and compatible
+force-transfer mechanism separately.
 These Clause 9.1.4 routes calculate required actions only; supplied member design
 capacities must include the applicable capacity factor. Combined splice action
 demands are reported together, but connection component resistance and combined-

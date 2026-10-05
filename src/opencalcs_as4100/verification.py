@@ -3191,6 +3191,47 @@ def verify():
         shear_only_splice_action["intermediate"]["required_design_moment_knm"],
         5,
     )
+    combined_weld_types = run_connections(
+        {
+            "check_type": "combined_weld_types",
+            "design_action_basis": "force_kn",
+            "design_action": 40,
+            "complete_nonoverlapping_weld_component_set_verified": True,
+            "common_action_basis_and_direction_verified": True,
+            "weld_components": [
+                {
+                    "component_id": "BENCHMARK-FILLET-01",
+                    "weld_type": "fillet",
+                    "design_capacity": 25,
+                    "capacity_calculation_reference": "BENCHMARK-FILLET-CAPACITY-01",
+                    "section_9_capacity_basis_verified": True,
+                },
+                {
+                    "component_id": "BENCHMARK-BUTT-01",
+                    "weld_type": "butt",
+                    "design_capacity": 20,
+                    "capacity_calculation_reference": "BENCHMARK-BUTT-CAPACITY-01",
+                    "section_9_capacity_basis_verified": True,
+                },
+            ],
+        }
+    )
+    combined_weld_check = combined_weld_types["checks"]["combined_weld_connection_capacity"]
+    record(
+        "Clause 9.7.4 combined fillet and butt weld design capacity",
+        combined_weld_check["design_capacity_kn"],
+        45,
+    )
+    record(
+        "Clause 9.7.4 combined weld utilisation from hand arithmetic",
+        combined_weld_check["utilisation"],
+        40 / (25 + 20),
+    )
+    record(
+        "Clause 9.7.4 does not apply a second capacity factor",
+        int(combined_weld_types["intermediate"]["capacity_factor_applied_again"] is False),
+        1,
+    )
     fillet_weld = run_connections(
         {
             "check_type": "fillet_design",

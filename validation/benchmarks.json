@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.8",
+  "package_version": "0.7.9",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1512,6 +1512,27 @@
       "name": "Clause 9.1.4(b)(vi) shear-only splice eccentric moment",
       "actual": 5.0,
       "expected": 5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.7.4 combined fillet and butt weld design capacity",
+      "actual": 45.0,
+      "expected": 45,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.7.4 combined weld utilisation from hand arithmetic",
+      "actual": 0.8888888888888888,
+      "expected": 0.8888888888888888,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.7.4 does not apply a second capacity factor",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

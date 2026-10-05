@@ -891,6 +891,35 @@ FIELDS["weld_group"] = {
     **{f"force_{a}_kn": SIGNED for a in "xyz"},
     **{f"moment_{a}_knm": SIGNED for a in "xyz"},
 }
+FIELDS["combined_weld_types"] = {
+    "design_action_basis": {"enum": ["force_kn", "moment_knm"]},
+    "design_action": N,
+    "complete_nonoverlapping_weld_component_set_verified": {"const": True},
+    "common_action_basis_and_direction_verified": {"const": True},
+    "weld_components": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 100,
+        "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "component_id",
+                "weld_type",
+                "design_capacity",
+                "capacity_calculation_reference",
+                "section_9_capacity_basis_verified",
+            ],
+            "properties": {
+                "component_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                "weld_type": {"enum": ["fillet", "butt", "plug_or_slot", "compound"]},
+                "design_capacity": P,
+                "capacity_calculation_reference": TEXT_REFERENCE,
+                "section_9_capacity_basis_verified": {"const": True},
+            },
+        },
+    },
+}
 FILLER_PLATE_ASSESSMENT_FIELDS = (
     "filler_plate_extends_beyond_connection_verified",
     "filler_plate_force_transfer_through_combined_section_verified",
@@ -1343,6 +1372,44 @@ def _angle_hole_deduction_layout(d):
             "governing_deduction_width_mm": deduction_width,
             "deduction_mm2": deduction_area,
             "net_area_mm2": net_area,
+        },
+    )
+
+
+def _combined_weld_types(d):
+    components = d["weld_components"]
+    component_ids = [component["component_id"] for component in components]
+    if len(set(component_ids)) != len(component_ids):
+        raise ValueError("Combined weld component IDs must be unique.")
+    capacities_by_type = {}
+    for component in components:
+        capacities_by_type.setdefault(component["weld_type"], []).append(
+            component["design_capacity"]
+        )
+    if len(capacities_by_type) < 2:
+        raise ValueError("Clause 9.7.4 requires at least two different weld types.")
+    design_capacity_by_type = {
+        weld_type: fsum(capacities) for weld_type, capacities in sorted(capacities_by_type.items())
+    }
+    total_design_capacity = fsum(design_capacity_by_type.values())
+    unit = "kn" if d["design_action_basis"] == "force_kn" else "knm"
+    return (
+        {
+            "combined_weld_connection_capacity": _connection_capacity_check(
+                d["design_action"], total_design_capacity, unit, "9.7.4"
+            )
+        },
+        {
+            "design_action_basis": d["design_action_basis"],
+            "design_capacity_by_type": design_capacity_by_type,
+            "total_design_capacity": total_design_capacity,
+            "weld_component_count": len(components),
+            "weld_component_ids": component_ids,
+            "capacity_calculation_references": {
+                component["component_id"]: component["capacity_calculation_reference"]
+                for component in components
+            },
+            "capacity_factor_applied_again": False,
         },
     )
 
@@ -3334,6 +3401,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         c, intermediate = _angle_hole_deduction(d)
     elif k == "angle_hole_deduction_layout":
         c, intermediate = _angle_hole_deduction_layout(d)
+    elif k == "combined_weld_types":
+        c, intermediate = _combined_weld_types(d)
     else:
         c, intermediate = _weld_group(d)
     if k == "slip_factor_test":
@@ -3499,6 +3568,16 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "use the Figure 9.1.10.3(B) sum of back marks less leg thickness. Verify the angle, "
             "all holes, dimensions, axes and coordinates. Other section forms, nonstandard angle "
             "geometries and member-capacity calculations are outside this operation."
+        )
+    elif k == "combined_weld_types":
+        scope = (
+            "Clause 9.7.4 sums the supplied design capacities of different weld types in one "
+            "connection and compares their total with the stated design action. Each capacity "
+            "must already be calculated under the applicable Section 9 weld provisions and "
+            "include its capacity factor. Verify the complete, non-overlapping weld component "
+            "set and that every capacity applies to the same action basis and direction. This "
+            "operation does not calculate individual weld capacities or resolve different "
+            "actions among weld types."
         )
     else:
         scope = (

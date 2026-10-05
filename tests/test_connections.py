@@ -2728,6 +2728,131 @@ def weld_group(**changes):
     }
 
 
+def combined_weld_types(**changes):
+    return {
+        "check_type": "combined_weld_types",
+        "design_action_basis": "force_kn",
+        "design_action": 40,
+        "complete_nonoverlapping_weld_component_set_verified": True,
+        "common_action_basis_and_direction_verified": True,
+        "weld_components": [
+            {
+                "component_id": "fillet-1",
+                "weld_type": "fillet",
+                "design_capacity": 25,
+                "capacity_calculation_reference": "WELD-FILLET-01",
+                "section_9_capacity_basis_verified": True,
+            },
+            {
+                "component_id": "butt-1",
+                "weld_type": "butt",
+                "design_capacity": 20,
+                "capacity_calculation_reference": "WELD-BUTT-01",
+                "section_9_capacity_basis_verified": True,
+            },
+        ],
+        **changes,
+    }
+
+
+def test_clause_9_7_4_sums_design_capacities_for_combined_weld_types():
+    result = run_connections(combined_weld_types())
+    check = result["checks"]["combined_weld_connection_capacity"]
+
+    assert check["clause"] == "9.7.4"
+    assert check["design_capacity_kn"] == pytest.approx(45)
+    assert check["design_action_kn"] == 40
+    assert check["utilisation"] == pytest.approx(40 / 45)
+    assert check["satisfied"]
+    assert result["intermediate"]["design_capacity_by_type"] == {"butt": 20, "fillet": 25}
+    assert result["intermediate"]["capacity_factor_applied_again"] is False
+
+
+def test_combined_weld_types_checks_exact_capacity_and_moment_basis():
+    exact = run_connections(combined_weld_types(design_action=45))
+    assert exact["checks"]["combined_weld_connection_capacity"]["satisfied"]
+    over = run_connections(combined_weld_types(design_action=45.01))
+    assert not over["checks"]["combined_weld_connection_capacity"]["satisfied"]
+
+    moment = run_connections(
+        combined_weld_types(
+            design_action_basis="moment_knm",
+            design_action=3,
+            weld_components=[
+                {
+                    "component_id": "fillet-moment",
+                    "weld_type": "fillet",
+                    "design_capacity": 1.5,
+                    "capacity_calculation_reference": "WELD-FILLET-MOMENT-01",
+                    "section_9_capacity_basis_verified": True,
+                },
+                {
+                    "component_id": "butt-moment",
+                    "weld_type": "butt",
+                    "design_capacity": 1.5,
+                    "capacity_calculation_reference": "WELD-BUTT-MOMENT-01",
+                    "section_9_capacity_basis_verified": True,
+                },
+            ],
+        )
+    )
+    moment_check = moment["checks"]["combined_weld_connection_capacity"]
+    assert moment_check["design_capacity_knm"] == pytest.approx(3)
+    assert moment_check["satisfied"]
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        (
+            {
+                "weld_components": [
+                    {
+                        "component_id": "fillet-1",
+                        "weld_type": "fillet",
+                        "design_capacity": 25,
+                        "capacity_calculation_reference": "WELD-FILLET-01",
+                        "section_9_capacity_basis_verified": True,
+                    },
+                    {
+                        "component_id": "fillet-2",
+                        "weld_type": "fillet",
+                        "design_capacity": 20,
+                        "capacity_calculation_reference": "WELD-FILLET-02",
+                        "section_9_capacity_basis_verified": True,
+                    },
+                ]
+            },
+            "at least two different weld types",
+        ),
+        (
+            {
+                "weld_components": [
+                    {
+                        "component_id": "duplicate",
+                        "weld_type": "fillet",
+                        "design_capacity": 25,
+                        "capacity_calculation_reference": "WELD-FILLET-01",
+                        "section_9_capacity_basis_verified": True,
+                    },
+                    {
+                        "component_id": "duplicate",
+                        "weld_type": "butt",
+                        "design_capacity": 20,
+                        "capacity_calculation_reference": "WELD-BUTT-01",
+                        "section_9_capacity_basis_verified": True,
+                    },
+                ]
+            },
+            "component IDs must be unique",
+        ),
+    ],
+)
+def test_combined_weld_types_rejects_invalid_component_sets(changes, message):
+    with pytest.raises(ValueError, match=message):
+        run_connections(combined_weld_types(**changes))
+
+
 def test_weld_group_pure_shear_and_bending():
     r = run_connections(weld_group(force_x_kn=40))
     assert r["checks"]["weld_group"]["utilisation"] == pytest.approx(0.1 / 0.9408)

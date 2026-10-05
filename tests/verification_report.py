@@ -759,6 +759,43 @@ def incomplete_butt_weld():
     return expected
 
 
+def combined_weld_types():
+    result = run_connections(
+        {
+            "check_type": "combined_weld_types",
+            "design_action_basis": "force_kn",
+            "design_action": 40,
+            "complete_nonoverlapping_weld_component_set_verified": True,
+            "common_action_basis_and_direction_verified": True,
+            "weld_components": [
+                {
+                    "component_id": "BENCHMARK-FILLET-01",
+                    "weld_type": "fillet",
+                    "design_capacity": 25,
+                    "capacity_calculation_reference": "BENCHMARK-FILLET-CAPACITY-01",
+                    "section_9_capacity_basis_verified": True,
+                },
+                {
+                    "component_id": "BENCHMARK-BUTT-01",
+                    "weld_type": "butt",
+                    "design_capacity": 20,
+                    "capacity_calculation_reference": "BENCHMARK-BUTT-CAPACITY-01",
+                    "section_9_capacity_basis_verified": True,
+                },
+            ],
+        }
+    )
+    check = result["checks"]["combined_weld_connection_capacity"]
+    expected_capacity = 25 + 20
+    expect_close(check["design_capacity_kn"], expected_capacity)
+    expect_close(check["utilisation"], 40 / expected_capacity)
+    if check["clause"] != "9.7.4" or not check["satisfied"]:
+        raise AssertionError("Clause 9.7.4 combined weld design check failed")
+    if result["intermediate"]["capacity_factor_applied_again"] is not False:
+        raise AssertionError("Clause 9.7.4 must use supplied design capacities")
+    return {"design_capacity_kn": expected_capacity, "utilisation": 40 / expected_capacity}
+
+
 def incomplete_butt_macro_test_weld():
     result = run_connections(
         {
@@ -2987,6 +3024,7 @@ def main():
         "fillet_lap_8001_mm": lambda: expect_close(fillet(8001), 61.24608),
         "table_11_5_1_b_coped_transverse_splice": fatigue_welded_coped_splice,
         "clause_9_6_2_single_v_incomplete_butt_weld": incomplete_butt_weld,
+        "clause_9_7_4_combined_weld_types": combined_weld_types,
         "clause_4_6_3_2_idealized_member_buckling": (clause_4_6_3_2_idealized_member_buckling),
         "clause_4_6_3_3_chart_factor_buckling": clause_4_6_3_3_chart_factor_buckling,
         "clause_4_6_3_5_triangulated_member_buckling": (
