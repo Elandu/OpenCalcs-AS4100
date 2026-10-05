@@ -16,8 +16,8 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 | `compression` | 6.2.1–6.3.3 | Effective-area form factor, net-section capacity and constant-section flexural buckling about both axes. Only doubly symmetric/RHS/CHS member modes are supported. |
 | `bending` | 5.3.2.1, 5.6.1.1 | Constant equal-flanged open section with both segment ends fully/partially restrained; reference elastic buckling moment and lateral-buckling reduction. Reports the capacity-based full-restraint route when nominal Mb reaches Ms. E=200000 MPa and G=80000 MPa. `moment_modification_factor` in `advanced_members` calculates 5.6.1.1(a)(iii) from the segment moment diagram. |
 | `bending_design` | 5.1 | Compares the elastic major-axis action with both supplied nominal section and member moment capacities; compares the elastic minor-axis action with nominal section moment capacity; or checks the plastic-method section capacity and evidence gates for compact hinge sections, full lateral restraint and Clause 5.10.6 web compliance. Applies `phi=0.9`. Design actions and nominal capacities must be established under the referenced analysis/capacity clauses. |
-| `shear` | 5.11.2–5.11.5, 5.12.3 | Flat unstiffened/stiffened webs, uniform/nonuniform stress reduction and whole-section shear/bending interaction. Conservative flange factor 1. Optional tension-field credit requires assessed stiffeners/end posts. |
-| `shear_with_flange_restraint` | 5.11.2–5.11.5.2, 5.12.3 | Flat-web shear and bending interaction with the calculated flange-restraint factor. The clause route requires verified absence of longitudinal web stiffeners; section geometry and web count must be supplied. |
+| `shear` | 5.11.2–5.11.5, 5.12.3 | Flat unstiffened/stiffened webs, uniform/nonuniform stress reduction and whole-section shear/bending interaction. Conservative flange factor 1. Optional tension-field credit requires `tension_field_clause_5_15_verified=true` and a nonblank `tension_field_clause_5_15_reference`. |
+| `shear_with_flange_restraint` | 5.11.2–5.11.5.2, 5.12.3 | Flat-web shear and bending interaction with the calculated flange-restraint factor. The clause route requires verified absence of longitudinal web stiffeners; section geometry and web count must be supplied. Optional tension-field credit has the same Clause 5.15 evidence gate as `shear`. |
 | `shear_with_rational_flange_restraint` | 5.11.2–5.11.5.2(c), 5.12.3 | Flat-web shear and bending interaction using externally calculated `alpha_f`. Requires a referenced, verified rational buckling analysis, no longitudinal stiffeners, transverse stiffener spacing `s/dp <= 3`, and no tension-field credit. The plugin records but does not authenticate or perform the analysis. |
 | `chs_shear` | 5.11.3–5.11.4, 5.12.3 | Circular hollow section shear-yield capacity with the specified gross/net effective-area rule and whole-section shear/bending interaction. Requires supplied gross/net area and section moment capacity. |
 | `shear_proportioning` | 5.12.2 | Flange-only bending capacity with separate web shear capacity, using the effective compression-flange area and the net-area/tensile-strength limit for the tension flange. |
@@ -26,6 +26,9 @@ Units are MPa, mm, mm2/mm3/mm4/mm6, kN and kN.m.
 
 All member actions must already include applicable second-order effects under 8.2.
 Effective lengths are assessed inputs, not inferred from an analysis mesh.
+The Clause 5.15 tension-field prerequisite flag and reference are supplied evidence;
+the calculation requires them when tension-field credit is requested but does not
+authenticate the stiffener or end-post design.
 Section constants for compression must be selected from Table 6.3.3(A/B), including
 fabrication, thickness and form-factor distinctions. Effective area is assembled from all
 compression elements. A section call must select the controlling bending element by

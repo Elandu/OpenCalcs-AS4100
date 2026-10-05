@@ -2,7 +2,7 @@
 
 import argparse
 import json
-from math import isclose
+from math import isclose, sqrt
 from pathlib import Path
 
 from . import __version__
@@ -2497,6 +2497,34 @@ def verify():
         "Clause 5.11.5.2(c) rational alpha_f shear design capacity",
         rational_flange_restraint["checks"]["shear_bending"]["design_capacity"],
         113.089275,
+    )
+    tension_field_shear = run_members(
+        {
+            "operation": "shear",
+            "yield_strength_mpa": 250,
+            "web_area_mm2": 1000,
+            "panel_depth_mm": 1200,
+            "web_thickness_mm": 10,
+            "stiffener_spacing_mm": 1200,
+            "tension_field": True,
+            "tension_field_clause_5_15_verified": True,
+            "tension_field_clause_5_15_reference": "BENCHMARK-STIFFENER-DESIGN-15-01",
+            "action_kn": 0,
+            "moment_action_knm": 0,
+            "section_moment_capacity_knm": 100,
+        }
+    )
+    alpha_v = (82 / 120) ** 2 * 1.75
+    alpha_d = 1 + (1 - alpha_v) / (1.15 * alpha_v * sqrt(2))
+    record(
+        "Clause 5.11.5.2 tension-field shear capacity with Clause 5.15 evidence",
+        tension_field_shear["values"]["shear_capacity_kn"],
+        150 * min(1, alpha_v * alpha_d),
+    )
+    record(
+        "Clause 5.15 tension-field prerequisite evidence gate",
+        int(tension_field_shear["checks"]["tension_field_prerequisites"]["satisfied"]),
+        1,
     )
     shear_proportioning = run_members(
         {

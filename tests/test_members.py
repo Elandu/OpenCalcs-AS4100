@@ -528,9 +528,27 @@ def test_shear_and_bending_thresholds():
 def test_stiffened_shear_matches_table_and_no_unverified_credit():
     d = shear(1200)
     d.update(stiffener_spacing_mm=1200, tension_field=True)
-    out = run_members(d)["values"]
+    with pytest.raises(ValueError):
+        run_members(d)
+
+    d.update(
+        tension_field_clause_5_15_verified=True,
+        tension_field_clause_5_15_reference="CALC-STIFFENER-15-01",
+    )
+    result = run_members(d)
+    out = result["values"]
     # Table 5.11.5.2: lambda=120, s/d=1, alpha_v*alpha_d = 0.930.
     assert out["shear_capacity_kn"] / 150 == pytest.approx(0.930, abs=0.0006)
+    assert result["checks"]["tension_field_prerequisites"]["satisfied"]
+    assert out["tension_field_clause_5_15_reference"] == "CALC-STIFFENER-15-01"
+
+    for changes in (
+        {"tension_field_clause_5_15_verified": False},
+        {"tension_field_clause_5_15_reference": "   "},
+    ):
+        with pytest.raises(ValueError):
+            run_members({**d, **changes})
+
     d["tension_field"] = False
     assert run_members(d)["values"]["shear_capacity_kn"] < out["shear_capacity_kn"]
 
@@ -670,6 +688,34 @@ def test_clause_5_11_5_2_requires_web_spacing_and_no_longitudinal_stiffeners():
         run_members(flange_restraint_shear(number_of_webs=2))
     with pytest.raises(ValueError):
         run_members(flange_restraint_shear(no_longitudinal_stiffeners_verified=False))
+
+
+def test_clause_5_11_5_2_flange_restraint_tension_field_evidence_gate():
+    ordinary = run_members(flange_restraint_shear())
+    assert not any(
+        "Tension-field credit requires" in item for item in ordinary["manual_requirements"]
+    )
+
+    credited = flange_restraint_shear(stiffener_spacing_mm=1000, tension_field=True)
+    with pytest.raises(ValueError):
+        run_members(credited)
+
+    credited.update(
+        tension_field_clause_5_15_verified=True,
+        tension_field_clause_5_15_reference="CALC-STIFFENER-15-02",
+    )
+    result = run_members(credited)
+    assert result["checks"]["tension_field_prerequisites"]["satisfied"]
+    assert result["values"]["tension_field_clause_5_15_reference"] == "CALC-STIFFENER-15-02"
+    assert any("Tension-field credit requires" in item for item in result["manual_requirements"])
+    assert any("not authenticated" in item for item in result["manual_requirements"])
+
+    for changes in (
+        {"tension_field_clause_5_15_verified": False},
+        {"tension_field_clause_5_15_reference": "   "},
+    ):
+        with pytest.raises(ValueError):
+            run_members({**credited, **changes})
 
 
 def rational_flange_restraint_shear(**changes):

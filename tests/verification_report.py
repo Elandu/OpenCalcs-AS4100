@@ -2,7 +2,7 @@
 
 import json
 import sys
-from math import isclose
+from math import isclose, sqrt
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -2519,6 +2519,47 @@ def clause_5_10_web_geometry():
     }
 
 
+def clause_5_11_5_2_tension_field_evidence():
+    inputs = {
+        "operation": "shear",
+        "yield_strength_mpa": 250,
+        "web_area_mm2": 1000,
+        "panel_depth_mm": 1200,
+        "web_thickness_mm": 10,
+        "stiffener_spacing_mm": 1200,
+        "tension_field": True,
+        "action_kn": 0,
+        "moment_action_knm": 0,
+        "section_moment_capacity_knm": 100,
+    }
+    try:
+        run_members(inputs)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Tension-field credit did not require Clause 5.15 evidence")
+
+    inputs.update(
+        tension_field_clause_5_15_verified=True,
+        tension_field_clause_5_15_reference="INDEPENDENT-STIFFENER-DESIGN-15-01",
+    )
+    result = run_members(inputs)
+    alpha_v = (82 / 120) ** 2 * 1.75
+    alpha_d = 1 + (1 - alpha_v) / (1.15 * alpha_v * sqrt(2))
+    expected_capacity = 150 * min(1, alpha_v * alpha_d)
+    expect_close(result["values"]["shear_capacity_kn"], expected_capacity)
+    check = result["checks"]["tension_field_prerequisites"]
+    if (
+        check["clause"] != "5.15 tension-field stiffener/end-post prerequisite"
+        or not check["satisfied"]
+    ):
+        raise AssertionError("Clause 5.15 tension-field evidence was not reported")
+    return {
+        "tension_field_shear_capacity_kn": result["values"]["shear_capacity_kn"],
+        "clause_5_15_evidence_check_passes": check["satisfied"],
+    }
+
+
 def clause_6_5_1_5_interconnection():
     connection_capacity = 7.5 * 3.141592653589793
     result = run_advanced_members(
@@ -3328,6 +3369,7 @@ def main():
         "clause_5_6_1_2_b_unequal_flange_buckling": (clause_5_6_1_2_b_unequal_flange_buckling),
         "clause_5_6_1_4_hollow_section_bending": clause_5_6_1_4_hollow_section_bending,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
+        "clause_5_11_5_2_tension_field_evidence": clause_5_11_5_2_tension_field_evidence,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
         "clause_7_3_1_uniform_connection_capacity": clause_7_3_1_uniform_connection_capacity,
         "clause_7_3_2_both_flange_force_transfer": clause_7_3_2_both_flange_force_transfer,

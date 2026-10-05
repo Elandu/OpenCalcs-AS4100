@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.16",
+  "package_version": "0.7.17",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1246,6 +1246,20 @@
       "name": "Clause 5.11.5.2(c) rational alpha_f shear design capacity",
       "actual": 113.08927499999997,
       "expected": 113.089275,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.5.2 tension-field shear capacity with Clause 5.15 evidence",
+      "actual": 139.4371571998567,
+      "expected": 139.4371571998567,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.15 tension-field prerequisite evidence gate",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

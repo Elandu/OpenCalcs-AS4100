@@ -30,6 +30,35 @@ def _variant(operation, properties, required):
     }
 
 
+def _tension_field_variant(operation, properties, required):
+    variant = _variant(operation, properties, required)
+    variant["properties"].update(
+        {
+            "tension_field_clause_5_15_verified": {"const": True},
+            "tension_field_clause_5_15_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+            },
+        }
+    )
+    variant["allOf"] = [
+        {
+            "if": {
+                "properties": {"tension_field": {"const": True}},
+                "required": ["tension_field"],
+            },
+            "then": {
+                "required": [
+                    "tension_field_clause_5_15_verified",
+                    "tension_field_clause_5_15_reference",
+                ]
+            },
+        }
+    ]
+    return variant
+
+
 P = _number(positive=True)
 N = _number()
 R = {"type": "string", "enum": ["SR", "HR", "CF", "LW", "HW"]}
@@ -357,7 +386,7 @@ INPUT_SCHEMA = {
                 "moment_action_knm",
             ],
         ),
-        _variant(
+        _tension_field_variant(
             "shear",
             {
                 "yield_strength_mpa": P,
@@ -381,7 +410,7 @@ INPUT_SCHEMA = {
                 "section_moment_capacity_knm",
             ],
         ),
-        _variant(
+        _tension_field_variant(
             "shear_with_flange_restraint",
             {
                 "yield_strength_mpa": P,
@@ -1196,14 +1225,31 @@ def _shear(d, flange_restraint_factor=1, flange_restraint_values=None):
         "shear_capacity_kn": vv,
         "shear_bending_capacity_kn": vm,
     }
+    if d.get("tension_field", False):
+        reference = d["tension_field_clause_5_15_reference"].strip()
+        if not reference:
+            raise ValueError("Clause 5.15 tension-field evidence reference must not be blank.")
+        values["tension_field_clause_5_15_verified"] = True
+        values["tension_field_clause_5_15_reference"] = reference
+        checks["tension_field_prerequisites"] = {
+            "clause": "5.15 tension-field stiffener/end-post prerequisite",
+            "satisfied": True,
+        }
     if flange_restraint_values is not None:
         values.update(flange_restraint_values)
     clauses = ["5.11.2", "5.11.3", "5.11.4", "5.11.5"]
     manual = [
         "Flat webs only; web layout/thickness/openings require 5.9–5.10 assessment.",
-        "Tension-field credit requires verified stiffener/end-post provisions in 5.15.",
         "Stress maximum/average ratio requires rational elastic stress analysis.",
     ]
+    if d.get("tension_field", False):
+        manual.extend(
+            [
+                "Tension-field credit requires verified stiffener/end-post provisions in 5.15.",
+                "The supplied Clause 5.15 stiffener/end-post verification and reference are "
+                "recorded but are not authenticated by this calculation.",
+            ]
+        )
     if flange_restraint_values is None:
         manual.append("Flange restraint factor taken conservatively as 1 under 5.11.5.2.")
     elif flange_restraint_values.get("flange_restraint_method") == "rational_buckling_analysis":
