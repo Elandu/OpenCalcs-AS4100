@@ -3233,11 +3233,6 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
                         raise ValueError(
                             "Each connected ply needs one directional edge-distance set per bolt."
                         )
-                if any(abs(fx) > 1e-12 and abs(fy) > 1e-12 for fx, fy in forces):
-                    raise ValueError(
-                        "Ply-bearing groups support axis-aligned bolt forces only; assess "
-                        "forces toward multiple edges separately."
-                    )
         for i, (va, na) in enumerate(actions):
             prefix = f"bolt_{i}_" if k in {"bolt_group", "bolt_group_with_ply_bearing"} else ""
             c[prefix + "shear"] = _check(v, 0.8, va, "9.2.2.1")
@@ -3259,14 +3254,32 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
                     bearing_action = hypot(*force_on_ply)
                     edge_direction = None
                     effective_edge_distance = None
-                    if abs(force_on_ply[0]) > 1e-12:
-                        edge_direction = "positive_x" if force_on_ply[0] > 0 else "negative_x"
-                    elif abs(force_on_ply[1]) > 1e-12:
-                        edge_direction = "positive_y" if force_on_ply[1] > 0 else "negative_y"
-                    if edge_direction is not None:
-                        effective_edge_distance = ply["effective_edge_distances_by_bolt_mm"][index][
-                            f"{edge_direction}_mm"
-                        ]
+                    directional_edge_limits = []
+                    edge_distances = ply["effective_edge_distances_by_bolt_mm"][index]
+                    for axis, component in zip(("x", "y"), force_on_ply, strict=True):
+                        if abs(component) <= 1e-12:
+                            continue
+                        direction = f"{'positive' if component > 0 else 'negative'}_{axis}"
+                        distance = edge_distances[f"{direction}_mm"]
+                        _, _, directional_capacity = _ply_bearing_capacity(
+                            d["diameter_mm"],
+                            ply["thickness_mm"],
+                            ply["ultimate_strength_mpa"],
+                            distance,
+                        )
+                        directional_edge_limits.append(
+                            {
+                                "direction": direction,
+                                "effective_edge_distance_mm": distance,
+                                "nominal_capacity_kn": directional_capacity,
+                            }
+                        )
+                    if directional_edge_limits:
+                        governing_edge = min(
+                            directional_edge_limits, key=lambda item: item["nominal_capacity_kn"]
+                        )
+                        edge_direction = governing_edge["direction"]
+                        effective_edge_distance = governing_edge["effective_edge_distance_mm"]
                     nominal, material_limit, edge_limit = _ply_bearing_capacity(
                         d["diameter_mm"],
                         ply["thickness_mm"],
@@ -3283,6 +3296,7 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
                             "effective_edge_distance_mm": effective_edge_distance,
                             "material_limit_nominal_capacity_kn": material_limit,
                             "edge_limit_nominal_capacity_kn": edge_limit,
+                            "directional_edge_limits": directional_edge_limits,
                             "governing_limit": (
                                 "edge_distance"
                                 if edge_limit is not None and edge_limit < material_limit
@@ -4257,8 +4271,9 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "Clauses 9.3.1 and 9.2.2.1/9.2.2.4 for a verified rigid-plate, centroidal-action, "
             "single-shear two-ply lap joint with standard round holes and no filler plates. "
             "This route computes the in-plane group vectors, checks each bolt, and applies the "
-            "full bolt resultant to each opposing ply's own bearing resistance. Bolt vectors must "
-            "align with one global axis; multi-edge force directions require separate assessment. "
+            "full bolt resultant to each opposing ply's own bearing resistance. For an oblique "
+            "bolt vector it checks that full resultant against each non-zero component direction, "
+            "using the least directional capacity as a conservative envelope. "
             "Verify the complete ply set, directional effective edge distances, material values, "
             "standard-hole and detailing requirements, net/block shear, slip, load path, and "
             "connection-element deformation/stability from project evidence."

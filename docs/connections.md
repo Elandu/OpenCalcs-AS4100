@@ -67,7 +67,7 @@ The source standard is not redistributed.
 | angle_hole_deduction_layout | 9.1.10.1-3 derives straight rows and searches every progressive zig-zag chain through a complete two-leg angle hole layout. Leg 1 is ordered toe-to-heel and leg 2 heel-to-toe. Same-leg gauges use back-mark differences; cross-leg gauges use Figure 9.1.10.3(B). Supply all hole coordinates, gross hole widths and verified angle orientation, dimensions and action axis. |
 | combined_weld_types | 9.7.4 sums already-calculated Section 9 design capacities for at least two different weld types and compares the total with one force or moment action. Declare the complete non-overlapping component set and a common action basis/direction. It does not calculate individual weld capacities or apply another capacity factor. |
 | bolt_group | 9.3.1 rigid-group elastic superposition of centroidal signed Fx, Fy and Mz. Checks each bolt; identical bolts, in-plane actions only. Component actions must be zero. Separate ply bearing and detailing remain necessary. |
-| bolt_group_with_ply_bearing | 9.3.1 and 9.2.2.1/9.2.2.4 for a rigid-plate, centroidal-action group with exactly two plies, one shear plane, standard round holes and no filler. Checks each bolt and each ply; the full bolt force acts on both plies. Bolt-force vectors must align with one global axis. |
+| bolt_group_with_ply_bearing | 9.3.1 and 9.2.2.1/9.2.2.4 for a rigid-plate, centroidal-action group with exactly two plies, one shear plane, standard round holes and no filler. Checks each bolt and each ply; the full bolt force acts on both plies. Oblique bolt vectors use the least capacity from the non-zero component directions as a conservative bearing envelope. |
 | bolt_group_out_of_plane | 9.3.2–3 checks user-supplied per-bolt Fx/Fy/tension actions, their six-resultant equilibrium under 9.1.3(a), and each bolt's shear, tension, prying addition and combined interaction. Bolt tension acts along z; positions are (x,y) about the verified common action origin and moments follow right-handed `r × F`. Load distribution and component stability require verified analysis inputs. Check compression/contact actions and ply bearing separately. |
 | bolt_group_elastic_3d | 9.1.3(a), 9.3.2–3 resolves a planar bolt group's six centroidal resultants with rigid-plate, equal-bolt-stiffness linear elastic distribution, then checks equilibrium and each bolt's shear, tension, prying addition and interaction. Requires a non-collinear layout, verified method/experimental basis, and nonnegative calculated bolt tension. Compression/contact and slack-bolt redistribution, ply bearing and complete connection-component checks remain separate. |
 | weld_group | 9.7.1–3 constant-throat straight-line fillet group, signed Fx/Fy/Fz and Mx/My/Mz at centroid. Exact line integrals including product inertia; vector resultant checked at every endpoint. Forces and moments are in a right-handed xyz system; weld lies in xy plane. |
@@ -95,9 +95,13 @@ global force direction exists. Supply a direction-specific
 free edge or adjacent hole in that force direction, plus half the nominal bolt
 diameter. The full resultant force on each bolt is checked against each ply,
 with that ply's own thickness, tensile strength and edge distance. The route
-accepts only bolt forces aligned with one global axis; a force toward multiple
-edges needs a separate bearing assessment. Verify the centroidal actions,
-rigid plates, complete ply set, geometry and Clause 9.5 detailing independently.
+also accepts oblique bolt-force vectors. For each non-zero force component it
+checks the full resultant against the bearing capacity in that component's
+direction, using the lesser directional capacity as a conservative envelope.
+This can be more conservative than a direction-specific interaction model; the
+geometry and force components still need independent verification. Verify the
+centroidal actions, rigid plates, complete ply set, geometry and Clause 9.5
+detailing independently.
 Net/block shear, slip resistance, component stability and other connection
 checks remain separate.
 

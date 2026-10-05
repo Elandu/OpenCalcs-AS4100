@@ -2912,8 +2912,6 @@ def test_clause_9_3_1_bolt_group_checks_full_action_on_each_ply():
 
 
 def test_ply_bearing_bolt_group_rejects_unsupported_distribution_and_geometry():
-    with pytest.raises(ValueError, match="axis-aligned bolt forces only"):
-        run_connections(bolt_group_with_ply_bearing(force_x_kn=10))
     with pytest.raises(ValueError, match="exactly one shear plane"):
         run_connections(bolt_group_with_ply_bearing(plain_planes=1))
     with pytest.raises(ValueError, match="do not support filler plates"):
@@ -2924,6 +2922,31 @@ def test_ply_bearing_bolt_group_rejects_unsupported_distribution_and_geometry():
             "opposite_to_bolt_action"
         )
         run_connections(invalid)
+
+
+def test_ply_bearing_oblique_bolt_vectors_use_conservative_directional_limit():
+    result = run_connections(bolt_group_with_ply_bearing(force_x_kn=30))
+    loaded, support = result["checks"]["ply_bearing"]["plies"]
+    loaded_bolt = loaded["bolts"][2]
+    support_bolt = support["bolts"][2]
+
+    assert loaded_bolt["force_on_ply_kn"] == pytest.approx([-10, -84])
+    assert loaded_bolt["design_action_kn"] == pytest.approx((10**2 + 84**2) ** 0.5)
+    assert [item["direction"] for item in loaded_bolt["directional_edge_limits"]] == [
+        "negative_x",
+        "negative_y",
+    ]
+    assert [item["nominal_capacity_kn"] for item in loaded_bolt["directional_edge_limits"]] == (
+        pytest.approx([192, 67.2])
+    )
+    assert loaded_bolt["edge_direction"] == "negative_y"
+    assert loaded_bolt["design_capacity_kn"] == pytest.approx(60.48)
+    assert not loaded_bolt["satisfied"]
+
+    assert support_bolt["force_on_ply_kn"] == pytest.approx([10, 84])
+    assert support_bolt["edge_direction"] == "positive_y"
+    assert support_bolt["design_capacity_kn"] == pytest.approx(103.68)
+    assert support_bolt["satisfied"]
 
 
 def test_ply_bearing_bolt_group_pure_couple_uses_per_bolt_directions():

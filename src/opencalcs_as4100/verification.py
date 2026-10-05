@@ -3607,6 +3607,68 @@ def verify():
         int(bearing_plies[1]["satisfied"]),
         1,
     )
+
+    oblique_bolt_group = run_connections(
+        {
+            "check_type": "bolt_group_with_ply_bearing",
+            "ultimate_strength_mpa": 830,
+            "minor_area_mm2": 225,
+            "shank_area_mm2": 314,
+            "tensile_area_mm2": 245,
+            "threaded_planes": 1,
+            "plain_planes": 0,
+            "grade": "8.8",
+            "lap_length_mm": 0,
+            "filler_thickness_mm": 0,
+            "shear_action_kn": 0,
+            "tension_action_kn": 0,
+            "prying_tension_kn": 0,
+            "prying_force_assessment_verified": True,
+            "points_mm": [[-50, 0], [0, 0], [50, 0]],
+            "force_x_kn": 30,
+            "force_y_kn": 108,
+            "moment_z_knm": 4.8,
+            "diameter_mm": 20,
+            "connected_plies": [
+                {
+                    "ply_id": "loaded",
+                    "thickness_mm": 6,
+                    "ultimate_strength_mpa": 320,
+                    "bearing_force_relative_to_bolt_action": "opposite_to_bolt_action",
+                    "effective_edge_distances_by_bolt_mm": bolt_group_edge_distances(100, 35),
+                },
+                {
+                    "ply_id": "support",
+                    "thickness_mm": 6,
+                    "ultimate_strength_mpa": 320,
+                    "bearing_force_relative_to_bolt_action": "same_as_bolt_action",
+                    "effective_edge_distances_by_bolt_mm": bolt_group_edge_distances(60, 100),
+                },
+            ],
+            "single_shear_two_ply_lap_joint_verified": True,
+            "standard_round_holes_verified": True,
+            "no_filler_plates_verified": True,
+            "rigid_connection_plates_verified": True,
+            "group_actions_at_centroid_verified": True,
+            "connected_plies_complete_and_force_distribution_verified": True,
+        }
+    )
+    oblique_loaded_bolt = oblique_bolt_group["checks"]["ply_bearing"]["plies"][0]["bolts"][2]
+    record(
+        "Clause 9.3.1 oblique bolt resultant from orthogonal components (kN)",
+        oblique_loaded_bolt["design_action_kn"],
+        sqrt(10**2 + 84**2),
+    )
+    record(
+        "Clause 9.2.2.4 oblique force uses controlling component-direction edge capacity (kN)",
+        oblique_loaded_bolt["design_capacity_kn"],
+        0.9 * 35 * 6 * 320 / 1000,
+    )
+    record(
+        "Clause 9.3.1 oblique loaded-ply bearing fails conservative directional envelope",
+        int(oblique_loaded_bolt["satisfied"]),
+        0,
+    )
     bolt_group_elastic_3d = run_connections(
         {
             "check_type": "bolt_group_elastic_3d",

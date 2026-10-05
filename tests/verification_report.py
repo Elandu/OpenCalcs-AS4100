@@ -3884,6 +3884,60 @@ def clause_9_3_1_bolt_group_ply_bearing():
             )
     if plies[0]["satisfied"] or not plies[1]["satisfied"]:
         raise AssertionError("Clause 9.3.1 must report each ply against its own edge distance")
+    oblique = run_connections(
+        {
+            "check_type": "bolt_group_with_ply_bearing",
+            "ultimate_strength_mpa": 830,
+            "minor_area_mm2": 225,
+            "shank_area_mm2": 314,
+            "tensile_area_mm2": 245,
+            "threaded_planes": 1,
+            "plain_planes": 0,
+            "grade": "8.8",
+            "lap_length_mm": 0,
+            "filler_thickness_mm": 0,
+            "shear_action_kn": 0,
+            "tension_action_kn": 0,
+            "prying_tension_kn": 0,
+            "prying_force_assessment_verified": True,
+            "points_mm": [[-50, 0], [0, 0], [50, 0]],
+            "force_x_kn": 30,
+            "force_y_kn": 108,
+            "moment_z_knm": 4.8,
+            "diameter_mm": 20,
+            "connected_plies": [
+                {
+                    "ply_id": "loaded",
+                    "thickness_mm": 6,
+                    "ultimate_strength_mpa": 320,
+                    "bearing_force_relative_to_bolt_action": "opposite_to_bolt_action",
+                    "effective_edge_distances_by_bolt_mm": edge_distances(100, 35),
+                },
+                {
+                    "ply_id": "support",
+                    "thickness_mm": 6,
+                    "ultimate_strength_mpa": 320,
+                    "bearing_force_relative_to_bolt_action": "same_as_bolt_action",
+                    "effective_edge_distances_by_bolt_mm": edge_distances(60, 100),
+                },
+            ],
+            "single_shear_two_ply_lap_joint_verified": True,
+            "standard_round_holes_verified": True,
+            "no_filler_plates_verified": True,
+            "rigid_connection_plates_verified": True,
+            "group_actions_at_centroid_verified": True,
+            "connected_plies_complete_and_force_distribution_verified": True,
+        }
+    )
+    oblique_loaded = oblique["checks"]["ply_bearing"]["plies"][0]["bolts"][2]
+    if not isclose(
+        oblique_loaded["design_action_kn"], sqrt(10**2 + 84**2), rel_tol=0, abs_tol=1e-12
+    ):
+        raise AssertionError("Clause 9.3.1 oblique resultant differs from hand arithmetic")
+    if not isclose(oblique_loaded["design_capacity_kn"], 60.48, rel_tol=0, abs_tol=1e-12):
+        raise AssertionError("Clause 9.2.2.4 must select the least directional edge capacity")
+    if oblique_loaded["edge_direction"] != "negative_y" or oblique_loaded["satisfied"]:
+        raise AssertionError("Clause 9.3.1 oblique bearing must use the controlling ply edge")
     return {
         "bolt_forces_kn": forces,
         "bolt_3_design_shear_capacity_kn": result["checks"]["bolt_2_shear"]["design_capacity_kn"],
@@ -3892,6 +3946,9 @@ def clause_9_3_1_bolt_group_ply_bearing():
             ply["bolts"][2]["design_capacity_kn"] for ply in plies
         ],
         "ply_passes": [ply["satisfied"] for ply in plies],
+        "oblique_bolt_3_resultant_kn": oblique_loaded["design_action_kn"],
+        "oblique_bolt_3_controlling_edge_direction": oblique_loaded["edge_direction"],
+        "oblique_bolt_3_design_capacity_kn": oblique_loaded["design_capacity_kn"],
     }
 
 
