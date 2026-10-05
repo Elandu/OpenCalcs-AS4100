@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.7",
+  "package_version": "0.7.8",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -280,6 +280,20 @@
       "name": "Clause 9.1.10 angle net area after cross-leg deduction",
       "actual": 3700.0,
       "expected": 3700,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.10.3(B) complete two-leg angle path deduction width",
+      "actual": 57.25,
+      "expected": 57.25,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 9.1.10 two-leg angle net area",
+      "actual": 1327.5,
+      "expected": 1327.5,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

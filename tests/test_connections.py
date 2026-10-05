@@ -1,5 +1,6 @@
 """Independent numeric benchmarks and connection domain boundaries."""
 
+from itertools import combinations
 from math import pi
 
 import pytest
@@ -2300,6 +2301,255 @@ def test_angle_hole_deduction_rejects_nonpositive_cross_leg_gauge():
                         ],
                     }
                 ],
+            }
+        )
+
+
+def _exhaustive_angle_layout_maximum(holes, thickness):
+    """Enumerate every progressive two-leg chain independently of the DAG search."""
+    ordered = sorted(
+        holes,
+        key=lambda hole: (
+            0 if hole["angle_leg_id"] == "leg_1" else 1,
+            -hole["back_mark_mm"] if hole["angle_leg_id"] == "leg_1" else hole["back_mark_mm"],
+            hole["longitudinal_mm"],
+            hole["hole_id"],
+        ),
+    )
+    candidates = []
+    for count in range(2, len(ordered) + 1):
+        for indices in combinations(range(len(ordered)), count):
+            path = [ordered[index] for index in indices]
+            correction = 0.0
+            for first, second in zip(path, path[1:], strict=False):
+                if first["angle_leg_id"] == second["angle_leg_id"]:
+                    gauge = abs(first["back_mark_mm"] - second["back_mark_mm"])
+                else:
+                    gauge = first["back_mark_mm"] + second["back_mark_mm"] - thickness
+                if gauge <= 0:
+                    break
+                pitch = abs(first["longitudinal_mm"] - second["longitudinal_mm"])
+                correction += pitch**2 / (4 * gauge)
+            else:
+                candidates.append(
+                    (
+                        sum(hole["gross_hole_width_mm"] for hole in path) - correction,
+                        [hole["hole_id"] for hole in path],
+                    )
+                )
+    return max(candidates)
+
+
+def test_angle_hole_layout_enumerates_both_legs_and_matches_exhaustive_paths():
+    holes = [
+        {
+            "hole_id": "A",
+            "angle_leg_id": "leg_1",
+            "longitudinal_mm": 0,
+            "back_mark_mm": 70,
+            "gross_hole_width_mm": 20,
+        },
+        {
+            "hole_id": "B",
+            "angle_leg_id": "leg_1",
+            "longitudinal_mm": 30,
+            "back_mark_mm": 40,
+            "gross_hole_width_mm": 20,
+        },
+        {
+            "hole_id": "C",
+            "angle_leg_id": "leg_2",
+            "longitudinal_mm": 60,
+            "back_mark_mm": 30,
+            "gross_hole_width_mm": 18,
+        },
+        {
+            "hole_id": "D",
+            "angle_leg_id": "leg_2",
+            "longitudinal_mm": 90,
+            "back_mark_mm": 60,
+            "gross_hole_width_mm": 18,
+        },
+    ]
+    result = run_connections(
+        {
+            "check_type": "angle_hole_deduction_layout",
+            "gross_area_mm2": 1900,
+            "thickness_mm": 10,
+            "leg_1_width_mm": 100,
+            "leg_2_width_mm": 100,
+            "angle_geometry_and_back_marks_verified": True,
+            "complete_angle_hole_layout_and_action_axis_verified": True,
+            "holes": holes,
+        }
+    )["intermediate"]
+
+    assert result["zigzag_path"]["hole_ids"] == ["A", "B", "C", "D"]
+    assert [pair["gauge_mm"] for pair in result["zigzag_path"]["stagger_pairs"]] == pytest.approx(
+        [30, 60, 30]
+    )
+    assert [
+        pair["correction_width_mm"] for pair in result["zigzag_path"]["stagger_pairs"]
+    ] == pytest.approx([7.5, 3.75, 7.5])
+    assert result["zigzag_path"]["net_deduction_width_mm"] == pytest.approx(57.25)
+    assert result["net_area_mm2"] == pytest.approx(1327.5)
+    assert _exhaustive_angle_layout_maximum(holes, 10)[0] == pytest.approx(57.25)
+
+
+def test_angle_hole_layout_dynamic_program_matches_exhaustive_small_layout():
+    holes = [
+        ("A", "leg_1", 0, 80, 18),
+        ("B", "leg_1", 200, 58, 21),
+        ("C", "leg_1", 65, 35, 17),
+        ("D", "leg_2", 95, 28, 16),
+        ("E", "leg_2", 115, 55, 20),
+        ("F", "leg_2", 140, 82, 18),
+    ]
+    layout = [
+        {
+            "hole_id": hole_id,
+            "angle_leg_id": leg,
+            "longitudinal_mm": longitudinal,
+            "back_mark_mm": back_mark,
+            "gross_hole_width_mm": width,
+        }
+        for hole_id, leg, longitudinal, back_mark, width in holes
+    ]
+    result = run_connections(
+        {
+            "check_type": "angle_hole_deduction_layout",
+            "gross_area_mm2": 1900,
+            "thickness_mm": 10,
+            "leg_1_width_mm": 100,
+            "leg_2_width_mm": 100,
+            "angle_geometry_and_back_marks_verified": True,
+            "complete_angle_hole_layout_and_action_axis_verified": True,
+            "holes": list(reversed(layout)),
+        }
+    )["intermediate"]
+    expected_width, expected_path = _exhaustive_angle_layout_maximum(layout, 10)
+
+    assert result["zigzag_path"]["net_deduction_width_mm"] == pytest.approx(expected_width)
+    assert result["zigzag_path"]["hole_ids"] == expected_path
+
+
+def test_angle_hole_layout_groups_straight_rows_across_both_legs():
+    result = run_connections(
+        {
+            "check_type": "angle_hole_deduction_layout",
+            "gross_area_mm2": 1900,
+            "thickness_mm": 10,
+            "leg_1_width_mm": 100,
+            "leg_2_width_mm": 100,
+            "angle_geometry_and_back_marks_verified": True,
+            "complete_angle_hole_layout_and_action_axis_verified": True,
+            "holes": [
+                {
+                    "hole_id": "A",
+                    "angle_leg_id": "leg_1",
+                    "longitudinal_mm": 0,
+                    "back_mark_mm": 70,
+                    "gross_hole_width_mm": 20,
+                },
+                {
+                    "hole_id": "B",
+                    "angle_leg_id": "leg_2",
+                    "longitudinal_mm": 0,
+                    "back_mark_mm": 30,
+                    "gross_hole_width_mm": 18,
+                },
+                {
+                    "hole_id": "C",
+                    "angle_leg_id": "leg_1",
+                    "longitudinal_mm": 500,
+                    "back_mark_mm": 40,
+                    "gross_hole_width_mm": 22,
+                },
+                {
+                    "hole_id": "D",
+                    "angle_leg_id": "leg_2",
+                    "longitudinal_mm": 500,
+                    "back_mark_mm": 60,
+                    "gross_hole_width_mm": 18,
+                },
+            ],
+        }
+    )["intermediate"]
+
+    assert result["straight_path"]["longitudinal_mm"] == 500
+    assert result["straight_path"]["hole_ids"] == ["C", "D"]
+    assert result["straight_path"]["hole_width_sum_mm"] == pytest.approx(40)
+    assert result["governing_path_type"] == "straight"
+    assert result["net_area_mm2"] == pytest.approx(1500)
+
+
+@pytest.mark.parametrize(
+    ("holes", "message"),
+    [
+        (
+            [
+                {
+                    "hole_id": "A",
+                    "angle_leg_id": "leg_1",
+                    "longitudinal_mm": 0,
+                    "back_mark_mm": 30,
+                    "gross_hole_width_mm": 20,
+                },
+                {
+                    "hole_id": "A",
+                    "angle_leg_id": "leg_2",
+                    "longitudinal_mm": 20,
+                    "back_mark_mm": 30,
+                    "gross_hole_width_mm": 20,
+                },
+            ],
+            "Angle hole IDs must be unique",
+        ),
+        (
+            [
+                {
+                    "hole_id": "A",
+                    "angle_leg_id": "leg_1",
+                    "longitudinal_mm": 0,
+                    "back_mark_mm": 30,
+                    "gross_hole_width_mm": 20,
+                },
+                {
+                    "hole_id": "B",
+                    "angle_leg_id": "leg_1",
+                    "longitudinal_mm": 0,
+                    "back_mark_mm": 30,
+                    "gross_hole_width_mm": 20,
+                },
+            ],
+            "Angle hole centres must be distinct",
+        ),
+        (
+            [
+                {
+                    "hole_id": "A",
+                    "angle_leg_id": "leg_1",
+                    "longitudinal_mm": 0,
+                    "back_mark_mm": 5,
+                    "gross_hole_width_mm": 20,
+                }
+            ],
+            "must fit within its angle leg",
+        ),
+    ],
+)
+def test_angle_hole_layout_rejects_duplicate_or_out_of_leg_holes(holes, message):
+    with pytest.raises(ValueError, match=message):
+        run_connections(
+            {
+                "check_type": "angle_hole_deduction_layout",
+                "gross_area_mm2": 1900,
+                "thickness_mm": 10,
+                "leg_1_width_mm": 100,
+                "leg_2_width_mm": 100,
+                "angle_geometry_and_back_marks_verified": True,
+                "complete_angle_hole_layout_and_action_axis_verified": True,
+                "holes": holes,
             }
         )
 

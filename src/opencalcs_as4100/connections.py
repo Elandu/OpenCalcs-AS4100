@@ -544,6 +544,37 @@ FIELDS = {
             },
         },
     },
+    "angle_hole_deduction_layout": {
+        "gross_area_mm2": P,
+        "thickness_mm": P,
+        "leg_1_width_mm": P,
+        "leg_2_width_mm": P,
+        "angle_geometry_and_back_marks_verified": {"const": True},
+        "complete_angle_hole_layout_and_action_axis_verified": {"const": True},
+        "holes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "hole_id",
+                    "angle_leg_id",
+                    "longitudinal_mm",
+                    "back_mark_mm",
+                    "gross_hole_width_mm",
+                ],
+                "properties": {
+                    "hole_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                    "angle_leg_id": {"enum": ["leg_1", "leg_2"]},
+                    "longitudinal_mm": SIGNED,
+                    "back_mark_mm": P,
+                    "gross_hole_width_mm": P,
+                },
+            },
+        },
+    },
     "minimum_beam_shear_action": {
         "actual_design_shear_kn": N,
         "member_design_shear_capacity_kn": P,
@@ -1175,6 +1206,140 @@ def _angle_hole_deduction(d):
             "candidate_paths": paths,
             "controlling_zigzag_path_id": controlling_path["path_id"],
             "governing_path_type": governing_path_type,
+            "governing_deduction_width_mm": deduction_width,
+            "deduction_mm2": deduction_area,
+            "net_area_mm2": net_area,
+        },
+    )
+
+
+def _angle_hole_deduction_layout(d):
+    holes = sorted(
+        d["holes"],
+        key=lambda hole: (
+            0 if hole["angle_leg_id"] == "leg_1" else 1,
+            -hole["back_mark_mm"] if hole["angle_leg_id"] == "leg_1" else hole["back_mark_mm"],
+            hole["longitudinal_mm"],
+            hole["hole_id"],
+        ),
+    )
+    hole_ids = [hole["hole_id"] for hole in holes]
+    positions = [
+        (hole["angle_leg_id"], hole["longitudinal_mm"], hole["back_mark_mm"]) for hole in holes
+    ]
+    if len(set(hole_ids)) != len(hole_ids):
+        raise ValueError("Angle hole IDs must be unique across the complete layout.")
+    if len(set(positions)) != len(positions):
+        raise ValueError("Angle hole centres must be distinct in the complete layout.")
+
+    leg_widths = {"leg_1": d["leg_1_width_mm"], "leg_2": d["leg_2_width_mm"]}
+    for hole in holes:
+        half_width = hole["gross_hole_width_mm"] / 2
+        if (
+            hole["back_mark_mm"] < half_width
+            or hole["back_mark_mm"] + half_width > leg_widths[hole["angle_leg_id"]]
+        ):
+            raise ValueError("Every gross hole width must fit within its angle leg.")
+
+    straight_rows = {}
+    for hole in holes:
+        straight_rows.setdefault(hole["longitudinal_mm"], []).append(hole)
+    straight_candidates = [
+        {
+            "longitudinal_mm": longitudinal,
+            "hole_ids": [hole["hole_id"] for hole in row],
+            "hole_width_sum_mm": fsum(hole["gross_hole_width_mm"] for hole in row),
+        }
+        for longitudinal, row in sorted(straight_rows.items())
+    ]
+    straight = max(straight_candidates, key=lambda candidate: candidate["hole_width_sum_mm"])
+
+    # Every forward sequence through the unfolded two-leg angle is a possible
+    # progressive zig-zag. Dynamic programming evaluates all positive-gauge
+    # transitions without materializing the potentially exponential path set.
+    best_widths = []
+    predecessors = []
+    best_zigzag_width = float("-inf")
+    best_zigzag_pair = None
+    transitions_considered = 0
+    for j, hole in enumerate(holes):
+        best_prefix = 0.0
+        predecessor = None
+        for i, previous in enumerate(holes[:j]):
+            if previous["angle_leg_id"] == hole["angle_leg_id"]:
+                gauge = abs(hole["back_mark_mm"] - previous["back_mark_mm"])
+            elif previous["angle_leg_id"] == "leg_1" and hole["angle_leg_id"] == "leg_2":
+                gauge = previous["back_mark_mm"] + hole["back_mark_mm"] - d["thickness_mm"]
+            else:
+                continue
+            if gauge <= 0:
+                continue
+            transitions_considered += 1
+            pitch = abs(hole["longitudinal_mm"] - previous["longitudinal_mm"])
+            correction = pitch * pitch / (4 * gauge)
+            candidate_width = best_widths[i] - correction + hole["gross_hole_width_mm"]
+            if candidate_width > best_zigzag_width:
+                best_zigzag_width = candidate_width
+                best_zigzag_pair = (i, j)
+            candidate_prefix = best_widths[i] - correction
+            if candidate_prefix > best_prefix:
+                best_prefix = candidate_prefix
+                predecessor = i
+        best_widths.append(hole["gross_hole_width_mm"] + best_prefix)
+        predecessors.append(predecessor)
+
+    zigzag_indices = []
+    if best_zigzag_pair is not None:
+        start, end = best_zigzag_pair
+        while start is not None:
+            zigzag_indices.append(start)
+            start = predecessors[start]
+        zigzag_indices.reverse()
+        zigzag_indices.append(end)
+    zigzag_holes = [holes[index] for index in zigzag_indices]
+    zigzag_width_sum = fsum(hole["gross_hole_width_mm"] for hole in zigzag_holes)
+    stagger_pairs = []
+    for first, second in zip(zigzag_holes, zigzag_holes[1:], strict=False):
+        pitch = abs(second["longitudinal_mm"] - first["longitudinal_mm"])
+        if first["angle_leg_id"] == second["angle_leg_id"]:
+            gauge = abs(second["back_mark_mm"] - first["back_mark_mm"])
+        else:
+            gauge = first["back_mark_mm"] + second["back_mark_mm"] - d["thickness_mm"]
+        stagger_pairs.append(
+            {
+                "from_hole_id": first["hole_id"],
+                "to_hole_id": second["hole_id"],
+                "staggered_pitch_mm": pitch,
+                "gauge_mm": gauge,
+                "correction_width_mm": pitch * pitch / (4 * gauge),
+            }
+        )
+    stagger_correction = fsum(pair["correction_width_mm"] for pair in stagger_pairs)
+    zigzag_width = zigzag_width_sum - stagger_correction
+    straight_width = straight["hole_width_sum_mm"]
+    governing_type = "straight" if straight_width >= zigzag_width else "zigzag"
+    deduction_width = max(straight_width, zigzag_width)
+    deduction_area = deduction_width * d["thickness_mm"]
+    net_area = d["gross_area_mm2"] - deduction_area
+    if net_area <= 0:
+        raise ValueError("Hole deductions must leave positive net area.")
+    return (
+        {"net_area": {"satisfied": True, "clause": "9.1.10.1; 9.1.10.2; 9.1.10.3"}},
+        {
+            "gross_area_mm2": d["gross_area_mm2"],
+            "angle_leg_widths_mm": leg_widths,
+            "straight_path": straight,
+            "zigzag_path": {
+                "hole_ids": [hole["hole_id"] for hole in zigzag_holes],
+                "hole_width_sum_mm": zigzag_width_sum,
+                "stagger_pairs": stagger_pairs,
+                "stagger_correction_width_mm": stagger_correction,
+                "net_deduction_width_mm": zigzag_width,
+            },
+            "progressive_hole_order": hole_ids,
+            "zigzag_transitions_considered": transitions_considered,
+            "path_search_method": "dynamic_programming_all_positive_gauge_forward_transitions",
+            "governing_path_type": governing_type,
             "governing_deduction_width_mm": deduction_width,
             "deduction_mm2": deduction_area,
             "net_area_mm2": net_area,
@@ -3167,6 +3332,8 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         c, intermediate = _hole_deduction_layout(d)
     elif k == "angle_hole_deduction":
         c, intermediate = _angle_hole_deduction(d)
+    elif k == "angle_hole_deduction_layout":
+        c, intermediate = _angle_hole_deduction_layout(d)
     else:
         c, intermediate = _weld_group(d)
     if k == "slip_factor_test":
@@ -3322,6 +3489,16 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "straight and zig-zag candidate sets, hole widths, back marks and path order. The "
             "operation does not derive angle geometry, enumerate paths, or calculate member "
             "capacity."
+        )
+    elif k == "angle_hole_deduction_layout":
+        scope = (
+            "Clause 9.1.10.1–3 for a verified complete two-leg angle hole layout. It groups "
+            "exact longitudinal rows for the straight deduction and uses dynamic programming "
+            "over every positive-gauge forward hole transition to find the greatest progressive "
+            "zig-zag deduction. Same-leg gauges use back-mark differences; opposite-leg gauges "
+            "use the Figure 9.1.10.3(B) sum of back marks less leg thickness. Verify the angle, "
+            "all holes, dimensions, axes and coordinates. Other section forms, nonstandard angle "
+            "geometries and member-capacity calculations are outside this operation."
         )
     else:
         scope = (

@@ -27,7 +27,7 @@ the weld/detail demand. Material certification, test evidence, Table 2.1 notes,
 Clause 3.8 detailing and clauses 2.3–2.5 remain assessed outside these
 calculations.
 
-Version 0.7.7 exposes twelve installed calculation families. The code implements
+Version 0.7.8 exposes twelve installed calculation families. The code implements
 bounded numerical checks and condition comparisons, with clause identifiers,
 declared applicability and explicit prerequisites. [Coverage](coverage.md)
 maps each of the standard's 17 sections to calculated, assessed and missing

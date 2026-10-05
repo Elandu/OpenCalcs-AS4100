@@ -614,6 +614,57 @@ def verify():
         angle_holes["net_area_mm2"],
         4000 - 30 * 10,
     )
+    angle_layout = run_connections(
+        {
+            "check_type": "angle_hole_deduction_layout",
+            "gross_area_mm2": 1900,
+            "thickness_mm": 10,
+            "leg_1_width_mm": 100,
+            "leg_2_width_mm": 100,
+            "angle_geometry_and_back_marks_verified": True,
+            "complete_angle_hole_layout_and_action_axis_verified": True,
+            "holes": [
+                {
+                    "hole_id": "A",
+                    "angle_leg_id": "leg_1",
+                    "longitudinal_mm": 0,
+                    "back_mark_mm": 70,
+                    "gross_hole_width_mm": 20,
+                },
+                {
+                    "hole_id": "B",
+                    "angle_leg_id": "leg_1",
+                    "longitudinal_mm": 30,
+                    "back_mark_mm": 40,
+                    "gross_hole_width_mm": 20,
+                },
+                {
+                    "hole_id": "C",
+                    "angle_leg_id": "leg_2",
+                    "longitudinal_mm": 60,
+                    "back_mark_mm": 30,
+                    "gross_hole_width_mm": 18,
+                },
+                {
+                    "hole_id": "D",
+                    "angle_leg_id": "leg_2",
+                    "longitudinal_mm": 90,
+                    "back_mark_mm": 60,
+                    "gross_hole_width_mm": 18,
+                },
+            ],
+        }
+    )["intermediate"]
+    record(
+        "Clause 9.1.10.3(B) complete two-leg angle path deduction width",
+        angle_layout["zigzag_path"]["net_deduction_width_mm"],
+        76 - (30**2 / (4 * 30) + 30**2 / (4 * 60) + 30**2 / (4 * 30)),
+    )
+    record(
+        "Clause 9.1.10 two-leg angle net area",
+        angle_layout["net_area_mm2"],
+        1900 - 57.25 * 10,
+    )
     net_i_section = run_members(
         {
             "operation": "section_moduli",

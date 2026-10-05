@@ -2734,6 +2734,50 @@ def figure_9_1_10_3b_angle_back_mark_gauge():
     }
 
 
+def clause_9_1_10_two_leg_angle_layout():
+    holes = [
+        ("A", "leg_1", 0, 70, 20),
+        ("B", "leg_1", 30, 40, 20),
+        ("C", "leg_2", 60, 30, 18),
+        ("D", "leg_2", 90, 60, 18),
+    ]
+    result = run_connections(
+        {
+            "check_type": "angle_hole_deduction_layout",
+            "gross_area_mm2": 1900,
+            "thickness_mm": 10,
+            "leg_1_width_mm": 100,
+            "leg_2_width_mm": 100,
+            "angle_geometry_and_back_marks_verified": True,
+            "complete_angle_hole_layout_and_action_axis_verified": True,
+            "holes": [
+                {
+                    "hole_id": hole_id,
+                    "angle_leg_id": leg,
+                    "longitudinal_mm": longitudinal,
+                    "back_mark_mm": back_mark,
+                    "gross_hole_width_mm": width,
+                }
+                for hole_id, leg, longitudinal, back_mark, width in holes
+            ],
+        }
+    )["intermediate"]
+    expected_corrections_mm = [30**2 / (4 * 30), 30**2 / (4 * 60), 30**2 / (4 * 30)]
+    expected_deduction_width_mm = 20 + 20 + 18 + 18 - sum(expected_corrections_mm)
+    expected_net_area_mm2 = 1900 - 10 * expected_deduction_width_mm
+    if result["zigzag_path"]["hole_ids"] != ["A", "B", "C", "D"]:
+        raise AssertionError("Clause 9.1.10 did not select the full progressive angle path")
+    if result["zigzag_path"]["net_deduction_width_mm"] != expected_deduction_width_mm:
+        raise AssertionError("Clause 9.1.10 angle stagger deductions differ from hand arithmetic")
+    if result["net_area_mm2"] != expected_net_area_mm2:
+        raise AssertionError("Clause 9.1.10 angle net area differs from hand arithmetic")
+    return {
+        "hole_ids": result["zigzag_path"]["hole_ids"],
+        "deduction_width_mm": result["governing_deduction_width_mm"],
+        "net_area_mm2": result["net_area_mm2"],
+    }
+
+
 def clause_12_6_3_single_test_history():
     result = run_durability(
         {
@@ -3024,6 +3068,7 @@ def main():
         "clause_9_1_9e_block_shear_path_set": clause_9_1_9e_block_shear_path_set,
         "clause_9_1_10_coordinate_hole_deduction": clause_9_1_10_coordinate_hole_deduction,
         "figure_9_1_10_3b_angle_back_mark_gauge": figure_9_1_10_3b_angle_back_mark_gauge,
+        "clause_9_1_10_two_leg_angle_layout": clause_9_1_10_two_leg_angle_layout,
         "clause_9_8_packing": clause_9_8_packing,
         "clause_12_6_3_single_test_history": clause_12_6_3_single_test_history,
         "clause_12_10_2_web_protection": clause_12_10_2_web_protection,
