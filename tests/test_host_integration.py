@@ -641,7 +641,6 @@ def test_family_http_validation(suffix):
             {
                 "operation": "unequal_flange_bending",
                 "section_capacity_knm": 200,
-                "iy_mm4": 50_000_000,
                 "torsion_constant_mm4": 200_000,
                 "warping_constant_mm6": 8_000_000_000_000,
                 "effective_length_mm": 15_000,

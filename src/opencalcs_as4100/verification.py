@@ -3757,6 +3757,7 @@ def verify():
     )
     unequal_flange_inputs.pop("flange_centroid_spacing_mm")
     unequal_flange_inputs.pop("compression_flange_minor_inertia_mm4")
+    unequal_flange_inputs.pop("iy_mm4")
     unequal_flange_inputs["beta_x_method"] = "section_integral"
     unequal_flange_inputs.update(
         {
@@ -3803,6 +3804,12 @@ def verify():
         1e-10,
     )
     record(
+        "Clause 5.6.1.2 weak-axis section inertia, hand parallel-axis arithmetic",
+        unequal_flange_integral["values"]["section_geometry_iy_mm4"],
+        24994986.6666667,
+        1e-7,
+    )
+    record(
         "Clause 5.6.1.2 rectangular-section integral, hand integration",
         unequal_flange_integral["values"]["section_integral_mm5"],
         -10352934373.425606,
@@ -3817,13 +3824,13 @@ def verify():
     record(
         "Clause 5.6.1.2 section-integral reference buckling moment, hand arithmetic",
         unequal_flange_integral["values"]["reference_buckling_moment_knm"],
-        198.89809447640857,
+        139.69601745506344,
         1e-10,
     )
     record(
         "Clause 5.6.1.2 section-integral member moment capacity, hand arithmetic",
         unequal_flange_integral["values"]["member_capacity_knm"],
-        143.60194389204455,
+        117.42846284675667,
         1e-10,
     )
     smaller_flange_integral_inputs = dict(unequal_flange_inputs)
@@ -3847,7 +3854,13 @@ def verify():
     record(
         "Clause 5.6.1.2 negative-beta reference buckling moment, hand arithmetic",
         smaller_flange_integral["values"]["reference_buckling_moment_knm"],
-        190.06953557615756,
+        135.2826232150819,
+        1e-10,
+    )
+    record(
+        "Clause 5.6.1.2 negative-beta member moment capacity, hand arithmetic",
+        smaller_flange_integral["values"]["member_capacity_knm"],
+        115.02872818800071,
         1e-10,
     )
     varying_bending = run_advanced_members(

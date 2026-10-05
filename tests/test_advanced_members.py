@@ -755,6 +755,7 @@ def unequal_flange_bending(beta_method="compression_flange_inertia", **updates):
         "compression_flange_minor_inertia_mm4": 30_000_000,
     }
     if beta_method == "section_integral":
+        inputs.pop("iy_mm4")
         inputs.pop("flange_centroid_spacing_mm")
         inputs.pop("compression_flange_minor_inertia_mm4")
         inputs.update(
@@ -821,8 +822,10 @@ def test_unequal_flange_bending_calculates_negative_integral_beta_from_geometry(
     assert out["values"]["beta_x_method"] == "section_integral"
     assert out["values"]["beta_x_mm"] == pytest.approx(-20.1267008468)
     assert out["values"]["section_integral_ix_mm4"] == pytest.approx(172914045.4902)
+    assert out["values"]["section_geometry_iy_mm4"] == pytest.approx(24994986.6666667)
     assert out["values"]["section_integral_mm5"] == pytest.approx(10352934373.4256)
-    assert out["values"]["reference_buckling_moment_knm"] == pytest.approx(190.0695355762)
+    assert out["values"]["reference_buckling_moment_knm"] == pytest.approx(135.2826232151)
+    assert out["values"]["member_capacity_knm"] == pytest.approx(115.0287281880)
 
 
 def test_unequal_flange_section_integral_uses_exact_rectangular_geometry():
@@ -834,6 +837,7 @@ def test_unequal_flange_section_integral_uses_exact_rectangular_geometry():
     values = out["values"]
     assert values["beta_x_mm"] == pytest.approx(20.1267008468)
     assert values["section_integral_ix_mm4"] == pytest.approx(172914045.4902)
+    assert values["section_geometry_iy_mm4"] == pytest.approx(24994986.6666667)
     assert values["section_integral_mm5"] == pytest.approx(-10352934373.4256)
     assert values["section_area_mm2"] == pytest.approx(10880)
     assert values["section_centroid_x_mm"] == pytest.approx(0, abs=1e-9)
@@ -841,6 +845,8 @@ def test_unequal_flange_section_integral_uses_exact_rectangular_geometry():
     assert values["section_geometry_reference"] == "TEST-UNEQUAL-I-GEOMETRY-01"
     assert values["shear_centre_reference"] == "TEST-SHEAR-CENTRE-01"
     assert values["unequal_flange_i_applicability_verified"]
+    assert values["reference_buckling_moment_knm"] == pytest.approx(139.6960174551)
+    assert values["member_capacity_knm"] == pytest.approx(117.4284628468)
 
 
 @pytest.mark.parametrize(

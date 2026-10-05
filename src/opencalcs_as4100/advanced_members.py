@@ -162,7 +162,6 @@ def _critical_flange_schema():
 def _unequal_flange_bending_schema():
     common = {
         "section_capacity_knm": P,
-        "iy_mm4": P,
         "torsion_constant_mm4": P,
         "warping_constant_mm6": P,
         "effective_length_mm": P,
@@ -175,6 +174,7 @@ def _unequal_flange_bending_schema():
     }
     methods = {
         "compression_flange_inertia": {
+            "iy_mm4": P,
             "flange_centroid_spacing_mm": P,
             "compression_flange_minor_inertia_mm4": P,
         },
@@ -274,6 +274,7 @@ def _section_integral_beta_x(data):
     section_centroid_y = fsum(y_first_moment_terms) / area
 
     ix_terms = []
+    iy_terms = []
     integral_terms = []
     for x_min, x_max, y_min, y_max in extents:
         width = x_max - x_min
@@ -282,6 +283,7 @@ def _section_integral_beta_x(data):
         y_centroid = (y_min + y_max) / 2 - section_centroid_y
         element_area = width * depth
         ix_terms.append(element_area * (y_centroid**2 + depth**2 / 12))
+        iy_terms.append(element_area * (x_centroid**2 + width**2 / 12))
         integral_terms.append(
             element_area
             * y_centroid
@@ -289,8 +291,11 @@ def _section_integral_beta_x(data):
         )
 
     ix = fsum(ix_terms)
+    iy = fsum(iy_terms)
     if not isfinite(ix) or ix <= 0:
         raise ValueError("Section-integral I_x must be positive and finite.")
+    if not isfinite(iy) or iy <= 0:
+        raise ValueError("Section-geometry I_y must be positive and finite.")
     section_integral = fsum(integral_terms)
     beta_x = section_integral / ix - 2 * data["shear_centre_y_mm"]
     expected_sign = 1 if data["compression_flange"] == "larger" else -1
@@ -302,6 +307,7 @@ def _section_integral_beta_x(data):
     return {
         "beta_x_mm": beta_x,
         "section_integral_ix_mm4": ix,
+        "section_geometry_iy_mm4": iy,
         "section_integral_mm5": section_integral,
         "section_area_mm2": area,
         "section_centroid_x_mm": section_centroid_x,
@@ -2612,8 +2618,8 @@ def run_advanced_members(inputs):
                 "shear_centre_reference": d["shear_centre_reference"],
             }
             beta_x = section_integral_values["beta_x_mm"]
+            iy = section_integral_values["section_geometry_iy_mm4"]
 
-        iy = d["iy_mm4"]
         length = d["effective_length_mm"]
         a = pi**2 * ELASTIC_MODULUS_MPA * iy / length**2
         stiffness = (
