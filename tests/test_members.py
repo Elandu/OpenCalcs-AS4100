@@ -1045,6 +1045,97 @@ def interaction(mode="compression"):
     }
 
 
+def tension_out_of_plane_bending(**changes):
+    return {
+        "operation": "tension_out_of_plane_bending",
+        "nominal_section_tension_capacity_nt_kn": 500,
+        "section_tension_capacity_7_2_verified": True,
+        "section_tension_capacity_7_2_reference": "AS 4100:2020 Clause 7.2 capacity review",
+        "nominal_section_moment_capacity_msx_knm": 100,
+        "section_moment_capacity_5_2_verified": True,
+        "section_moment_capacity_5_2_reference": "AS 4100:2020 Clause 5.2 capacity review",
+        "nominal_member_moment_capacity_mbx_knm": 40,
+        "member_moment_capacity_8_4_4_1_verified": True,
+        "member_moment_capacity_8_4_4_1_reference": "AS 4100:2020 Clause 8.4.4.1 capacity review",
+        "lateral_buckling_applicability_verified": True,
+        "lateral_buckling_applicability_reference": (
+            "AS 4100:2020 Clause 8.4.4.2 applicability review"
+        ),
+        "tension_action_kn": 180,
+        "moment_action_knm": 45,
+        **changes,
+    }
+
+
+def test_clause_8_4_4_2_tension_out_of_plane_bending_hand_arithmetic():
+    out = run_members(tension_out_of_plane_bending())
+    values = out["values"]
+    assert values["tension_interaction_ratio"] == pytest.approx(180 / (0.9 * 500))
+    assert values["nominal_section_moment_capacity_mrx_knm"] == pytest.approx(60)
+    assert values["unbounded_nominal_out_of_plane_capacity_mox_knm"] == pytest.approx(56)
+    assert values["nominal_out_of_plane_capacity_mox_knm"] == pytest.approx(56)
+    assert values["design_out_of_plane_capacity_phi_mox_knm"] == pytest.approx(50.4)
+    assert values["out_of_plane_capacity_limiter"] == "8.4.4.1 member capacity"
+    assert out["checks"]["axial_tension"]["satisfied"]
+    assert out["checks"]["section_moment_with_tension"]["satisfied"]
+    assert out["checks"]["out_of_plane_bending"]["utilisation"] == pytest.approx(45 / 50.4)
+    assert out["trace"] == [
+        {"clause": "3.4"},
+        {"clause": "7.2"},
+        {"clause": "8.3.2"},
+        {"clause": "8.4.4.2"},
+    ]
+
+
+def test_clause_8_4_4_2_caps_member_capacity_at_section_capacity():
+    out = run_members(tension_out_of_plane_bending(nominal_member_moment_capacity_mbx_knm=80))
+    values = out["values"]
+    assert values["unbounded_nominal_out_of_plane_capacity_mox_knm"] == pytest.approx(112)
+    assert values["nominal_out_of_plane_capacity_mox_knm"] == pytest.approx(60)
+    assert values["design_out_of_plane_capacity_phi_mox_knm"] == pytest.approx(54)
+    assert values["out_of_plane_capacity_limiter"] == "8.3.2 section capacity"
+
+
+def test_clause_8_4_4_2_zero_moment_capacity_at_design_tension_limit():
+    out = run_members(tension_out_of_plane_bending(tension_action_kn=450, moment_action_knm=0))
+    values = out["values"]
+    assert values["tension_to_design_capacity_ratio"] == pytest.approx(1)
+    assert values["nominal_section_moment_capacity_mrx_knm"] == 0
+    assert values["nominal_out_of_plane_capacity_mox_knm"] == 0
+    assert values["design_out_of_plane_capacity_phi_mox_knm"] == 0
+    assert out["checks"]["axial_tension"]["satisfied"]
+    assert out["checks"]["out_of_plane_bending"]["satisfied"]
+
+
+def test_clause_8_4_4_2_overload_and_unverified_capacity_basis_fail_checks():
+    overloaded = run_members(
+        tension_out_of_plane_bending(tension_action_kn=451, moment_action_knm=1)
+    )
+    assert not overloaded["checks"]["axial_tension"]["satisfied"]
+    assert not overloaded["checks"]["out_of_plane_bending"]["satisfied"]
+
+    unverified = run_members(
+        tension_out_of_plane_bending(
+            section_tension_capacity_7_2_verified=False,
+            member_moment_capacity_8_4_4_1_verified=False,
+        )
+    )
+    assert not unverified["checks"]["section_tension_capacity_basis"]["satisfied"]
+    assert not unverified["checks"]["member_moment_capacity_basis"]["satisfied"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"nominal_member_moment_capacity_mbx_knm": 101},
+        {"section_tension_capacity_7_2_reference": "   "},
+    ],
+)
+def test_clause_8_4_4_2_rejects_inconsistent_or_blank_capacity_basis(changes):
+    with pytest.raises(ValueError):
+        run_members(tension_out_of_plane_bending(**changes))
+
+
 def test_general_interaction_independent_arithmetic():
     out = run_members(interaction())
     assert out["values"]["section_reduced_x_knm"] == 90

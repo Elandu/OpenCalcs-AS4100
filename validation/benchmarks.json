@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.64",
+  "package_version": "0.7.65",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -4086,6 +4086,55 @@
     },
     {
       "name": "Amd 1:2021 Clause 8.4.6 exact interaction boundary accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.4.2 tension interaction ratio, hand arithmetic",
+      "actual": 0.4,
+      "expected": 0.4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.4.2 nominal section moment with tension, hand arithmetic",
+      "actual": 60.0,
+      "expected": 60.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.4.2 uncapped nominal out-of-plane member capacity, hand arithmetic",
+      "actual": 56.0,
+      "expected": 56.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.4.2 member-limited design moment capacity, hand arithmetic",
+      "actual": 50.4,
+      "expected": 50.4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.3.2 caps Clause 8.4.4.2 nominal capacity",
+      "actual": 60.0,
+      "expected": 60.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 8.4.4.2 section moment capacity reaches zero at tension limit",
+      "actual": 0.0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 7.2 exact design tension boundary is accepted",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

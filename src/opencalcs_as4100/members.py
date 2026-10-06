@@ -564,6 +564,55 @@ INPUT_SCHEMA = {
             ],
         ),
         _variant(
+            "tension_out_of_plane_bending",
+            {
+                "nominal_section_tension_capacity_nt_kn": P,
+                "section_tension_capacity_7_2_verified": {"type": "boolean"},
+                "section_tension_capacity_7_2_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                },
+                "nominal_section_moment_capacity_msx_knm": P,
+                "section_moment_capacity_5_2_verified": {"type": "boolean"},
+                "section_moment_capacity_5_2_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                },
+                "nominal_member_moment_capacity_mbx_knm": P,
+                "member_moment_capacity_8_4_4_1_verified": {"type": "boolean"},
+                "member_moment_capacity_8_4_4_1_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                },
+                "lateral_buckling_applicability_verified": {"type": "boolean"},
+                "lateral_buckling_applicability_reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000,
+                },
+                "tension_action_kn": N,
+                "moment_action_knm": N,
+            },
+            [
+                "nominal_section_tension_capacity_nt_kn",
+                "section_tension_capacity_7_2_verified",
+                "section_tension_capacity_7_2_reference",
+                "nominal_section_moment_capacity_msx_knm",
+                "section_moment_capacity_5_2_verified",
+                "section_moment_capacity_5_2_reference",
+                "nominal_member_moment_capacity_mbx_knm",
+                "member_moment_capacity_8_4_4_1_verified",
+                "member_moment_capacity_8_4_4_1_reference",
+                "lateral_buckling_applicability_verified",
+                "lateral_buckling_applicability_reference",
+                "tension_action_kn",
+                "moment_action_knm",
+            ],
+        ),
+        _variant(
             "interaction",
             {
                 "axial_mode": {"enum": ["compression", "tension"]},
@@ -1644,6 +1693,112 @@ def _shear_proportioning(d):
     )
 
 
+def _tension_out_of_plane_bending(d):
+    phi = 0.9
+    reference_fields = (
+        "section_tension_capacity_7_2_reference",
+        "section_moment_capacity_5_2_reference",
+        "member_moment_capacity_8_4_4_1_reference",
+        "lateral_buckling_applicability_reference",
+    )
+    references = {field: d[field].strip() for field in reference_fields}
+    if any(not reference for reference in references.values()):
+        raise ValueError("Capacity and applicability references must not be blank.")
+
+    nt = d["nominal_section_tension_capacity_nt_kn"]
+    msx = d["nominal_section_moment_capacity_msx_knm"]
+    mbx = d["nominal_member_moment_capacity_mbx_knm"]
+    if mbx > msx:
+        raise ValueError(
+            "Clause 8.4.4.1 member moment capacity must not exceed the Clause 5.2 section capacity."
+        )
+
+    axial_ratio = d["tension_action_kn"] / (phi * nt)
+    mrx = msx * max(0.0, 1 - axial_ratio)
+    unbounded_mox = mbx * (1 + axial_ratio)
+    mox = min(unbounded_mox, mrx)
+    design_nt = phi * nt
+    design_mrx = phi * mrx
+    design_mox = phi * mox
+    moment_check = _check(d["moment_action_knm"], design_mox)
+    moment_check["clause"] = "8.4.4.2"
+    section_moment_check = _check(d["moment_action_knm"], design_mrx)
+    section_moment_check["clause"] = "8.3.2"
+    axial_check = _check(d["tension_action_kn"], design_nt)
+    axial_check["clause"] = "7.2"
+
+    checks = {
+        "lateral_buckling_applicability": {
+            "clause": "8.4.4.2 applicability evidence",
+            "evidence_reference": references["lateral_buckling_applicability_reference"],
+            "satisfied": d["lateral_buckling_applicability_verified"],
+        },
+        "section_tension_capacity_basis": {
+            "clause": "7.2 nominal section tension capacity evidence",
+            "evidence_reference": references["section_tension_capacity_7_2_reference"],
+            "satisfied": d["section_tension_capacity_7_2_verified"],
+        },
+        "section_moment_capacity_basis": {
+            "clause": "5.2 nominal section moment capacity evidence",
+            "evidence_reference": references["section_moment_capacity_5_2_reference"],
+            "satisfied": d["section_moment_capacity_5_2_verified"],
+        },
+        "member_moment_capacity_basis": {
+            "clause": "8.4.4.1 nominal member moment capacity evidence",
+            "evidence_reference": references["member_moment_capacity_8_4_4_1_reference"],
+            "satisfied": d["member_moment_capacity_8_4_4_1_verified"],
+        },
+        "section_moment_with_tension": section_moment_check,
+        "axial_tension": axial_check,
+        "out_of_plane_bending": moment_check,
+    }
+    clauses = ["3.4", "7.2", "8.3.2", "8.4.4.2"]
+    return (
+        {
+            "capacity_factor_phi": phi,
+            "tension_action_kn": d["tension_action_kn"],
+            "design_section_tension_capacity_kn": design_nt,
+            "tension_to_design_capacity_ratio": d["tension_action_kn"] / design_nt,
+            "tension_interaction_ratio": axial_ratio,
+            "nominal_section_moment_capacity_msx_knm": msx,
+            "nominal_section_moment_capacity_mrx_knm": mrx,
+            "design_section_moment_capacity_mrx_knm": design_mrx,
+            "nominal_member_moment_capacity_mbx_knm": mbx,
+            "unbounded_nominal_out_of_plane_capacity_mox_knm": unbounded_mox,
+            "nominal_out_of_plane_capacity_mox_knm": mox,
+            "design_out_of_plane_capacity_phi_mox_knm": design_mox,
+            "out_of_plane_capacity_limiter": (
+                "8.3.2 section capacity" if unbounded_mox > mrx else "8.4.4.1 member capacity"
+            ),
+            "moment_action_knm": d["moment_action_knm"],
+            "section_tension_capacity_7_2_reference": references[
+                "section_tension_capacity_7_2_reference"
+            ],
+            "section_moment_capacity_5_2_reference": references[
+                "section_moment_capacity_5_2_reference"
+            ],
+            "member_moment_capacity_8_4_4_1_reference": references[
+                "member_moment_capacity_8_4_4_1_reference"
+            ],
+            "lateral_buckling_applicability_reference": references[
+                "lateral_buckling_applicability_reference"
+            ],
+        },
+        checks,
+        clauses,
+        [
+            "Clause 8.4.4.2 applies to a tension member subject to major-axis bending that "
+            "may buckle laterally. Confirm this applicability and the restraint/loading model.",
+            "The nominal section tension capacity N_t, nominal section moment capacity M_sx, "
+            "and nominal member moment capacity M_bx are supplied inputs. Verify N_t under "
+            "Clause 7.2, M_sx under Clause 5.2, and M_bx under Clause 8.4.4.1; this operation "
+            "does not derive or authenticate them.",
+            "Only the major-axis out-of-plane bending check is calculated. Other concurrent "
+            "actions and member limit states require their applicable Clause 8 checks.",
+        ],
+    )
+
+
 def _interaction(d):
     phi = 0.9
     n, mx, my = d["axial_action_kn"], d["moment_x_knm"], d["moment_y_knm"]
@@ -2212,6 +2367,7 @@ def run_members(inputs: Mapping[str, Any]) -> dict[str, Any]:
         "chs_shear": _chs_shear,
         "shear_proportioning": _shear_proportioning,
         "interaction": _interaction,
+        "tension_out_of_plane_bending": _tension_out_of_plane_bending,
         "tension_distribution": _distribution,
     }
     try:

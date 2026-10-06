@@ -3584,6 +3584,65 @@ def clause_5_6_1_4_hollow_section_bending():
     }
 
 
+def clause_8_4_4_2_tension_out_of_plane_bending():
+    common = {
+        "operation": "tension_out_of_plane_bending",
+        "nominal_section_tension_capacity_nt_kn": 500,
+        "section_tension_capacity_7_2_verified": True,
+        "section_tension_capacity_7_2_reference": "AS 4100:2020 Clause 7.2 independent case",
+        "nominal_section_moment_capacity_msx_knm": 100,
+        "section_moment_capacity_5_2_verified": True,
+        "section_moment_capacity_5_2_reference": "AS 4100:2020 Clause 5.2 independent case",
+        "member_moment_capacity_8_4_4_1_verified": True,
+        "member_moment_capacity_8_4_4_1_reference": (
+            "AS 4100:2020 Clause 8.4.4.1 independent case"
+        ),
+        "lateral_buckling_applicability_verified": True,
+        "lateral_buckling_applicability_reference": (
+            "AS 4100:2020 Clause 8.4.4.2 independent case"
+        ),
+        "tension_action_kn": 180,
+        "moment_action_knm": 45,
+    }
+    member_limited = run_members({**common, "nominal_member_moment_capacity_mbx_knm": 40})
+    values = member_limited["values"]
+    expect_close(values["tension_interaction_ratio"], 0.4)
+    expect_close(values["nominal_section_moment_capacity_mrx_knm"], 60)
+    expect_close(values["unbounded_nominal_out_of_plane_capacity_mox_knm"], 56)
+    expect_close(values["design_out_of_plane_capacity_phi_mox_knm"], 50.4)
+    if not member_limited["checks"]["out_of_plane_bending"]["satisfied"]:
+        raise AssertionError("Clause 8.4.4.2 member-limited design check failed")
+
+    section_limited = run_members({**common, "nominal_member_moment_capacity_mbx_knm": 80})
+    expect_close(
+        section_limited["values"]["unbounded_nominal_out_of_plane_capacity_mox_knm"],
+        112,
+    )
+    expect_close(section_limited["values"]["nominal_out_of_plane_capacity_mox_knm"], 60)
+    expect_close(section_limited["values"]["design_out_of_plane_capacity_phi_mox_knm"], 54)
+    if section_limited["values"]["out_of_plane_capacity_limiter"] != "8.3.2 section capacity":
+        raise AssertionError("Clause 8.3.2 did not cap the Clause 8.4.4.2 member capacity")
+
+    rejected_evidence = run_members(
+        {
+            **common,
+            "nominal_member_moment_capacity_mbx_knm": 40,
+            "member_moment_capacity_8_4_4_1_verified": False,
+        }
+    )
+    if rejected_evidence["checks"]["member_moment_capacity_basis"]["satisfied"]:
+        raise AssertionError("Unverified Clause 8.4.4.1 input was accepted as verified")
+    return {
+        "member_limited_phi_mox_knm": values["design_out_of_plane_capacity_phi_mox_knm"],
+        "section_limited_phi_mox_knm": section_limited["values"][
+            "design_out_of_plane_capacity_phi_mox_knm"
+        ],
+        "unverified_member_capacity_rejected": not rejected_evidence["checks"][
+            "member_moment_capacity_basis"
+        ]["satisfied"],
+    }
+
+
 def clause_5_6_1_1_a_iii_moment_factor():
     result = run_advanced_members(
         {
@@ -5333,6 +5392,9 @@ def main():
         ),
         "clause_5_6_1_2_b_unequal_flange_buckling": (clause_5_6_1_2_b_unequal_flange_buckling),
         "clause_5_6_1_4_hollow_section_bending": clause_5_6_1_4_hollow_section_bending,
+        "clause_8_4_4_2_tension_out_of_plane_bending": (
+            clause_8_4_4_2_tension_out_of_plane_bending
+        ),
         "clause_5_7_1_continuous_restraint": clause_5_7_1_continuous_restraint,
         "clause_5_7_2_unconstrained_bending": clause_5_7_2_unconstrained_bending,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,

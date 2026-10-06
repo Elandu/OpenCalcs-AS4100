@@ -7003,6 +7003,71 @@ def verify():
         int(angle_interaction["checked_conditions_satisfied"]),
         1,
     )
+    tension_bending_common = {
+        "operation": "tension_out_of_plane_bending",
+        "nominal_section_tension_capacity_nt_kn": 500,
+        "section_tension_capacity_7_2_verified": True,
+        "section_tension_capacity_7_2_reference": "VERIFY-AS4100-7.2-TENSION-CAPACITY",
+        "nominal_section_moment_capacity_msx_knm": 100,
+        "section_moment_capacity_5_2_verified": True,
+        "section_moment_capacity_5_2_reference": "VERIFY-AS4100-5.2-SECTION-CAPACITY",
+        "member_moment_capacity_8_4_4_1_verified": True,
+        "member_moment_capacity_8_4_4_1_reference": "VERIFY-AS4100-8.4.4.1-MEMBER-CAPACITY",
+        "lateral_buckling_applicability_verified": True,
+        "lateral_buckling_applicability_reference": "VERIFY-AS4100-8.4.4.2-APPLICABILITY",
+        "tension_action_kn": 180,
+        "moment_action_knm": 45,
+    }
+    member_limited_tension_bending = run_members(
+        {**tension_bending_common, "nominal_member_moment_capacity_mbx_knm": 40}
+    )
+    member_limited_values = member_limited_tension_bending["values"]
+    record(
+        "Clause 8.4.4.2 tension interaction ratio, hand arithmetic",
+        member_limited_values["tension_interaction_ratio"],
+        180 / (0.9 * 500),
+    )
+    record(
+        "Clause 8.4.4.2 nominal section moment with tension, hand arithmetic",
+        member_limited_values["nominal_section_moment_capacity_mrx_knm"],
+        100 * (1 - 180 / (0.9 * 500)),
+    )
+    record(
+        "Clause 8.4.4.2 uncapped nominal out-of-plane member capacity, hand arithmetic",
+        member_limited_values["unbounded_nominal_out_of_plane_capacity_mox_knm"],
+        40 * (1 + 180 / (0.9 * 500)),
+    )
+    record(
+        "Clause 8.4.4.2 member-limited design moment capacity, hand arithmetic",
+        member_limited_values["design_out_of_plane_capacity_phi_mox_knm"],
+        0.9 * 56,
+    )
+    section_limited_tension_bending = run_members(
+        {**tension_bending_common, "nominal_member_moment_capacity_mbx_knm": 80}
+    )
+    record(
+        "Clause 8.3.2 caps Clause 8.4.4.2 nominal capacity",
+        section_limited_tension_bending["values"]["nominal_out_of_plane_capacity_mox_knm"],
+        100 * (1 - 180 / (0.9 * 500)),
+    )
+    at_tension_limit = run_members(
+        {
+            **tension_bending_common,
+            "nominal_member_moment_capacity_mbx_knm": 40,
+            "tension_action_kn": 0.9 * 500,
+            "moment_action_knm": 0,
+        }
+    )
+    record(
+        "Clause 8.4.4.2 section moment capacity reaches zero at tension limit",
+        at_tension_limit["values"]["nominal_out_of_plane_capacity_mox_knm"],
+        0,
+    )
+    record(
+        "Clause 7.2 exact design tension boundary is accepted",
+        int(at_tension_limit["checks"]["axial_tension"]["satisfied"]),
+        1,
+    )
     closed_section_j = run_advanced_members(
         {
             "operation": "closed_section_torsion_constant",
