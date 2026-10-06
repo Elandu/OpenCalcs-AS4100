@@ -975,6 +975,235 @@ def test_clause_5_11_3_opening_shear_stress_ratio_requires_maximum_at_least_aver
         web_opening_shear_design(rational_elastic_analysis_reference="   ")
 
 
+def web_opening_layout_shear_design(**changes):
+    design_inputs = {
+        "yield_strength_mpa": 250,
+        "web_area_at_opening_mm2": 1000,
+        "web_area_basis_verified": True,
+        "panel_depth_mm": 250,
+        "web_thickness_mm": 5,
+        "maximum_design_shear_stress_mpa": 8,
+        "average_design_shear_stress_mpa": 4,
+        "rational_elastic_analysis_reference": "FEA-OPENING-01",
+        "rational_elastic_analysis_verified": True,
+        "action_kn": 90,
+        "moment_action_knm": 50,
+        "section_moment_capacity_knm": 100,
+    }
+    inputs = {
+        "operation": "web_opening_layout_shear_design",
+        "clear_web_depth_mm": 250,
+        "longitudinal_stiffeners_present": False,
+        "openings": [
+            {
+                "opening_id": "left",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 25,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 25,
+                "greatest_internal_dimension_mm": 25,
+                "design_inputs": dict(design_inputs),
+            },
+            {
+                "opening_id": "right",
+                "longitudinal_start_mm": 115,
+                "longitudinal_end_mm": 140,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 25,
+                "greatest_internal_dimension_mm": 25,
+                "design_inputs": dict(design_inputs),
+            },
+        ],
+        "opening_geometry_verified": True,
+        "opening_geometry_reference": "DRAWING-OPENING-LAYOUT-01",
+        "opening_layout_complete_verified": True,
+        "all_openings_unstiffened_verified": True,
+        "castellated_member_present": False,
+        "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": False,
+        "rational_analysis_reference": None,
+        "load_combination_reference": "ULS-COMBO-01",
+    }
+    inputs.update(changes)
+    return run(inputs)
+
+
+def test_clause_5_10_7_layout_shear_design_checks_every_opening():
+    out = web_opening_layout_shear_design()
+    values = out["values"]
+    assert values["opening_count"] == 2
+    assert [item["opening_id"] for item in values["design_results"]] == ["left", "right"]
+    assert values["maximum_openings_at_any_cross_section"] == 1
+    assert values["governing_opening_id"] == "left"
+    assert values["maximum_design_utilisation"] == pytest.approx(90 / (0.9 * (150 * 2 / 2.9)))
+    assert out["checked_conditions_satisfied"]
+    assert out["full_standard_compliance"] is False
+    assert "5.10.7" in out["clauses"]
+    assert "5.11.3" in out["clauses"]
+    assert "5.12.3" in out["clauses"]
+
+
+def test_clause_5_10_7_layout_shear_design_returns_governing_failed_opening():
+    out = web_opening_layout_shear_design(
+        openings=[
+            {
+                "opening_id": "left",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 25,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 25,
+                "greatest_internal_dimension_mm": 25,
+                "design_inputs": {
+                    "yield_strength_mpa": 250,
+                    "web_area_at_opening_mm2": 1000,
+                    "web_area_basis_verified": True,
+                    "panel_depth_mm": 250,
+                    "web_thickness_mm": 5,
+                    "maximum_design_shear_stress_mpa": 8,
+                    "average_design_shear_stress_mpa": 4,
+                    "rational_elastic_analysis_reference": "FEA-OPENING-LEFT-01",
+                    "rational_elastic_analysis_verified": True,
+                    "action_kn": 90,
+                    "moment_action_knm": 50,
+                    "section_moment_capacity_knm": 100,
+                },
+            },
+            {
+                "opening_id": "right",
+                "longitudinal_start_mm": 115,
+                "longitudinal_end_mm": 140,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 25,
+                "greatest_internal_dimension_mm": 25,
+                "design_inputs": {
+                    "yield_strength_mpa": 250,
+                    "web_area_at_opening_mm2": 1000,
+                    "web_area_basis_verified": True,
+                    "panel_depth_mm": 250,
+                    "web_thickness_mm": 5,
+                    "maximum_design_shear_stress_mpa": 8,
+                    "average_design_shear_stress_mpa": 4,
+                    "rational_elastic_analysis_reference": "FEA-OPENING-RIGHT-01",
+                    "rational_elastic_analysis_verified": True,
+                    "action_kn": 94,
+                    "moment_action_knm": 50,
+                    "section_moment_capacity_knm": 100,
+                },
+            },
+        ]
+    )
+    assert not out["checked_conditions_satisfied"]
+    assert out["values"]["governing_opening_id"] == "right"
+    right = next(item for item in out["values"]["design_results"] if item["opening_id"] == "right")
+    assert not right["checked_conditions_satisfied"]
+
+
+def test_clause_5_10_7_layout_shear_design_includes_layout_failures_and_multiple_openings():
+    too_close = web_opening_layout_shear_design(
+        openings=[
+            {
+                "opening_id": "left",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 25,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 25,
+                "greatest_internal_dimension_mm": 25,
+                "design_inputs": {
+                    "yield_strength_mpa": 250,
+                    "web_area_at_opening_mm2": 1000,
+                    "web_area_basis_verified": True,
+                    "panel_depth_mm": 250,
+                    "web_thickness_mm": 5,
+                    "maximum_design_shear_stress_mpa": 8,
+                    "average_design_shear_stress_mpa": 4,
+                    "rational_elastic_analysis_reference": "FEA-OPENING-LEFT-02",
+                    "rational_elastic_analysis_verified": True,
+                    "action_kn": 90,
+                    "moment_action_knm": 50,
+                    "section_moment_capacity_knm": 100,
+                },
+            },
+            {
+                "opening_id": "right",
+                "longitudinal_start_mm": 99,
+                "longitudinal_end_mm": 124,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 25,
+                "greatest_internal_dimension_mm": 25,
+                "design_inputs": {
+                    "yield_strength_mpa": 250,
+                    "web_area_at_opening_mm2": 1000,
+                    "web_area_basis_verified": True,
+                    "panel_depth_mm": 250,
+                    "web_thickness_mm": 5,
+                    "maximum_design_shear_stress_mpa": 8,
+                    "average_design_shear_stress_mpa": 4,
+                    "rational_elastic_analysis_reference": "FEA-OPENING-RIGHT-02",
+                    "rational_elastic_analysis_verified": True,
+                    "action_kn": 90,
+                    "moment_action_knm": 50,
+                    "section_moment_capacity_knm": 100,
+                },
+            },
+        ]
+    )
+    assert not too_close["checked_conditions_satisfied"]
+    assert not too_close["checks"][0]["satisfied"]
+
+    stacked_openings = [
+        {
+            "opening_id": "lower",
+            "longitudinal_start_mm": 0,
+            "longitudinal_end_mm": 25,
+            "transverse_start_mm": 0,
+            "transverse_end_mm": 20,
+            "greatest_internal_dimension_mm": 25,
+            "design_inputs": {
+                "yield_strength_mpa": 250,
+                "web_area_at_opening_mm2": 1000,
+                "web_area_basis_verified": True,
+                "panel_depth_mm": 250,
+                "web_thickness_mm": 5,
+                "maximum_design_shear_stress_mpa": 8,
+                "average_design_shear_stress_mpa": 4,
+                "rational_elastic_analysis_reference": "FEA-OPENING-LOWER-01",
+                "rational_elastic_analysis_verified": True,
+                "action_kn": 90,
+                "moment_action_knm": 50,
+                "section_moment_capacity_knm": 100,
+            },
+        },
+        {
+            "opening_id": "upper",
+            "longitudinal_start_mm": 0,
+            "longitudinal_end_mm": 25,
+            "transverse_start_mm": 230,
+            "transverse_end_mm": 250,
+            "greatest_internal_dimension_mm": 25,
+            "design_inputs": {
+                "yield_strength_mpa": 250,
+                "web_area_at_opening_mm2": 1000,
+                "web_area_basis_verified": True,
+                "panel_depth_mm": 250,
+                "web_thickness_mm": 5,
+                "maximum_design_shear_stress_mpa": 8,
+                "average_design_shear_stress_mpa": 4,
+                "rational_elastic_analysis_reference": "FEA-OPENING-UPPER-01",
+                "rational_elastic_analysis_verified": True,
+                "action_kn": 90,
+                "moment_action_knm": 50,
+                "section_moment_capacity_knm": 100,
+            },
+        },
+    ]
+    stacked = web_opening_layout_shear_design(
+        openings=stacked_openings,
+        multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified=True,
+        rational_analysis_reference="ANALYSIS-STACKED-OPENINGS-01",
+    )
+    assert stacked["values"]["maximum_openings_at_any_cross_section"] == 2
+    assert stacked["checked_conditions_satisfied"]
+
+
 def web_opening_rational_analysis_review(**changes):
     inputs = {
         "operation": "web_opening_rational_analysis_review",

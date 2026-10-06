@@ -3775,6 +3775,63 @@ def clause_5_11_3_web_shear_stress_field():
     }
 
 
+def clause_5_10_7_layout_shear_design():
+    common_design_inputs = {
+        "yield_strength_mpa": 250,
+        "web_area_at_opening_mm2": 1000,
+        "web_area_basis_verified": True,
+        "panel_depth_mm": 250,
+        "web_thickness_mm": 5,
+        "maximum_design_shear_stress_mpa": 8,
+        "average_design_shear_stress_mpa": 4,
+        "rational_elastic_analysis_reference": "INDEPENDENT-OPENING-ELASTIC-01",
+        "rational_elastic_analysis_verified": True,
+        "action_kn": 90,
+        "moment_action_knm": 50,
+        "section_moment_capacity_knm": 100,
+    }
+    openings = []
+    for opening_id, start in (("left", 0), ("right", 115)):
+        openings.append(
+            {
+                "opening_id": opening_id,
+                "longitudinal_start_mm": start,
+                "longitudinal_end_mm": start + 25,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 25,
+                "greatest_internal_dimension_mm": 25,
+                "design_inputs": dict(common_design_inputs),
+            }
+        )
+    result = run_webs(
+        {
+            "operation": "web_opening_layout_shear_design",
+            "clear_web_depth_mm": 250,
+            "longitudinal_stiffeners_present": False,
+            "openings": openings,
+            "opening_geometry_verified": True,
+            "opening_geometry_reference": "INDEPENDENT-OPENING-LAYOUT-01",
+            "opening_layout_complete_verified": True,
+            "all_openings_unstiffened_verified": True,
+            "castellated_member_present": False,
+            "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": False,
+            "rational_analysis_reference": None,
+            "load_combination_reference": "INDEPENDENT-OPENING-ULS-01",
+        }
+    )
+    values = result["values"]
+    expect_close(values["opening_count"], 2)
+    expect_close(values["maximum_design_utilisation"], 90 / (0.9 * (150 * 2 / 2.9)))
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Layout-wide opening shear design rejected its hand-calculated cases")
+    return {
+        "opening_count": values["opening_count"],
+        "governing_opening_id": values["governing_opening_id"],
+        "maximum_design_utilisation": values["maximum_design_utilisation"],
+        "layout_checks_pass": result["checked_conditions_satisfied"],
+    }
+
+
 def clause_5_10_web_geometry():
     thickness = run_webs(
         {
@@ -5596,6 +5653,7 @@ def main():
         "clause_5_7_1_continuous_restraint": clause_5_7_1_continuous_restraint,
         "clause_5_7_2_unconstrained_bending": clause_5_7_2_unconstrained_bending,
         "clause_5_11_3_web_shear_stress_field": clause_5_11_3_web_shear_stress_field,
+        "clause_5_10_7_layout_shear_design": clause_5_10_7_layout_shear_design,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
         "clause_5_10_7_rational_analysis_result_review": (
             clause_5_10_7_rational_analysis_result_review

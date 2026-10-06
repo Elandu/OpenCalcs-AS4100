@@ -4798,6 +4798,67 @@ def verify():
     )
     if not web_stress_field["checked_conditions_satisfied"]:
         raise AssertionError("Clause 5.11.3 failed its independently integrated web shear field")
+    opening_design_inputs = {
+        "yield_strength_mpa": 250,
+        "web_area_at_opening_mm2": 1000,
+        "web_area_basis_verified": True,
+        "panel_depth_mm": 250,
+        "web_thickness_mm": 5,
+        "maximum_design_shear_stress_mpa": 8,
+        "average_design_shear_stress_mpa": 4,
+        "rational_elastic_analysis_reference": "INDEPENDENT-OPENING-ELASTIC-01",
+        "rational_elastic_analysis_verified": True,
+        "action_kn": 90,
+        "moment_action_knm": 50,
+        "section_moment_capacity_knm": 100,
+    }
+    opening_layout_design = run_webs(
+        {
+            "operation": "web_opening_layout_shear_design",
+            "clear_web_depth_mm": 250,
+            "longitudinal_stiffeners_present": False,
+            "openings": [
+                {
+                    "opening_id": "left",
+                    "longitudinal_start_mm": 0,
+                    "longitudinal_end_mm": 25,
+                    "transverse_start_mm": 0,
+                    "transverse_end_mm": 25,
+                    "greatest_internal_dimension_mm": 25,
+                    "design_inputs": dict(opening_design_inputs),
+                },
+                {
+                    "opening_id": "right",
+                    "longitudinal_start_mm": 115,
+                    "longitudinal_end_mm": 140,
+                    "transverse_start_mm": 0,
+                    "transverse_end_mm": 25,
+                    "greatest_internal_dimension_mm": 25,
+                    "design_inputs": dict(opening_design_inputs),
+                },
+            ],
+            "opening_geometry_verified": True,
+            "opening_geometry_reference": "INDEPENDENT-OPENING-LAYOUT-01",
+            "opening_layout_complete_verified": True,
+            "all_openings_unstiffened_verified": True,
+            "castellated_member_present": False,
+            "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": False,
+            "rational_analysis_reference": None,
+            "load_combination_reference": "INDEPENDENT-OPENING-ULS-01",
+        }
+    )
+    record(
+        "Clause 5.10.7 layout shear design processes every opening",
+        opening_layout_design["values"]["opening_count"],
+        2,
+    )
+    record(
+        "Clauses 5.11 and 5.12 layout governing opening utilisation",
+        opening_layout_design["values"]["maximum_design_utilisation"],
+        90 / (0.9 * (150 * 2 / 2.9)),
+    )
+    if not opening_layout_design["checked_conditions_satisfied"]:
+        raise AssertionError("Layout shear design failed a valid two-opening example")
     opening_shear_inputs = {
         "operation": "web_opening_shear_design",
         "clear_web_depth_mm": 250,

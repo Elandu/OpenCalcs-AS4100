@@ -1058,6 +1058,55 @@ SCHEMAS = {
         }
     ),
 }
+
+_OPENING_LAYOUT_CHILD_GEOMETRY_FIELDS = {
+    "operation",
+    "clear_web_depth_mm",
+    "opening_internal_dimension_mm",
+    "longitudinal_stiffeners_present",
+    "adjacent_openings_present",
+    "adjacent_opening_boundary_spacing_mm",
+    "adjacent_opening_greatest_internal_dimension_mm",
+    "unstiffened_openings_at_cross_section",
+    "multiple_openings_rational_analysis_verified",
+    "opening_geometry_verified",
+}
+_opening_shear_schema = SCHEMAS["web_opening_shear_design"]
+_opening_design_inputs_properties = {
+    name: schema
+    for name, schema in _opening_shear_schema["properties"].items()
+    if name not in _OPENING_LAYOUT_CHILD_GEOMETRY_FIELDS
+}
+_opening_design_inputs_required = [
+    name
+    for name in _opening_shear_schema["required"]
+    if name not in _OPENING_LAYOUT_CHILD_GEOMETRY_FIELDS
+]
+_opening_layout_schema = SCHEMAS["web_opening_layout_geometry"]
+_opening_layout_properties = dict(_opening_layout_schema["properties"])
+_opening_layout_properties["operation"] = {"const": "web_opening_layout_shear_design"}
+_opening_layout_properties["longitudinal_stiffeners_present"] = {"const": False}
+_opening_layout_properties["load_combination_reference"] = {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 200,
+}
+_opening_layout_openings = dict(_opening_layout_properties["openings"])
+_opening_layout_item_schema = _opening_layout_openings["items"]
+_opening_layout_item_properties = dict(_opening_layout_item_schema["properties"])
+_opening_layout_item_properties["design_inputs"] = object_schema(
+    _opening_design_inputs_properties, _opening_design_inputs_required
+)
+_opening_layout_openings["items"] = object_schema(
+    _opening_layout_item_properties,
+    [*_opening_layout_item_schema["required"], "design_inputs"],
+)
+_opening_layout_properties["openings"] = _opening_layout_openings
+SCHEMAS["web_opening_layout_shear_design"] = object_schema(
+    _opening_layout_properties,
+    [*_opening_layout_schema["required"], "load_combination_reference"],
+)
+
 INPUT_SCHEMA = {"oneOf": list(SCHEMAS.values())}
 OUTPUT_SCHEMA = {"type": "object"}
 
@@ -1741,6 +1790,144 @@ def _web_shear_stress_field_postprocess(d):
     )
 
 
+def _web_opening_layout_shear_design(d):
+    load_combination_reference = d["load_combination_reference"].strip()
+    if not load_combination_reference:
+        raise ValueError("load_combination_reference must not be blank.")
+
+    layout_openings = [
+        {
+            name: opening[name]
+            for name in (
+                "opening_id",
+                "longitudinal_start_mm",
+                "longitudinal_end_mm",
+                "transverse_start_mm",
+                "transverse_end_mm",
+                "greatest_internal_dimension_mm",
+            )
+        }
+        for opening in d["openings"]
+    ]
+    layout = run_webs(
+        {
+            "operation": "web_opening_layout_geometry",
+            "clear_web_depth_mm": d["clear_web_depth_mm"],
+            "longitudinal_stiffeners_present": False,
+            "openings": layout_openings,
+            "opening_geometry_verified": d["opening_geometry_verified"],
+            "opening_geometry_reference": d["opening_geometry_reference"],
+            "opening_layout_complete_verified": d["opening_layout_complete_verified"],
+            "all_openings_unstiffened_verified": d["all_openings_unstiffened_verified"],
+            "castellated_member_present": d["castellated_member_present"],
+            "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": d[
+                "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified"
+            ],
+            "rational_analysis_reference": d["rational_analysis_reference"],
+        }
+    )
+
+    design_results = []
+    governing = None
+    clauses = list(layout["clauses"])
+    for opening in d["openings"]:
+        design = run_webs(
+            {
+                "operation": "web_opening_shear_design",
+                "clear_web_depth_mm": d["clear_web_depth_mm"],
+                "opening_internal_dimension_mm": opening["greatest_internal_dimension_mm"],
+                "longitudinal_stiffeners_present": False,
+                "adjacent_openings_present": False,
+                "adjacent_opening_boundary_spacing_mm": 0,
+                "unstiffened_openings_at_cross_section": layout["values"][
+                    "maximum_openings_at_any_cross_section"
+                ],
+                "multiple_openings_rational_analysis_verified": d[
+                    "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified"
+                ],
+                "opening_geometry_verified": True,
+                **opening["design_inputs"],
+            }
+        )
+        utilization_checks = [
+            check
+            for check in design["checks"]
+            if isinstance(check.get("utilisation"), (int, float))
+        ]
+        local_governing = max(
+            utilization_checks,
+            key=lambda check: check["utilisation"],
+            default=None,
+        )
+        local_utilisation = local_governing["utilisation"] if local_governing else 0.0
+        summary = {
+            "opening_id": opening["opening_id"],
+            "maximum_design_utilisation": local_utilisation,
+            "governing_check": local_governing["clause"] if local_governing else None,
+            "checked_conditions_satisfied": design["checked_conditions_satisfied"],
+            "design_result": design,
+        }
+        design_results.append(summary)
+        if governing is None or local_utilisation > governing["maximum_design_utilisation"]:
+            governing = summary
+        for clause in design["clauses"]:
+            if clause not in clauses:
+                clauses.append(clause)
+
+    checks = [
+        {
+            "clause": "5.10.7 complete unstiffened opening layout and spacing",
+            "opening_geometry_reference": d["opening_geometry_reference"].strip(),
+            "layout_checks": layout["checks"],
+            "satisfied": layout["checked_conditions_satisfied"],
+        }
+    ]
+    checks.extend(
+        {
+            "clause": "5.11 and 5.12 design for every declared opening",
+            "opening_id": item["opening_id"],
+            "load_combination_reference": load_combination_reference,
+            "maximum_design_utilisation": item["maximum_design_utilisation"],
+            "governing_check": item["governing_check"],
+            "satisfied": item["checked_conditions_satisfied"],
+        }
+        for item in design_results
+    )
+    return result(
+        "web_opening_layout_shear_design",
+        clauses,
+        {
+            "clear_web_depth_mm": d["clear_web_depth_mm"],
+            "load_combination_reference": load_combination_reference,
+            "opening_geometry_reference": d["opening_geometry_reference"].strip(),
+            "rational_analysis_reference": (d["rational_analysis_reference"] or "").strip() or None,
+            "opening_count": len(design_results),
+            "maximum_openings_at_any_cross_section": layout["values"][
+                "maximum_openings_at_any_cross_section"
+            ],
+            "opening_layout_geometry": layout,
+            "design_results": design_results,
+            "governing_opening_id": governing["opening_id"] if governing else None,
+            "governing_check": governing["governing_check"] if governing else None,
+            "maximum_design_utilisation": (
+                governing["maximum_design_utilisation"] if governing else 0.0
+            ),
+        },
+        checks,
+        [
+            "This operation applies the complete declared unstiffened-opening geometry and "
+            "spacing checks, then runs the existing web shear and whole-section shear/bending "
+            "design for every opening in one load combination.",
+            "Each opening's action, stress distribution, web area, panel geometry and section "
+            "capacity are supplied design inputs from its governing section analysis. Repeat "
+            "the operation for every governing load combination and verify that the opening "
+            "inventory is complete.",
+            "The operation does not calculate or authenticate rational analysis, local tee "
+            "bending/bearing resistance, or stiffened and castellated opening resistance.",
+        ],
+    )
+
+
 def run_webs(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
@@ -1748,6 +1935,8 @@ def run_webs(inputs):
         return _web_opening_layout_geometry(d)
     if op == "web_shear_stress_field_postprocess":
         return _web_shear_stress_field_postprocess(d)
+    if op == "web_opening_layout_shear_design":
+        return _web_opening_layout_shear_design(d)
     if op == "web_panel_geometry":
         longitudinal_extent = d["web_longitudinal_extent_mm"]
         clear_depth = d["clear_web_depth_mm"]

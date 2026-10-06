@@ -2888,6 +2888,20 @@
       "passed": true
     },
     {
+      "name": "Clause 5.10.7 layout shear design processes every opening",
+      "actual": 2,
+      "expected": 2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clauses 5.11 and 5.12 layout governing opening utilisation",
+      "actual": 0.9666666666666666,
+      "expected": 0.9666666666666666,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 5.11.3 opening max-to-average design shear stress ratio",
       "actual": 2.0,
       "expected": 2,
