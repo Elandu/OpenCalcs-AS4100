@@ -6628,9 +6628,7 @@ def verify():
     )
     record(
         "Clause 5.7.1 distributed restraint reaction x component (kN/m)",
-        constrained_values["lateral_restraint_distributed_loads"][0][
-            "start_force_x_kn_per_m"
-        ],
+        constrained_values["lateral_restraint_distributed_loads"][0]["start_force_x_kn_per_m"],
         -1.2 / root_two,
     )
     record(

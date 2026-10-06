@@ -1872,9 +1872,10 @@ def clause_5_7_2_unconstrained_bending():
     values = result["values"]
     expect_close(values["maximum_abs_moment_about_principal_x_knm"], 2)
     expect_close(values["maximum_abs_moment_about_principal_y_knm"], 2 * sqrt(3))
-    if result["clauses"] != ["5.7.2", "8.3.4", "8.4.5"] or not result[
-        "checked_conditions_satisfied"
-    ]:
+    if (
+        result["clauses"] != ["5.7.2", "8.3.4", "8.4.5"]
+        or not result["checked_conditions_satisfied"]
+    ):
         raise AssertionError("Clause 5.7.2 unconstrained-bending benchmark failed")
     return {
         "maximum_abs_moment_about_principal_x_knm": 2,

@@ -1489,8 +1489,7 @@ def _nonprincipal_bending_analysis(d):
     rigidity_x_deflection = ELASTIC_MODULUS_MPA * d["second_moment_about_principal_y_mm4"]
     rigidity_y_deflection = ELASTIC_MODULUS_MPA * d["second_moment_about_principal_x_mm4"]
     compatibility_numerator = (
-        normal_x * cos_angle / rigidity_x_deflection
-        + normal_y * sin_angle / rigidity_y_deflection
+        normal_x * cos_angle / rigidity_x_deflection + normal_y * sin_angle / rigidity_y_deflection
     )
     compatibility_denominator = (
         normal_x**2 / rigidity_x_deflection + normal_y**2 / rigidity_y_deflection
@@ -1502,9 +1501,8 @@ def _nonprincipal_bending_analysis(d):
         normal_x * effective_load_x / rigidity_x_deflection
         + normal_y * effective_load_y / rigidity_y_deflection
     )
-    compatibility_scale = (
-        abs(normal_x * effective_load_x / rigidity_x_deflection)
-        + abs(normal_y * effective_load_y / rigidity_y_deflection)
+    compatibility_scale = abs(normal_x * effective_load_x / rigidity_x_deflection) + abs(
+        normal_y * effective_load_y / rigidity_y_deflection
     )
     compatibility_residual_ratio = (
         abs(compatibility_residual) / compatibility_scale if compatibility_scale else 0.0
