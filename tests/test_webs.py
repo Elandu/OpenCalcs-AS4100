@@ -399,6 +399,53 @@ def test_clause_5_10_2_load_bearing_stiffener_trigger_boundaries():
     assert out["values"]["stiffeners_required"]
 
 
+def test_clause_5_10_2_can_calculate_the_web_only_bearing_capacity():
+    bearing_inputs = {
+        "operation": "web_bearing",
+        "section_type": "i_or_channel",
+        "web_thickness_mm": 10,
+        "web_yield_mpa": 300,
+        "clear_web_depth_mm": 200,
+        "bearing_width_at_flange_mm": 100,
+        "bearing_width_at_neutral_axis_mm": 200,
+        "restrained_flange_count": 2,
+        "bearing_action_kn": 337.5,
+    }
+    inputs = {
+        "operation": "load_bearing_stiffener_requirement",
+        "web_bearing_inputs": bearing_inputs,
+        "end_post_required_under_5_15_2_2": False,
+        "load_bearing_stiffeners_provided": False,
+    }
+
+    boundary = run(inputs)
+    assert boundary["values"]["design_web_bearing_capacity_kn"] == pytest.approx(337.5)
+    assert boundary["values"]["web_bearing_capacity_source"] == "calculated_from_web_bearing"
+    assert not boundary["values"]["stiffeners_required"]
+    assert boundary["clauses"] == ["5.10.2", "5.13.1", "5.13.2", "5.13.3", "5.13.4"]
+    assert boundary["checked_conditions_satisfied"]
+
+    overloaded_inputs = inputs | {
+        "web_bearing_inputs": bearing_inputs | {"bearing_action_kn": 337.501}
+    }
+    required = run(overloaded_inputs)
+    assert required["values"]["required_by_web_bearing_capacity"]
+    assert not required["checked_conditions_satisfied"]
+
+    provided = run(overloaded_inputs | {"load_bearing_stiffeners_provided": True})
+    assert provided["values"]["stiffeners_required"]
+    assert provided["checked_conditions_satisfied"]
+
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(
+            inputs
+            | {
+                "design_compressive_bearing_force_kn": 337.5,
+                "design_web_bearing_capacity_kn": 337.5,
+            }
+        )
+
+
 def test_clause_5_10_3_side_plate_shear_is_limited_by_each_force_path():
     inputs = {
         "operation": "web_side_reinforcement",

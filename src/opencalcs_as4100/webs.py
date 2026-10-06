@@ -118,6 +118,79 @@ _BEARING = {
     "distance_to_member_end_mm": NONNEGATIVE,
 }
 
+_WEB_BEARING_SCHEMA = object_schema(
+    _BEARING,
+    [
+        "operation",
+        "section_type",
+        "web_thickness_mm",
+        "web_yield_mpa",
+        "clear_web_depth_mm",
+        "bearing_action_kn",
+        "restrained_flange_count",
+    ],
+) | {
+    "allOf": [
+        {
+            "if": {
+                "required": ["section_type"],
+                "properties": {"section_type": {"const": "i_or_channel"}},
+            },
+            "then": {
+                "oneOf": [
+                    {
+                        "required": [
+                            "bearing_width_at_flange_mm",
+                            "bearing_width_at_neutral_axis_mm",
+                        ]
+                    },
+                    {
+                        "required": [
+                            "stiff_bearing_length_mm",
+                            "flange_thickness_mm",
+                            "distance_flange_to_neutral_axis_mm",
+                            "bearing_geometry_verified",
+                        ]
+                    },
+                ]
+            },
+        }
+    ]
+}
+
+_LOAD_BEARING_STIFFENER_REQUIREMENT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "operation": {"const": "load_bearing_stiffener_requirement"},
+        "design_compressive_bearing_force_kn": NONNEGATIVE,
+        "design_web_bearing_capacity_kn": POSITIVE,
+        "web_bearing_inputs": _WEB_BEARING_SCHEMA,
+        "end_post_required_under_5_15_2_2": {"type": "boolean"},
+        "load_bearing_stiffeners_provided": {"type": "boolean"},
+    },
+    "required": [
+        "operation",
+        "end_post_required_under_5_15_2_2",
+        "load_bearing_stiffeners_provided",
+    ],
+    "oneOf": [
+        {
+            "required": ["design_compressive_bearing_force_kn", "design_web_bearing_capacity_kn"],
+            "not": {"required": ["web_bearing_inputs"]},
+        },
+        {
+            "required": ["web_bearing_inputs"],
+            "not": {
+                "anyOf": [
+                    {"required": ["design_compressive_bearing_force_kn"]},
+                    {"required": ["design_web_bearing_capacity_kn"]},
+                ]
+            },
+        },
+    ],
+}
+
 _TRANSVERSE_LOAD_BEARING_STIFFENER_PROPERTIES = {
     "web_bearing_yield_kn": POSITIVE,
     "contact_stiffener_area_mm2": POSITIVE,
@@ -372,15 +445,7 @@ SCHEMAS = {
             "section_moment_capacity_knm",
         ],
     ),
-    "load_bearing_stiffener_requirement": object_schema(
-        {
-            "operation": {"const": "load_bearing_stiffener_requirement"},
-            "design_compressive_bearing_force_kn": NONNEGATIVE,
-            "design_web_bearing_capacity_kn": POSITIVE,
-            "end_post_required_under_5_15_2_2": {"type": "boolean"},
-            "load_bearing_stiffeners_provided": {"type": "boolean"},
-        }
-    ),
+    "load_bearing_stiffener_requirement": _LOAD_BEARING_STIFFENER_REQUIREMENT_SCHEMA,
     "load_bearing_stiffener_attachment": _load_bearing_stiffener_attachment_schema(
         include_operation=True,
         include_action=True,
@@ -395,46 +460,7 @@ SCHEMAS = {
             "symmetry_effects_accounted": {"type": "boolean"},
         }
     ),
-    "web_bearing": object_schema(
-        _BEARING,
-        [
-            "operation",
-            "section_type",
-            "web_thickness_mm",
-            "web_yield_mpa",
-            "clear_web_depth_mm",
-            "bearing_action_kn",
-            "restrained_flange_count",
-        ],
-    )
-    | {
-        "allOf": [
-            {
-                "if": {
-                    "required": ["section_type"],
-                    "properties": {"section_type": {"const": "i_or_channel"}},
-                },
-                "then": {
-                    "oneOf": [
-                        {
-                            "required": [
-                                "bearing_width_at_flange_mm",
-                                "bearing_width_at_neutral_axis_mm",
-                            ]
-                        },
-                        {
-                            "required": [
-                                "stiff_bearing_length_mm",
-                                "flange_thickness_mm",
-                                "distance_flange_to_neutral_axis_mm",
-                                "bearing_geometry_verified",
-                            ]
-                        },
-                    ]
-                },
-            }
-        ]
-    },
+    "web_bearing": _WEB_BEARING_SCHEMA,
     "load_bearing_stiffener": object_schema(
         {
             "operation": {"const": "load_bearing_stiffener"},
@@ -1229,20 +1255,44 @@ def run_webs(inputs):
             ],
         )
     if op == "load_bearing_stiffener_requirement":
-        force = d["design_compressive_bearing_force_kn"]
-        web_capacity = d["design_web_bearing_capacity_kn"]
+        if "web_bearing_inputs" in d:
+            bearing = run_webs(d["web_bearing_inputs"])
+            bearing_check = bearing["checks"][0]
+            force = bearing_check["action"]
+            web_capacity = bearing_check["design_capacity"]
+            bearing_capacity_source = "calculated_from_web_bearing"
+            bearing_capacity_values = {
+                "nominal_capacity_kn": bearing_check["nominal_capacity"],
+                "capacity_factor": bearing_check["capacity_factor"],
+                "design_capacity_kn": web_capacity,
+                "bearing_yield_kn": bearing["values"]["bearing_yield_kn"],
+                "bearing_buckling_kn": bearing["values"]["bearing_buckling_kn"],
+            }
+            clauses = ["5.10.2", *bearing["clauses"]]
+        else:
+            force = d["design_compressive_bearing_force_kn"]
+            web_capacity = d["design_web_bearing_capacity_kn"]
+            bearing_capacity_source = "supplied_design_capacity"
+            bearing_capacity_values = {}
+            clauses = ["5.10.2"]
         required_by_bearing = force > web_capacity
         required_by_end_post = d["end_post_required_under_5_15_2_2"]
         required = required_by_bearing or required_by_end_post
         return result(
             op,
-            ["5.10.2"],
+            clauses,
             {
                 "stiffeners_required": required,
                 "required_by_web_bearing_capacity": required_by_bearing,
                 "required_to_form_end_post": required_by_end_post,
                 "design_compressive_bearing_force_kn": force,
                 "design_web_bearing_capacity_kn": web_capacity,
+                "web_bearing_capacity_source": bearing_capacity_source,
+                **(
+                    {"web_bearing_capacity_calculation": bearing_capacity_values}
+                    if bearing_capacity_values
+                    else {}
+                ),
             },
             [
                 {
@@ -1251,8 +1301,15 @@ def run_webs(inputs):
                 }
             ],
             [
-                "Use the design bearing capacity of the web alone from Clause 5.13.2; "
-                "the end-post requirement under Clause 5.15.2.2 is an assessed input.",
+                *(
+                    []
+                    if bearing_capacity_values
+                    else [
+                        "The supplied value must be the design bearing capacity of the web alone "
+                        "from Clause 5.13.2, including its capacity factor."
+                    ]
+                ),
+                "The end-post requirement under Clause 5.15.2.2 is an assessed input.",
                 "This trigger does not calculate load-bearing stiffener resistance, "
                 "detailing or force transfer under Clause 5.14.",
             ],

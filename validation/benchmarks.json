@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.51",
+  "package_version": "0.7.55",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -872,6 +872,34 @@
       "passed": true
     },
     {
+      "name": "Appendix E.2(c) uniform-load simple-beam reaction (kN)",
+      "actual": 5.0,
+      "expected": 5.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(c) uniform-load maximum moment (kN m)",
+      "actual": 5.0,
+      "expected": 5.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(c) triangular-load maximum-moment location (mm)",
+      "actual": 2886.751345948129,
+      "expected": 2886.751345948129,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(c) triangular-load maximum moment (kN m)",
+      "actual": 6.415002990995841,
+      "expected": 6.415002990995841,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 4.4.2.2(c) displacement-derived beta_m",
       "actual": 0.19999999999999996,
       "expected": 0.19999999999999996,
@@ -917,6 +945,20 @@
       "name": "Clause 4.4.2.2 axial-tension unit governing factor",
       "actual": 1.0,
       "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2 compression-member braced factor after second-order analysis",
+      "actual": 1.3333333333333333,
+      "expected": 1.3333333333333333,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2 design moment from braced-member analysis moment (kN m)",
+      "actual": -32.0,
+      "expected": -32.0,
       "absolute_tolerance": 1e-09,
       "passed": true
     },
@@ -2483,6 +2525,34 @@
     },
     {
       "name": "Clause 5.10.2 equality does not trigger load-bearing stiffeners",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.2 web bearing design capacity, independent yield arithmetic",
+      "actual": 337.5,
+      "expected": 337.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.2 calculated web capacity equality does not trigger stiffeners",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.2 calculated web capacity triggers stiffeners above equality",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.2 provided stiffeners satisfy the calculated trigger",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

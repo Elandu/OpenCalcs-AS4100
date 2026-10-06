@@ -4129,6 +4129,62 @@ def verify():
         int(not stiffener_trigger["values"]["stiffeners_required"]),
         1,
     )
+    calculated_stiffener_trigger = run_webs(
+        {
+            "operation": "load_bearing_stiffener_requirement",
+            "web_bearing_inputs": {
+                "operation": "web_bearing",
+                "section_type": "i_or_channel",
+                "web_thickness_mm": 10,
+                "web_yield_mpa": 300,
+                "clear_web_depth_mm": 200,
+                "bearing_width_at_flange_mm": 100,
+                "bearing_width_at_neutral_axis_mm": 200,
+                "restrained_flange_count": 2,
+                "bearing_action_kn": 337.5,
+            },
+            "end_post_required_under_5_15_2_2": False,
+            "load_bearing_stiffeners_provided": False,
+        }
+    )
+    record(
+        "Clause 5.13.2 web bearing design capacity, independent yield arithmetic",
+        calculated_stiffener_trigger["values"]["design_web_bearing_capacity_kn"],
+        0.9 * (1.25 * 100 * 10 * 300 / 1000),
+    )
+    record(
+        "Clause 5.10.2 calculated web capacity equality does not trigger stiffeners",
+        int(not calculated_stiffener_trigger["values"]["stiffeners_required"]),
+        1,
+    )
+    calculated_stiffener_overload = run_webs(
+        {
+            "operation": "load_bearing_stiffener_requirement",
+            "web_bearing_inputs": {
+                "operation": "web_bearing",
+                "section_type": "i_or_channel",
+                "web_thickness_mm": 10,
+                "web_yield_mpa": 300,
+                "clear_web_depth_mm": 200,
+                "bearing_width_at_flange_mm": 100,
+                "bearing_width_at_neutral_axis_mm": 200,
+                "restrained_flange_count": 2,
+                "bearing_action_kn": 337.501,
+            },
+            "end_post_required_under_5_15_2_2": False,
+            "load_bearing_stiffeners_provided": True,
+        }
+    )
+    record(
+        "Clause 5.10.2 calculated web capacity triggers stiffeners above equality",
+        int(calculated_stiffener_overload["values"]["required_by_web_bearing_capacity"]),
+        1,
+    )
+    record(
+        "Clause 5.10.2 provided stiffeners satisfy the calculated trigger",
+        int(calculated_stiffener_overload["checked_conditions_satisfied"]),
+        1,
+    )
     side_plate = run_webs(
         {
             "operation": "web_side_reinforcement",
