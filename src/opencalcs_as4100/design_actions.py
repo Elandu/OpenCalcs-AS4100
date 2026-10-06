@@ -329,6 +329,18 @@ _FRAME_JOINT_ACTION = object_schema(
         "evidence_reference": _REFERENCE,
     }
 )
+_FRAME_DISTRIBUTED_MEMBER_LOAD = object_schema(
+    {
+        "load_id": _REFERENCE,
+        "member_id": _REFERENCE,
+        "start_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "end_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "transverse_force_start_kn_per_m": SIGNED,
+        "transverse_force_end_kn_per_m": SIGNED,
+        "member_load_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
 _PLASTIC_JOINT = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -496,6 +508,8 @@ SCHEMAS = {
             "member_list_evidence_reference": _REFERENCE,
             "all_joint_actions_listed_verified": _BOOL,
             "joint_action_list_evidence_reference": _REFERENCE,
+            "all_distributed_member_loads_listed_verified": _BOOL,
+            "distributed_member_load_list_evidence_reference": _REFERENCE,
             "members_remain_elastic_verified": _BOOL,
             "elastic_response_evidence_reference": _REFERENCE,
             "joints": {
@@ -512,6 +526,10 @@ SCHEMAS = {
                 "type": "array",
                 "minItems": 2,
                 "items": _FRAME_JOINT_ACTION,
+            },
+            "distributed_member_loads": {
+                "type": "array",
+                "items": _FRAME_DISTRIBUTED_MEMBER_LOAD,
             },
         }
     ),
@@ -1468,7 +1486,7 @@ def run_design_actions(inputs):
                 "clause": "4.5.1",
                 "condition": (
                     "the supplied first-order member axial-force pattern is assessed for the "
-                    "complete joint-action load set"
+                    "complete applied action set"
                 ),
                 "satisfied": d["frame_action_equilibrium_verified"]
                 and d["all_joint_actions_listed_verified"]
@@ -1478,8 +1496,16 @@ def run_design_actions(inputs):
             },
             {
                 "clause": "4.5.1",
+                "condition": "the complete distributed member-load list has been assessed",
+                "satisfied": d["all_distributed_member_loads_listed_verified"]
+                and all(load["member_load_verified"] for load in d["distributed_member_loads"]),
+                "evidence_reference": d["distributed_member_load_list_evidence_reference"],
+                "load_count": len(d["distributed_member_loads"]),
+            },
+            {
+                "clause": "4.5.1",
                 "condition": (
-                    "joint actions, support reactions and geometric-stiffness resultants "
+                    "applied actions, support reactions and geometric-stiffness resultants "
                     "balance in the assembled frame"
                 ),
                 "residual": values["global_equilibrium"]["residual"],
@@ -1512,9 +1538,11 @@ def run_design_actions(inputs):
                 "updated. A separately evidenced assessment must confirm that this fixed-force "
                 "linearization captures the required second-order response.",
                 "Joint forces and moments must be the complete applied design actions resolved "
-                "at every listed joint. The operation does not derive or check equilibrium "
-                "between these actions and the supplied member axial-force pattern; supply an "
-                "evidenced equilibrium assessment. Distributed member loads, "
+                "at every listed joint. Piecewise-linear transverse member loads are applied "
+                "in local member axes over verified fractions of each member. The operation "
+                "does not derive or check equilibrium between these actions and the supplied "
+                "member axial-force pattern; supply an evidenced equilibrium assessment. "
+                "Axial distributed member loads, "
                 "member-end releases, connection flexibility, shear "
                 "deformation, initial imperfections, residual stresses, and material "
                 "nonlinearity are outside this model.",

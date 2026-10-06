@@ -292,6 +292,11 @@ def assemble_frame_matrices(inputs, subdivisions):
                 {
                     "dofs": dofs,
                     "transform": transform,
+                    "member_id": member["member_id"],
+                    "member_length_mm": physical_length,
+                    "start_fraction": start_fraction,
+                    "end_fraction": end_fraction,
+                    "length_mm": element_length,
                     "elastic": local_elastic,
                     "geometric": local_geometric,
                 }

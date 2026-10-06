@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Bounded in-plane second-order elastic frame analysis for AS 4100 Appendix E."""
 
-from math import isfinite
+from math import isfinite, sqrt
 
 from .frame_buckling import (
     _cholesky,
@@ -40,6 +40,52 @@ def _solve_cholesky(lower, right_hand_side):
     return solution
 
 
+def _member_loads_by_id(inputs):
+    loads_by_member = {}
+    for load in inputs["distributed_member_loads"]:
+        loads_by_member.setdefault(load["member_id"], []).append(load)
+    return loads_by_member
+
+
+def _element_distributed_load_vector(member_loads, element):
+    """Integrate consistent local nodal loads for piecewise-linear transverse loads."""
+    local_load = [0.0] * 6
+    element_start = element["start_fraction"]
+    element_end = element["end_fraction"]
+    element_fraction_length = element_end - element_start
+    length = element["length_mm"]
+    gauss_points = ((-sqrt(3.0 / 5.0), 5.0 / 9.0), (0.0, 8.0 / 9.0), (sqrt(3.0 / 5.0), 5.0 / 9.0))
+    for member_load in member_loads:
+        load_start = member_load["start_fraction"]
+        load_end = member_load["end_fraction"]
+        active_start = max(element_start, load_start)
+        active_end = min(element_end, load_end)
+        if active_end <= active_start:
+            continue
+        load_fraction_length = load_end - load_start
+        for point, weight in gauss_points:
+            fraction = (active_start + active_end) / 2 + point * (active_end - active_start) / 2
+            local_fraction = (fraction - element_start) / element_fraction_length
+            load_fraction = (fraction - load_start) / load_fraction_length
+            # kN/m is numerically equal to N/mm for this mm-based element model.
+            force = member_load["transverse_force_start_kn_per_m"] + load_fraction * (
+                member_load["transverse_force_end_kn_per_m"]
+                - member_load["transverse_force_start_kn_per_m"]
+            )
+            shape_functions = (
+                1 - 3 * local_fraction**2 + 2 * local_fraction**3,
+                length * (local_fraction - 2 * local_fraction**2 + local_fraction**3),
+                3 * local_fraction**2 - 2 * local_fraction**3,
+                length * (-(local_fraction**2) + local_fraction**3),
+            )
+            integration_weight = (
+                length * (active_end - active_start) / element_fraction_length * weight / 2
+            )
+            for index, dof in enumerate((1, 2, 4, 5)):
+                local_load[dof] += shape_functions[index] * force * integration_weight
+    return local_load
+
+
 def _frame_load_vector(inputs, assembly):
     load = [0.0] * (3 * len(assembly["coordinates"]))
     for action in inputs["joint_actions"]:
@@ -47,6 +93,17 @@ def _frame_load_vector(inputs, assembly):
         load[offset] += action["force_x_kn"] * 1000.0
         load[offset + 1] += action["force_y_kn"] * 1000.0
         load[offset + 2] += action["moment_knm"] * 1_000_000.0
+    member_loads_by_id = _member_loads_by_id(inputs)
+    for member, elements in zip(inputs["members"], assembly["member_elements"], strict=True):
+        member_loads = member_loads_by_id.get(member["member_id"], [])
+        for element in elements:
+            local_load = _element_distributed_load_vector(member_loads, element)
+            global_load = _multiply(
+                _transpose(element["transform"]),
+                [[value] for value in local_load],
+            )
+            for dof, values in zip(element["dofs"], global_load, strict=True):
+                load[dof] += values[0]
     return load
 
 
@@ -78,15 +135,15 @@ def _support_reactions_and_equilibrium(inputs, assembly, displacement, load):
             reactions.append(reaction)
 
     action_totals = {"force_x_kn": 0.0, "force_y_kn": 0.0, "moment_knm": 0.0}
-    for action in inputs["joint_actions"]:
-        joint = joints_by_id[action["joint_id"]]
-        x = joint["x_mm"]
-        y = joint["y_mm"]
-        force_x = action["force_x_kn"]
-        force_y = action["force_y_kn"]
+    for joint_id, node in assembly["node_index"].items():
+        offset = 3 * node
+        x, y = assembly["coordinates"][joint_id]
+        force_x = load[offset] / 1000.0
+        force_y = load[offset + 1] / 1000.0
+        moment = load[offset + 2] / 1_000_000.0
         action_totals["force_x_kn"] += force_x
         action_totals["force_y_kn"] += force_y
-        action_totals["moment_knm"] += action["moment_knm"] + (x * force_y - y * force_x) / 1000.0
+        action_totals["moment_knm"] += moment + (x * force_y - y * force_x) / 1000.0
 
     reaction_totals = {"force_x_kn": 0.0, "force_y_kn": 0.0, "moment_knm": 0.0}
     for reaction in reactions:
@@ -133,7 +190,7 @@ def _support_reactions_and_equilibrium(inputs, assembly, displacement, load):
     )
     tolerance = {"force_kn": 1e-8 * force_scale, "moment_knm": 1e-8 * moment_scale}
     equilibrium = {
-        "applied_joint_action_totals": action_totals,
+        "applied_action_resultants": action_totals,
         "support_reaction_totals": reaction_totals,
         "geometric_stiffness_resultants": geometric_totals,
         "residual": residual,
@@ -167,7 +224,9 @@ def _buckling_factor(elastic, geometric):
 
 def _member_end_moments(inputs, assembly, displacement):
     members = []
+    member_loads_by_id = _member_loads_by_id(inputs)
     for member, elements in zip(inputs["members"], assembly["member_elements"], strict=True):
+        member_loads = member_loads_by_id.get(member["member_id"], [])
         maximum = {"absolute_knm": -1.0, "signed_knm": 0.0, "element": None, "end": None}
         element_moments = []
         for element_index, element in enumerate(elements, start=1):
@@ -183,8 +242,13 @@ def _member_end_moments(inputs, assembly, displacement):
                 element["geometric"],
                 [[value] for value in local_displacements],
             )
-            start_moment = (elastic_actions[2][0] - geometric_actions[2][0]) / 1_000_000.0
-            end_moment = (elastic_actions[5][0] - geometric_actions[5][0]) / 1_000_000.0
+            member_load_actions = _element_distributed_load_vector(member_loads, element)
+            start_moment = (
+                elastic_actions[2][0] - geometric_actions[2][0] - member_load_actions[2]
+            ) / 1_000_000.0
+            end_moment = (
+                elastic_actions[5][0] - geometric_actions[5][0] - member_load_actions[5]
+            ) / 1_000_000.0
             element_moments.append(
                 {
                     "element_index": element_index,
@@ -301,12 +365,15 @@ def run_second_order_frame_analysis(inputs):
     joint_ids = [joint["joint_id"] for joint in inputs["joints"]]
     member_ids = [member["member_id"] for member in inputs["members"]]
     action_ids = [action["joint_id"] for action in inputs["joint_actions"]]
+    member_load_ids = [load["load_id"] for load in inputs["distributed_member_loads"]]
     if len(joint_ids) != len(set(joint_ids)):
         raise ValueError("Frame joint identifiers must be unique.")
     if len(member_ids) != len(set(member_ids)):
         raise ValueError("Frame member identifiers must be unique.")
     if len(action_ids) != len(set(action_ids)) or set(action_ids) != set(joint_ids):
         raise ValueError("Supply exactly one complete joint-action record for every frame joint.")
+    if len(member_load_ids) != len(set(member_load_ids)):
+        raise ValueError("Distributed member-load identifiers must be unique.")
     known_joints = set(joint_ids)
     if any(
         member["start_joint_id"] not in known_joints
@@ -315,6 +382,14 @@ def run_second_order_frame_analysis(inputs):
         for member in inputs["members"]
     ):
         raise ValueError("Every frame member must connect two distinct listed joints.")
+    known_members = set(member_ids)
+    for member_load in inputs["distributed_member_loads"]:
+        if member_load["member_id"] not in known_members:
+            raise ValueError("Every distributed member load must reference a listed frame member.")
+        if not 0 <= member_load["start_fraction"] < member_load["end_fraction"] <= 1:
+            raise ValueError(
+                "Distributed member-load fractions must satisfy 0 <= start < end <= 1."
+            )
 
     mesh_results = []
     previous = None
@@ -374,6 +449,7 @@ def run_second_order_frame_analysis(inputs):
         "global_equilibrium": refined["global_equilibrium"],
         "member_moments": refined["member_moments"],
         "joint_actions": inputs["joint_actions"],
+        "distributed_member_loads": inputs["distributed_member_loads"],
         "member_axial_force_pattern": [
             {
                 "member_id": member["member_id"],

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-from math import pi, sqrt, tan, tanh
+from math import cos, pi, sin, sqrt, tan, tanh
 
 import pytest
 
@@ -92,6 +92,8 @@ def second_order_elastic_frame(**overrides):
         "member_list_evidence_reference": evidence,
         "all_joint_actions_listed_verified": True,
         "joint_action_list_evidence_reference": evidence,
+        "all_distributed_member_loads_listed_verified": True,
+        "distributed_member_load_list_evidence_reference": evidence,
         "members_remain_elastic_verified": True,
         "elastic_response_evidence_reference": evidence,
         "joints": [
@@ -147,8 +149,49 @@ def second_order_elastic_frame(**overrides):
                 "evidence_reference": evidence,
             },
         ],
+        "distributed_member_loads": [],
     }
     inputs.update(overrides)
+    return inputs
+
+
+def second_order_uniform_member_load_frame():
+    evidence = "FRAME-ANALYSIS-02"
+    inputs = second_order_elastic_frame(
+        design_load_set_id="ULS-CANTILEVER-UDL-01",
+        joint_actions=[
+            {
+                "joint_id": "BASE",
+                "force_x_kn": 0,
+                "force_y_kn": 0,
+                "moment_knm": 0,
+                "joint_actions_verified": True,
+                "evidence_reference": evidence,
+            },
+            {
+                "joint_id": "TOP",
+                "force_x_kn": 0,
+                "force_y_kn": -50,
+                "moment_knm": 0,
+                "joint_actions_verified": True,
+                "evidence_reference": evidence,
+            },
+        ],
+        distributed_member_loads=[
+            {
+                "load_id": "UDL-01",
+                "member_id": "COL-01",
+                "start_fraction": 0,
+                "end_fraction": 1,
+                "transverse_force_start_kn_per_m": 2.5,
+                "transverse_force_end_kn_per_m": 2.5,
+                "member_load_verified": True,
+                "evidence_reference": evidence,
+            }
+        ],
+    )
+    inputs["frame_action_equilibrium_evidence_reference"] = evidence
+    inputs["distributed_member_load_list_evidence_reference"] = evidence
     return inputs
 
 
@@ -190,6 +233,113 @@ def test_second_order_elastic_frame_matches_independent_cantilever_solution():
         ]
         for name, residual in values["global_equilibrium"]["residual"].items()
     )
+
+
+def test_second_order_elastic_frame_matches_uniformly_loaded_beam_column_solution():
+    result = run(second_order_uniform_member_load_frame())
+    values = result["values"]
+    elastic_rigidity = 200000 * 8e6
+    axial_force = 50000
+    length = 4000
+    transverse_load = 2.5  # kN/m is numerically equal to N/mm.
+    wave_number = sqrt(axial_force / elastic_rigidity)
+    angle = wave_number * length
+    coefficient_b = -transverse_load * length / (elastic_rigidity * wave_number)
+    coefficient_a = (-transverse_load / axial_force - coefficient_b * sin(angle)) / cos(angle)
+    expected_tip_displacement = (
+        coefficient_a / wave_number**2 * (1 - cos(angle))
+        + coefficient_b / wave_number * (length - sin(angle) / wave_number)
+        + transverse_load * length**2 / (2 * axial_force)
+    )
+    expected_support_moment = (
+        -elastic_rigidity * (coefficient_a + transverse_load / axial_force) / 1e6
+    )
+
+    assert result["checked_conditions_satisfied"]
+    assert abs(values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(
+        expected_tip_displacement, rel=1e-4
+    )
+    assert values["support_reactions"][0]["force_x_kn"] == pytest.approx(10, rel=1e-6)
+    assert values["support_reactions"][0]["moment_knm"] == pytest.approx(
+        expected_support_moment, rel=1e-4
+    )
+    assert values["member_moments"][0]["element_end_moments"][0][
+        "start_end_moment_knm"
+    ] == pytest.approx(expected_support_moment, rel=1e-4)
+    assert values["global_equilibrium"]["applied_action_resultants"]["force_x_kn"] == (
+        pytest.approx(-10, abs=1e-8)
+    )
+    assert values["global_equilibrium"]["applied_action_resultants"]["moment_knm"] == (
+        pytest.approx(20, abs=1e-8)
+    )
+    assert values["global_equilibrium"]["satisfied"]
+
+
+def test_second_order_elastic_frame_integrates_partial_linearly_varying_member_load():
+    inputs = second_order_uniform_member_load_frame()
+    inputs["distributed_member_loads"] = [
+        {
+            "load_id": "TRIANGULAR-PARTIAL-01",
+            "member_id": "COL-01",
+            "start_fraction": 0.25,
+            "end_fraction": 0.75,
+            "transverse_force_start_kn_per_m": 0,
+            "transverse_force_end_kn_per_m": 4,
+            "member_load_verified": True,
+            "evidence_reference": "FRAME-ANALYSIS-02",
+        }
+    ]
+    values = run(inputs)["values"]
+    applied = values["global_equilibrium"]["applied_action_resultants"]
+
+    assert applied["force_x_kn"] == pytest.approx(-4, abs=1e-8)
+    assert applied["force_y_kn"] == pytest.approx(-50, abs=1e-8)
+    assert applied["moment_knm"] == pytest.approx(9.333333333333334, abs=1e-8)
+    assert values["global_equilibrium"]["satisfied"]
+
+
+def test_second_order_elastic_frame_transforms_member_loads_to_global_axes():
+    inputs = second_order_uniform_member_load_frame()
+    inputs["joints"][1]["x_mm"] = 3000
+    inputs["members"][0]["axial_force_profile_kn"] = [0, 0]
+    inputs["joint_actions"][1]["force_y_kn"] = 0
+    inputs["distributed_member_loads"][0]["transverse_force_start_kn_per_m"] = 2
+    inputs["distributed_member_loads"][0]["transverse_force_end_kn_per_m"] = 2
+
+    values = run(inputs)["values"]
+    applied = values["global_equilibrium"]["applied_action_resultants"]
+    reaction = values["support_reactions"][0]
+
+    assert applied["force_x_kn"] == pytest.approx(-8, abs=1e-8)
+    assert applied["force_y_kn"] == pytest.approx(6, abs=1e-8)
+    assert applied["moment_knm"] == pytest.approx(25, abs=1e-8)
+    assert reaction["force_x_kn"] == pytest.approx(8, abs=1e-8)
+    assert reaction["force_y_kn"] == pytest.approx(-6, abs=1e-8)
+    assert reaction["moment_knm"] == pytest.approx(-25, abs=1e-8)
+    assert values["global_equilibrium"]["satisfied"]
+
+
+def test_second_order_elastic_frame_rejects_invalid_distributed_member_load():
+    inputs = second_order_uniform_member_load_frame()
+    inputs["distributed_member_loads"][0]["end_fraction"] = 0
+    with pytest.raises(ValueError, match="fractions must satisfy"):
+        run(inputs)
+
+    inputs = second_order_uniform_member_load_frame()
+    inputs["distributed_member_loads"][0]["member_id"] = "UNKNOWN"
+    with pytest.raises(ValueError, match="must reference a listed frame member"):
+        run(inputs)
+
+
+def test_second_order_elastic_frame_requires_distributed_load_inventory_evidence():
+    inputs = second_order_uniform_member_load_frame()
+    inputs["all_distributed_member_loads_listed_verified"] = False
+    result = run(inputs)
+
+    assert not result["checked_conditions_satisfied"]
+    assert not next(
+        check for check in result["checks"] if "distributed member-load list" in check["condition"]
+    )["satisfied"]
 
 
 def test_second_order_elastic_frame_rejects_incomplete_joint_actions():

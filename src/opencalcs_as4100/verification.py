@@ -2,7 +2,7 @@
 
 import argparse
 import json
-from math import isclose, pi, sqrt, tan, tanh
+from math import cos, isclose, pi, sin, sqrt, tan, tanh
 from pathlib import Path
 
 from . import __version__
@@ -2624,6 +2624,8 @@ def verify():
         "member_list_evidence_reference": second_order_evidence,
         "all_joint_actions_listed_verified": True,
         "joint_action_list_evidence_reference": second_order_evidence,
+        "all_distributed_member_loads_listed_verified": True,
+        "distributed_member_load_list_evidence_reference": second_order_evidence,
         "members_remain_elastic_verified": True,
         "elastic_response_evidence_reference": second_order_evidence,
         "joints": [
@@ -2679,6 +2681,7 @@ def verify():
                 "evidence_reference": second_order_evidence,
             },
         ],
+        "distributed_member_loads": [],
     }
     second_order_frame = run_design_actions(second_order_inputs)
     second_order_values = second_order_frame["values"]
@@ -2748,6 +2751,84 @@ def verify():
         "Clause 4.5.1 global equilibrium check",
         int(global_equilibrium["satisfied"]),
         1,
+    )
+    distributed_member_load_inputs = {
+        **second_order_inputs,
+        "joint_actions": [
+            {
+                "joint_id": "BASE",
+                "force_x_kn": 0,
+                "force_y_kn": 0,
+                "moment_knm": 0,
+                "joint_actions_verified": True,
+                "evidence_reference": second_order_evidence,
+            },
+            {
+                "joint_id": "TOP",
+                "force_x_kn": 0,
+                "force_y_kn": -50,
+                "moment_knm": 0,
+                "joint_actions_verified": True,
+                "evidence_reference": second_order_evidence,
+            },
+        ],
+        "distributed_member_loads": [
+            {
+                "load_id": "VERIFY-UNIFORM-TRANSVERSE-LOAD",
+                "member_id": "COLUMN",
+                "start_fraction": 0,
+                "end_fraction": 1,
+                "transverse_force_start_kn_per_m": 2.5,
+                "transverse_force_end_kn_per_m": 2.5,
+                "member_load_verified": True,
+                "evidence_reference": second_order_evidence,
+            }
+        ],
+    }
+    distributed_load_result = run_design_actions(distributed_member_load_inputs)
+    distributed_load_values = distributed_load_result["values"]
+    distributed_force_n_per_mm = 2.5
+    distributed_elastic_rigidity = 200_000 * 8e6
+    distributed_angle = wave_number * 4000
+    distributed_coefficient_b = (
+        -distributed_force_n_per_mm * 4000 / (distributed_elastic_rigidity * wave_number)
+    )
+    distributed_coefficient_a = (
+        -distributed_force_n_per_mm / 50_000 - distributed_coefficient_b * sin(distributed_angle)
+    ) / cos(distributed_angle)
+    distributed_tip_displacement = (
+        distributed_coefficient_a / wave_number**2 * (1 - cos(distributed_angle))
+        + distributed_coefficient_b / wave_number * (4000 - sin(distributed_angle) / wave_number)
+        + distributed_force_n_per_mm * 4000**2 / (2 * 50_000)
+    )
+    distributed_support_moment = (
+        -distributed_elastic_rigidity
+        * (distributed_coefficient_a + distributed_force_n_per_mm / 50_000)
+        / 1e6
+    )
+    record(
+        "Appendix E.2(b) uniformly loaded column tip displacement (mm)",
+        abs(distributed_load_values["joint_displacements"][-1]["ux_mm"]),
+        distributed_tip_displacement,
+        0.0001,
+    )
+    record(
+        "Appendix E.2(b) uniformly loaded column support reaction (kN)",
+        distributed_load_values["support_reactions"][0]["force_x_kn"],
+        10,
+        0.0001,
+    )
+    record(
+        "Appendix E.2(b) uniformly loaded column support moment (kN m)",
+        distributed_load_values["support_reactions"][0]["moment_knm"],
+        distributed_support_moment,
+        0.0001,
+    )
+    record(
+        "Appendix E.2(b) distributed-load action moment resultant (kN m)",
+        distributed_load_values["global_equilibrium"]["applied_action_resultants"]["moment_knm"],
+        20,
+        0.0001,
     )
     tension_axial_force = 50_000
     tension_wave_number = sqrt(tension_axial_force / (200_000 * 8e6))

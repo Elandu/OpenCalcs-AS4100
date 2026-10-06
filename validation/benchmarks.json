@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.49",
+  "package_version": "0.7.50",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1863,6 +1863,34 @@
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) uniformly loaded column tip displacement (mm)",
+      "actual": 62.18240829117951,
+      "expected": 62.182372048489526,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) uniformly loaded column support reaction (kN)",
+      "actual": 9.99999999999578,
+      "expected": 10,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) uniformly loaded column support moment (kN m)",
+      "actual": -23.10912041454417,
+      "expected": -23.109118602424473,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) distributed-load action moment resultant (kN m)",
+      "actual": 20.0,
+      "expected": 20,
+      "absolute_tolerance": 0.0001,
       "passed": true
     },
     {

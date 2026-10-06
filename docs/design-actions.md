@@ -138,8 +138,8 @@ published Standard example. To apply the Clause 4.5.4 threshold route, pass
 `second_order_elastic_frame_analysis` provides a bounded in-plane linearized
 second-order response route for Clauses 4.4.1.2, 4.5.1, 4.7.1, 4.7.2(b) and
 Appendix E.1/E.2(b). It assembles elastic and initial-stress geometric
-stiffness matrices, solves the supplied joint-action vector with the supplied
-first-order member axial-force pattern, and reports the greatest element-end
+stiffness matrices, solves the supplied joint-action vector and distributed
+member loads with the supplied first-order member axial-force pattern, and reports the greatest element-end
 moment in each member. The 4-, 8-, 16- and 32-element-per-member results are
 compared; the calculation accepts the first consecutive meshes agreeing
 within 0.1% in model-joint response, member end moments and elastic buckling
@@ -147,8 +147,8 @@ factor.
 
 The result also reports `support_reactions` at restrained joint degrees of
 freedom and a `global_equilibrium` diagnostic. Reactions are calculated from
-the assembled tangent stiffness and supplied joint actions. The reported
-resultants separately show applied joint actions, support reactions and the
+the assembled tangent stiffness and applied actions. The reported
+resultants separately show applied actions, support reactions and the
 geometric-stiffness contribution; the residual is their sum in kN and kN·m.
 The solver marks the diagnostic satisfied when each force residual is within
 `1e-8` times the sum of the absolute applied, reaction and geometric-stiffness
@@ -158,6 +158,17 @@ a numerical check of the assembled
 linearized model, not independent evidence that the load list, restraints,
 member-force pattern or analysis assumptions are complete or correct.
 
+`distributed_member_loads` is a complete, possibly empty load list. Each item
+identifies a member and a span from `start_fraction` to `end_fraction`, measured
+from that member's start joint, plus the transverse force per unit length at
+each end. The force varies linearly over that span, acts in the member's local
+positive y direction, and is entered in kN/m; loads with overlapping spans
+superpose. A three-point Gauss integration assembles consistent member loads
+on each refined element and recovers element-end actions after subtracting
+those loads. Set `all_distributed_member_loads_listed_verified` and each
+`member_load_verified` only after assessing the full member-load inventory and
+its evidence. Axial distributed loads are not supported.
+
 Use a complete planar frame of prismatic Euler-Bernoulli members with rigid
 connections at shared joints. The elastic modulus is fixed at 200 000 MPa.
 Supply all joints and members, each member's area and in-plane second moment,
@@ -165,9 +176,10 @@ restraints in `ux`, `uy` and `rz`, and one complete `joint_actions` record for
 each joint. Joint forces are in kN and moments in kN·m. The member's
 `axial_force_kn` or `[N_start, N_end]` profile is separately supplied in kN,
 ordered from `start_joint_id` to `end_joint_id`; compression is positive and
-tension is negative. Include every applied design action in the joint-action
-vector, including the axial actions that correspond to the member-force
-pattern. The solver rejects a design load set whose elastic buckling factor
+tension is negative. Include every nodal applied design action in the
+joint-action vector, including the axial actions that correspond to the
+member-force pattern. Define non-nodal transverse actions in
+`distributed_member_loads`. The solver rejects a design load set whose elastic buckling factor
 is at or below 1.0. It returns a null elastic buckling factor when the supplied
 axial-force pattern has no positive elastic buckling mode, as with zero or
 tension-only force patterns; the frame response remains available.
@@ -178,12 +190,12 @@ requires second-order geometry effects to be accounted for; therefore set
 `linearized_model_applicability_verified` only when the engineer has assessed
 that this fixed-force linearization is adequate for the design case. Likewise,
 `frame_action_equilibrium_verified` records the engineer's evidence that the
-complete joint actions and member-force pattern are in equilibrium. The
+complete action set and member-force pattern are in equilibrium. The
 calculation records these assessments but does not establish them, derive the
-member-force pattern from the joint actions, or authenticate the evidence.
+member-force pattern from the applied actions, or authenticate the evidence.
 Members' elastic response is also an evidenced input, not a capacity check.
 
-Distributed member loads, member-end releases, connection flexibility, shear
+Axial distributed member loads, member-end releases, connection flexibility, shear
 deformation, initial imperfections, residual stress, material nonlinearity,
 out-of-plane and torsional response, iterative second-order analysis and
 member design capacities remain outside this model. Do not use it as a full
@@ -197,6 +209,13 @@ The fixed-free-column benchmark uses `E=200000 MPa`, `I=8e6 mm4`, `L=4000 mm`,
 beam-column solution gives a 48.338410 kN·m base moment and 166.768194 mm tip
 displacement; the refined operation agrees within 0.0001%. This is an analytic
 verification case, not a worked example from the Standard.
+
+The uniform-load analytic check applies a 2.5 kN/m transverse load over the
+same 4 m column with 50 kN compression. Its closed-form beam-column solution
+gives a 62.182372 mm local tip displacement and a -23.109119 kN·m support
+moment; the refined calculation agrees within the stated benchmark tolerance.
+This is also an independent analytic verification case, not a Standard worked
+example.
 
 ## Braced-member moment amplification
 
