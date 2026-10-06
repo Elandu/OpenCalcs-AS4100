@@ -6568,6 +6568,137 @@ def verify():
         nonprincipal_bending["values"]["member_interaction"],
         2 * (0.625**1.4),
     )
+    constrained_nonprincipal = run_design_actions(
+        {
+            "operation": "nonprincipal_bending_analysis",
+            "design_load_set_id": "VERIFY-ULS-NONPRINCIPAL-01",
+            "member_id": "VERIFY-BEAM-NP-01",
+            "member_length_mm": 4000,
+            "restraint_plane_angle_deg": 45,
+            "second_moment_about_principal_x_mm4": 200e6,
+            "second_moment_about_principal_y_mm4": 50e6,
+            "principal_properties_verified": True,
+            "principal_properties_evidence_reference": "VERIFY-5.7.1-SECTION-01",
+            "continuous_lateral_restraint_verified": True,
+            "continuous_lateral_restraint_evidence_reference": "VERIFY-5.7.1-RESTRAINT-01",
+            "support_translation_conditions_verified": True,
+            "support_conditions_evidence_reference": "VERIFY-5.7.1-SUPPORT-01",
+            "elastic_prismatic_model_verified": True,
+            "analysis_model_evidence_reference": "VERIFY-5.7.1-MODEL-01",
+            "distributed_loads": [
+                {
+                    "load_id": "VERIFY-UDL-01",
+                    "start_fraction": 0,
+                    "end_fraction": 1,
+                    "transverse_force_start_kn_per_m": 2,
+                    "transverse_force_end_kn_per_m": 2,
+                    "load_verified": True,
+                    "evidence_reference": "VERIFY-5.7.1-LOAD-01",
+                }
+            ],
+            "point_loads": [],
+            "complete_load_set_verified": True,
+            "load_set_evidence_reference": "VERIFY-5.7.1-LOAD-SET-01",
+            "section_axial_capacity_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "reduced_member_moment_x_knm": 80,
+            "reduced_member_moment_y_knm": 40,
+            "section_and_member_capacities_verified": True,
+            "capacity_evidence_reference": "VERIFY-5.7.1-CAPACITY-01",
+            "axial_action_kn": 0,
+        }
+    )
+    constrained_values = constrained_nonprincipal["values"]
+    root_two = sqrt(2)
+    record(
+        "Clause 5.7.1 rigid-restraint compatibility force ratio",
+        constrained_values["continuous_lateral_restraint_force_ratio"],
+        0.6,
+    )
+    record(
+        "Clause 5.7.1 principal x moment for EIy/EIx = 1/4",
+        constrained_values["maximum_abs_moment_about_principal_x_knm"],
+        6.4 / root_two,
+    )
+    record(
+        "Clause 5.7.1 principal y moment for EIy/EIx = 1/4",
+        constrained_values["maximum_abs_moment_about_principal_y_knm"],
+        1.6 / root_two,
+    )
+    record(
+        "Clause 5.7.1 distributed restraint reaction x component (kN/m)",
+        constrained_values["lateral_restraint_distributed_loads"][0][
+            "start_force_x_kn_per_m"
+        ],
+        -1.2 / root_two,
+    )
+    record(
+        "Clause 5.7.1 support and continuous-reaction force equilibrium",
+        int(
+            constrained_nonprincipal["checked_conditions_satisfied"]
+            and constrained_nonprincipal["clauses"] == ["5.7.1", "8.3.4"]
+        ),
+        1,
+    )
+    unconstrained_nonprincipal = run_design_actions(
+        {
+            "operation": "nonprincipal_bending_unconstrained_analysis",
+            "design_load_set_id": "VERIFY-ULS-NONPRINCIPAL-02",
+            "member_id": "VERIFY-BEAM-NP-02",
+            "member_length_mm": 4000,
+            "load_plane_angle_deg": 30,
+            "principal_properties_verified": True,
+            "principal_properties_evidence_reference": "VERIFY-5.7.2-SECTION-01",
+            "continuous_lateral_restraint_absent_verified": True,
+            "restraint_absence_evidence_reference": "VERIFY-5.7.2-RESTRAINT-01",
+            "support_translation_conditions_verified": True,
+            "support_conditions_evidence_reference": "VERIFY-5.7.2-SUPPORT-01",
+            "elastic_prismatic_model_verified": True,
+            "analysis_model_evidence_reference": "VERIFY-5.7.2-MODEL-01",
+            "distributed_loads": [
+                {
+                    "load_id": "VERIFY-UDL-02",
+                    "start_fraction": 0,
+                    "end_fraction": 1,
+                    "transverse_force_start_kn_per_m": 2,
+                    "transverse_force_end_kn_per_m": 2,
+                    "load_verified": True,
+                    "evidence_reference": "VERIFY-5.7.2-LOAD-01",
+                }
+            ],
+            "point_loads": [],
+            "complete_load_set_verified": True,
+            "load_set_evidence_reference": "VERIFY-5.7.2-LOAD-SET-01",
+            "section_axial_capacity_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "reduced_member_moment_x_knm": 80,
+            "reduced_member_moment_y_knm": 40,
+            "section_and_member_capacities_verified": True,
+            "capacity_evidence_reference": "VERIFY-5.7.2-CAPACITY-01",
+            "axial_action_kn": 0,
+        }
+    )
+    unconstrained_values = unconstrained_nonprincipal["values"]
+    record(
+        "Clause 5.7.2 simple-support moment about principal x at 30 degrees",
+        unconstrained_values["maximum_abs_moment_about_principal_x_knm"],
+        2,
+    )
+    record(
+        "Clause 5.7.2 simple-support moment about principal y at 30 degrees",
+        unconstrained_values["maximum_abs_moment_about_principal_y_knm"],
+        2 * sqrt(3),
+    )
+    record(
+        "Clause 5.7.2 section and member interactions with equilibrium",
+        int(
+            unconstrained_nonprincipal["checked_conditions_satisfied"]
+            and unconstrained_nonprincipal["clauses"] == ["5.7.2", "8.3.4", "8.4.5"]
+        ),
+        1,
+    )
     amended_8452 = run_members(
         {
             "operation": "interaction",

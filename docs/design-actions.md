@@ -1,7 +1,7 @@
 # Design actions and stability
 
 `run_design_actions` implements selected checks for AS 4100:2020 Sections 3, 4,
-and 6.3.2. All action and capacity inputs are kN or kN·m unless the field name states
+5.7.1–5.7.2, and 6.3.2. All action and capacity inputs are kN or kN·m unless the field name states
 otherwise. Evidence references identify supporting project records; the plugin
 does not authenticate those records.
 
@@ -282,6 +282,45 @@ OpenSees 16-element result of 62.1532369793 mm tip displacement and
 not worked examples from the Standard. Reproduce the
 independent mesh study with `python validation/opensees_corotational_cantilever.py`
 in an environment with OpenSeesPy/OpenSees 3.8.0 installed.
+
+## Bending in a non-principal plane
+
+`nonprincipal_bending_analysis` calculates a bounded Clause 5.7.1 case for a
+prismatic Euler-Bernoulli member with simple supports, continuous perfectly rigid
+lateral restraint, and all listed transverse loads acting in the same plane at
+`restraint_plane_angle_deg` from principal x. For load-plane unit vector
+`p = (cos θ, sin θ)` and restraint-normal vector `n = (-sin θ, cos θ)`, the
+linear compatibility solution uses x- and y-deflection rigidities `E I_y` and
+`E I_x` to calculate the restraint-force ratio `r`. The effective principal-axis
+load components are `p + r n`. The scalar simple-beam moment diagram is calculated
+from the listed linearly varying distributed and point loads; its stationary
+points and load boundaries are resolved before the principal-axis moments are
+reported. Restraint reactions are returned as x/y components for every listed
+distributed or point load, along with end reactions and equilibrium residuals.
+
+Supply the verified principal inertias, support translations, restraint plane,
+prismatic elastic model, complete transverse-load set and section/member
+capacities. This route is first-order and rejects nonzero axial compression;
+it does not analyze beam-column second-order response, finite restraint
+stiffness, torsion or warping, shear deformation, non-prismatic members, or
+other support conditions. When any of these assumptions do not apply, establish
+principal-axis design moments by a verified rational analysis and use
+`advanced_members.nonprincipal_bending` for the appropriate 8.3.4 and 8.4.5
+interaction checks. The calculated moments and restraint forces still require
+engineering review of the model and evidence; a passing check is not whole
+standard compliance.
+
+`nonprincipal_bending_unconstrained_analysis` calculates the corresponding
+bounded Clause 5.7.2 case for a simply supported, prismatic member with no
+continuous lateral restraint. It resolves the same simple-beam moment diagram
+directly onto the principal axes, then checks the supplied reduced capacities
+under Clauses 8.3.4 and 8.4.5. It also rejects nonzero axial compression because
+it does not solve second-order beam-column response. For members with axial
+force, other support conditions or a more general model, establish principal
+design moments by verified rational analysis and use
+`advanced_members.nonprincipal_bending` for the interaction checks. Neither
+bounded operation calculates finite-restraint behavior or establishes complete
+Clause 5.7 or whole-standard compliance.
 
 ## Appendix E.2(c) moment superposition
 

@@ -1766,6 +1766,122 @@ def expect_close(actual, expected):
     return actual
 
 
+def clause_5_7_1_continuous_restraint():
+    evidence = "INDEPENDENT-5.7.1-CONTINUOUS-RESTRAINT"
+    result = run_design_actions(
+        {
+            "operation": "nonprincipal_bending_analysis",
+            "design_load_set_id": "INDEPENDENT-ULS-NP-01",
+            "member_id": "INDEPENDENT-BEAM-NP-01",
+            "member_length_mm": 4000,
+            "restraint_plane_angle_deg": 45,
+            "second_moment_about_principal_x_mm4": 200e6,
+            "second_moment_about_principal_y_mm4": 50e6,
+            "principal_properties_verified": True,
+            "principal_properties_evidence_reference": evidence,
+            "continuous_lateral_restraint_verified": True,
+            "continuous_lateral_restraint_evidence_reference": evidence,
+            "support_translation_conditions_verified": True,
+            "support_conditions_evidence_reference": evidence,
+            "elastic_prismatic_model_verified": True,
+            "analysis_model_evidence_reference": evidence,
+            "distributed_loads": [
+                {
+                    "load_id": "INDEPENDENT-UDL-01",
+                    "start_fraction": 0,
+                    "end_fraction": 1,
+                    "transverse_force_start_kn_per_m": 2,
+                    "transverse_force_end_kn_per_m": 2,
+                    "load_verified": True,
+                    "evidence_reference": evidence,
+                }
+            ],
+            "point_loads": [],
+            "complete_load_set_verified": True,
+            "load_set_evidence_reference": evidence,
+            "section_axial_capacity_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "reduced_member_moment_x_knm": 80,
+            "reduced_member_moment_y_knm": 40,
+            "section_and_member_capacities_verified": True,
+            "capacity_evidence_reference": evidence,
+            "axial_action_kn": 0,
+        }
+    )
+    values = result["values"]
+    root_two = sqrt(2)
+    expected_x, expected_y = 6.4 / root_two, 1.6 / root_two
+    expect_close(values["continuous_lateral_restraint_force_ratio"], 0.6)
+    expect_close(values["maximum_abs_moment_about_principal_x_knm"], expected_x)
+    expect_close(values["maximum_abs_moment_about_principal_y_knm"], expected_y)
+    expect_close(
+        values["lateral_restraint_distributed_loads"][0]["start_force_x_kn_per_m"],
+        -1.2 / root_two,
+    )
+    if result["clauses"] != ["5.7.1", "8.3.4"] or not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 5.7.1 restraint/moment benchmark failed")
+    return {
+        "restraint_force_ratio": 0.6,
+        "maximum_abs_moment_about_principal_x_knm": expected_x,
+        "maximum_abs_moment_about_principal_y_knm": expected_y,
+    }
+
+
+def clause_5_7_2_unconstrained_bending():
+    evidence = "INDEPENDENT-5.7.2-UNCONSTRAINED"
+    result = run_design_actions(
+        {
+            "operation": "nonprincipal_bending_unconstrained_analysis",
+            "design_load_set_id": "INDEPENDENT-ULS-NP-02",
+            "member_id": "INDEPENDENT-BEAM-NP-02",
+            "member_length_mm": 4000,
+            "load_plane_angle_deg": 30,
+            "principal_properties_verified": True,
+            "principal_properties_evidence_reference": evidence,
+            "continuous_lateral_restraint_absent_verified": True,
+            "restraint_absence_evidence_reference": evidence,
+            "support_translation_conditions_verified": True,
+            "support_conditions_evidence_reference": evidence,
+            "elastic_prismatic_model_verified": True,
+            "analysis_model_evidence_reference": evidence,
+            "distributed_loads": [
+                {
+                    "load_id": "INDEPENDENT-UDL-02",
+                    "start_fraction": 0,
+                    "end_fraction": 1,
+                    "transverse_force_start_kn_per_m": 2,
+                    "transverse_force_end_kn_per_m": 2,
+                    "load_verified": True,
+                    "evidence_reference": evidence,
+                }
+            ],
+            "point_loads": [],
+            "complete_load_set_verified": True,
+            "load_set_evidence_reference": evidence,
+            "section_axial_capacity_kn": 1000,
+            "section_moment_x_knm": 100,
+            "section_moment_y_knm": 50,
+            "reduced_member_moment_x_knm": 80,
+            "reduced_member_moment_y_knm": 40,
+            "section_and_member_capacities_verified": True,
+            "capacity_evidence_reference": evidence,
+            "axial_action_kn": 0,
+        }
+    )
+    values = result["values"]
+    expect_close(values["maximum_abs_moment_about_principal_x_knm"], 2)
+    expect_close(values["maximum_abs_moment_about_principal_y_knm"], 2 * sqrt(3))
+    if result["clauses"] != ["5.7.2", "8.3.4", "8.4.5"] or not result[
+        "checked_conditions_satisfied"
+    ]:
+        raise AssertionError("Clause 5.7.2 unconstrained-bending benchmark failed")
+    return {
+        "maximum_abs_moment_about_principal_x_knm": 2,
+        "maximum_abs_moment_about_principal_y_knm": 2 * sqrt(3),
+    }
+
+
 def expect_rejected(callback):
     try:
         callback()
@@ -5164,6 +5280,8 @@ def main():
         ),
         "clause_5_6_1_2_b_unequal_flange_buckling": (clause_5_6_1_2_b_unequal_flange_buckling),
         "clause_5_6_1_4_hollow_section_bending": clause_5_6_1_4_hollow_section_bending,
+        "clause_5_7_1_continuous_restraint": clause_5_7_1_continuous_restraint,
+        "clause_5_7_2_unconstrained_bending": clause_5_7_2_unconstrained_bending,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
         "clause_5_11_5_2_tension_field_evidence": clause_5_11_5_2_tension_field_evidence,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,

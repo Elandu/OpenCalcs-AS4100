@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """AS 4100 sections 3/4 numerical design-action checks, reviewed against scanned text."""
 
-from math import isclose, isfinite, pi, sqrt, tan
+from math import cos, isclose, isfinite, pi, radians, sin, sqrt, tan
 
 from .frame_buckling import run_frame_buckling
 from .iterative_analysis import run_iterative_second_order_frame_analysis
@@ -711,6 +711,90 @@ SCHEMAS = {
             "bending_axis_evidence_reference": _REFERENCE,
         }
     ),
+    "nonprincipal_bending_analysis": object_schema(
+        {
+            "operation": {"const": "nonprincipal_bending_analysis"},
+            "design_load_set_id": _REFERENCE,
+            "member_id": _REFERENCE,
+            "member_length_mm": POSITIVE,
+            "restraint_plane_angle_deg": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "exclusiveMaximum": 90,
+            },
+            "second_moment_about_principal_x_mm4": POSITIVE,
+            "second_moment_about_principal_y_mm4": POSITIVE,
+            "principal_properties_verified": _BOOL,
+            "principal_properties_evidence_reference": _REFERENCE,
+            "continuous_lateral_restraint_verified": _BOOL,
+            "continuous_lateral_restraint_evidence_reference": _REFERENCE,
+            "support_translation_conditions_verified": _BOOL,
+            "support_conditions_evidence_reference": _REFERENCE,
+            "elastic_prismatic_model_verified": _BOOL,
+            "analysis_model_evidence_reference": _REFERENCE,
+            "distributed_loads": {
+                "type": "array",
+                "maxItems": 200,
+                "items": _E2_SUPERPOSITION_DISTRIBUTED_LOAD,
+            },
+            "point_loads": {
+                "type": "array",
+                "maxItems": 200,
+                "items": _E2_SUPERPOSITION_POINT_LOAD,
+            },
+            "complete_load_set_verified": _BOOL,
+            "load_set_evidence_reference": _REFERENCE,
+            "section_axial_capacity_kn": POSITIVE,
+            "section_moment_x_knm": POSITIVE,
+            "section_moment_y_knm": POSITIVE,
+            "reduced_member_moment_x_knm": POSITIVE,
+            "reduced_member_moment_y_knm": POSITIVE,
+            "section_and_member_capacities_verified": _BOOL,
+            "capacity_evidence_reference": _REFERENCE,
+            "axial_action_kn": NONNEGATIVE,
+        }
+    ),
+    "nonprincipal_bending_unconstrained_analysis": object_schema(
+        {
+            "operation": {"const": "nonprincipal_bending_unconstrained_analysis"},
+            "design_load_set_id": _REFERENCE,
+            "member_id": _REFERENCE,
+            "member_length_mm": POSITIVE,
+            "load_plane_angle_deg": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "exclusiveMaximum": 90,
+            },
+            "principal_properties_verified": _BOOL,
+            "principal_properties_evidence_reference": _REFERENCE,
+            "continuous_lateral_restraint_absent_verified": _BOOL,
+            "restraint_absence_evidence_reference": _REFERENCE,
+            "support_translation_conditions_verified": _BOOL,
+            "support_conditions_evidence_reference": _REFERENCE,
+            "elastic_prismatic_model_verified": _BOOL,
+            "analysis_model_evidence_reference": _REFERENCE,
+            "distributed_loads": {
+                "type": "array",
+                "maxItems": 200,
+                "items": _E2_SUPERPOSITION_DISTRIBUTED_LOAD,
+            },
+            "point_loads": {
+                "type": "array",
+                "maxItems": 200,
+                "items": _E2_SUPERPOSITION_POINT_LOAD,
+            },
+            "complete_load_set_verified": _BOOL,
+            "load_set_evidence_reference": _REFERENCE,
+            "section_axial_capacity_kn": POSITIVE,
+            "section_moment_x_knm": POSITIVE,
+            "section_moment_y_knm": POSITIVE,
+            "reduced_member_moment_x_knm": POSITIVE,
+            "reduced_member_moment_y_knm": POSITIVE,
+            "section_and_member_capacities_verified": _BOOL,
+            "capacity_evidence_reference": _REFERENCE,
+            "axial_action_kn": NONNEGATIVE,
+        }
+    ),
     "appendix_e_design_bending_moment": object_schema(
         {
             "operation": {"const": "appendix_e_design_bending_moment"},
@@ -1377,6 +1461,403 @@ def _appendix_e_superposition_moment(d):
         "governing_candidate_type": maximum["candidate_type"],
         "critical_section_candidates": candidates,
     }
+
+
+def _nonprincipal_bending_analysis(d):
+    if not d["distributed_loads"] and not d["point_loads"]:
+        raise ValueError("Non-principal bending analysis requires at least one transverse load.")
+    if d["axial_action_kn"] != 0:
+        raise ValueError(
+            "This first-order transverse-load analysis does not include axial-force effects; "
+            "use verified rational-analysis moments for a compression member."
+        )
+
+    beam = _appendix_e_superposition_moment(
+        {
+            "design_load_set_id": d["design_load_set_id"],
+            "member_id": d["member_id"],
+            "member_length_mm": d["member_length_mm"],
+            "second_order_start_moment_knm": 0.0,
+            "second_order_end_moment_knm": 0.0,
+            "distributed_loads": d["distributed_loads"],
+            "point_loads": d["point_loads"],
+        }
+    )
+    angle = radians(d["restraint_plane_angle_deg"])
+    cos_angle, sin_angle = cos(angle), sin(angle)
+    normal_x, normal_y = -sin_angle, cos_angle
+    rigidity_x_deflection = ELASTIC_MODULUS_MPA * d["second_moment_about_principal_y_mm4"]
+    rigidity_y_deflection = ELASTIC_MODULUS_MPA * d["second_moment_about_principal_x_mm4"]
+    compatibility_numerator = (
+        normal_x * cos_angle / rigidity_x_deflection
+        + normal_y * sin_angle / rigidity_y_deflection
+    )
+    compatibility_denominator = (
+        normal_x**2 / rigidity_x_deflection + normal_y**2 / rigidity_y_deflection
+    )
+    restraint_ratio = -compatibility_numerator / compatibility_denominator
+    effective_load_x = cos_angle + restraint_ratio * normal_x
+    effective_load_y = sin_angle + restraint_ratio * normal_y
+    compatibility_residual = (
+        normal_x * effective_load_x / rigidity_x_deflection
+        + normal_y * effective_load_y / rigidity_y_deflection
+    )
+    compatibility_scale = (
+        abs(normal_x * effective_load_x / rigidity_x_deflection)
+        + abs(normal_y * effective_load_y / rigidity_y_deflection)
+    )
+    compatibility_residual_ratio = (
+        abs(compatibility_residual) / compatibility_scale if compatibility_scale else 0.0
+    )
+
+    moment_candidates = [
+        {
+            "position_mm": candidate["position_mm"],
+            "base_moment_knm": candidate["moment_knm"],
+            "moment_about_principal_x_knm": -effective_load_y * candidate["moment_knm"],
+            "moment_about_principal_y_knm": effective_load_x * candidate["moment_knm"],
+            "candidate_type": candidate["candidate_type"],
+        }
+        for candidate in beam["critical_section_candidates"]
+    ]
+    maximum_x = max(
+        moment_candidates,
+        key=lambda candidate: (
+            abs(candidate["moment_about_principal_x_knm"]),
+            -candidate["position_mm"],
+        ),
+    )
+    maximum_y = max(
+        moment_candidates,
+        key=lambda candidate: (
+            abs(candidate["moment_about_principal_y_knm"]),
+            -candidate["position_mm"],
+        ),
+    )
+
+    from .advanced_members import run_advanced_members
+
+    interaction = run_advanced_members(
+        {
+            "operation": "nonprincipal_bending",
+            "section_axial_capacity_kn": d["section_axial_capacity_kn"],
+            "section_moment_x_knm": d["section_moment_x_knm"],
+            "section_moment_y_knm": d["section_moment_y_knm"],
+            "reduced_member_moment_x_knm": d["reduced_member_moment_x_knm"],
+            "reduced_member_moment_y_knm": d["reduced_member_moment_y_knm"],
+            "axial_action_kn": d["axial_action_kn"],
+            "moment_x_knm": abs(maximum_x["moment_about_principal_x_knm"]),
+            "moment_y_knm": abs(maximum_y["moment_about_principal_y_knm"]),
+            "deflections_constrained": True,
+            "rational_analysis_verified": True,
+        }
+    )
+    total_load = beam["total_transverse_load_kn"]
+    applied_x = total_load * cos_angle
+    applied_y = total_load * sin_angle
+    restraint_x = total_load * restraint_ratio * normal_x
+    restraint_y = total_load * restraint_ratio * normal_y
+    restraint_distributed_loads = [
+        {
+            "load_id": load["load_id"],
+            "start_force_x_kn_per_m": (
+                load["transverse_force_start_kn_per_m"] * restraint_ratio * normal_x
+            ),
+            "start_force_y_kn_per_m": (
+                load["transverse_force_start_kn_per_m"] * restraint_ratio * normal_y
+            ),
+            "end_force_x_kn_per_m": (
+                load["transverse_force_end_kn_per_m"] * restraint_ratio * normal_x
+            ),
+            "end_force_y_kn_per_m": (
+                load["transverse_force_end_kn_per_m"] * restraint_ratio * normal_y
+            ),
+            "start_fraction": load["start_fraction"],
+            "end_fraction": load["end_fraction"],
+        }
+        for load in d["distributed_loads"]
+    ]
+    restraint_point_loads = [
+        {
+            "load_id": load["load_id"],
+            "position_fraction": load["position_fraction"],
+            "force_x_kn": load["transverse_force_kn"] * restraint_ratio * normal_x,
+            "force_y_kn": load["transverse_force_kn"] * restraint_ratio * normal_y,
+        }
+        for load in d["point_loads"]
+    ]
+    support_start_x = -beam["simple_beam_reaction_start_kn"] * effective_load_x
+    support_start_y = -beam["simple_beam_reaction_start_kn"] * effective_load_y
+    support_end_x = -beam["simple_beam_reaction_end_kn"] * effective_load_x
+    support_end_y = -beam["simple_beam_reaction_end_kn"] * effective_load_y
+    equilibrium_residual_x = applied_x + restraint_x + support_start_x + support_end_x
+    equilibrium_residual_y = applied_y + restraint_y + support_start_y + support_end_y
+    load_list_verified = d["complete_load_set_verified"] and all(
+        load["load_verified"] for load in (*d["distributed_loads"], *d["point_loads"])
+    )
+    checks = [
+        {
+            "clause": "5.7.1",
+            "condition": "principal-axis section properties are verified",
+            "satisfied": d["principal_properties_verified"],
+            "evidence_reference": d["principal_properties_evidence_reference"],
+        },
+        {
+            "clause": "5.7.1",
+            "condition": "continuous lateral restraint prevents deflection normal to the plane",
+            "satisfied": d["continuous_lateral_restraint_verified"],
+            "evidence_reference": d["continuous_lateral_restraint_evidence_reference"],
+        },
+        {
+            "clause": "5.7.1",
+            "condition": "simple-support translation and prismatic elastic model assumptions",
+            "satisfied": (
+                d["support_translation_conditions_verified"]
+                and d["elastic_prismatic_model_verified"]
+            ),
+            "support_evidence_reference": d["support_conditions_evidence_reference"],
+            "model_evidence_reference": d["analysis_model_evidence_reference"],
+        },
+        {
+            "clause": "5.7.1",
+            "condition": "complete in-plane transverse load set is verified",
+            "satisfied": load_list_verified,
+            "evidence_reference": d["load_set_evidence_reference"],
+        },
+        {
+            "clause": "5.7.1",
+            "condition": "restraint compatibility in the prohibited direction",
+            "residual_ratio": compatibility_residual_ratio,
+            "satisfied": compatibility_residual_ratio <= 1e-12,
+        },
+        {
+            "clause": "5.7.1",
+            "condition": "transverse force equilibrium",
+            "residual_x_kn": equilibrium_residual_x,
+            "residual_y_kn": equilibrium_residual_y,
+            "satisfied": abs(equilibrium_residual_x) <= 1e-10 * max(1, abs(total_load))
+            and abs(equilibrium_residual_y) <= 1e-10 * max(1, abs(total_load)),
+        },
+        {
+            "clause": "8.3.4",
+            "condition": "section and member moment capacities are verified",
+            "satisfied": d["section_and_member_capacities_verified"],
+            "evidence_reference": d["capacity_evidence_reference"],
+        },
+        *interaction["checks"],
+    ]
+    return result(
+        "nonprincipal_bending_analysis",
+        ["5.7.1", "8.3.4"],
+        {
+            "analysis_method": "linear_elastic_continuous_restraint_compatibility",
+            "design_load_set_id": d["design_load_set_id"],
+            "member_id": d["member_id"],
+            "member_length_mm": d["member_length_mm"],
+            "elastic_modulus_mpa": ELASTIC_MODULUS_MPA,
+            "restraint_plane_angle_deg": d["restraint_plane_angle_deg"],
+            "continuous_lateral_restraint_force_ratio": restraint_ratio,
+            "principal_x_transverse_load_coefficient": effective_load_x,
+            "principal_y_transverse_load_coefficient": effective_load_y,
+            "principal_x_support_reactions_kn": [support_start_x, support_end_x],
+            "principal_y_support_reactions_kn": [support_start_y, support_end_y],
+            "total_lateral_restraint_resultant_x_kn": restraint_x,
+            "total_lateral_restraint_resultant_y_kn": restraint_y,
+            "lateral_restraint_distributed_loads": restraint_distributed_loads,
+            "lateral_restraint_point_loads": restraint_point_loads,
+            "applied_force_resultant_x_kn": applied_x,
+            "applied_force_resultant_y_kn": applied_y,
+            "transverse_equilibrium_residual_x_kn": equilibrium_residual_x,
+            "transverse_equilibrium_residual_y_kn": equilibrium_residual_y,
+            "maximum_abs_moment_about_principal_x_knm": abs(
+                maximum_x["moment_about_principal_x_knm"]
+            ),
+            "maximum_abs_moment_about_principal_y_knm": abs(
+                maximum_y["moment_about_principal_y_knm"]
+            ),
+            "maximum_x_moment_position_mm": maximum_x["position_mm"],
+            "maximum_y_moment_position_mm": maximum_y["position_mm"],
+            "section_interaction": interaction["values"]["section_interaction"],
+            "member_interaction": interaction["values"]["member_interaction"],
+            "critical_section_candidates": moment_candidates,
+        },
+        checks,
+        [
+            "This is an exact linear-elastic compatibility solution for a prismatic "
+            "Euler-Bernoulli member with simple supports, a continuous perfectly rigid lateral "
+            "restraint, and all "
+            "listed transverse loads acting in the same non-principal plane.",
+            "It calculates restraint forces and principal-axis bending moments for Clause 5.7.1, "
+            "then checks the constrained-deflection Clause 8.3.4 interaction using supplied "
+            "section and reduced member capacities.",
+            "It does not cover 5.7.2 unconstrained deflections, finite restraint stiffness, "
+            "torsion/warping, shear deformation, non-prismatic members, or support conditions "
+            "outside the stated model.",
+        ],
+    )
+
+
+def _nonprincipal_bending_unconstrained_analysis(d):
+    if not d["distributed_loads"] and not d["point_loads"]:
+        raise ValueError("Non-principal bending analysis requires at least one transverse load.")
+    if d["axial_action_kn"] != 0:
+        raise ValueError(
+            "This first-order transverse-load analysis does not include axial-force effects; "
+            "use verified rational-analysis moments for a compression member."
+        )
+
+    beam = _appendix_e_superposition_moment(
+        {
+            "design_load_set_id": d["design_load_set_id"],
+            "member_id": d["member_id"],
+            "member_length_mm": d["member_length_mm"],
+            "second_order_start_moment_knm": 0.0,
+            "second_order_end_moment_knm": 0.0,
+            "distributed_loads": d["distributed_loads"],
+            "point_loads": d["point_loads"],
+        }
+    )
+    angle = radians(d["load_plane_angle_deg"])
+    load_x, load_y = cos(angle), sin(angle)
+    moment_candidates = [
+        {
+            "position_mm": candidate["position_mm"],
+            "base_moment_knm": candidate["moment_knm"],
+            "moment_about_principal_x_knm": -load_y * candidate["moment_knm"],
+            "moment_about_principal_y_knm": load_x * candidate["moment_knm"],
+            "candidate_type": candidate["candidate_type"],
+        }
+        for candidate in beam["critical_section_candidates"]
+    ]
+    maximum_x = max(
+        moment_candidates,
+        key=lambda candidate: (
+            abs(candidate["moment_about_principal_x_knm"]),
+            -candidate["position_mm"],
+        ),
+    )
+    maximum_y = max(
+        moment_candidates,
+        key=lambda candidate: (
+            abs(candidate["moment_about_principal_y_knm"]),
+            -candidate["position_mm"],
+        ),
+    )
+
+    from .advanced_members import run_advanced_members
+
+    interaction = run_advanced_members(
+        {
+            "operation": "nonprincipal_bending",
+            "section_axial_capacity_kn": d["section_axial_capacity_kn"],
+            "section_moment_x_knm": d["section_moment_x_knm"],
+            "section_moment_y_knm": d["section_moment_y_knm"],
+            "reduced_member_moment_x_knm": d["reduced_member_moment_x_knm"],
+            "reduced_member_moment_y_knm": d["reduced_member_moment_y_knm"],
+            "axial_action_kn": d["axial_action_kn"],
+            "moment_x_knm": abs(maximum_x["moment_about_principal_x_knm"]),
+            "moment_y_knm": abs(maximum_y["moment_about_principal_y_knm"]),
+            "deflections_constrained": False,
+            "rational_analysis_verified": True,
+        }
+    )
+    reaction_start_x = -beam["simple_beam_reaction_start_kn"] * load_x
+    reaction_start_y = -beam["simple_beam_reaction_start_kn"] * load_y
+    reaction_end_x = -beam["simple_beam_reaction_end_kn"] * load_x
+    reaction_end_y = -beam["simple_beam_reaction_end_kn"] * load_y
+    total_load = beam["total_transverse_load_kn"]
+    equilibrium_residual_x = total_load * load_x + reaction_start_x + reaction_end_x
+    equilibrium_residual_y = total_load * load_y + reaction_start_y + reaction_end_y
+    load_list_verified = d["complete_load_set_verified"] and all(
+        load["load_verified"] for load in (*d["distributed_loads"], *d["point_loads"])
+    )
+    checks = [
+        {
+            "clause": "5.7.2",
+            "condition": "principal section properties and axes are verified",
+            "satisfied": d["principal_properties_verified"],
+            "evidence_reference": d["principal_properties_evidence_reference"],
+        },
+        {
+            "clause": "5.7.2",
+            "condition": "lateral deflection is unconstrained by continuous restraints",
+            "satisfied": d["continuous_lateral_restraint_absent_verified"],
+            "evidence_reference": d["restraint_absence_evidence_reference"],
+        },
+        {
+            "clause": "5.7.2",
+            "condition": "simple-support translation and prismatic elastic model assumptions",
+            "satisfied": (
+                d["support_translation_conditions_verified"]
+                and d["elastic_prismatic_model_verified"]
+            ),
+            "support_evidence_reference": d["support_conditions_evidence_reference"],
+            "model_evidence_reference": d["analysis_model_evidence_reference"],
+        },
+        {
+            "clause": "5.7.2",
+            "condition": "complete in-plane transverse load set is verified",
+            "satisfied": load_list_verified,
+            "evidence_reference": d["load_set_evidence_reference"],
+        },
+        {
+            "clause": "5.7.2",
+            "condition": "zero axial force for this first-order load analysis",
+            "satisfied": d["axial_action_kn"] == 0,
+        },
+        {
+            "clause": "5.7.2",
+            "condition": "transverse force equilibrium",
+            "residual_x_kn": equilibrium_residual_x,
+            "residual_y_kn": equilibrium_residual_y,
+            "satisfied": abs(equilibrium_residual_x) <= 1e-10 * max(1, abs(total_load))
+            and abs(equilibrium_residual_y) <= 1e-10 * max(1, abs(total_load)),
+        },
+        {
+            "clause": "5.7.2",
+            "condition": "section and member moment capacities are verified",
+            "satisfied": d["section_and_member_capacities_verified"],
+            "evidence_reference": d["capacity_evidence_reference"],
+        },
+        *interaction["checks"],
+    ]
+    return result(
+        "nonprincipal_bending_unconstrained_analysis",
+        ["5.7.2", "8.3.4", "8.4.5"],
+        {
+            "analysis_method": "linear_elastic_simple_support_principal_axis_superposition",
+            "design_load_set_id": d["design_load_set_id"],
+            "member_id": d["member_id"],
+            "member_length_mm": d["member_length_mm"],
+            "load_plane_angle_deg": d["load_plane_angle_deg"],
+            "principal_x_transverse_load_coefficient": load_x,
+            "principal_y_transverse_load_coefficient": load_y,
+            "principal_x_support_reactions_kn": [reaction_start_x, reaction_end_x],
+            "principal_y_support_reactions_kn": [reaction_start_y, reaction_end_y],
+            "maximum_abs_moment_about_principal_x_knm": abs(
+                maximum_x["moment_about_principal_x_knm"]
+            ),
+            "maximum_abs_moment_about_principal_y_knm": abs(
+                maximum_y["moment_about_principal_y_knm"]
+            ),
+            "maximum_x_moment_position_mm": maximum_x["position_mm"],
+            "maximum_y_moment_position_mm": maximum_y["position_mm"],
+            "section_interaction": interaction["values"]["section_interaction"],
+            "member_interaction": interaction["values"]["member_interaction"],
+            "critical_section_candidates": moment_candidates,
+        },
+        checks,
+        [
+            "This is a first-order elastic analysis for a prismatic Euler-Bernoulli member with "
+            "simple supports and all listed transverse loads acting in the same non-principal "
+            "plane; axial force must be zero.",
+            "It resolves the simple-beam moment diagram into principal-axis moments, then checks "
+            "Clauses 8.3.4 and 8.4.5 using supplied section and reduced member capacities.",
+            "It does not cover axial-force second-order response, finite restraint stiffness, "
+            "torsion/warping, shear deformation, non-prismatic members, or other support "
+            "conditions.",
+        ],
+    )
 
 
 def run_design_actions(inputs):
@@ -2420,6 +2901,10 @@ def run_design_actions(inputs):
                 "appendix_e_design_bending_moment for the Appendix E.2 design moment.",
             ],
         )
+    if op == "nonprincipal_bending_analysis":
+        return _nonprincipal_bending_analysis(d)
+    if op == "nonprincipal_bending_unconstrained_analysis":
+        return _nonprincipal_bending_unconstrained_analysis(d)
     if op == "appendix_e_design_bending_moment":
         axial_force = d["compression_kn"]
         moment = d["maximum_second_order_moment_knm"]

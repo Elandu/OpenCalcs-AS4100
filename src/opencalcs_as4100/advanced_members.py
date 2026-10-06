@@ -3519,11 +3519,13 @@ def run_advanced_members(inputs):
             my / (0.9 * d["reduced_member_moment_y_knm"])
         ) ** 1.4
         checks = [_limit("8.3.4", section, 1)]
+        clauses = ["5.7.1" if d["deflections_constrained"] else "5.7.2", "8.3.4"]
         if not d["deflections_constrained"]:
             checks.append(_limit("8.4.5", member, 1))
+            clauses.append("8.4.5")
         return result(
             op,
-            ["5.7", "8.3.4", "8.4.5"],
+            clauses,
             {
                 "section_interaction": section,
                 "member_interaction": member,

@@ -1943,11 +1943,13 @@ def test_nonprincipal_rational_moments():
     out = run_advanced_members(inputs)
     assert out["values"]["section_interaction"] == pytest.approx(1.1)
     assert not out["checked_conditions_satisfied"]
+    assert out["clauses"] == ["5.7.1", "8.3.4"]
     assert [check["clause"] for check in out["checks"]] == ["8.3.4"]
 
     inputs["deflections_constrained"] = False
     unrestrained = run_advanced_members(inputs)
     assert unrestrained["values"]["member_interaction"] == pytest.approx(2 * (0.625**1.4))
+    assert unrestrained["clauses"] == ["5.7.2", "8.3.4", "8.4.5"]
     assert [check["clause"] for check in unrestrained["checks"]] == ["8.3.4", "8.4.5"]
     assert not unrestrained["checked_conditions_satisfied"]
 

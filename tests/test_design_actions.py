@@ -1971,6 +1971,177 @@ def test_clause_4_4_2_2_zero_or_tensile_axial_force_needs_no_braced_amplificatio
     assert result["checked_conditions_satisfied"]
 
 
+def nonprincipal_bending_unconstrained_member(**overrides):
+    evidence = "NONPRINCIPAL-UNCONSTRAINED-01"
+    inputs = {
+        "operation": "nonprincipal_bending_unconstrained_analysis",
+        "design_load_set_id": "ULS-NONPRINCIPAL-02",
+        "member_id": "BEAM-NP-02",
+        "member_length_mm": 4000,
+        "load_plane_angle_deg": 30,
+        "principal_properties_verified": True,
+        "principal_properties_evidence_reference": evidence,
+        "continuous_lateral_restraint_absent_verified": True,
+        "restraint_absence_evidence_reference": evidence,
+        "support_translation_conditions_verified": True,
+        "support_conditions_evidence_reference": evidence,
+        "elastic_prismatic_model_verified": True,
+        "analysis_model_evidence_reference": evidence,
+        "distributed_loads": [
+            {
+                "load_id": "UDL-02",
+                "start_fraction": 0,
+                "end_fraction": 1,
+                "transverse_force_start_kn_per_m": 2,
+                "transverse_force_end_kn_per_m": 2,
+                "load_verified": True,
+                "evidence_reference": evidence,
+            }
+        ],
+        "point_loads": [],
+        "complete_load_set_verified": True,
+        "load_set_evidence_reference": evidence,
+        "section_axial_capacity_kn": 1000,
+        "section_moment_x_knm": 100,
+        "section_moment_y_knm": 50,
+        "reduced_member_moment_x_knm": 80,
+        "reduced_member_moment_y_knm": 40,
+        "section_and_member_capacities_verified": True,
+        "capacity_evidence_reference": evidence,
+        "axial_action_kn": 0,
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def nonprincipal_bending_member(**overrides):
+    evidence = "NONPRINCIPAL-ANALYSIS-01"
+    inputs = {
+        "operation": "nonprincipal_bending_analysis",
+        "design_load_set_id": "ULS-NONPRINCIPAL-01",
+        "member_id": "BEAM-NP-01",
+        "member_length_mm": 4000,
+        "restraint_plane_angle_deg": 45,
+        "second_moment_about_principal_x_mm4": 200e6,
+        "second_moment_about_principal_y_mm4": 50e6,
+        "principal_properties_verified": True,
+        "principal_properties_evidence_reference": evidence,
+        "continuous_lateral_restraint_verified": True,
+        "continuous_lateral_restraint_evidence_reference": evidence,
+        "support_translation_conditions_verified": True,
+        "support_conditions_evidence_reference": evidence,
+        "elastic_prismatic_model_verified": True,
+        "analysis_model_evidence_reference": evidence,
+        "distributed_loads": [
+            {
+                "load_id": "UDL-01",
+                "start_fraction": 0,
+                "end_fraction": 1,
+                "transverse_force_start_kn_per_m": 2,
+                "transverse_force_end_kn_per_m": 2,
+                "load_verified": True,
+                "evidence_reference": evidence,
+            }
+        ],
+        "point_loads": [],
+        "complete_load_set_verified": True,
+        "load_set_evidence_reference": evidence,
+        "section_axial_capacity_kn": 1000,
+        "section_moment_x_knm": 100,
+        "section_moment_y_knm": 50,
+        "reduced_member_moment_x_knm": 80,
+        "reduced_member_moment_y_knm": 40,
+        "section_and_member_capacities_verified": True,
+        "capacity_evidence_reference": evidence,
+        "axial_action_kn": 0,
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_clause_5_7_1_rigid_continuous_restraint_hand_benchmark():
+    result = run(nonprincipal_bending_member())
+    values = result["values"]
+    root_two = sqrt(2)
+
+    # EI_x / EI_y = 4. Compatibility gives r = 3/5, then the 4 kN.m
+    # simple-beam maximum resolves into the principal-axis moments below.
+    assert values["continuous_lateral_restraint_force_ratio"] == pytest.approx(0.6)
+    assert values["principal_x_transverse_load_coefficient"] == pytest.approx(0.4 / root_two)
+    assert values["principal_y_transverse_load_coefficient"] == pytest.approx(1.6 / root_two)
+    assert values["maximum_abs_moment_about_principal_x_knm"] == pytest.approx(6.4 / root_two)
+    assert values["maximum_abs_moment_about_principal_y_knm"] == pytest.approx(1.6 / root_two)
+    assert values["maximum_x_moment_position_mm"] == pytest.approx(2000)
+    assert values["maximum_y_moment_position_mm"] == pytest.approx(2000)
+
+    restraint = values["lateral_restraint_distributed_loads"][0]
+    assert restraint["start_force_x_kn_per_m"] == pytest.approx(-1.2 / root_two)
+    assert restraint["start_force_y_kn_per_m"] == pytest.approx(1.2 / root_two)
+    assert restraint["end_force_x_kn_per_m"] == pytest.approx(-1.2 / root_two)
+    assert restraint["end_force_y_kn_per_m"] == pytest.approx(1.2 / root_two)
+    assert values["transverse_equilibrium_residual_x_kn"] == pytest.approx(0, abs=1e-12)
+    assert values["transverse_equilibrium_residual_y_kn"] == pytest.approx(0, abs=1e-12)
+    assert result["clauses"] == ["5.7.1", "8.3.4"]
+    assert result["checked_conditions_satisfied"]
+
+
+def test_clause_5_7_1_equal_principal_inertias_need_no_restraint_force():
+    result = run(
+        nonprincipal_bending_member(
+            restraint_plane_angle_deg=30,
+            second_moment_about_principal_x_mm4=100e6,
+            second_moment_about_principal_y_mm4=100e6,
+            distributed_loads=[],
+            point_loads=[
+                {
+                    "load_id": "MIDSPAN-01",
+                    "position_fraction": 0.5,
+                    "transverse_force_kn": 8,
+                    "load_verified": True,
+                    "evidence_reference": "NONPRINCIPAL-POINT-01",
+                }
+            ],
+        )
+    )
+    values = result["values"]
+
+    assert values["continuous_lateral_restraint_force_ratio"] == pytest.approx(0)
+    assert values["total_lateral_restraint_resultant_x_kn"] == pytest.approx(0)
+    assert values["total_lateral_restraint_resultant_y_kn"] == pytest.approx(0)
+    assert values["maximum_abs_moment_about_principal_x_knm"] == pytest.approx(4)
+    assert values["maximum_abs_moment_about_principal_y_knm"] == pytest.approx(4 * sqrt(3))
+    assert values["lateral_restraint_point_loads"][0]["force_x_kn"] == pytest.approx(0)
+    assert values["lateral_restraint_point_loads"][0]["force_y_kn"] == pytest.approx(0)
+    assert result["checked_conditions_satisfied"]
+
+
+def test_clause_5_7_1_rejects_compression_without_second_order_analysis():
+    with pytest.raises(ValueError, match="does not include axial-force effects"):
+        run(nonprincipal_bending_member(axial_action_kn=100))
+
+
+def test_clause_5_7_2_unconstrained_simply_supported_hand_benchmark():
+    result = run(nonprincipal_bending_unconstrained_member())
+    values = result["values"]
+
+    # The 4 kN.m major-plane beam moment resolves directly at 30 degrees.
+    assert values["principal_x_transverse_load_coefficient"] == pytest.approx(sqrt(3) / 2)
+    assert values["principal_y_transverse_load_coefficient"] == pytest.approx(0.5)
+    assert values["maximum_abs_moment_about_principal_x_knm"] == pytest.approx(2)
+    assert values["maximum_abs_moment_about_principal_y_knm"] == pytest.approx(2 * sqrt(3))
+    assert values["principal_x_support_reactions_kn"] == pytest.approx([-2 * sqrt(3), -2 * sqrt(3)])
+    assert values["principal_y_support_reactions_kn"] == pytest.approx([-2, -2])
+    assert values["maximum_x_moment_position_mm"] == pytest.approx(2000)
+    assert values["maximum_y_moment_position_mm"] == pytest.approx(2000)
+    assert result["clauses"] == ["5.7.2", "8.3.4", "8.4.5"]
+    assert result["checked_conditions_satisfied"]
+
+
+def test_clause_5_7_2_rejects_compression_without_second_order_analysis():
+    with pytest.raises(ValueError, match="does not include axial-force effects"):
+        run(nonprincipal_bending_unconstrained_member(axial_action_kn=100))
+
+
 def appendix_e_superposition_member(**overrides):
     evidence = "APPENDIX-E2-C-SUPERPOSITION-01"
     inputs = {

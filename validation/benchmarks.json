@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.62",
+  "package_version": "0.7.63",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -3878,6 +3878,62 @@
       "name": "Amd 1 Clause 8.4.5.1 powered biaxial member interaction",
       "actual": 1.0357668804187459,
       "expected": 1.0357668804187459,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.7.1 rigid-restraint compatibility force ratio",
+      "actual": 0.6000000000000001,
+      "expected": 0.6,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.7.1 principal x moment for EIy/EIx = 1/4",
+      "actual": 4.525483399593905,
+      "expected": 4.525483399593904,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.7.1 principal y moment for EIy/EIx = 1/4",
+      "actual": 1.1313708498984758,
+      "expected": 1.131370849898476,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.7.1 distributed restraint reaction x component (kN/m)",
+      "actual": -0.8485281374238572,
+      "expected": -0.8485281374238569,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.7.1 support and continuous-reaction force equilibrium",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.7.2 simple-support moment about principal x at 30 degrees",
+      "actual": 1.9999999999999998,
+      "expected": 2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.7.2 simple-support moment about principal y at 30 degrees",
+      "actual": 3.464101615137755,
+      "expected": 3.4641016151377544,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.7.2 section and member interactions with equilibrium",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },
