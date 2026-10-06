@@ -282,6 +282,87 @@ def clause_4_4_2_2_axial_tension_no_amplification():
     return {"governing_factor": 1, "amplified_moment_knm": 20}
 
 
+def clause_4_4_2_2_figure_beta_m_cases():
+    cases = {
+        "figure_a_left_1": -1.0,
+        "figure_a_left_2": 0.2,
+        "figure_a_left_3": 0.6,
+        "figure_a_left_4": -0.5,
+        "figure_a_left_5": 0.2,
+        "figure_a_left_6": 0.2,
+        "figure_a_right_1": -1.0,
+        "figure_a_right_2": 0.5,
+        "figure_a_right_3": 1.0,
+        "figure_a_right_4": 0.4,
+        "figure_a_right_5": 0.0,
+        "figure_a_right_6": 0.5,
+        "figure_b_left_1": -0.4,
+        "figure_b_left_2": 0.1,
+        "figure_b_left_3": 0.7,
+        "figure_b_left_4": -0.5,
+        "figure_b_left_5": -0.2,
+        "figure_b_right_1": -0.5,
+        "figure_b_right_2": -0.1,
+        "figure_b_right_3": 0.3,
+        "figure_b_right_4": -0.4,
+        "figure_b_right_5": -0.1,
+        "figure_b_right_6": 1.0,
+    }
+    observations = {}
+    for case, expected_beta_m in cases.items():
+        result = run_design_actions(
+            {
+                "operation": "moment_amplification",
+                "compression_kn": 600,
+                "elastic_buckling_load_kn": 1000,
+                "beta_m_figure_case": case,
+                "first_order_moment_knm": 20,
+            }
+        )
+        values = result["values"]
+        expected_cm = min(1, 0.6 - 0.4 * expected_beta_m)
+        expected_factor = max(1, expected_cm / (1 - 600 / 1000))
+        expect_close(values["beta_m"], expected_beta_m)
+        expect_close(values["cm"], expected_cm)
+        expect_close(values["braced_factor"], expected_factor)
+        expect_close(values["amplified_moment_knm"], 20 * expected_factor)
+        figure = "A" if case.startswith("figure_a_") else "B"
+        if values["beta_m_figure_reference"] != f"Figure 4.4.2.2({figure})":
+            raise AssertionError(f"Figure 4.4.2.2 case {case} reported the wrong source figure")
+        if result["clauses"] != ["4.4.1.2", "4.4.2.2"]:
+            raise AssertionError(f"Figure 4.4.2.2 case {case} reported the wrong clauses")
+        observations[case] = {
+            "beta_m": values["beta_m"],
+            "cm": values["cm"],
+            "braced_factor": values["braced_factor"],
+        }
+    symbolic = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "beta_m_figure_case": "figure_b_left_6",
+            "beta_m": 0.3,
+            "first_order_moment_knm": 20,
+        }
+    )
+    symbolic_values = symbolic["values"]
+    expect_close(symbolic_values["beta_m"], 0.3)
+    expect_close(symbolic_values["cm"], 0.48)
+    expect_close(symbolic_values["braced_factor"], 1.2)
+    expect_close(symbolic_values["amplified_moment_knm"], 24)
+    if symbolic_values["beta_m_method"] != "4.4.2.2_figure_symbolic_beta":
+        raise AssertionError("Figure B left row 6 did not retain its symbolic beta basis")
+    if symbolic_values["beta_m_figure_reference"] != "Figure 4.4.2.2(B)":
+        raise AssertionError("Figure B left row 6 reported the wrong source figure")
+    observations["figure_b_left_6"] = {
+        "beta_m": symbolic_values["beta_m"],
+        "cm": symbolic_values["cm"],
+        "braced_factor": symbolic_values["braced_factor"],
+    }
+    return observations
+
+
 def clause_4_6_3_2_idealized_member_buckling():
     cases = {
         "braced_fixed_fixed": 0.7,
@@ -4820,6 +4901,7 @@ def main():
         "clause_9_6_2_prequalified_butt_macro_throat": prequalified_incomplete_butt_macro_throat,
         "clause_9_6_3_4_fillet_macro_test_throat": fillet_macro_test_throat,
         "clause_4_4_2_2_c_deflection_ratio": clause_4_4_2_2_c_deflection_ratio,
+        "clause_4_4_2_2_figure_beta_m_cases": clause_4_4_2_2_figure_beta_m_cases,
         "clause_4_4_2_2_a_conservative_transverse_load": (
             clause_4_4_2_2_a_conservative_transverse_load
         ),

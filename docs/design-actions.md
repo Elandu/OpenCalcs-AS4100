@@ -95,9 +95,15 @@ For zero axial force or axial tension, enter zero or a negative value in
 without a braced-member amplification factor, `beta_m`, or elastic buckling
 load. A supplied sway factor is still applied and checked separately.
 
-Supply either `beta_m`, `conservative_transverse_beta_m: true` for the
+Supply `beta_m`, `beta_m_figure_case` for a distribution in Figure
+4.4.2.2(A)/(B), `conservative_transverse_beta_m: true` for the
 Clause 4.4.2.2(a) choice `beta_m = -1`, or both deflections for the
-Clause 4.4.2.2(c) route. These routes are mutually exclusive. Select the
+Clause 4.4.2.2(c) route. These routes are mutually exclusive, except the
+symbolic Figure B, left, row 6 case. The figure-case identifier uses the panel
+side and top-to-bottom row number. For that symbolic case, set
+`beta_m_figure_case` to `figure_b_left_6` and supply the signed ratio of the
+smaller to larger end moment in `beta_m`; the Standard defines it as positive
+for reverse curvature, and the figure gives `beta_m = beta`. Select the
 conservative route only for a member with transverse loading. `delta_ct_mm` is
 the mid-span deflection from the transverse load together
 with both end bending moments. `delta_cw_mm` is the mid-span deflection from
@@ -105,14 +111,49 @@ the transverse load together with only the end moments that produce a
 mid-span deflection in the same direction as that transverse load. The
 operation calculates `beta_m = 1 - 2(delta_ct_mm / delta_cw_mm)` and enforces
 the Standard's `-1 <= beta_m <= 1` limit. Do not provide `beta_m` together
-with these deflections. The supplied-value route also accepts `beta_m` obtained
-from the applicable end-moment method or the Figure 4.4.2.2 distributions; it
-does not calculate those values or verify their basis.
+with these deflections. The direct `beta_m` route accepts an independently
+assessed value and does not verify its basis.
+
+| `beta_m_figure_case` | `beta_m` |
+| --- | ---: |
+| `figure_a_left_1` | -1.0 |
+| `figure_a_left_2` | +0.2 |
+| `figure_a_left_3` | +0.6 |
+| `figure_a_left_4` | -0.5 |
+| `figure_a_left_5` | +0.2 |
+| `figure_a_left_6` | +0.2 |
+| `figure_a_right_1` | -1.0 |
+| `figure_a_right_2` | +0.5 |
+| `figure_a_right_3` | +1.0 |
+| `figure_a_right_4` | +0.4 |
+| `figure_a_right_5` | 0.0 |
+| `figure_a_right_6` | +0.5 |
+| `figure_b_left_1` | -0.4 |
+| `figure_b_left_2` | +0.1 |
+| `figure_b_left_3` | +0.7 |
+| `figure_b_left_4` | -0.5 |
+| `figure_b_left_5` | -0.2 |
+| `figure_b_right_1` | -0.5 |
+| `figure_b_right_2` | -0.1 |
+| `figure_b_right_3` | +0.3 |
+| `figure_b_right_4` | -0.4 |
+| `figure_b_right_5` | -0.1 |
+| `figure_b_right_6` | +1.0 |
+
+The numeric entries are from AS 4100:2020 Figures 4.4.2.2(A) and (B), printed
+pages 42–44. Figure B, left, row 6 is symbolic, with `beta_m = beta`; enter
+its assessed ratio through `beta_m`. The calculation records the figure
+reference but does not decide whether a member's analysed moment distribution
+matches the selected diagram.
 
 The operation uses analysis results supplied by the caller; it does not
-calculate member deflections, the first-order maximum moment or the elastic
-buckling load. A moment amplification factor above 1.4 is diagnostic and
-requires second-order analysis under Clause 4.4.1.2.
+classify an actual moment diagram into a figure case, calculate member
+deflections, the first-order maximum moment or the elastic buckling load. Check
+that the selected diagram matches the member's analysed moment distribution.
+A moment amplification factor above 1.4 is diagnostic and requires
+second-order analysis under Clause 4.4.1.2. The route covers all 23 numeric
+figure values and the Figure B symbolic case; it does not infer diagram
+applicability.
 
 ## Triangulated-member effective length
 

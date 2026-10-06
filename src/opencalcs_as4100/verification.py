@@ -1755,6 +1755,80 @@ def verify():
         int(conservative_moment["values"]["second_order_analysis_required"]),
         1,
     )
+    beta_m_figure_cases = {
+        "figure_a_left_1": -1.0,
+        "figure_a_left_2": 0.2,
+        "figure_a_left_3": 0.6,
+        "figure_a_left_4": -0.5,
+        "figure_a_left_5": 0.2,
+        "figure_a_left_6": 0.2,
+        "figure_a_right_1": -1.0,
+        "figure_a_right_2": 0.5,
+        "figure_a_right_3": 1.0,
+        "figure_a_right_4": 0.4,
+        "figure_a_right_5": 0.0,
+        "figure_a_right_6": 0.5,
+        "figure_b_left_1": -0.4,
+        "figure_b_left_2": 0.1,
+        "figure_b_left_3": 0.7,
+        "figure_b_left_4": -0.5,
+        "figure_b_left_5": -0.2,
+        "figure_b_right_1": -0.5,
+        "figure_b_right_2": -0.1,
+        "figure_b_right_3": 0.3,
+        "figure_b_right_4": -0.4,
+        "figure_b_right_5": -0.1,
+        "figure_b_right_6": 1.0,
+    }
+    for case, expected_beta_m in beta_m_figure_cases.items():
+        figure_result = run_design_actions(
+            {
+                "operation": "moment_amplification",
+                "compression_kn": 600,
+                "elastic_buckling_load_kn": 1000,
+                "beta_m_figure_case": case,
+                "first_order_moment_knm": 20,
+            }
+        )
+        values = figure_result["values"]
+        record(
+            f"Figure 4.4.2.2 {case} beta_m lookup",
+            values["beta_m"],
+            expected_beta_m,
+        )
+        figure = "A" if case.startswith("figure_a_") else "B"
+        record(
+            f"Figure 4.4.2.2 {case} reference trace",
+            int(values["beta_m_figure_reference"] == f"Figure 4.4.2.2({figure})"),
+            1,
+        )
+        expected_cm = min(1, 0.6 - 0.4 * expected_beta_m)
+        record(
+            f"Figure 4.4.2.2 {case} Clause 4.4.2.2 Cm",
+            values["cm"],
+            expected_cm,
+        )
+    symbolic_figure_moment = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "beta_m_figure_case": "figure_b_left_6",
+            "beta_m": 0.3,
+            "first_order_moment_knm": 20,
+        }
+    )
+    symbolic_values = symbolic_figure_moment["values"]
+    record(
+        "Figure 4.4.2.2(B) left row 6 supplied beta_m equals symbolic beta",
+        symbolic_values["beta_m"],
+        0.3,
+    )
+    record(
+        "Figure 4.4.2.2(B) left row 6 figure reference trace",
+        int(symbolic_values["beta_m_figure_reference"] == "Figure 4.4.2.2(B)"),
+        1,
+    )
     idealized_restraint_cases = {
         "braced_fixed_fixed": 0.7,
         "braced_top_pinned_bottom_fixed": 0.85,

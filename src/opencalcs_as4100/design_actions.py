@@ -18,6 +18,31 @@ _IDEALIZED_END_RESTRAINT_FACTORS = {
     "sway_top_free_bottom_fixed": 2.2,
     "sway_top_fixed_bottom_pinned": 2.2,
 }
+_BETA_M_FIGURE_CASES = {
+    "figure_a_left_1": -1.0,
+    "figure_a_left_2": 0.2,
+    "figure_a_left_3": 0.6,
+    "figure_a_left_4": -0.5,
+    "figure_a_left_5": 0.2,
+    "figure_a_left_6": 0.2,
+    "figure_a_right_1": -1.0,
+    "figure_a_right_2": 0.5,
+    "figure_a_right_3": 1.0,
+    "figure_a_right_4": 0.4,
+    "figure_a_right_5": 0.0,
+    "figure_a_right_6": 0.5,
+    "figure_b_left_1": -0.4,
+    "figure_b_left_2": 0.1,
+    "figure_b_left_3": 0.7,
+    "figure_b_left_4": -0.5,
+    "figure_b_left_5": -0.2,
+    "figure_b_right_1": -0.5,
+    "figure_b_right_2": -0.1,
+    "figure_b_right_3": 0.3,
+    "figure_b_right_4": -0.4,
+    "figure_b_right_5": -0.1,
+    "figure_b_right_6": 1.0,
+}
 _FRAME_STIFFNESS_MODIFIERS = {
     "braced": {"pinned": 1.5, "rigidly_connected_to_column": 1.0, "fixed": 2.0},
     "sway": {"pinned": 0.5, "rigidly_connected_to_column": 1.0, "fixed": 0.67},
@@ -401,6 +426,7 @@ SCHEMAS = {
             "compression_kn": SIGNED,
             "elastic_buckling_load_kn": POSITIVE,
             "beta_m": {"type": "number", "minimum": -1, "maximum": 1},
+            "beta_m_figure_case": {"enum": [*_BETA_M_FIGURE_CASES, "figure_b_left_6"]},
             "conservative_transverse_beta_m": {"const": True},
             "delta_ct_mm": NONNEGATIVE,
             "delta_cw_mm": POSITIVE,
@@ -1325,15 +1351,26 @@ def run_design_actions(inputs):
         has_conservative_beta = "conservative_transverse_beta_m" in d
         has_delta_ct = "delta_ct_mm" in d
         has_delta_cw = "delta_cw_mm" in d
+        has_figure_beta = "beta_m_figure_case" in d
         if has_delta_ct != has_delta_cw:
             raise ValueError("Clause 4.4.2.2(c) requires both delta_ct_mm and delta_cw_mm.")
-        if has_conservative_beta and (has_delta_ct or "beta_m" in d):
+        if has_conservative_beta and (has_delta_ct or "beta_m" in d or has_figure_beta):
             raise ValueError(
                 "Use the Clause 4.4.2.2(a) route alone; do not combine it with "
-                "beta_m or deflections."
+                "beta_m, a figure case or deflections."
             )
-        if has_delta_ct and "beta_m" in d:
-            raise ValueError("Supply beta_m or the Clause 4.4.2.2(c) deflections, not both.")
+        if has_delta_ct and ("beta_m" in d or has_figure_beta):
+            raise ValueError(
+                "Supply beta_m or a figure case, or the Clause 4.4.2.2(c) deflections, not both."
+            )
+        symbolic_figure_beta = has_figure_beta and d["beta_m_figure_case"] == "figure_b_left_6"
+        if symbolic_figure_beta and "beta_m" not in d:
+            raise ValueError(
+                "Figure B left row 6 requires beta_m because the figure gives beta_m = beta."
+            )
+        if has_figure_beta and "beta_m" in d and not symbolic_figure_beta:
+            raise ValueError("A numeric figure case cannot be combined with a separate beta_m.")
+        beta_m_figure_reference = None
         if has_delta_ct:
             beta_m = 1 - 2 * d["delta_ct_mm"] / d["delta_cw_mm"]
             if not -1 <= beta_m <= 1:
@@ -1344,6 +1381,15 @@ def run_design_actions(inputs):
         elif has_conservative_beta:
             beta_m = -1.0
             beta_m_method = "4.4.2.2(a)_conservative_transverse_load"
+        elif has_figure_beta:
+            if symbolic_figure_beta:
+                beta_m = d["beta_m"]
+                beta_m_method = "4.4.2.2_figure_symbolic_beta"
+            else:
+                beta_m = _BETA_M_FIGURE_CASES[d["beta_m_figure_case"]]
+                beta_m_method = "4.4.2.2_figure_lookup"
+            figure = "A" if d["beta_m_figure_case"].startswith("figure_a_") else "B"
+            beta_m_figure_reference = f"Figure 4.4.2.2({figure})"
         elif "beta_m" in d:
             beta_m = d["beta_m"]
             beta_m_method = "supplied"
@@ -1374,6 +1420,8 @@ def run_design_actions(inputs):
                 beta_clause = "4.4.2.2(a)"
             elif has_delta_ct:
                 beta_clause = "4.4.2.2(c)"
+            elif has_figure_beta:
+                beta_clause = "4.4.2.2"
             else:
                 beta_clause = "4.4.2.2"
             clauses.extend(["4.4.1.2", beta_clause])
@@ -1394,6 +1442,8 @@ def run_design_actions(inputs):
             {
                 "beta_m": beta_m,
                 "beta_m_method": beta_m_method,
+                "beta_m_figure_case": d.get("beta_m_figure_case"),
+                "beta_m_figure_reference": beta_m_figure_reference,
                 "delta_ct_mm": d.get("delta_ct_mm"),
                 "delta_cw_mm": d.get("delta_cw_mm"),
                 "cm": cm,

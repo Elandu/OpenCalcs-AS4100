@@ -766,7 +766,7 @@ def test_clause_4_4_2_2_transverse_beta_m_rejects_incomplete_or_inconsistent_inp
         ({"delta_cw_mm": 10}, "requires both delta_ct_mm and delta_cw_mm"),
         (
             {"beta_m": 0.2, "delta_ct_mm": 4, "delta_cw_mm": 10},
-            "Supply beta_m or the Clause 4.4.2.2(c) deflections, not both",
+            "Clause 4.4.2.2(c) deflections, not both",
         ),
         (
             {"conservative_transverse_beta_m": True, "beta_m": 0.2},
@@ -786,6 +786,99 @@ def test_clause_4_4_2_2_transverse_beta_m_rejects_incomplete_or_inconsistent_inp
         with pytest.raises(ValueError) as error:
             run({**base, **changes})
         assert message in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("figure_case", "expected_beta_m"),
+    [
+        ("figure_a_left_1", -1.0),
+        ("figure_a_left_2", 0.2),
+        ("figure_a_left_3", 0.6),
+        ("figure_a_left_4", -0.5),
+        ("figure_a_left_5", 0.2),
+        ("figure_a_left_6", 0.2),
+        ("figure_a_right_1", -1.0),
+        ("figure_a_right_2", 0.5),
+        ("figure_a_right_3", 1.0),
+        ("figure_a_right_4", 0.4),
+        ("figure_a_right_5", 0.0),
+        ("figure_a_right_6", 0.5),
+        ("figure_b_left_1", -0.4),
+        ("figure_b_left_2", 0.1),
+        ("figure_b_left_3", 0.7),
+        ("figure_b_left_4", -0.5),
+        ("figure_b_left_5", -0.2),
+        ("figure_b_right_1", -0.5),
+        ("figure_b_right_2", -0.1),
+        ("figure_b_right_3", 0.3),
+        ("figure_b_right_4", -0.4),
+        ("figure_b_right_5", -0.1),
+        ("figure_b_right_6", 1.0),
+    ],
+)
+def test_clause_4_4_2_2_figure_beta_m_cases(figure_case, expected_beta_m):
+    result = run(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "beta_m_figure_case": figure_case,
+            "first_order_moment_knm": 20,
+        }
+    )
+    values = result["values"]
+    expected_cm = min(1, 0.6 - 0.4 * expected_beta_m)
+    expected_factor = max(1, expected_cm / (1 - 600 / 1000))
+
+    assert values["beta_m"] == pytest.approx(expected_beta_m)
+    assert values["beta_m_figure_case"] == figure_case
+    assert values["beta_m_method"] == "4.4.2.2_figure_lookup"
+    assert values["cm"] == pytest.approx(expected_cm)
+    assert values["braced_factor"] == pytest.approx(expected_factor)
+    assert values["amplified_moment_knm"] == pytest.approx(20 * expected_factor)
+    figure = "A" if figure_case.startswith("figure_a_") else "B"
+    assert values["beta_m_figure_reference"] == f"Figure 4.4.2.2({figure})"
+    assert result["clauses"] == ["4.4.1.2", "4.4.2.2"]
+
+
+def test_clause_4_4_2_2_figure_beta_m_cases_are_exclusive_and_symbolic_requires_beta():
+    base = {
+        "operation": "moment_amplification",
+        "compression_kn": 600,
+        "elastic_buckling_load_kn": 1000,
+        "first_order_moment_knm": 20,
+    }
+    for extra in (
+        {"beta_m": 0.2},
+        {"delta_ct_mm": 4, "delta_cw_mm": 10},
+        {"conservative_transverse_beta_m": True},
+    ):
+        with pytest.raises(ValueError):
+            run({**base, "beta_m_figure_case": "figure_a_left_2", **extra})
+    with pytest.raises(ValueError, match="requires beta_m"):
+        run({**base, "beta_m_figure_case": "figure_b_left_6"})
+
+
+def test_clause_4_4_2_2_figure_b_left_row_6_uses_supplied_symbolic_beta():
+    result = run(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "beta_m_figure_case": "figure_b_left_6",
+            "beta_m": 0.3,
+            "first_order_moment_knm": 20,
+        }
+    )
+    values = result["values"]
+
+    assert values["beta_m"] == pytest.approx(0.3)
+    assert values["beta_m_method"] == "4.4.2.2_figure_symbolic_beta"
+    assert values["beta_m_figure_reference"] == "Figure 4.4.2.2(B)"
+    assert values["cm"] == pytest.approx(0.48)
+    assert values["braced_factor"] == pytest.approx(1.2)
+    assert values["amplified_moment_knm"] == pytest.approx(24)
+    assert result["clauses"] == ["4.4.1.2", "4.4.2.2"]
 
 
 @pytest.mark.parametrize("axial_force_kn", [0, -50])
