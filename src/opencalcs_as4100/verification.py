@@ -3628,6 +3628,32 @@ def verify():
         int("5.9.3" in web_thickness["clauses"]),
         1,
     )
+    web_panel_geometry = run_webs(
+        {
+            "operation": "web_panel_geometry",
+            "web_longitudinal_extent_mm": 3000,
+            "clear_web_depth_mm": 600,
+            "web_length_panel_boundaries_mm": [600, 1800],
+            "web_depth_panel_boundaries_mm": [200],
+            "web_panel_geometry_verified": True,
+            "web_panel_geometry_evidence_reference": "VERIFY-WEB-PANEL-01",
+        }
+    )
+    record(
+        "Clause 5.9.2 orthogonal clear-boundary panel count, hand geometry",
+        web_panel_geometry["values"]["panel_count"],
+        6,
+    )
+    record(
+        "Clause 5.9.2 greatest longitudinal panel dimension, hand geometry",
+        web_panel_geometry["values"]["maximum_d_p_mm"],
+        1200,
+    )
+    record(
+        "Clause 5.9.2 greatest clear transverse panel dimension, hand geometry",
+        web_panel_geometry["values"]["maximum_d_1_mm"],
+        400,
+    )
     plastic_hinge_web = run_webs(
         {
             "operation": "web_minimum_thickness",

@@ -367,6 +367,31 @@ _TRANSVERSE_STIFFENER_BUCKLING_GEOMETRY_SCHEMA = object_schema(
 )
 
 SCHEMAS = {
+    "web_panel_geometry": object_schema(
+        {
+            "operation": {"const": "web_panel_geometry"},
+            "web_longitudinal_extent_mm": POSITIVE,
+            "clear_web_depth_mm": POSITIVE,
+            "web_length_panel_boundaries_mm": {
+                "type": "array",
+                "items": POSITIVE,
+                "maxItems": 99,
+                "uniqueItems": True,
+            },
+            "web_depth_panel_boundaries_mm": {
+                "type": "array",
+                "items": POSITIVE,
+                "maxItems": 99,
+                "uniqueItems": True,
+            },
+            "web_panel_geometry_verified": {"const": True},
+            "web_panel_geometry_evidence_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+        }
+    ),
     "web_minimum_thickness": _web_minimum_thickness_schema(),
     "web_opening_geometry": object_schema(
         {
@@ -1043,6 +1068,84 @@ def _web_opening_shear_design(d):
 def run_webs(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
+    if op == "web_panel_geometry":
+        longitudinal_extent = d["web_longitudinal_extent_mm"]
+        clear_depth = d["clear_web_depth_mm"]
+        if not d["web_panel_geometry_evidence_reference"].strip():
+            raise ValueError("web_panel_geometry_evidence_reference must not be blank.")
+
+        def segments(extent, stations, field):
+            if any(station >= extent for station in stations):
+                raise ValueError(f"{field} must be internal to its web dimension.")
+            if any(
+                first >= second for first, second in zip(stations[:-1], stations[1:], strict=True)
+            ):
+                raise ValueError(f"{field} must be strictly increasing.")
+            limits = [0, *stations, extent]
+            return list(zip(limits[:-1], limits[1:], strict=True))
+
+        longitudinal_segments = segments(
+            longitudinal_extent,
+            d["web_length_panel_boundaries_mm"],
+            "web_length_panel_boundaries_mm",
+        )
+        depth_segments = segments(
+            clear_depth,
+            d["web_depth_panel_boundaries_mm"],
+            "web_depth_panel_boundaries_mm",
+        )
+        panels = [
+            {
+                "panel_id": f"WP-{length_index + 1}-{depth_index + 1}",
+                "web_length_start_mm": length_start,
+                "web_length_end_mm": length_end,
+                "clear_depth_start_mm": depth_start,
+                "clear_depth_end_mm": depth_end,
+                "d_p_mm": length_end - length_start,
+                "d_1_mm": depth_end - depth_start,
+            }
+            for length_index, (length_start, length_end) in enumerate(longitudinal_segments)
+            for depth_index, (depth_start, depth_end) in enumerate(depth_segments)
+        ]
+        governing_dp_panel = max(panels, key=lambda panel: panel["d_p_mm"])
+        governing_d1_panel = max(panels, key=lambda panel: panel["d_1_mm"])
+        return result(
+            op,
+            ["5.9.2"],
+            {
+                "web_longitudinal_extent_mm": longitudinal_extent,
+                "clear_web_depth_mm": clear_depth,
+                "web_length_panel_boundaries_mm": d["web_length_panel_boundaries_mm"],
+                "web_depth_panel_boundaries_mm": d["web_depth_panel_boundaries_mm"],
+                "longitudinal_panel_dimensions_mm": [
+                    end - start for start, end in longitudinal_segments
+                ],
+                "clear_transverse_panel_dimensions_mm": [
+                    end - start for start, end in depth_segments
+                ],
+                "maximum_d_p_mm": max(panel["d_p_mm"] for panel in panels),
+                "maximum_d_1_mm": max(panel["d_1_mm"] for panel in panels),
+                "maximum_d_p_panel_id": governing_dp_panel["panel_id"],
+                "maximum_d_1_panel_id": governing_d1_panel["panel_id"],
+                "panel_count": len(panels),
+                "panels": panels,
+                "web_panel_geometry_verified": d["web_panel_geometry_verified"],
+                "web_panel_geometry_evidence_reference": d[
+                    "web_panel_geometry_evidence_reference"
+                ].strip(),
+            },
+            [
+                {
+                    "clause": "5.9.2 panel dimensions from verified clear boundary stations",
+                    "satisfied": d["web_panel_geometry_verified"],
+                }
+            ],
+            [
+                "Boundary stations are measured to clear panel edges, not stiffener centre-lines. "
+                "Only orthogonal boundaries spanning the full web extent or depth are represented. "
+                "Confirm stiffener extents, free edges, and openings against referenced geometry."
+            ],
+        )
     if op == "web_opening_shear_design":
         return _web_opening_shear_design(d)
     if op == "web_minimum_thickness":

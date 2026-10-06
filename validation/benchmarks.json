@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.57",
+  "package_version": "0.7.58",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2275,6 +2275,27 @@
       "name": "Clause 5.9.3 parent minimum-thickness provision is traced",
       "actual": 1,
       "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.9.2 orthogonal clear-boundary panel count, hand geometry",
+      "actual": 6,
+      "expected": 6,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.9.2 greatest longitudinal panel dimension, hand geometry",
+      "actual": 1200,
+      "expected": 1200,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.9.2 greatest clear transverse panel dimension, hand geometry",
+      "actual": 400,
+      "expected": 400,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

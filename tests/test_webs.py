@@ -55,6 +55,61 @@ def minimum_web_thickness(design_case="unstiffened", **changes):
     return run(inputs)
 
 
+def web_panel_geometry(**changes):
+    inputs = {
+        "operation": "web_panel_geometry",
+        "web_longitudinal_extent_mm": 3000,
+        "clear_web_depth_mm": 600,
+        "web_length_panel_boundaries_mm": [600, 1800],
+        "web_depth_panel_boundaries_mm": [200],
+        "web_panel_geometry_verified": True,
+        "web_panel_geometry_evidence_reference": "drawing WEB-01, revision C",
+    }
+    return run(inputs | changes)
+
+
+def test_clause_5_9_2_derives_panel_dimensions_from_clear_boundary_stations():
+    output = web_panel_geometry()
+    values = output["values"]
+    assert output["clauses"] == ["5.9.2"]
+    assert values["longitudinal_panel_dimensions_mm"] == [600, 1200, 1200]
+    assert values["clear_transverse_panel_dimensions_mm"] == [200, 400]
+    assert values["maximum_d_p_mm"] == 1200
+    assert values["maximum_d_1_mm"] == 400
+    assert values["maximum_d_p_panel_id"] == "WP-2-1"
+    assert values["maximum_d_1_panel_id"] == "WP-1-2"
+    assert values["panel_count"] == 6
+    assert values["panels"][0] == {
+        "panel_id": "WP-1-1",
+        "web_length_start_mm": 0,
+        "web_length_end_mm": 600,
+        "clear_depth_start_mm": 0,
+        "clear_depth_end_mm": 200,
+        "d_p_mm": 600,
+        "d_1_mm": 200,
+    }
+    assert output["checked_conditions_satisfied"]
+
+
+def test_clause_5_9_2_accepts_one_panel_and_rejects_invalid_boundary_stations():
+    one_panel = web_panel_geometry(
+        web_length_panel_boundaries_mm=[],
+        web_depth_panel_boundaries_mm=[],
+    )
+    assert one_panel["values"]["panel_count"] == 1
+    assert one_panel["values"]["maximum_d_p_mm"] == 3000
+    assert one_panel["values"]["maximum_d_1_mm"] == 600
+
+    with pytest.raises(ValueError, match="strictly increasing"):
+        web_panel_geometry(web_length_panel_boundaries_mm=[1800, 600])
+    with pytest.raises(ValueError, match="internal to its web dimension"):
+        web_panel_geometry(web_depth_panel_boundaries_mm=[600])
+    with pytest.raises(ValueError, match="Invalid input"):
+        web_panel_geometry(web_panel_geometry_verified=False)
+    with pytest.raises(ValueError, match="must not be blank"):
+        web_panel_geometry(web_panel_geometry_evidence_reference=" ")
+
+
 @pytest.mark.parametrize(
     "edge_condition,denominator",
     [("both_flange_bounded", 180), ("one_longitudinal_edge_free", 90)],

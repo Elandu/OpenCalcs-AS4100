@@ -5,12 +5,13 @@ operations compare supplied geometry with Clause 5.10 limits. The opening shear
 operation also checks shear and whole-section shear/bending resistance using evidenced
 opening-area and rational-analysis inputs; it does not perform that analysis.
 
-`web_minimum_thickness` also records Clause 5.9.3 for each prescriptive route.
-Verify web-panel boundaries and dimensions under Clause 5.9.2; a lower thickness
-supported by rational analysis is assessed separately.
+`web_panel_geometry` derives the Clause 5.9.2 panel dimensions from verified clear
+boundary stations. `web_minimum_thickness` records Clause 5.9.3 for each prescriptive
+route; a lower thickness supported by rational analysis is assessed separately.
 
 | Operation | Calculated provisions | Required assessment |
 | --- | --- | --- |
+| `web_panel_geometry` | 5.9.2 longitudinal panel dimension `dp`, clear transverse dimension `d1`, panel list and maximum dimensions from an orthogonal boundary grid | Supply complete web extents and internal boundary stations measured to clear panel edges. Verify that every boundary is continuous across the full web extent or depth and that free edges/openings are represented. The operation does not authenticate the referenced drawing. |
 | `web_minimum_thickness` with `design_case=unstiffened` | 5.10.1 minimum thickness for a web bounded by flanges or with one longitudinal free edge | Verify web depth, yield stress, edge condition and thickness. A lesser thickness based on rational analysis is outside this operation. |
 | `web_minimum_thickness` with `design_case=transversely_stiffened` | 5.10.4 thickness bands based on stiffener spacing; applies 5.10.1 when `s/dp > 3` | Verify clear web depth, greatest panel depth and transverse stiffener spacing. Longitudinal stiffeners are not included in this case. |
 | `web_minimum_thickness` with `design_case=longitudinal_and_transverse` | 5.10.5 thickness bands for longitudinal stiffeners at `0.2 d2`, with the additional neutral-axis stiffener limit | Verify the stiffener layout and `d2`, which is twice the distance from the neutral axis to the compression flange. The operation does not check stiffener strength or attachment. |
