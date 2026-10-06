@@ -2985,6 +2985,102 @@ def verify():
         bearing_dispersion["values"]["bearing_width_at_neutral_axis_mm"],
         260,
     )
+    rhs_bearing_bending_inputs = {
+        "operation": "rhs_bearing_bending",
+        "bearing_action_kn": 50,
+        "design_bearing_capacity_kn": 100,
+        "bearing_capacity_5_13_2_verified": True,
+        "bearing_capacity_5_13_2_reference": "Independent Clause 5.13.2 hand calculation",
+        "moment_action_knm": 5,
+        "design_moment_capacity_knm": 10,
+        "moment_capacity_5_2_verified": True,
+        "moment_capacity_5_2_reference": "Independent Clause 5.2 hand calculation",
+        "stiff_bearing_length_mm": 200,
+        "section_width_mm": 200,
+        "clear_web_depth_mm": 300,
+        "web_thickness_mm": 10,
+        "section_form_to_as_nzs_1163_verified": True,
+        "section_form_evidence_reference": "AS/NZS 1163 RHS independent product check",
+        "section_geometry_verified": True,
+        "section_geometry_evidence_reference": "Independent RHS drawing dimensions",
+    }
+    rhs_bearing_bending = run_webs(rhs_bearing_bending_inputs)
+    record(
+        "Clause 5.13.5 inclusive branch limits bs/b=1 and d1/tw=30",
+        rhs_bearing_bending["values"]["interaction"],
+        1.2 * (50 / 100) + (5 / 10),
+    )
+    record(
+        "Clause 5.13.5 wider-bearing/compact-web limit",
+        rhs_bearing_bending["values"]["limit"],
+        1.5,
+    )
+    record(
+        "Clause 5.13.5 Clause 5.13.2 bearing utilization",
+        rhs_bearing_bending["values"]["bearing_utilisation"],
+        50 / 100,
+    )
+    record(
+        "Clause 5.13.5 Clause 5.2 moment utilization",
+        rhs_bearing_bending["values"]["moment_utilisation"],
+        5 / 10,
+    )
+    rhs_wide_interaction_boundary = run_webs(
+        rhs_bearing_bending_inputs | {"bearing_action_kn": 100, "moment_action_knm": 3}
+    )
+    record(
+        "Clause 5.13.5 wider-bearing interaction equality accepted",
+        int(rhs_wide_interaction_boundary["checked_conditions_satisfied"]),
+        1,
+    )
+    rhs_wide_interaction_failure = run_webs(
+        rhs_bearing_bending_inputs | {"bearing_action_kn": 100, "moment_action_knm": 3.01}
+    )
+    record(
+        "Clause 5.13.5 wider-bearing interaction above limit rejected",
+        int(rhs_wide_interaction_failure["checked_conditions_satisfied"]),
+        0,
+    )
+    rhs_bearing_bending_otherwise = run_webs(
+        rhs_bearing_bending_inputs | {"stiff_bearing_length_mm": 199}
+    )
+    record(
+        "Clause 5.13.5 otherwise branch for bs/b below 1",
+        rhs_bearing_bending_otherwise["values"]["interaction"],
+        0.8 * (50 / 100) + (5 / 10),
+    )
+    record(
+        "Clause 5.13.5 otherwise branch limit",
+        rhs_bearing_bending_otherwise["values"]["limit"],
+        1.0,
+    )
+    rhs_otherwise_interaction_boundary = run_webs(
+        rhs_bearing_bending_inputs | {"stiff_bearing_length_mm": 199, "moment_action_knm": 6}
+    )
+    record(
+        "Clause 5.13.5 otherwise interaction equality accepted",
+        int(rhs_otherwise_interaction_boundary["checked_conditions_satisfied"]),
+        1,
+    )
+    rhs_otherwise_interaction_failure = run_webs(
+        rhs_bearing_bending_inputs | {"stiff_bearing_length_mm": 199, "moment_action_knm": 6.01}
+    )
+    record(
+        "Clause 5.13.5 otherwise interaction above limit rejected",
+        int(rhs_otherwise_interaction_failure["checked_conditions_satisfied"]),
+        0,
+    )
+    rhs_bearing_bending_slender = run_webs(rhs_bearing_bending_inputs | {"clear_web_depth_mm": 301})
+    record(
+        "Clause 5.13.5 otherwise branch for d1/tw above 30",
+        rhs_bearing_bending_slender["values"]["interaction"],
+        0.8 * (50 / 100) + (5 / 10),
+    )
+    record(
+        "Clause 5.13.5 independent resistance prerequisites pass",
+        int(rhs_bearing_bending["checked_conditions_satisfied"]),
+        1,
+    )
     torsional_stiffener = run_webs(
         {
             "operation": "load_bearing_stiffener",

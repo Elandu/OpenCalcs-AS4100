@@ -497,18 +497,75 @@ def test_rhs_bearing_bending_two_branches_and_individual_failure():
         "operation": "rhs_bearing_bending",
         "bearing_action_kn": 50,
         "design_bearing_capacity_kn": 100,
+        "bearing_capacity_5_13_2_verified": True,
+        "bearing_capacity_5_13_2_reference": "Clause 5.13.2 independent capacity check",
         "moment_action_knm": 5,
         "design_moment_capacity_knm": 10,
+        "moment_capacity_5_2_verified": True,
+        "moment_capacity_5_2_reference": "Clause 5.2 independent capacity check",
         "stiff_bearing_length_mm": 200,
         "section_width_mm": 200,
         "clear_web_depth_mm": 200,
         "web_thickness_mm": 10,
+        "section_form_to_as_nzs_1163_verified": True,
+        "section_form_evidence_reference": "AS/NZS 1163 RHS member drawing",
+        "section_geometry_verified": True,
+        "section_geometry_evidence_reference": "RHS section dimensions from member drawing",
     }
-    assert run(d)["values"]["interaction"] == pytest.approx(1.1)
-    d["stiff_bearing_length_mm"] = 199
-    assert run(d)["values"]["interaction"] == pytest.approx(0.9)
-    d["bearing_action_kn"] = 101
-    assert not run(d)["checked_conditions_satisfied"]
+    wide = run(d)
+    assert wide["values"]["bearing_utilisation"] == pytest.approx(0.5)
+    assert wide["values"]["moment_utilisation"] == pytest.approx(0.5)
+    assert wide["values"]["interaction"] == pytest.approx(1.1)
+    assert wide["values"]["limit"] == 1.5
+    assert wide["values"]["equation_route"] == "wide_bearing_compact_web"
+    assert wide["clauses"] == ["5.2", "5.13.2", "5.13.5"]
+    assert wide["checked_conditions_satisfied"]
+
+    # Both qualifying bounds are inclusive: bs/b = 1 and d1/tw = 30.
+    boundary = run(d | {"clear_web_depth_mm": 300})
+    assert boundary["values"]["equation_route"] == "wide_bearing_compact_web"
+    assert boundary["values"]["interaction"] == pytest.approx(1.1)
+
+    narrow_bearing = run(d | {"stiff_bearing_length_mm": 199})
+    assert narrow_bearing["values"]["interaction"] == pytest.approx(0.9)
+    assert narrow_bearing["values"]["limit"] == 1.0
+    assert narrow_bearing["values"]["equation_route"] == "otherwise"
+
+    wide_interaction_boundary = run(d | {"bearing_action_kn": 100, "moment_action_knm": 3})
+    assert wide_interaction_boundary["values"]["interaction"] == pytest.approx(1.5)
+    assert wide_interaction_boundary["checked_conditions_satisfied"]
+    wide_interaction_failure = run(d | {"bearing_action_kn": 100, "moment_action_knm": 3.01})
+    assert wide_interaction_failure["checks"][1]["satisfied"]
+    assert wide_interaction_failure["checks"][2]["satisfied"]
+    assert not wide_interaction_failure["checks"][3]["satisfied"]
+
+    otherwise_interaction_boundary = run(
+        d | {"stiff_bearing_length_mm": 199, "moment_action_knm": 6}
+    )
+    assert otherwise_interaction_boundary["values"]["interaction"] == pytest.approx(1.0)
+    assert otherwise_interaction_boundary["checked_conditions_satisfied"]
+    otherwise_interaction_failure = run(
+        d | {"stiff_bearing_length_mm": 199, "moment_action_knm": 6.01}
+    )
+    assert not otherwise_interaction_failure["checks"][3]["satisfied"]
+
+    slender_web = run(d | {"clear_web_depth_mm": 301})
+    assert slender_web["values"]["equation_route"] == "otherwise"
+    assert slender_web["values"]["interaction"] == pytest.approx(0.9)
+
+    bearing_capacity_failure = run(d | {"bearing_action_kn": 101})
+    assert not bearing_capacity_failure["checked_conditions_satisfied"]
+    assert not bearing_capacity_failure["checks"][1]["satisfied"]
+    moment_capacity_failure = run(d | {"moment_action_knm": 10.1})
+    assert not moment_capacity_failure["checked_conditions_satisfied"]
+    assert not moment_capacity_failure["checks"][2]["satisfied"]
+
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(d | {"section_form_to_as_nzs_1163_verified": False})
+    with pytest.raises(ValueError, match="must not be blank"):
+        run(d | {"bearing_capacity_5_13_2_reference": "   "})
+    with pytest.raises(ValueError, match="must not be blank"):
+        run(d | {"section_geometry_evidence_reference": "   "})
 
 
 def load_bearing_stiffener(**changes):

@@ -794,12 +794,20 @@ SCHEMAS = {
             "operation": {"const": "rhs_bearing_bending"},
             "bearing_action_kn": NONNEGATIVE,
             "design_bearing_capacity_kn": POSITIVE,
+            "bearing_capacity_5_13_2_verified": {"const": True},
+            "bearing_capacity_5_13_2_reference": {"type": "string", "minLength": 1},
             "moment_action_knm": NONNEGATIVE,
             "design_moment_capacity_knm": POSITIVE,
+            "moment_capacity_5_2_verified": {"const": True},
+            "moment_capacity_5_2_reference": {"type": "string", "minLength": 1},
             "stiff_bearing_length_mm": POSITIVE,
             "section_width_mm": POSITIVE,
             "clear_web_depth_mm": POSITIVE,
             "web_thickness_mm": POSITIVE,
+            "section_form_to_as_nzs_1163_verified": {"const": True},
+            "section_form_evidence_reference": {"type": "string", "minLength": 1},
+            "section_geometry_verified": {"const": True},
+            "section_geometry_evidence_reference": {"type": "string", "minLength": 1},
         }
     ),
 }
@@ -1455,24 +1463,68 @@ def run_webs(inputs):
             ],
         )
     if op == "rhs_bearing_bending":
+        evidence_fields = (
+            "bearing_capacity_5_13_2_reference",
+            "moment_capacity_5_2_reference",
+            "section_form_evidence_reference",
+            "section_geometry_evidence_reference",
+        )
+        for field in evidence_fields:
+            if not d[field].strip():
+                raise ValueError(f"{field} must not be blank.")
         rr = d["bearing_action_kn"] / d["design_bearing_capacity_kn"]
         mr = d["moment_action_knm"] / d["design_moment_capacity_knm"]
-        wide = d["stiff_bearing_length_mm"] >= d["section_width_mm"] and (
-            d["clear_web_depth_mm"] / d["web_thickness_mm"] <= 30
-        )
+        width_ratio = d["stiff_bearing_length_mm"] / d["section_width_mm"]
+        depth_thickness_ratio = d["clear_web_depth_mm"] / d["web_thickness_mm"]
+        wide = width_ratio >= 1.0 and depth_thickness_ratio <= 30.0
         value, limit = (1.2 * rr + mr, 1.5) if wide else (0.8 * rr + mr, 1.0)
+        route = "wide_bearing_compact_web" if wide else "otherwise"
         return result(
             op,
-            ["5.13.5"],
-            {"interaction": value, "limit": limit},
+            ["5.2", "5.13.2", "5.13.5"],
+            {
+                "bearing_utilisation": rr,
+                "moment_utilisation": mr,
+                "bearing_length_to_section_width_ratio": width_ratio,
+                "clear_web_depth_to_thickness_ratio": depth_thickness_ratio,
+                "interaction": value,
+                "limit": limit,
+                "equation_route": route,
+                "design_bearing_capacity_kn": d["design_bearing_capacity_kn"],
+                "design_moment_capacity_knm": d["design_moment_capacity_knm"],
+                "bearing_capacity_5_13_2_reference": d["bearing_capacity_5_13_2_reference"].strip(),
+                "moment_capacity_5_2_reference": d["moment_capacity_5_2_reference"].strip(),
+                "section_form_evidence_reference": d["section_form_evidence_reference"].strip(),
+                "section_geometry_evidence_reference": d[
+                    "section_geometry_evidence_reference"
+                ].strip(),
+            },
             [
                 {
-                    "clause": "5.13.5",
+                    "clause": "5.13.5 section form, geometry and capacity evidence",
+                    "satisfied": True,
+                },
+                {
+                    "clause": "5.13.2 bearing resistance",
+                    "satisfied": rr <= 1,
+                    "utilisation": rr,
+                },
+                {
+                    "clause": "5.2 bending resistance",
+                    "satisfied": mr <= 1,
+                    "utilisation": mr,
+                },
+                {
+                    "clause": "5.13.5 combined bearing and bending",
                     "satisfied": rr <= 1 and mr <= 1 and value <= limit,
                     "utilisation": max(rr, mr, value / limit),
                 },
             ],
-            ["AS/NZS 1163 RHS/SHS only; separate section moment and bearing capacities required."],
+            [
+                "AS/NZS 1163 RHS/SHS only. The supplied design capacities must already "
+                "include their capacity factors; this operation does not calculate or "
+                "authenticate the Clause 5.2 or 5.13.2 capacities.",
+            ],
         )
     if op == "load_bearing_stiffener":
         fy = min(d["web_yield_mpa"], d["stiffener_yield_mpa"])

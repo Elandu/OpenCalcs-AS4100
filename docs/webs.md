@@ -19,6 +19,7 @@ supported by rational analysis is assessed separately.
 | `web_opening_shear_design` | 5.10.7 qualifying unstiffened opening geometry; 5.11.1–5.11.5 web shear resistance using the supplied opening web area, panel dimensions and verified maximum/average shear-stress ratio; 5.12.3 whole-section shear/bending interaction | Provide a verified web-area basis and referenced rational elastic analysis for the supplied maximum and average design shear stresses. Check adjacent-opening spacing and all geometry. The operation does not perform or authenticate the analysis and does not calculate local opening bending/bearing resistance; stiffened or castellated openings remain outside this route. |
 | `load_bearing_stiffener_requirement` | 5.10.2 load-bearing stiffener trigger when a design bearing force exceeds the design capacity of the web alone, or an end post is required | Supply the design web bearing capacity from 5.13.2 and assess the end-post trigger under 5.15.2.2. Stiffener resistance, detailing and force transfer remain separate checks. |
 | `load_bearing_stiffener_attachment` | 5.14.4 flange fit or flange-to-stiffener transfer, both-flange provision at a support, and force transfer from the stiffener to the web | Supply capacities from the applicable Clause 9 checks and verify the flange fit and connection arrangement against the details. |
+| `rhs_bearing_bending` | 5.2 and 5.13.2 individual design-capacity comparisons; 5.13.5 combined bending and bearing interaction for rectangular/square hollow sections to AS/NZS 1163 | Verify and reference the section form and its geometry separately, the Clause 5.2 design moment capacity and the Clause 5.13.2 design bearing capacity. Supply capacities with capacity factors already included. |
 | `transverse_stiffener` | 5.15.2.1 interior-panel spacing via 5.10.4/5.10.5; 5.15.3–5.15.4 area and buckling checks with supplied capacities or geometry-derived 5.11.2/5.11.5 and 5.14.2 capacities (`le=d1`); 5.15.8 web-connection shear per unit length when no external stiffener actions apply | Verify panel geometry and stiffener layout. For calculated capacities, supply the effective-section radius of gyration and available web widths. Otherwise supply the nominal capacities and shear buckling coefficient. Supply a verified design connection capacity per unit length from the relevant Clause 9 checks. For 5.10.5, supply `d2` and state whether a neutral-axis stiffener set is present. Use `end_panel_design` for the reduced end-panel alternative. |
 | `end_panel_design` | 5.15.2.2 reduced-width end-panel alternative, using 5.11.1 shear capacity and 5.12 shear/bending interaction with `alpha_d=1.0` | Verify original and reduced panel widths, web geometry and stress ratio. Supply concurrent shear/moment actions and the section moment capacity. The alternative end-post route is handled by `end_post_design`. |
 | `end_post_design` | 5.15.2.2 end-post alternative, linked 5.14.1–5.14.4 stiffener resistance and attachment checks, optional 5.14.5 torsional restraint, and 5.15.9 end-plate area | Supply the governing bearing reaction, web bearing yield resistance, effective section properties, restraint and connection capacities. Verify that the stiffener is no smaller than the end plate. End-plate connection design and geometry remain separate Section 9 checks. |
@@ -32,6 +33,14 @@ spread to the neutral axis. The caller must verify that the geometry matches
 Figure 5.13.1.1; assessed bearing widths remain accepted for cases where the
 dispersion has already been established. RHS/SHS bearing dispersion is calculated
 from its Clause 5.13.3 geometry inputs.
+
+`rhs_bearing_bending` checks the two Clause 5.13.5 interaction branches, selecting
+the wider-bearing/compact-web expression only when both `bs/b >= 1.0` and
+`d1/tw <= 30`; equality is included in that branch. It separately checks the
+supplied design bearing and moment capacities under Clauses 5.13.2 and 5.2.
+The capacities must already include their capacity factors. The AS/NZS 1163 section
+form, dimensions and both capacity derivations are separately evidence-gated by
+nonblank references; the operation does not derive or authenticate them.
 
 `transverse_stiffener` checks the interior-panel web-thickness condition under
 5.15.2.1 by selecting the 5.10.4 or 5.10.5 route from the declared longitudinal-

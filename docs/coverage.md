@@ -149,6 +149,13 @@ the remainder of Section 14.
 described in [its family note](erection.md). It does not cover the remainder
 of Section 15.
 
+`webs.rhs_bearing_bending` evaluates the Clause 5.13.5 branch for RHS/SHS to
+AS/NZS 1163 and performs the separate Clause 5.2 and 5.13.2 action-to-capacity
+comparisons. Its section applicability, geometry, and supplied design capacities
+require verified evidence references; their derivation and authentication remain
+outside this operation. Capacity factors must already be included in the supplied
+design capacities.
+
 Appendix B deflection suggestions are available in `testing`; they are
 informative and require a project-selected serviceability limit. No numerical
 coverage in a Section should be read as coverage of every clause in that

@@ -2041,6 +2041,90 @@
       "passed": true
     },
     {
+      "name": "Clause 5.13.5 inclusive branch limits bs/b=1 and d1/tw=30",
+      "actual": 1.1,
+      "expected": 1.1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 wider-bearing/compact-web limit",
+      "actual": 1.5,
+      "expected": 1.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 Clause 5.13.2 bearing utilization",
+      "actual": 0.5,
+      "expected": 0.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 Clause 5.2 moment utilization",
+      "actual": 0.5,
+      "expected": 0.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 wider-bearing interaction equality accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 wider-bearing interaction above limit rejected",
+      "actual": 0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 otherwise branch for bs/b below 1",
+      "actual": 0.9,
+      "expected": 0.9,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 otherwise branch limit",
+      "actual": 1.0,
+      "expected": 1.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 otherwise interaction equality accepted",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 otherwise interaction above limit rejected",
+      "actual": 0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 otherwise branch for d1/tw above 30",
+      "actual": 0.9,
+      "expected": 0.9,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.5 independent resistance prerequisites pass",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 5.14.5 stiffener-pair minimum inertia, bounded factor and hand arithmetic",
       "actual": 62500.0,
       "expected": 62500,
