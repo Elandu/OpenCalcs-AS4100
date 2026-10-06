@@ -3344,7 +3344,7 @@ def clause_5_10_web_geometry():
             "web_thickness_mm": 5,
             "web_yield_mpa": 250,
             "stiffener_spacing_mm": 1000,
-            "greatest_panel_depth_mm": 1000,
+            "greatest_panel_longitudinal_dimension_mm": 1000,
             "stiffener_layout_verified": True,
         }
     )

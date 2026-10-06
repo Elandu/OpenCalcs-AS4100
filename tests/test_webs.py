@@ -27,7 +27,7 @@ def minimum_web_thickness(design_case="unstiffened", **changes):
         inputs.update(
             {
                 "stiffener_spacing_mm": 1000,
-                "greatest_panel_depth_mm": 1000,
+                "greatest_panel_longitudinal_dimension_mm": 1000,
                 "stiffener_layout_verified": True,
             }
         )
@@ -51,6 +51,11 @@ def minimum_web_thickness(design_case="unstiffened", **changes):
                 "stiffener_design_5_14_verified": False,
             }
         )
+    if (
+        "greatest_panel_depth_mm" in changes
+        and "greatest_panel_longitudinal_dimension_mm" not in changes
+    ):
+        inputs.pop("greatest_panel_longitudinal_dimension_mm")
     inputs.update(changes)
     return run(inputs)
 
@@ -75,6 +80,7 @@ def test_clause_5_9_2_derives_panel_dimensions_from_clear_boundary_stations():
     assert values["longitudinal_panel_dimensions_mm"] == [600, 1200, 1200]
     assert values["clear_transverse_panel_dimensions_mm"] == [200, 400]
     assert values["maximum_d_p_mm"] == 1200
+    assert values["greatest_panel_longitudinal_dimension_mm"] == 1200
     assert values["maximum_d_1_mm"] == 400
     assert values["maximum_d_p_panel_id"] == "WP-2-1"
     assert values["maximum_d_1_panel_id"] == "WP-1-2"
@@ -154,6 +160,62 @@ def test_clause_5_10_4_long_panels_are_treated_as_unstiffened():
     assert out["values"]["web_treated_as_unstiffened"]
     assert out["values"]["required_web_thickness_mm"] == pytest.approx(1000 / 180)
     assert out["clauses"] == ["5.9.3", "5.10.1", "5.10.4"]
+    assert out["values"]["legacy_panel_dimension_alias_used"]
+
+
+def test_clause_5_10_4_longitudinal_panel_dimension_can_exceed_clear_web_depth():
+    out = minimum_web_thickness(
+        "transversely_stiffened",
+        clear_web_depth_mm=400,
+        stiffener_spacing_mm=600,
+        greatest_panel_longitudinal_dimension_mm=800,
+    )
+    values = out["values"]
+    assert values["required_web_thickness_mm"] == pytest.approx(2)
+    assert values["greatest_panel_longitudinal_dimension_mm"] == 800
+    assert values["stiffener_spacing_to_clear_web_depth_ratio"] == pytest.approx(1.5)
+    assert values[
+        "stiffener_spacing_to_greatest_panel_longitudinal_dimension_ratio"
+    ] == pytest.approx(0.75)
+    assert not values["legacy_panel_dimension_alias_used"]
+    assert not values["web_treated_as_unstiffened"]
+
+
+@pytest.mark.parametrize(
+    "spacing,treated_as_unstiffened,expected",
+    [(1200, False, 5), (1200.4, True, 1000 / 180)],
+)
+def test_clause_5_10_4_uses_strict_greater_than_three_s_over_dp_boundary(
+    spacing, treated_as_unstiffened, expected
+):
+    out = minimum_web_thickness(
+        "transversely_stiffened",
+        clear_web_depth_mm=1000,
+        stiffener_spacing_mm=spacing,
+        greatest_panel_longitudinal_dimension_mm=400,
+    )
+    values = out["values"]
+    assert values["required_web_thickness_mm"] == pytest.approx(expected)
+    assert values["web_treated_as_unstiffened"] is treated_as_unstiffened
+
+
+def test_clause_5_10_4_rejects_conflicting_canonical_and_legacy_dimensions():
+    with pytest.raises(ValueError, match="must match"):
+        minimum_web_thickness(
+            "transversely_stiffened",
+            greatest_panel_longitudinal_dimension_mm=1000,
+            greatest_panel_depth_mm=900,
+        )
+
+
+def test_clause_5_10_4_fails_closed_for_unlisted_s_over_d1_band():
+    with pytest.raises(ValueError, match="does not give a thickness band"):
+        minimum_web_thickness(
+            "transversely_stiffened",
+            clear_web_depth_mm=400,
+            stiffener_spacing_mm=1201,
+            greatest_panel_longitudinal_dimension_mm=800,
+        )
 
 
 @pytest.mark.parametrize(
@@ -857,6 +919,7 @@ def test_clause_5_15_1_stiffener_termination_gaps_at_four_web_thicknesses():
         "web_panel_depth_mm": 200,
         "web_thickness_mm": 10,
         "panel_spacing_mm": 200,
+        "greatest_panel_longitudinal_dimension_mm": 400,
         "web_area_mm2": 2000,
         "web_yield_mpa": 250,
         "shear_buckling_coefficient": 0.5,
@@ -879,6 +942,10 @@ def test_clause_5_15_1_stiffener_termination_gaps_at_four_web_thicknesses():
         "stiffener_bottom_flange_gap_mm": 40,
         "flange_termination_geometry_verified": True,
     }
+    missing_longitudinal_panel_dimension = dict(inputs)
+    missing_longitudinal_panel_dimension.pop("greatest_panel_longitudinal_dimension_mm")
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(missing_longitudinal_panel_dimension)
     r = run(inputs)
     assert "5.15.1" in r["clauses"]
     assert "5.15.2.1" in r["clauses"]
@@ -886,6 +953,7 @@ def test_clause_5_15_1_stiffener_termination_gaps_at_four_web_thicknesses():
     web_thickness = r["values"]["clause_5_15_2_1_web_thickness_check"]
     assert "5.10.4" in web_thickness["clauses"]
     assert web_thickness["values"]["required_web_thickness_mm"] == 1
+    assert web_thickness["values"]["greatest_panel_longitudinal_dimension_mm"] == 400
     connection_check = {check["clause"]: check for check in r["checks"]}[
         "5.15.8 web-connection shear per unit length"
     ]
@@ -926,6 +994,7 @@ def test_clause_5_15_5_inertia_branches_and_clause_5_15_6_outstand_limit():
         "web_panel_depth_mm": 500,
         "web_thickness_mm": 10,
         "panel_spacing_mm": 500,
+        "greatest_panel_longitudinal_dimension_mm": 500,
         "web_area_mm2": 5000,
         "web_yield_mpa": 250,
         "shear_buckling_coefficient": 0.5,
@@ -1028,6 +1097,7 @@ def test_transverse_stiffener_derives_5_11_and_5_14_2_capacities_from_geometry()
         "web_panel_depth_mm": 1000,
         "web_thickness_mm": 5,
         "panel_spacing_mm": 1000,
+        "greatest_panel_longitudinal_dimension_mm": 1000,
         "web_area_mm2": 5000,
         "web_yield_mpa": 250,
         "stiffener_configuration": "pair",
@@ -1226,6 +1296,7 @@ def test_clause_5_15_7_1_increases_transverse_stiffener_inertia_for_external_act
         "web_panel_depth_mm": 200,
         "web_thickness_mm": 10,
         "panel_spacing_mm": 200,
+        "greatest_panel_longitudinal_dimension_mm": 200,
         "web_area_mm2": 2000,
         "web_yield_mpa": 250,
         "stiffener_configuration": "pair",
@@ -1364,6 +1435,7 @@ def test_clause_5_15_7_1_requires_complete_external_action_inputs():
                 "web_panel_depth_mm": 200,
                 "web_thickness_mm": 10,
                 "panel_spacing_mm": 200,
+                "greatest_panel_longitudinal_dimension_mm": 200,
                 "web_area_mm2": 2000,
                 "web_yield_mpa": 250,
                 "shear_buckling_coefficient": 0.5,

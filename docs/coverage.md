@@ -72,8 +72,14 @@ independently authenticated.
 
 For Clause 5.9.3, `webs.web_minimum_thickness` traces its selected Clause 5.10
 minimum-thickness equation together with the parent panel-thickness provision.
-Clause 5.9.2 panel boundaries and dimensions are verified inputs; the rational-
-analysis alternative for a lesser thickness remains external.
+Clause 5.9.2 panel boundaries and dimensions are verified inputs. Clause 5.10.4
+uses `d_p` for the greatest longitudinal panel dimension and `d_1` for clear
+transverse depth; the supplied `d_p` may exceed the clear web depth. The nested
+5.15.2.1 check requires this value when no longitudinal stiffeners are present.
+The strict `s/d_p > 3` route applies
+5.10.1; `s/d_p = 3` remains in 5.10.4. A combination with `s/d_1 > 3` but
+`s/d_p <= 3` is rejected because 5.10.4 specifies no thickness band for it.
+The rational-analysis alternative for a lesser thickness remains external.
 
 | Section | Calculated or compared in this release | Assessed externally; remaining gaps |
 | --- | --- | --- |

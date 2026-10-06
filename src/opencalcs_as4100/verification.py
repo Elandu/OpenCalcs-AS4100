@@ -3614,7 +3614,7 @@ def verify():
             "web_thickness_mm": 5,
             "web_yield_mpa": 250,
             "stiffener_spacing_mm": 1000,
-            "greatest_panel_depth_mm": 1000,
+            "greatest_panel_longitudinal_dimension_mm": 1000,
             "stiffener_layout_verified": True,
         }
     )
@@ -3622,6 +3622,57 @@ def verify():
         "Clause 5.10.4 transverse web minimum thickness, hand arithmetic",
         web_thickness["values"]["required_web_thickness_mm"],
         5,
+    )
+    long_panel_exceeds_web_depth = run_webs(
+        {
+            "operation": "web_minimum_thickness",
+            "design_case": "transversely_stiffened",
+            "clear_web_depth_mm": 400,
+            "web_thickness_mm": 2,
+            "web_yield_mpa": 250,
+            "stiffener_spacing_mm": 600,
+            "greatest_panel_longitudinal_dimension_mm": 800,
+            "stiffener_layout_verified": True,
+        }
+    )
+    record(
+        "Clause 5.10.4 d_p greater than d_1 uses s/d_1 band, hand arithmetic",
+        long_panel_exceeds_web_depth["values"]["required_web_thickness_mm"],
+        2,
+    )
+    exact_three_ratio = run_webs(
+        {
+            "operation": "web_minimum_thickness",
+            "design_case": "transversely_stiffened",
+            "clear_web_depth_mm": 1000,
+            "web_thickness_mm": 5,
+            "web_yield_mpa": 250,
+            "stiffener_spacing_mm": 1200,
+            "greatest_panel_longitudinal_dimension_mm": 400,
+            "stiffener_layout_verified": True,
+        }
+    )
+    record(
+        "Clause 5.10.4 s/d_p equals 3 remains transversely stiffened",
+        exact_three_ratio["values"]["required_web_thickness_mm"],
+        5,
+    )
+    above_three_ratio = run_webs(
+        {
+            "operation": "web_minimum_thickness",
+            "design_case": "transversely_stiffened",
+            "clear_web_depth_mm": 1000,
+            "web_thickness_mm": 1000 / 180,
+            "web_yield_mpa": 250,
+            "stiffener_spacing_mm": 1204,
+            "greatest_panel_longitudinal_dimension_mm": 400,
+            "stiffener_layout_verified": True,
+        }
+    )
+    record(
+        "Clause 5.10.4 s/d_p above 3 invokes 5.10.1, hand arithmetic",
+        above_three_ratio["values"]["required_web_thickness_mm"],
+        1000 / 180,
     )
     record(
         "Clause 5.9.3 parent minimum-thickness provision is traced",
@@ -3689,6 +3740,7 @@ def verify():
             "web_panel_depth_mm": 1000,
             "web_thickness_mm": 5,
             "panel_spacing_mm": 1000,
+            "greatest_panel_longitudinal_dimension_mm": 1000,
             "web_area_mm2": 5000,
             "web_yield_mpa": 250,
             "stiffener_configuration": "pair",
@@ -4017,6 +4069,7 @@ def verify():
             "web_panel_depth_mm": 200,
             "web_thickness_mm": 10,
             "panel_spacing_mm": 200,
+            "greatest_panel_longitudinal_dimension_mm": 200,
             "web_area_mm2": 2000,
             "web_yield_mpa": 250,
             "shear_buckling_coefficient": 0.5,
@@ -4142,6 +4195,7 @@ def verify():
         "web_panel_depth_mm": 500,
         "web_thickness_mm": 10,
         "panel_spacing_mm": 500,
+        "greatest_panel_longitudinal_dimension_mm": 500,
         "web_area_mm2": 5000,
         "web_yield_mpa": 250,
         "shear_buckling_coefficient": 0.5,

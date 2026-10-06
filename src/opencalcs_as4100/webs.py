@@ -37,6 +37,37 @@ _FLAT_STIFFENER_PLATE_SCHEMA = object_schema(
 
 
 def _web_minimum_thickness_schema():
+    transverse_stiffened = object_schema(
+        {
+            **_WEB_THICKNESS_COMMON,
+            "design_case": {"const": "transversely_stiffened"},
+            "stiffener_spacing_mm": POSITIVE,
+            "greatest_panel_longitudinal_dimension_mm": {
+                **POSITIVE,
+                "description": "Greatest panel dimension along the member; d_p under Clause 5.9.2.",
+            },
+            # Deprecated input alias; use greatest_panel_longitudinal_dimension_mm.
+            "greatest_panel_depth_mm": {
+                **POSITIVE,
+                "deprecated": True,
+                "description": "Deprecated alias for greatest_panel_longitudinal_dimension_mm.",
+            },
+            "stiffener_layout_verified": {"const": True},
+        },
+        [
+            "operation",
+            "design_case",
+            "clear_web_depth_mm",
+            "web_thickness_mm",
+            "web_yield_mpa",
+            "stiffener_spacing_mm",
+            "stiffener_layout_verified",
+        ],
+    )
+    transverse_stiffened["anyOf"] = [
+        {"required": ["greatest_panel_longitudinal_dimension_mm"]},
+        {"required": ["greatest_panel_depth_mm"]},
+    ]
     variants = [
         object_schema(
             {
@@ -46,15 +77,7 @@ def _web_minimum_thickness_schema():
                 "geometry_verified": {"const": True},
             }
         ),
-        object_schema(
-            {
-                **_WEB_THICKNESS_COMMON,
-                "design_case": {"const": "transversely_stiffened"},
-                "stiffener_spacing_mm": POSITIVE,
-                "greatest_panel_depth_mm": POSITIVE,
-                "stiffener_layout_verified": {"const": True},
-            }
-        ),
+        transverse_stiffened,
         object_schema(
             {
                 **_WEB_THICKNESS_COMMON,
@@ -577,6 +600,13 @@ SCHEMAS = {
             "operation": {"const": "transverse_stiffener"},
             "clear_web_depth_mm": POSITIVE,
             "web_panel_depth_mm": POSITIVE,
+            "greatest_panel_longitudinal_dimension_mm": {
+                **POSITIVE,
+                "description": (
+                    "Greatest longitudinal web-panel dimension d_p; "
+                    "may be read from web_panel_geometry."
+                ),
+            },
             "web_thickness_mm": POSITIVE,
             "panel_spacing_mm": POSITIVE,
             "web_area_mm2": POSITIVE,
@@ -667,12 +697,13 @@ SCHEMAS = {
                     ]
                 },
                 "else": {
+                    "required": ["greatest_panel_longitudinal_dimension_mm"],
                     "not": {
                         "anyOf": [
                             {"required": ["longitudinal_stiffener_d2_mm"]},
                             {"required": ["neutral_axis_stiffener_set_present"]},
                         ]
-                    }
+                    },
                 },
             },
             {
@@ -1124,6 +1155,9 @@ def run_webs(inputs):
                     end - start for start, end in depth_segments
                 ],
                 "maximum_d_p_mm": max(panel["d_p_mm"] for panel in panels),
+                "greatest_panel_longitudinal_dimension_mm": max(
+                    panel["d_p_mm"] for panel in panels
+                ),
                 "maximum_d_1_mm": max(panel["d_1_mm"] for panel in panels),
                 "maximum_d_p_panel_id": governing_dp_panel["panel_id"],
                 "maximum_d_1_panel_id": governing_d1_panel["panel_id"],
@@ -1162,34 +1196,53 @@ def run_webs(inputs):
             details = {"edge_condition": d["edge_condition"]}
         elif d["design_case"] == "transversely_stiffened":
             spacing = d["stiffener_spacing_mm"]
-            panel_depth = d["greatest_panel_depth_mm"]
-            if panel_depth > depth:
-                raise ValueError("Greatest panel depth must not exceed the clear web depth.")
-            ratio = spacing / depth
-            if spacing / panel_depth > 3:
+            canonical_panel_length = d.get("greatest_panel_longitudinal_dimension_mm")
+            legacy_panel_length = d.get("greatest_panel_depth_mm")
+            if (
+                canonical_panel_length is not None
+                and legacy_panel_length is not None
+                and canonical_panel_length != legacy_panel_length
+            ):
+                raise ValueError(
+                    "greatest_panel_longitudinal_dimension_mm and its deprecated alias "
+                    "greatest_panel_depth_mm must match when both are supplied."
+                )
+            panel_length = (
+                canonical_panel_length
+                if canonical_panel_length is not None
+                else legacy_panel_length
+            )
+            spacing_to_web_depth_ratio = spacing / depth
+            spacing_to_panel_length_ratio = spacing / panel_length
+            details = {
+                "greatest_panel_longitudinal_dimension_mm": panel_length,
+                "stiffener_spacing_to_clear_web_depth_ratio": spacing_to_web_depth_ratio,
+                "stiffener_spacing_to_greatest_panel_longitudinal_dimension_ratio": (
+                    spacing_to_panel_length_ratio
+                ),
+                "legacy_panel_dimension_alias_used": canonical_panel_length is None,
+                # Keep earlier result names for consumers of releases before 0.7.59.
+                "stiffener_spacing_to_web_depth_ratio": spacing_to_web_depth_ratio,
+                "stiffener_spacing_to_panel_depth_ratio": spacing_to_panel_length_ratio,
+            }
+            if spacing_to_panel_length_ratio > 3:
                 required = depth / 180 * factor
                 clauses = ["5.10.1", "5.10.4"]
-                details = {
-                    "stiffener_spacing_to_panel_depth_ratio": spacing / panel_depth,
-                    "web_treated_as_unstiffened": True,
-                }
+                details["web_treated_as_unstiffened"] = True
             else:
-                if ratio > 3:
+                if spacing_to_web_depth_ratio > 3:
                     raise ValueError(
-                        "Transverse stiffener spacing is outside Clause 5.10.4 limits."
+                        "Clause 5.10.4 does not give a thickness band for s/d1 > 3 when "
+                        "s/dp is not greater than 3."
                     )
-                if ratio <= 0.74:
+                if spacing_to_web_depth_ratio <= 0.74:
                     required = depth / 270 * factor
-                elif ratio < 1:
+                elif spacing_to_web_depth_ratio < 1:
                     required = spacing / 200 * factor
                 else:
                     required = depth / 200 * factor
                 clauses = ["5.10.4"]
-                details = {
-                    "stiffener_spacing_to_web_depth_ratio": ratio,
-                    "stiffener_spacing_to_panel_depth_ratio": spacing / panel_depth,
-                    "web_treated_as_unstiffened": False,
-                }
+                details["web_treated_as_unstiffened"] = False
         elif d["design_case"] == "longitudinal_and_transverse":
             spacing = d["stiffener_spacing_mm"]
             ratio = spacing / depth
@@ -1943,7 +1996,9 @@ def run_webs(inputs):
             spacing_check_inputs.update(
                 {
                     "design_case": "transversely_stiffened",
-                    "greatest_panel_depth_mm": d["web_panel_depth_mm"],
+                    "greatest_panel_longitudinal_dimension_mm": d[
+                        "greatest_panel_longitudinal_dimension_mm"
+                    ],
                 }
             )
         web_thickness_check = run_webs(spacing_check_inputs)

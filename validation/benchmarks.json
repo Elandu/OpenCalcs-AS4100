@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.58",
+  "package_version": "0.7.59",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2268,6 +2268,27 @@
       "name": "Clause 5.10.4 transverse web minimum thickness, hand arithmetic",
       "actual": 5.0,
       "expected": 5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.4 d_p greater than d_1 uses s/d_1 band, hand arithmetic",
+      "actual": 2.0,
+      "expected": 2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.4 s/d_p equals 3 remains transversely stiffened",
+      "actual": 5.0,
+      "expected": 5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.4 s/d_p above 3 invokes 5.10.1, hand arithmetic",
+      "actual": 5.555555555555555,
+      "expected": 5.555555555555555,
       "absolute_tolerance": 1e-09,
       "passed": true
     },
