@@ -1,6 +1,6 @@
 # AS 4100:2020 coverage map
 
-This map describes the bounded version 0.7.60 implementation. **Calculated**
+This map describes the bounded version 0.7.61 implementation. **Calculated**
 means a stated operation evaluates an equation or compares supplied values.
 **Assessed** means the user must establish applicability, inputs and supporting
 evidence independently. **Missing** identifies examples of provisions for

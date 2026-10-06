@@ -1268,9 +1268,12 @@ def test_varying_section_bending_rejects_inconsistent_reduction_geometry(updates
     [
         ("PP", "within_segment", "top_flange", 2, 1.176),
         ("PU", "within_segment", "top_flange", 0, 2.2),
-        ("FL", "within_segment", "top_flange", 1, 1.4),
+        ("FL", "within_segment", "top_flange", 0, 1.4),
         ("FF", "within_segment", "shear_centre", 1, 0.85),
         ("PP", "at_segment_end", "top_flange", 1, 1.02),
+        ("PL", "within_segment", "shear_centre", 0, 1.1),
+        ("LL", "within_segment", "shear_centre", 0, 1.0),
+        ("FU", "within_segment", "top_flange", 2, 2.0),
     ],
 )
 def test_table_5_6_3_effective_length(arrangement, position, height, rotation_count, factor):
@@ -1309,6 +1312,31 @@ def test_table_5_6_3_requires_effective_rotation_restraint_evidence():
     }
     with pytest.raises(ValueError, match="effective rotational restraints"):
         run_advanced_members(inputs)
+
+
+@pytest.mark.parametrize(
+    ("arrangement", "rotation_count"),
+    [(arrangement, count) for arrangement in ("FL", "PL", "LL") for count in (1, 2)],
+)
+def test_table_5_6_3_rejects_unlisted_lateral_rotation_restraint_combinations(
+    arrangement, rotation_count
+):
+    with pytest.raises(ValueError, match="only for FF, FP, and PP"):
+        run_advanced_members(
+            {
+                "operation": "lateral_buckling_effective_length",
+                "segment_length_mm": 1000,
+                "clear_flange_depth_mm": 200,
+                "critical_flange_thickness_mm": 20,
+                "web_thickness_mm": 10,
+                "number_of_webs": 2,
+                "restraint_arrangement": arrangement,
+                "gravity_load_position": "within_segment",
+                "load_height_position": "shear_centre",
+                "effective_rotation_restraint_count": rotation_count,
+                "effective_rotation_restraints_verified": True,
+            }
+        )
 
 
 def full_restraint(section_type, **properties):

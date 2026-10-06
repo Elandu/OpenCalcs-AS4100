@@ -6340,6 +6340,30 @@ def verify():
         ("effective_length_mm", 1176),
     ]:
         record(f"Table 5.6.3 {key}", effective_length["values"][key], expected)
+    rejected_unlisted_rotation_restraints = 0
+    try:
+        run_advanced_members(
+            {
+                "operation": "lateral_buckling_effective_length",
+                "segment_length_mm": 1000,
+                "clear_flange_depth_mm": 200,
+                "critical_flange_thickness_mm": 20,
+                "web_thickness_mm": 10,
+                "number_of_webs": 2,
+                "restraint_arrangement": "FL",
+                "gravity_load_position": "within_segment",
+                "load_height_position": "shear_centre",
+                "effective_rotation_restraint_count": 1,
+                "effective_rotation_restraints_verified": True,
+            }
+        )
+    except ValueError:
+        rejected_unlisted_rotation_restraints = 1
+    record(
+        "Table 5.6.3(C) rejects unlisted FL end-rotation combination",
+        rejected_unlisted_rotation_restraints,
+        1,
+    )
     restraint_cases = [
         ("equal_flanged_i", {"radius_of_gyration_y_mm": 10}, 300, 30),
         ("equal_flanged_channel", {"radius_of_gyration_y_mm": 10}, 200, 20),

@@ -3432,6 +3432,11 @@ def run_advanced_members(inputs):
         kr = 1.0
         if arrangement in {"FF", "FP", "PP"}:
             kr = {0: 1.0, 1: 0.85, 2: 0.70}[rotation_count]
+        elif arrangement not in {"FU", "PU"} and rotation_count:
+            raise ValueError(
+                "Table 5.6.3(C) provides one- or two-end lateral-rotation reductions "
+                "only for FF, FP, and PP arrangements."
+            )
         factor = kt * kl * kr
         return result(
             op,

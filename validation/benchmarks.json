@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.60",
+  "package_version": "0.7.61",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -3773,6 +3773,13 @@
       "name": "Table 5.6.3 effective_length_mm",
       "actual": 1176.0,
       "expected": 1176,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Table 5.6.3(C) rejects unlisted FL end-rotation combination",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

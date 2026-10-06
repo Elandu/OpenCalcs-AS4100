@@ -548,6 +548,69 @@ def clause_6_3_2_compression_member_effective_lengths():
     }
 
 
+def table_5_6_3_lateral_rotation_restraint_combinations():
+    valid_cases = (
+        ("FF", 0, 1.0),
+        ("FF", 1, 0.85),
+        ("FF", 2, 0.70),
+        ("FP", 1, 0.85),
+        ("PP", 2, 0.70),
+        ("FL", 0, 1.0),
+        ("PL", 0, 1.0),
+        ("LL", 0, 1.0),
+        ("FU", 2, 1.0),
+        ("PU", 1, 1.0),
+    )
+    observed = []
+    for arrangement, count, expected_kr in valid_cases:
+        result = run_advanced_members(
+            {
+                "operation": "lateral_buckling_effective_length",
+                "segment_length_mm": 1000,
+                "clear_flange_depth_mm": 200,
+                "critical_flange_thickness_mm": 20,
+                "web_thickness_mm": 10,
+                "number_of_webs": 2,
+                "restraint_arrangement": arrangement,
+                "gravity_load_position": "within_segment",
+                "load_height_position": "shear_centre",
+                "effective_rotation_restraint_count": count,
+                "effective_rotation_restraints_verified": True,
+            }
+        )
+        expect_close(result["values"]["lateral_rotation_factor"], expected_kr)
+        observed.append((arrangement, count, result["values"]["lateral_rotation_factor"]))
+
+    rejected = 0
+    for arrangement in ("FL", "PL", "LL"):
+        for count in (1, 2):
+            try:
+                run_advanced_members(
+                    {
+                        "operation": "lateral_buckling_effective_length",
+                        "segment_length_mm": 1000,
+                        "clear_flange_depth_mm": 200,
+                        "critical_flange_thickness_mm": 20,
+                        "web_thickness_mm": 10,
+                        "number_of_webs": 2,
+                        "restraint_arrangement": arrangement,
+                        "gravity_load_position": "within_segment",
+                        "load_height_position": "shear_centre",
+                        "effective_rotation_restraint_count": count,
+                        "effective_rotation_restraints_verified": True,
+                    }
+                )
+            except ValueError:
+                rejected += 1
+            else:
+                raise AssertionError(
+                    f"Table 5.6.3(C) must reject {arrangement} with {count} end restraints"
+                )
+    if rejected != 6:
+        raise AssertionError("Table 5.6.3(C) unlisted restraint combinations were not all rejected")
+    return {"valid_cases": observed, "unlisted_combinations_rejected": rejected}
+
+
 def clause_4_6_3_3_chart_factor_buckling():
     result = run_design_actions(
         {
@@ -4948,6 +5011,9 @@ def main():
         "clause_4_6_3_2_idealized_member_buckling": (clause_4_6_3_2_idealized_member_buckling),
         "clause_6_3_2_compression_member_effective_lengths": (
             clause_6_3_2_compression_member_effective_lengths
+        ),
+        "table_5_6_3_lateral_rotation_restraint_combinations": (
+            table_5_6_3_lateral_rotation_restraint_combinations
         ),
         "clause_4_6_3_3_chart_factor_buckling": clause_4_6_3_3_chart_factor_buckling,
         "clause_4_6_3_3_alignment_equation_buckling": (clause_4_6_3_3_alignment_equation_buckling),
