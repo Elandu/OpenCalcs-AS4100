@@ -55,6 +55,24 @@ requirements separately. AS/NZS 1559 is specific to tower construction and may
 not suit every structure. Clause 2.3.2 equivalent high-strength fasteners are
 checked separately.
 
+## Welding, studs and anchors
+
+Operation `ancillary_conformity` records selected Clauses 2.3.3–2.3.7
+conformity assessments by item identifier. It supports welding to AS/NZS 5131;
+welded studs conforming to and installed under AS/NZS 1554.2, with a separate
+ISO 13918 weld-collar check for non-prequalified applications; and explosive
+fasteners conforming to and installed under AS/NZS 1873.
+
+For Clause 2.3.6 anchor bolts, the operation checks the declared material
+standard against either the Clause 2.3.1 bolt-standard route or the Clause
+2.2.1 steel-rod route. The steel-rod route also records the AS 1275 thread
+assessment. For Clause 2.3.7, it records the supplied AS 5216 design and
+specification assessment for mechanical or chemical anchors.
+
+These checks record user assessments and evidence references only. They do not
+authenticate certificates, inspect fabrication or installation, calculate
+anchor capacities, verify an AS 5216 design, or establish full compliance.
+
 ## Unidentified steel
 
 Operation `unidentified_steel` implements the strength limits in Clause 2.2.3.

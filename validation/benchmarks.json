@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.45",
+  "package_version": "0.7.46",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -299,6 +299,41 @@
     },
     {
       "name": "Clause 2.3.1 AS/NZS 1252.1 fastener assembly conformity evidence",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.3.3 welding conformity evidence",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.3.4 non-prequalified welded stud and collar evidence",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.3.5 explosive fastener conformity evidence",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.3.6 anchor rod steel standard and AS 1275 thread evidence",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.3.7 chemical-anchor AS 5216 design evidence",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

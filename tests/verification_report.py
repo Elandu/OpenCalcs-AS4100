@@ -1465,6 +1465,70 @@ def clause_2_3_1_fastener_product_conformity():
     }
 
 
+def clause_2_3_3_to_2_3_7_ancillary_conformity():
+    cases = [
+        {
+            "item_identifier": "BENCHMARK-WELD-01",
+            "application": "welding",
+            "anchor_bolt_material_standard": None,
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-WELD-5131-01",
+            "secondary_requirement_verified": None,
+            "secondary_evidence_reference": None,
+        },
+        {
+            "item_identifier": "BENCHMARK-STUD-01",
+            "application": "welded_studs_non_prequalified",
+            "anchor_bolt_material_standard": None,
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-STUD-1554-01",
+            "secondary_requirement_verified": True,
+            "secondary_evidence_reference": "BENCHMARK-STUD-COLLAR-01",
+        },
+        {
+            "item_identifier": "BENCHMARK-EXPLOSIVE-FASTENER-01",
+            "application": "explosive_fasteners",
+            "anchor_bolt_material_standard": None,
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-EXPLOSIVE-1873-01",
+            "secondary_requirement_verified": None,
+            "secondary_evidence_reference": None,
+        },
+        {
+            "item_identifier": "BENCHMARK-ANCHOR-ROD-01",
+            "application": "anchor_bolts_clause_2_2_1_steel_rod",
+            "anchor_bolt_material_standard": "AS/NZS 3678",
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-ANCHOR-STEEL-01",
+            "secondary_requirement_verified": True,
+            "secondary_evidence_reference": "BENCHMARK-ANCHOR-THREAD-01",
+        },
+        {
+            "item_identifier": "BENCHMARK-CHEMICAL-ANCHOR-01",
+            "application": "chemical_anchors",
+            "anchor_bolt_material_standard": None,
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-AS5216-DESIGN-01",
+            "secondary_requirement_verified": None,
+            "secondary_evidence_reference": None,
+        },
+    ]
+    results = [run_materials({"operation": "ancillary_conformity", **case}) for case in cases]
+    expected_clauses = ["2.3.3", "2.3.4", "2.3.5", "2.3.6", "2.3.7"]
+    if [result["clauses"][0] for result in results] != expected_clauses:
+        raise AssertionError("Clauses 2.3.3-2.3.7 were not traced to their evidence records")
+    if not all(result["checked_conditions_satisfied"] for result in results):
+        raise AssertionError("A selected ancillary conformity route failed")
+    if any(result["full_standard_compliance"] is not False for result in results):
+        raise AssertionError("Ancillary conformity records overstated their scope")
+    return {
+        "clauses_recorded": expected_clauses,
+        "non_prequalified_stud_checks": len(results[1]["checks"]),
+        "anchor_rod_checks": len(results[3]["checks"]),
+        "anchor_design_calculated": False,
+    }
+
+
 def unidentified_steel_limits():
     boundary = run_materials(
         {
@@ -4645,6 +4709,7 @@ def main():
         "clause_2_2_3_unidentified_steel_limits": unidentified_steel_limits,
         "clause_2_4_steel_casting_conformity": clause_2_4_steel_casting_conformity,
         "clause_2_3_1_fastener_product_conformity": (clause_2_3_1_fastener_product_conformity),
+        "clause_2_3_3_to_2_3_7_ancillary_conformity": (clause_2_3_3_to_2_3_7_ancillary_conformity),
         "clause_2_2_4_standard_properties": clause_2_2_4_properties,
         "clause_2_2_5_through_thickness_quality": clause_2_2_5_z_quality,
         "clause_2_3_2_equivalent_high_strength_fastener": (

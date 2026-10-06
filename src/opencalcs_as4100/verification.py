@@ -625,6 +625,102 @@ def verify():
         ),
         1,
     )
+    welding = run_materials(
+        {
+            "operation": "ancillary_conformity",
+            "item_identifier": "BENCHMARK-WELD-01",
+            "application": "welding",
+            "anchor_bolt_material_standard": None,
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-WELD-5131-01",
+            "secondary_requirement_verified": None,
+            "secondary_evidence_reference": None,
+        }
+    )
+    record(
+        "Clause 2.3.3 welding conformity evidence",
+        int(welding["clauses"] == ["2.3.3"] and welding["checked_conditions_satisfied"]),
+        1,
+    )
+    studs = run_materials(
+        {
+            "operation": "ancillary_conformity",
+            "item_identifier": "BENCHMARK-STUD-01",
+            "application": "welded_studs_non_prequalified",
+            "anchor_bolt_material_standard": None,
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-STUD-1554-01",
+            "secondary_requirement_verified": True,
+            "secondary_evidence_reference": "BENCHMARK-STUD-COLLAR-01",
+        }
+    )
+    record(
+        "Clause 2.3.4 non-prequalified welded stud and collar evidence",
+        int(
+            studs["clauses"] == ["2.3.4"]
+            and len(studs["checks"]) == 2
+            and studs["checked_conditions_satisfied"]
+        ),
+        1,
+    )
+    explosive = run_materials(
+        {
+            "operation": "ancillary_conformity",
+            "item_identifier": "BENCHMARK-EXPLOSIVE-FASTENER-01",
+            "application": "explosive_fasteners",
+            "anchor_bolt_material_standard": None,
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-EXPLOSIVE-1873-01",
+            "secondary_requirement_verified": None,
+            "secondary_evidence_reference": None,
+        }
+    )
+    record(
+        "Clause 2.3.5 explosive fastener conformity evidence",
+        int(explosive["clauses"] == ["2.3.5"] and explosive["checked_conditions_satisfied"]),
+        1,
+    )
+    anchor_rod = run_materials(
+        {
+            "operation": "ancillary_conformity",
+            "item_identifier": "BENCHMARK-ANCHOR-ROD-01",
+            "application": "anchor_bolts_clause_2_2_1_steel_rod",
+            "anchor_bolt_material_standard": "AS/NZS 3678",
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-ANCHOR-STEEL-01",
+            "secondary_requirement_verified": True,
+            "secondary_evidence_reference": "BENCHMARK-ANCHOR-THREAD-01",
+        }
+    )
+    record(
+        "Clause 2.3.6 anchor rod steel standard and AS 1275 thread evidence",
+        int(
+            anchor_rod["clauses"] == ["2.3.6"]
+            and len(anchor_rod["checks"]) == 2
+            and anchor_rod["checked_conditions_satisfied"]
+        ),
+        1,
+    )
+    chemical_anchor = run_materials(
+        {
+            "operation": "ancillary_conformity",
+            "item_identifier": "BENCHMARK-CHEMICAL-ANCHOR-01",
+            "application": "chemical_anchors",
+            "anchor_bolt_material_standard": None,
+            "primary_requirement_verified": True,
+            "primary_evidence_reference": "BENCHMARK-AS5216-DESIGN-01",
+            "secondary_requirement_verified": None,
+            "secondary_evidence_reference": None,
+        }
+    )
+    record(
+        "Clause 2.3.7 chemical-anchor AS 5216 design evidence",
+        int(
+            chemical_anchor["clauses"] == ["2.3.7"]
+            and chemical_anchor["checked_conditions_satisfied"]
+        ),
+        1,
+    )
     through_thickness = run_materials(
         {
             "operation": "through_thickness_deformation",

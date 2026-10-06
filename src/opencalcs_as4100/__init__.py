@@ -1,3 +1,3 @@
 """Steel section capacity checks."""
 
-__version__ = "0.7.45"
+__version__ = "0.7.46"

@@ -24,6 +24,20 @@ _APPENDIX_M_ZB = {
     "penetration_weld_without_shrinkage_reducing_sequence": 5,
     "corner_joint_diagram_group_2": 8,
 }
+_CLAUSE_2_3_1_BOLT_STANDARDS = {
+    "AS 1110",
+    "AS 1111",
+    "AS/NZS 1252.1",
+    "AS/NZS 1559",
+}
+_CLAUSE_2_2_1_STEEL_STANDARDS = {
+    "AS 3597",
+    "AS/NZS 1163",
+    "AS/NZS 1594",
+    "AS/NZS 3678",
+    "AS/NZS 3679.1",
+    "AS/NZS 3679.2",
+}
 TABLED_STRENGTH_SCHEMA = object_schema(
     {
         "operation": {"const": "tabulated_strength"},
@@ -102,6 +116,55 @@ FASTENER_PRODUCT_CONFORMITY_SCHEMA = object_schema(
         "product_standard_applicability_verified",
         "conformity_certificate_verified",
         "conformity_evidence_reference",
+    ],
+)
+ANCILLARY_CONFORMITY_SCHEMA = object_schema(
+    {
+        "operation": {"const": "ancillary_conformity"},
+        "item_identifier": {"type": "string", "minLength": 1, "maxLength": 100},
+        "application": {
+            "enum": [
+                "welding",
+                "welded_studs_prequalified",
+                "welded_studs_non_prequalified",
+                "explosive_fasteners",
+                "anchor_bolts_clause_2_3_1",
+                "anchor_bolts_clause_2_2_1_steel_rod",
+                "mechanical_anchors",
+                "chemical_anchors",
+            ]
+        },
+        "anchor_bolt_material_standard": {
+            "enum": [
+                None,
+                "AS 1110",
+                "AS 1111",
+                "AS 1112",
+                "AS 1237.1",
+                "AS/NZS 1252.1",
+                "AS/NZS 1559",
+                "AS 3597",
+                "AS/NZS 1163",
+                "AS/NZS 1594",
+                "AS/NZS 3678",
+                "AS/NZS 3679.1",
+                "AS/NZS 3679.2",
+            ]
+        },
+        "primary_requirement_verified": {"type": "boolean"},
+        "primary_evidence_reference": {"type": ["string", "null"], "maxLength": 2000},
+        "secondary_requirement_verified": {"type": ["boolean", "null"]},
+        "secondary_evidence_reference": {"type": ["string", "null"], "maxLength": 2000},
+    },
+    required=[
+        "operation",
+        "item_identifier",
+        "application",
+        "anchor_bolt_material_standard",
+        "primary_requirement_verified",
+        "primary_evidence_reference",
+        "secondary_requirement_verified",
+        "secondary_evidence_reference",
     ],
 )
 DESIGN_PROPERTIES_SCHEMA = object_schema({"operation": {"const": "design_properties"}})
@@ -330,6 +393,142 @@ FASTENER_PRODUCT_CONFORMITY_OUTPUT_SCHEMA = {
             "minItems": 1,
             "maxItems": 1,
             "items": _FASTENER_PRODUCT_CONFORMITY_CHECK,
+        },
+        "checked_conditions_satisfied": {"type": "boolean"},
+        "full_standard_compliance": {"const": False},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+_ANCILLARY_CONFORMITY_CHECK = {
+    "type": "object",
+    "required": [
+        "clause",
+        "requirement_key",
+        "product_standard",
+        "standard_listed_for_route",
+        "verified",
+        "evidence_reference",
+        "satisfied",
+    ],
+    "properties": {
+        "clause": {"enum": ["2.3.3", "2.3.4", "2.3.5", "2.3.6", "2.3.7"]},
+        "requirement_key": {
+            "enum": [
+                "welding_to_as_nzs_5131",
+                "welded_stud_conformity_and_installation",
+                "stud_weld_collar_to_iso_13918",
+                "explosive_fastener_conformity_and_installation",
+                "anchor_bolt_material_conformity",
+                "anchor_rod_threads_to_as_1275",
+                "mechanical_anchor_design_and_specification_to_as_5216",
+                "chemical_anchor_design_and_specification_to_as_5216",
+            ]
+        },
+        "product_standard": {
+            "enum": [
+                "AS/NZS 5131",
+                "AS/NZS 1554.2",
+                "ISO 13918",
+                "AS/NZS 1873",
+                "AS 1110",
+                "AS 1111",
+                "AS 1112",
+                "AS 1237.1",
+                "AS/NZS 1252.1",
+                "AS/NZS 1559",
+                "AS 3597",
+                "AS/NZS 1163",
+                "AS/NZS 1594",
+                "AS/NZS 3678",
+                "AS/NZS 3679.1",
+                "AS/NZS 3679.2",
+                "AS 1275",
+                "AS 5216",
+            ]
+        },
+        "standard_listed_for_route": {"type": "boolean"},
+        "verified": {"type": "boolean"},
+        "evidence_reference": {"type": ["string", "null"]},
+        "satisfied": {"type": "boolean"},
+    },
+    "additionalProperties": False,
+}
+ANCILLARY_CONFORMITY_OUTPUT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "standard",
+        "operation",
+        "values",
+        "clauses",
+        "checks",
+        "checked_conditions_satisfied",
+        "full_standard_compliance",
+        "warnings",
+    ],
+    "properties": {
+        "standard": {"const": "AS 4100:2020"},
+        "operation": {"const": "ancillary_conformity"},
+        "values": {
+            "type": "object",
+            "required": [
+                "item_identifier",
+                "application",
+                "anchor_bolt_material_standard",
+                "primary_requirement_verified",
+                "primary_evidence_reference",
+                "secondary_requirement_verified",
+                "secondary_evidence_reference",
+            ],
+            "properties": {
+                "item_identifier": {"type": "string", "minLength": 1},
+                "application": {
+                    "enum": [
+                        "welding",
+                        "welded_studs_prequalified",
+                        "welded_studs_non_prequalified",
+                        "explosive_fasteners",
+                        "anchor_bolts_clause_2_3_1",
+                        "anchor_bolts_clause_2_2_1_steel_rod",
+                        "mechanical_anchors",
+                        "chemical_anchors",
+                    ]
+                },
+                "anchor_bolt_material_standard": {
+                    "enum": [
+                        None,
+                        "AS 1110",
+                        "AS 1111",
+                        "AS 1112",
+                        "AS 1237.1",
+                        "AS/NZS 1252.1",
+                        "AS/NZS 1559",
+                        "AS 3597",
+                        "AS/NZS 1163",
+                        "AS/NZS 1594",
+                        "AS/NZS 3678",
+                        "AS/NZS 3679.1",
+                        "AS/NZS 3679.2",
+                    ]
+                },
+                "primary_requirement_verified": {"type": "boolean"},
+                "primary_evidence_reference": {"type": ["string", "null"]},
+                "secondary_requirement_verified": {"type": ["boolean", "null"]},
+                "secondary_evidence_reference": {"type": ["string", "null"]},
+            },
+            "additionalProperties": False,
+        },
+        "clauses": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {"enum": ["2.3.3", "2.3.4", "2.3.5", "2.3.6", "2.3.7"]},
+        },
+        "checks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "items": _ANCILLARY_CONFORMITY_CHECK,
         },
         "checked_conditions_satisfied": {"type": "boolean"},
         "full_standard_compliance": {"const": False},
@@ -568,6 +767,7 @@ INPUT_SCHEMA = {
         TABLED_STRENGTH_SCHEMA,
         STEEL_CASTING_CONFORMITY_SCHEMA,
         FASTENER_PRODUCT_CONFORMITY_SCHEMA,
+        ANCILLARY_CONFORMITY_SCHEMA,
         DESIGN_PROPERTIES_SCHEMA,
         THROUGH_THICKNESS_SCHEMA,
         APPENDIX_M_THROUGH_THICKNESS_SCHEMA,
@@ -637,6 +837,7 @@ OUTPUT_SCHEMA = {
         TABLED_STRENGTH_OUTPUT_SCHEMA,
         STEEL_CASTING_CONFORMITY_OUTPUT_SCHEMA,
         FASTENER_PRODUCT_CONFORMITY_OUTPUT_SCHEMA,
+        ANCILLARY_CONFORMITY_OUTPUT_SCHEMA,
         DESIGN_PROPERTIES_OUTPUT_SCHEMA,
         THROUGH_THICKNESS_OUTPUT_SCHEMA,
         APPENDIX_M_THROUGH_THICKNESS_OUTPUT_SCHEMA,
@@ -763,6 +964,8 @@ def run_materials(inputs: Mapping) -> dict:
         return _steel_casting_conformity(data)
     if data["operation"] == "fastener_product_conformity":
         return _fastener_product_conformity(data)
+    if data["operation"] == "ancillary_conformity":
+        return _ancillary_conformity(data)
     if data["operation"] == "design_properties":
         return _design_properties()
     if data["operation"] == "through_thickness_deformation":
@@ -857,6 +1060,34 @@ _FASTENER_COMPONENT_STANDARDS = {
     "high_strength_bolting_assembly": {"AS/NZS 1252.1"},
     "galvanized_tower_bolting_assembly": {"AS/NZS 1559"},
 }
+_ANCILLARY_FIXED_REQUIREMENTS = {
+    "welding": ("2.3.3", "welding_to_as_nzs_5131", "AS/NZS 5131"),
+    "welded_studs_prequalified": (
+        "2.3.4",
+        "welded_stud_conformity_and_installation",
+        "AS/NZS 1554.2",
+    ),
+    "welded_studs_non_prequalified": (
+        "2.3.4",
+        "welded_stud_conformity_and_installation",
+        "AS/NZS 1554.2",
+    ),
+    "explosive_fasteners": (
+        "2.3.5",
+        "explosive_fastener_conformity_and_installation",
+        "AS/NZS 1873",
+    ),
+    "mechanical_anchors": (
+        "2.3.7",
+        "mechanical_anchor_design_and_specification_to_as_5216",
+        "AS 5216",
+    ),
+    "chemical_anchors": (
+        "2.3.7",
+        "chemical_anchor_design_and_specification_to_as_5216",
+        "AS 5216",
+    ),
+}
 
 
 def _fastener_product_conformity(data: Mapping) -> dict:
@@ -910,6 +1141,116 @@ def _fastener_product_conformity(data: Mapping) -> dict:
         ],
     }
     if product_standard == "AS/NZS 1559":
+        result["warnings"].append(
+            "AS/NZS 1559 is specific to tower construction; verify its suitability for this "
+            "structure independently."
+        )
+    Draft202012Validator(OUTPUT_SCHEMA).validate(result)
+    return result
+
+
+def _ancillary_conformity(data: Mapping) -> dict:
+    """Record user-assessed product/work requirements for AS 4100 Clauses 2.3.3-2.3.7."""
+    identifier = data["item_identifier"].strip()
+    primary_reference = (data["primary_evidence_reference"] or "").strip()
+    secondary_reference = (data["secondary_evidence_reference"] or "").strip()
+    if not identifier:
+        raise ValueError("Item identifier must not be blank.")
+    if data["primary_requirement_verified"] and not primary_reference:
+        raise ValueError("Verified primary conformity requires an evidence reference.")
+
+    application = data["application"]
+    secondary_required = application in {
+        "welded_studs_non_prequalified",
+        "anchor_bolts_clause_2_2_1_steel_rod",
+    }
+    secondary_verified = data["secondary_requirement_verified"]
+    if secondary_required and secondary_verified is None:
+        raise ValueError("This application requires a secondary requirement assessment.")
+    if not secondary_required and (secondary_verified is not None or secondary_reference):
+        raise ValueError("Secondary evidence fields do not apply to this application.")
+    if secondary_verified and not secondary_reference:
+        raise ValueError("Verified secondary conformity requires an evidence reference.")
+
+    anchor_applications = {
+        "anchor_bolts_clause_2_3_1",
+        "anchor_bolts_clause_2_2_1_steel_rod",
+    }
+    anchor_standard = data["anchor_bolt_material_standard"]
+    if application in anchor_applications and anchor_standard is None:
+        raise ValueError("Anchor-bolt applications require a material standard.")
+    if application not in anchor_applications and anchor_standard is not None:
+        raise ValueError("Anchor-bolt material standard applies only to anchor-bolt applications.")
+
+    if application in _ANCILLARY_FIXED_REQUIREMENTS:
+        clause, requirement_key, primary_standard = _ANCILLARY_FIXED_REQUIREMENTS[application]
+        standard_listed = True
+    elif application == "anchor_bolts_clause_2_3_1":
+        clause = "2.3.6"
+        requirement_key = "anchor_bolt_material_conformity"
+        primary_standard = anchor_standard
+        standard_listed = anchor_standard in _CLAUSE_2_3_1_BOLT_STANDARDS
+    else:
+        clause = "2.3.6"
+        requirement_key = "anchor_bolt_material_conformity"
+        primary_standard = anchor_standard
+        standard_listed = anchor_standard in _CLAUSE_2_2_1_STEEL_STANDARDS
+
+    primary_verified = data["primary_requirement_verified"]
+    primary_satisfied = standard_listed and primary_verified and bool(primary_reference)
+    checks = [
+        {
+            "clause": clause,
+            "requirement_key": requirement_key,
+            "product_standard": primary_standard,
+            "standard_listed_for_route": standard_listed,
+            "verified": primary_verified,
+            "evidence_reference": primary_reference or None,
+            "satisfied": primary_satisfied,
+        }
+    ]
+    if secondary_required:
+        if application == "welded_studs_non_prequalified":
+            secondary_key = "stud_weld_collar_to_iso_13918"
+            secondary_standard = "ISO 13918"
+        else:
+            secondary_key = "anchor_rod_threads_to_as_1275"
+            secondary_standard = "AS 1275"
+        checks.append(
+            {
+                "clause": clause,
+                "requirement_key": secondary_key,
+                "product_standard": secondary_standard,
+                "standard_listed_for_route": True,
+                "verified": secondary_verified,
+                "evidence_reference": secondary_reference or None,
+                "satisfied": bool(secondary_verified and secondary_reference),
+            }
+        )
+
+    result = {
+        "standard": "AS 4100:2020",
+        "operation": "ancillary_conformity",
+        "values": {
+            "item_identifier": identifier,
+            "application": application,
+            "anchor_bolt_material_standard": anchor_standard,
+            "primary_requirement_verified": primary_verified,
+            "primary_evidence_reference": primary_reference or None,
+            "secondary_requirement_verified": secondary_verified,
+            "secondary_evidence_reference": secondary_reference or None,
+        },
+        "clauses": [clause],
+        "checks": checks,
+        "checked_conditions_satisfied": all(check["satisfied"] for check in checks),
+        "full_standard_compliance": False,
+        "warnings": [
+            "This operation records supplied Clause 2.3.3-2.3.7 assessments; it does not "
+            "authenticate records, inspect installation, calculate anchor capacity, or "
+            "establish full standard or project compliance."
+        ],
+    }
+    if primary_standard == "AS/NZS 1559":
         result["warnings"].append(
             "AS/NZS 1559 is specific to tower construction; verify its suitability for this "
             "structure independently."

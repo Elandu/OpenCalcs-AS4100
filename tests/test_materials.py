@@ -258,6 +258,123 @@ def test_clause_2_3_1_verified_fastener_certificate_requires_identifier_and_refe
         )
 
 
+def ancillary_conformity(**overrides):
+    inputs = {
+        "operation": "ancillary_conformity",
+        "item_identifier": "ITEM-01",
+        "application": "welding",
+        "anchor_bolt_material_standard": None,
+        "primary_requirement_verified": True,
+        "primary_evidence_reference": "EVIDENCE-01",
+        "secondary_requirement_verified": None,
+        "secondary_evidence_reference": None,
+    }
+    inputs.update(overrides)
+    return run_materials(inputs)
+
+
+@pytest.mark.parametrize(
+    "application,clause,standard",
+    [
+        ("welding", "2.3.3", "AS/NZS 5131"),
+        ("welded_studs_prequalified", "2.3.4", "AS/NZS 1554.2"),
+        ("explosive_fasteners", "2.3.5", "AS/NZS 1873"),
+        ("mechanical_anchors", "2.3.7", "AS 5216"),
+        ("chemical_anchors", "2.3.7", "AS 5216"),
+    ],
+)
+def test_clause_2_3_3_to_2_3_7_fixed_standard_evidence_routes(application, clause, standard):
+    result = ancillary_conformity(application=application)
+    assert result["clauses"] == [clause]
+    assert result["checks"][0]["product_standard"] == standard
+    assert result["checks"][0]["satisfied"]
+    assert result["checked_conditions_satisfied"]
+    assert result["full_standard_compliance"] is False
+    assert "does not authenticate" in result["warnings"][0]
+
+
+def test_clause_2_3_4_non_prequalified_studs_require_iso_13918_collar_evidence():
+    result = ancillary_conformity(
+        application="welded_studs_non_prequalified",
+        secondary_requirement_verified=True,
+        secondary_evidence_reference="STUD-COLLAR-01",
+    )
+    assert result["clauses"] == ["2.3.4"]
+    assert [check["product_standard"] for check in result["checks"]] == [
+        "AS/NZS 1554.2",
+        "ISO 13918",
+    ]
+    assert all(check["satisfied"] for check in result["checks"])
+
+
+def test_clause_2_3_4_non_prequalified_studs_fail_without_verified_collar():
+    result = ancillary_conformity(
+        application="welded_studs_non_prequalified",
+        secondary_requirement_verified=False,
+    )
+    assert result["checks"][0]["satisfied"]
+    assert not result["checks"][1]["satisfied"]
+    assert not result["checked_conditions_satisfied"]
+    with pytest.raises(ValueError, match="requires a secondary requirement assessment"):
+        ancillary_conformity(application="welded_studs_non_prequalified")
+
+
+@pytest.mark.parametrize(
+    "application,material_standard,standard_listed",
+    [
+        ("anchor_bolts_clause_2_3_1", "AS 1110", True),
+        ("anchor_bolts_clause_2_3_1", "AS/NZS 3678", False),
+        ("anchor_bolts_clause_2_2_1_steel_rod", "AS/NZS 3678", True),
+        ("anchor_bolts_clause_2_2_1_steel_rod", "AS 1112", False),
+    ],
+)
+def test_clause_2_3_6_anchor_bolt_material_routes(application, material_standard, standard_listed):
+    overrides = {
+        "application": application,
+        "anchor_bolt_material_standard": material_standard,
+    }
+    if application == "anchor_bolts_clause_2_2_1_steel_rod":
+        overrides.update(
+            secondary_requirement_verified=True,
+            secondary_evidence_reference="THREAD-CHECK-01",
+        )
+    result = ancillary_conformity(**overrides)
+    assert result["clauses"] == ["2.3.6"]
+    assert result["checks"][0]["standard_listed_for_route"] is standard_listed
+    assert result["checks"][0]["satisfied"] is standard_listed
+    if application == "anchor_bolts_clause_2_2_1_steel_rod":
+        assert result["checks"][1]["product_standard"] == "AS 1275"
+        assert result["checks"][1]["satisfied"]
+        assert result["checked_conditions_satisfied"] is standard_listed
+
+
+def test_clause_2_3_6_anchor_rod_threads_require_as_1275_evidence():
+    result = ancillary_conformity(
+        application="anchor_bolts_clause_2_2_1_steel_rod",
+        anchor_bolt_material_standard="AS/NZS 3678",
+        secondary_requirement_verified=False,
+    )
+    assert not result["checks"][1]["satisfied"]
+    assert not result["checked_conditions_satisfied"]
+    with pytest.raises(ValueError, match="requires a secondary requirement assessment"):
+        ancillary_conformity(
+            application="anchor_bolts_clause_2_2_1_steel_rod",
+            anchor_bolt_material_standard="AS/NZS 3678",
+        )
+
+
+def test_ancillary_conformity_requires_references_and_rejects_inapplicable_route_data():
+    with pytest.raises(ValueError, match="requires an evidence reference"):
+        ancillary_conformity(primary_evidence_reference=None)
+    with pytest.raises(ValueError, match="applies only to anchor-bolt applications"):
+        ancillary_conformity(anchor_bolt_material_standard="AS 1110")
+    with pytest.raises(ValueError, match="Verified secondary conformity requires an evidence"):
+        ancillary_conformity(
+            application="welded_studs_non_prequalified",
+            secondary_requirement_verified=True,
+        )
+
+
 def through_thickness(**overrides):
     inputs = {
         "operation": "through_thickness_deformation",
