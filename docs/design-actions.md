@@ -106,8 +106,15 @@ connection flexibility, shear deformation, initial imperfections, residual
 stress, material nonlinearity, and second-order design actions. It calculates
 elastic frame stability only; it does not determine the load combinations or
 member design capacities, and a passing check does not establish full AS 4100
-compliance. The independent benchmark compares a pinned column result with the
-Clause 4.6.2 Euler solution. To apply the Clause 4.5.4 threshold route, pass
+compliance. Independent checks compare pin-ended and fixed-ended columns with
+Euler solutions. A one-bay portal frame was also cross-checked against the
+zero crossing of the lowest tangent-stiffness eigenvalue in OpenSeesPy 3.8.0:
+6 m bay, 4 m columns, fixed bases, `E=200000 MPa`, `A=10000 mm2`,
+`I=8e6 mm4`, and column compression forces of 30 kN and 20 kN. The OpenSees
+P-Delta model used 32 elements per member and returned `lambda_c=26.422688`;
+this operation returns `26.413048` (0.037% difference). OpenSees is an
+independent verification reference only and is not a runtime dependency or a
+published Standard example. To apply the Clause 4.5.4 threshold route, pass
 `lambda_c` as `frame_buckling_factor` to `plastic_amplification`.
 
 ## Braced-member moment amplification

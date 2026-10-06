@@ -100,6 +100,86 @@ def test_whole_frame_elastic_buckling_matches_fixed_end_euler_solution():
     assert values["refined_mesh"]["mesh_subdivisions_per_member"] >= 16
 
 
+def portal_frame_elastic_buckling():
+    evidence = "PORTAL-FRAME-OPENSees-REFERENCE"
+    joints = [
+        {
+            "joint_id": "BASE-L",
+            "x_mm": 0,
+            "y_mm": 0,
+            "restrained_dofs": ["ux", "uy", "rz"],
+            "joint_geometry_verified": True,
+            "restraint_assessment_verified": True,
+            "evidence_reference": evidence,
+        },
+        {
+            "joint_id": "TOP-L",
+            "x_mm": 0,
+            "y_mm": 4000,
+            "restrained_dofs": [],
+            "joint_geometry_verified": True,
+            "restraint_assessment_verified": True,
+            "evidence_reference": evidence,
+        },
+        {
+            "joint_id": "BASE-R",
+            "x_mm": 6000,
+            "y_mm": 0,
+            "restrained_dofs": ["ux", "uy", "rz"],
+            "joint_geometry_verified": True,
+            "restraint_assessment_verified": True,
+            "evidence_reference": evidence,
+        },
+        {
+            "joint_id": "TOP-R",
+            "x_mm": 6000,
+            "y_mm": 4000,
+            "restrained_dofs": [],
+            "joint_geometry_verified": True,
+            "restraint_assessment_verified": True,
+            "evidence_reference": evidence,
+        },
+    ]
+
+    def member(member_id, start, end, axial_force_kn):
+        return {
+            "member_id": member_id,
+            "start_joint_id": start,
+            "end_joint_id": end,
+            "area_mm2": 10_000,
+            "second_moment_in_plane_mm4": 8e6,
+            "axial_force_kn": axial_force_kn,
+            "prismatic_member_verified": True,
+            "geometry_verified": True,
+            "section_properties_verified": True,
+            "axial_force_verified": True,
+            "evidence_reference": evidence,
+        }
+
+    return whole_frame_elastic_buckling(
+        design_load_set_id="ULS-PORTAL-30-20-KN",
+        design_load_evidence_reference=evidence,
+        frame_model_evidence_reference=evidence,
+        joint_list_evidence_reference=evidence,
+        member_list_evidence_reference=evidence,
+        joints=joints,
+        members=[
+            member("COLUMN-L", "BASE-L", "TOP-L", 30),
+            member("COLUMN-R", "BASE-R", "TOP-R", 20),
+            member("BEAM", "TOP-L", "TOP-R", 0),
+        ],
+    )
+
+
+def test_whole_frame_elastic_buckling_matches_independent_portal_frame_analysis():
+    result = run(portal_frame_elastic_buckling())
+    values = result["values"]
+    # OpenSeesPy 3.8.0 P-Delta model, 32 elastic beam-column elements per member.
+    assert values["lambda_c"] == pytest.approx(26.422688110351565, abs=0.01)
+    assert values["relative_mesh_difference"] < 0.001
+    assert result["checked_conditions_satisfied"]
+
+
 def test_whole_frame_elastic_buckling_retains_failed_evidence_checks():
     inputs = whole_frame_elastic_buckling(
         frame_model_verified=False,

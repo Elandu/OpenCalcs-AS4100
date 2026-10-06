@@ -1768,6 +1768,13 @@
       "passed": true
     },
     {
+      "name": "Clause 4.7.2(b) portal frame cross-check against OpenSeesPy P-Delta analysis",
+      "actual": 26.413047758135814,
+      "expected": 26.422688110351565,
+      "absolute_tolerance": 0.01,
+      "passed": true
+    },
+    {
       "name": "Table 4.6.3.4 braced beam modifier: pinned",
       "actual": 1.5,
       "expected": 1.5,
