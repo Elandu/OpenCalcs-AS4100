@@ -27,12 +27,14 @@ supported by rational analysis is assessed separately.
 | `web_side_reinforcement` | 5.10.3 limit on shear allocated to side plates by plate resistance and the fastener transfer capacities to the web and flanges | Supply design capacities from the plate and connection checks. The assigned shear must already account for any asymmetry; the operation requires that assessment to be declared. |
 
 `web_bearing` calculates selected Clause 5.13.1 force dispersion for I-sections and
-channels when flange thickness, stiff bearing length and flange-to-neutral-axis
-distance are supplied. It uses `b_bf = b_s + 5 t_f` through the flange, then a 1:1
-spread to the neutral axis. The caller must verify that the geometry matches
-Figure 5.13.1.1; assessed bearing widths remain accepted for cases where the
-dispersion has already been established. RHS/SHS bearing dispersion is calculated
-from its Clause 5.13.3 geometry inputs.
+channels when flange thickness, stiff bearing length, flange-to-neutral-axis
+distance and `bearing_location` are supplied. It uses `b_bf = b_s + 5 t_f` through
+the flange, then a 1:1 spread to the neutral axis. Interior bearing uses
+`b_b = b_bf + 2 b_bw`; end bearing uses `b_b = b_o + b_bf + b_bw` and requires
+`end_web_unspread_width_mm` for `b_o` in Figure 5.13.1.1(b). Verify the selected
+location and geometry against the member details. Assessed bearing widths remain
+accepted for cases where dispersion has already been established. RHS/SHS bearing
+dispersion is calculated from its Clause 5.13.3 geometry inputs.
 
 `load_bearing_stiffener_requirement` accepts either the design force and web-only
 design capacity, or a complete `web_bearing_inputs` object using the `web_bearing`

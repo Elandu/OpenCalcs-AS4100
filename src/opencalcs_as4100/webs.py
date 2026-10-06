@@ -111,6 +111,8 @@ _BEARING = {
     "flange_thickness_mm": POSITIVE,
     "distance_flange_to_neutral_axis_mm": POSITIVE,
     "bearing_geometry_verified": {"type": "boolean"},
+    "bearing_location": {"enum": ["interior", "end"]},
+    "end_web_unspread_width_mm": NONNEGATIVE,
     "restrained_flange_count": {"type": "integer", "enum": [1, 2]},
     "bearing_action_kn": NONNEGATIVE,
     "outside_radius_mm": POSITIVE,
@@ -150,11 +152,19 @@ _WEB_BEARING_SCHEMA = object_schema(
                             "flange_thickness_mm",
                             "distance_flange_to_neutral_axis_mm",
                             "bearing_geometry_verified",
+                            "bearing_location",
                         ]
                     },
                 ]
             },
-        }
+        },
+        {
+            "if": {
+                "required": ["bearing_location"],
+                "properties": {"bearing_location": {"const": "end"}},
+            },
+            "then": {"required": ["end_web_unspread_width_mm"]},
+        },
     ]
 }
 
@@ -1412,8 +1422,13 @@ def run_webs(inputs):
                 "flange_thickness_mm" in d,
                 "distance_flange_to_neutral_axis_mm" in d,
                 "bearing_geometry_verified" in d,
+                "bearing_location" in d,
             )
-            if all(manual_widths) and not any(geometry_inputs):
+            if (
+                all(manual_widths)
+                and not any(geometry_inputs)
+                and "end_web_unspread_width_mm" not in d
+            ):
                 bbf, bb = d["bearing_width_at_flange_mm"], d["bearing_width_at_neutral_axis_mm"]
                 geometry_check = None
             elif not any(manual_widths) and all(geometry_inputs):
@@ -1426,7 +1441,10 @@ def run_webs(inputs):
                         "Distance to the neutral axis must not exceed the clear web depth."
                     )
                 bbf = d["stiff_bearing_length_mm"] + 5 * tf
-                bb = bbf + 2 * distance_to_na
+                if d["bearing_location"] == "interior":
+                    bb = bbf + 2 * distance_to_na
+                else:
+                    bb = d["end_web_unspread_width_mm"] + bbf + distance_to_na
                 geometry_check = {
                     "clause": "5.13.1 bearing-dispersion geometry verified",
                     "satisfied": d["bearing_geometry_verified"],
@@ -1446,6 +1464,8 @@ def run_webs(inputs):
                 raise ValueError("Hollow-section inputs cannot be used with an I/channel section.")
             if bb < bbf:
                 raise ValueError("Neutral-axis dispersed width must not be below flange width.")
+            if d.get("bearing_location") == "interior" and "end_web_unspread_width_mm" in d:
+                raise ValueError("Interior bearing cannot use the end web unspread width.")
             yield_capacity = 1.25 * bbf * t * fy / 1000
             geometric_slenderness = (2.5 if d["restrained_flange_count"] == 2 else 5) * depth / t
             ap = None
@@ -1461,9 +1481,16 @@ def run_webs(inputs):
                 )
             if any(
                 name in d
-                for name in ["bearing_width_at_flange_mm", "bearing_width_at_neutral_axis_mm"]
+                for name in [
+                    "bearing_width_at_flange_mm",
+                    "bearing_width_at_neutral_axis_mm",
+                    "bearing_location",
+                    "end_web_unspread_width_mm",
+                ]
             ):
-                raise ValueError("RHS/SHS dispersed widths are derived, not supplied.")
+                raise ValueError(
+                    "RHS/SHS dispersed widths and open-section location are not accepted."
+                )
             radius, bs, bd = (d[name] for name in required)
             if radius < t or depth / t <= 1:
                 raise ValueError("Invalid hollow-section radius or flat web depth.")
@@ -1498,7 +1525,12 @@ def run_webs(inputs):
                     {
                         "bearing_width_at_flange_mm": bbf,
                         "bearing_width_at_neutral_axis_mm": bb,
-                        "dispersion_method": "clause_5_13_1_geometry",
+                        "dispersion_method": (
+                            "clause_5_13_1_geometry"
+                            if geometry_check
+                            else "assessed_bearing_widths"
+                        ),
+                        **({"bearing_location": d["bearing_location"]} if geometry_check else {}),
                     }
                     if d["section_type"] == "i_or_channel"
                     else {}

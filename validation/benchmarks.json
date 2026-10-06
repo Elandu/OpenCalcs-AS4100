@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.55",
+  "package_version": "0.7.56",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2324,6 +2324,34 @@
       "name": "Clause 5.13.1 web bearing dispersion to neutral axis, slope 1:1",
       "actual": 260,
       "expected": 260,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.1 end-force bearing width b_o + b_bf + b_bw",
+      "actual": 590,
+      "expected": 590,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.4 end-force web buckling resistance",
+      "actual": 1379.0145333503929,
+      "expected": 1379.0145333503929,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.2 end-force design capacity at phi=0.9",
+      "actual": 1241.1130800153537,
+      "expected": 1241.1130800153537,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.13.2 end force above end-bearing capacity is rejected",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

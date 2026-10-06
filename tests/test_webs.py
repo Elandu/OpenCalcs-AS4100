@@ -436,6 +436,34 @@ def test_clause_5_10_2_can_calculate_the_web_only_bearing_capacity():
     assert provided["values"]["stiffeners_required"]
     assert provided["checked_conditions_satisfied"]
 
+    end_bearing_trigger = run(
+        {
+            "operation": "load_bearing_stiffener_requirement",
+            "web_bearing_inputs": {
+                "operation": "web_bearing",
+                "section_type": "i_or_channel",
+                "web_thickness_mm": 10,
+                "web_yield_mpa": 300,
+                "clear_web_depth_mm": 200,
+                "stiff_bearing_length_mm": 400,
+                "flange_thickness_mm": 12,
+                "distance_flange_to_neutral_axis_mm": 90,
+                "bearing_geometry_verified": True,
+                "bearing_location": "end",
+                "end_web_unspread_width_mm": 40,
+                "restrained_flange_count": 2,
+                "bearing_action_kn": 1300,
+            },
+            "end_post_required_under_5_15_2_2": False,
+            "load_bearing_stiffeners_provided": True,
+        }
+    )
+    assert end_bearing_trigger["values"]["required_by_web_bearing_capacity"]
+    assert end_bearing_trigger["values"]["design_web_bearing_capacity_kn"] == pytest.approx(
+        1241.1130800153537
+    )
+    assert end_bearing_trigger["checked_conditions_satisfied"]
+
     with pytest.raises(ValueError, match="Invalid input"):
         run(
             inputs
@@ -484,6 +512,7 @@ def test_open_section_web_yield_independent_arithmetic():
     assert r["values"]["bearing_yield_kn"] == 375
     assert r["values"]["geometric_slenderness"] == 50
     assert r["checks"][0]["design_capacity"] <= 337.5
+    assert r["values"]["dispersion_method"] == "assessed_bearing_widths"
 
 
 def test_clause_5_13_1_calculates_i_section_bearing_dispersion_geometry():
@@ -497,6 +526,7 @@ def test_clause_5_13_1_calculates_i_section_bearing_dispersion_geometry():
         "flange_thickness_mm": 12,
         "distance_flange_to_neutral_axis_mm": 90,
         "bearing_geometry_verified": True,
+        "bearing_location": "interior",
         "restrained_flange_count": 2,
         "bearing_action_kn": 100,
     }
@@ -505,6 +535,7 @@ def test_clause_5_13_1_calculates_i_section_bearing_dispersion_geometry():
     assert r["values"]["bearing_width_at_neutral_axis_mm"] == 260
     assert r["values"]["bearing_yield_kn"] == 300
     assert r["values"]["geometric_slenderness"] == 50
+    assert r["values"]["bearing_location"] == "interior"
     assert r["checks"][1]["satisfied"]
 
     inputs["bearing_geometry_verified"] = False
@@ -524,6 +555,7 @@ def test_clause_5_13_1_rejects_ambiguous_or_out_of_range_dispersion_inputs():
         "flange_thickness_mm": 12,
         "distance_flange_to_neutral_axis_mm": 90,
         "bearing_geometry_verified": True,
+        "bearing_location": "interior",
         "restrained_flange_count": 2,
         "bearing_action_kn": 100,
     }
@@ -537,6 +569,35 @@ def test_clause_5_13_1_rejects_ambiguous_or_out_of_range_dispersion_inputs():
                 "bearing_width_at_neutral_axis_mm": 260,
             }
         )
+
+    end_bearing = run(
+        geometry
+        | {
+            "stiff_bearing_length_mm": 400,
+            "bearing_location": "end",
+            "end_web_unspread_width_mm": 40,
+            "bearing_action_kn": 1300,
+        }
+    )
+    assert end_bearing["values"]["bearing_width_at_flange_mm"] == 460
+    assert end_bearing["values"]["bearing_width_at_neutral_axis_mm"] == 590
+    assert end_bearing["values"]["bearing_buckling_kn"] == pytest.approx(1379.0145333503929)
+    assert end_bearing["checks"][0]["design_capacity"] == pytest.approx(1241.1130800153537)
+    assert not end_bearing["checks"][0]["satisfied"]
+
+    interior_bearing = run(
+        geometry
+        | {
+            "stiff_bearing_length_mm": 400,
+            "bearing_location": "interior",
+            "bearing_action_kn": 1300,
+        }
+    )
+    assert interior_bearing["values"]["bearing_width_at_neutral_axis_mm"] == 640
+    assert interior_bearing["checks"][0]["satisfied"]
+
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(geometry | {"bearing_location": "end"})
 
 
 def test_rhs_bearing_bending_two_branches_and_individual_failure():

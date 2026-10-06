@@ -3717,6 +3717,7 @@ def verify():
             "flange_thickness_mm": 12,
             "distance_flange_to_neutral_axis_mm": 90,
             "bearing_geometry_verified": True,
+            "bearing_location": "interior",
             "restrained_flange_count": 2,
             "bearing_action_kn": 100,
         }
@@ -3730,6 +3731,45 @@ def verify():
         "Clause 5.13.1 web bearing dispersion to neutral axis, slope 1:1",
         bearing_dispersion["values"]["bearing_width_at_neutral_axis_mm"],
         260,
+    )
+    end_bearing = run_webs(
+        {
+            "operation": "web_bearing",
+            "section_type": "i_or_channel",
+            "web_thickness_mm": 10,
+            "web_yield_mpa": 300,
+            "clear_web_depth_mm": 200,
+            "stiff_bearing_length_mm": 400,
+            "flange_thickness_mm": 12,
+            "distance_flange_to_neutral_axis_mm": 90,
+            "bearing_geometry_verified": True,
+            "bearing_location": "end",
+            "end_web_unspread_width_mm": 40,
+            "restrained_flange_count": 2,
+            "bearing_action_kn": 1300,
+        }
+    )
+    record(
+        "Clause 5.13.1 end-force bearing width b_o + b_bf + b_bw",
+        end_bearing["values"]["bearing_width_at_neutral_axis_mm"],
+        40 + 460 + 90,
+    )
+    record(
+        "Clause 5.13.4 end-force web buckling resistance",
+        end_bearing["values"]["bearing_buckling_kn"],
+        0.7791042561301655 * 10 * 590 * 300 / 1000,
+        tolerance=1e-9,
+    )
+    record(
+        "Clause 5.13.2 end-force design capacity at phi=0.9",
+        end_bearing["checks"][0]["design_capacity"],
+        0.9 * (0.7791042561301655 * 10 * 590 * 300 / 1000),
+        tolerance=1e-9,
+    )
+    record(
+        "Clause 5.13.2 end force above end-bearing capacity is rejected",
+        int(not end_bearing["checks"][0]["satisfied"]),
+        1,
     )
     rhs_bearing_bending_inputs = {
         "operation": "rhs_bearing_bending",
