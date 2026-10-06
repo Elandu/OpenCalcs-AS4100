@@ -134,9 +134,7 @@ def _local_element_matrices(length, area, second_moment, axial_force_start_n, ax
     )
     for point, weight in gauss_points:
         fraction = (point + 1.0) / 2.0
-        axial_force = axial_force_start_n + fraction * (
-            axial_force_end_n - axial_force_start_n
-        )
+        axial_force = axial_force_start_n + fraction * (axial_force_end_n - axial_force_start_n)
         xi = fraction
         derivatives = (
             (-6.0 * xi + 6.0 * xi**2) / length,
@@ -265,9 +263,7 @@ def _solve_mesh(d, subdivisions):
         transform_t = _transpose(transform)
         element_length = physical_length / subdivisions
         force_profile = _member_axial_force_profile(member)
-        for division, (path_start, path_end) in enumerate(
-            zip(path[:-1], path[1:], strict=True)
-        ):
+        for division, (path_start, path_end) in enumerate(zip(path[:-1], path[1:], strict=True)):
             start_fraction = division / subdivisions
             end_fraction = (division + 1) / subdivisions
             force_difference = force_profile[1] - force_profile[0]
