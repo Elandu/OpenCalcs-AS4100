@@ -1792,6 +1792,144 @@ def test_clause_4_4_2_2_zero_or_tensile_axial_force_needs_no_braced_amplificatio
     assert result["checked_conditions_satisfied"]
 
 
+def appendix_e_superposition_member(**overrides):
+    evidence = "APPENDIX-E2-C-SUPERPOSITION-01"
+    inputs = {
+        "operation": "appendix_e_superposition_member_moment",
+        "design_load_set_id": "ULS-E2C-01",
+        "member_id": "BEAM-01",
+        "member_length_mm": 4000,
+        "member_geometry_verified": True,
+        "member_geometry_evidence_reference": evidence,
+        "second_order_start_moment_knm": 0,
+        "second_order_end_moment_knm": 0,
+        "second_order_end_moments_verified": True,
+        "second_order_end_moment_evidence_reference": evidence,
+        "end_moment_sign_convention_verified": True,
+        "end_moment_sign_evidence_reference": evidence,
+        "distributed_loads": [
+            {
+                "load_id": "UDL-01",
+                "start_fraction": 0,
+                "end_fraction": 1,
+                "transverse_force_start_kn_per_m": 2.5,
+                "transverse_force_end_kn_per_m": 2.5,
+                "load_verified": True,
+                "evidence_reference": evidence,
+            }
+        ],
+        "point_loads": [],
+        "all_transverse_loads_listed_verified": True,
+        "transverse_load_list_evidence_reference": evidence,
+        "simple_beam_model_verified": True,
+        "simple_beam_model_evidence_reference": evidence,
+        "bending_axis_verified": True,
+        "bending_axis_evidence_reference": evidence,
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_appendix_e2c_uniform_load_superposition_and_postprocessing():
+    superposition = run(appendix_e_superposition_member())
+    values = superposition["values"]
+
+    assert values["simple_beam_reaction_start_kn"] == pytest.approx(5)
+    assert values["simple_beam_reaction_end_kn"] == pytest.approx(5)
+    assert values["maximum_second_order_moment_knm"] == pytest.approx(5)
+    assert values["maximum_moment_position_mm"] == pytest.approx(2000)
+    assert values["governing_candidate_type"] == "stationary_point"
+    assert superposition["checked_conditions_satisfied"]
+
+    design = run(
+        {
+            "operation": "appendix_e_design_bending_moment",
+            "design_load_set_id": "ULS-E2C-01",
+            "second_order_method": "superposition",
+            "maximum_second_order_moment_knm": values["maximum_second_order_moment_knm"],
+            "maximum_second_order_moment_verified": True,
+            "second_order_analysis_evidence_reference": "APPENDIX-E2-C-SUPERPOSITION-01",
+            "compression_kn": 20,
+            "compression_force_verified": True,
+            "compression_force_evidence_reference": "ULS-E2C-01-FORCE",
+            "elastic_buckling_load_kn": 100,
+            "elastic_buckling_load_verified": True,
+            "buckling_load_evidence_reference": "APPENDIX-E2C-NOMB-01",
+            "braced_member_verified": True,
+            "braced_member_evidence_reference": "APPENDIX-E2C-BRACING-01",
+            "beta_m_basis_verified": True,
+            "beta_m_evidence_reference": "APPENDIX-E2C-BETA-01",
+            "beta_m": -1,
+        }
+    )
+    assert design["values"]["delta_b"] == pytest.approx(1.25)
+    assert design["values"]["design_bending_moment_knm"] == pytest.approx(6.25)
+
+
+def test_appendix_e2c_finds_maximum_for_triangular_distributed_load():
+    result = run(
+        appendix_e_superposition_member(
+            member_length_mm=5000,
+            distributed_loads=[
+                {
+                    "load_id": "TRIANGULAR-01",
+                    "start_fraction": 0,
+                    "end_fraction": 1,
+                    "transverse_force_start_kn_per_m": 0,
+                    "transverse_force_end_kn_per_m": 4,
+                    "load_verified": True,
+                    "evidence_reference": "TRIANGULAR-LOAD-01",
+                }
+            ],
+        )
+    )
+    expected_position_mm = sqrt((2 * (10 / 3)) / 8e-7)
+    expected_moment_knm = (
+        (10 / 3) * expected_position_mm - 8e-7 * expected_position_mm**3 / 6
+    ) / 1000
+
+    assert result["values"]["simple_beam_reaction_start_kn"] == pytest.approx(10 / 3)
+    assert result["values"]["maximum_moment_position_mm"] == pytest.approx(expected_position_mm)
+    assert result["values"]["maximum_second_order_moment_knm"] == pytest.approx(expected_moment_knm)
+    assert result["values"]["governing_candidate_type"] == "stationary_point"
+
+
+def test_appendix_e2c_combines_second_order_end_moments_with_point_load():
+    result = run(
+        appendix_e_superposition_member(
+            second_order_start_moment_knm=2,
+            second_order_end_moment_knm=-2,
+            distributed_loads=[],
+            point_loads=[
+                {
+                    "load_id": "MIDSPAN-01",
+                    "position_fraction": 0.5,
+                    "transverse_force_kn": 10,
+                    "load_verified": True,
+                    "evidence_reference": "MIDSPAN-LOAD-01",
+                }
+            ],
+        )
+    )
+
+    assert result["values"]["simple_beam_reaction_start_kn"] == pytest.approx(5)
+    assert result["values"]["simple_beam_reaction_end_kn"] == pytest.approx(5)
+    assert result["values"]["maximum_second_order_moment_knm"] == pytest.approx(10)
+    assert result["values"]["maximum_moment_position_fraction"] == pytest.approx(0.5)
+
+
+def test_appendix_e2c_applies_linear_end_moment_gradient_to_distributed_load():
+    result = run(
+        appendix_e_superposition_member(
+            second_order_start_moment_knm=1,
+            second_order_end_moment_knm=-1,
+        )
+    )
+
+    assert result["values"]["maximum_second_order_moment_knm"] == pytest.approx(5.05)
+    assert result["values"]["maximum_moment_position_mm"] == pytest.approx(1800)
+
+
 def test_appendix_e_design_moment_applies_braced_factor_to_second_order_moment():
     result = run(
         {

@@ -265,6 +265,32 @@ not worked examples from the Standard. Reproduce the
 independent mesh study with `python validation/opensees_corotational_cantilever.py`
 in an environment with OpenSeesPy/OpenSees 3.8.0 installed.
 
+## Appendix E.2(c) moment superposition
+
+`appendix_e_superposition_member_moment` calculates the simple-beam moment
+diagram from one member's complete list of point loads and piecewise-linear
+transverse loads, then adds the linearly varying second-order end moments. It
+reports the signed maximum absolute moment `M_m*`, its location, support
+reactions and the boundary/stationary-point candidates. Distributed forces are
+entered in kN/m over member-length fractions; point forces are in kN. Positive
+loads act in the member's local transverse direction. Each load schedule is
+limited to 200 rows.
+
+Supply the end moments as signed internal diagram values about one assessed
+local bending axis, with positive signs consistent with the simple-beam load
+diagram. The input requires references for member geometry, end moments and
+their sign conversion, the complete transverse-load inventory, the simple-beam
+idealization and the bending axis. The operation calculates each piecewise
+cubic moment segment and checks its interval boundaries and stationary points;
+it does not determine end moments or validate the source analysis. Pass its
+`maximum_second_order_moment_knm` to
+`appendix_e_design_bending_moment` with `second_order_method: "superposition"`
+to calculate the final design bending moment.
+
+This route covers one-axis response of a prismatic member under point and
+piecewise-linear transverse forces. It excludes applied span couples, axial
+distributed loads and member/section capacity checks.
+
 ## Appendix E second-order design bending moment
 
 `appendix_e_design_bending_moment` takes the signed controlling maximum member

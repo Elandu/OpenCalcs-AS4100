@@ -1669,6 +1669,98 @@ def verify():
         986.9604401089358,
         1e-8,
     )
+    e2c_uniform = run_design_actions(
+        {
+            "operation": "appendix_e_superposition_member_moment",
+            "design_load_set_id": "VERIFY-E2C-UNIFORM-01",
+            "member_id": "BEAM-01",
+            "member_length_mm": 4000,
+            "member_geometry_verified": True,
+            "member_geometry_evidence_reference": "VERIFY-E2C-GEOMETRY-01",
+            "second_order_start_moment_knm": 0,
+            "second_order_end_moment_knm": 0,
+            "second_order_end_moments_verified": True,
+            "second_order_end_moment_evidence_reference": "VERIFY-E2C-END-MOMENTS-01",
+            "end_moment_sign_convention_verified": True,
+            "end_moment_sign_evidence_reference": "VERIFY-E2C-SIGN-01",
+            "distributed_loads": [
+                {
+                    "load_id": "UDL-01",
+                    "start_fraction": 0,
+                    "end_fraction": 1,
+                    "transverse_force_start_kn_per_m": 2.5,
+                    "transverse_force_end_kn_per_m": 2.5,
+                    "load_verified": True,
+                    "evidence_reference": "VERIFY-E2C-UDL-01",
+                }
+            ],
+            "point_loads": [],
+            "all_transverse_loads_listed_verified": True,
+            "transverse_load_list_evidence_reference": "VERIFY-E2C-LOAD-LIST-01",
+            "simple_beam_model_verified": True,
+            "simple_beam_model_evidence_reference": "VERIFY-E2C-SIMPLE-BEAM-01",
+            "bending_axis_verified": True,
+            "bending_axis_evidence_reference": "VERIFY-E2C-AXIS-01",
+        }
+    )["values"]
+    record(
+        "Appendix E.2(c) uniform-load simple-beam reaction (kN)",
+        e2c_uniform["simple_beam_reaction_start_kn"],
+        2.5 * 4 / 2,
+    )
+    record(
+        "Appendix E.2(c) uniform-load maximum moment (kN m)",
+        e2c_uniform["maximum_second_order_moment_knm"],
+        2.5 * 4**2 / 8,
+    )
+    e2c_triangular = run_design_actions(
+        {
+            "operation": "appendix_e_superposition_member_moment",
+            "design_load_set_id": "VERIFY-E2C-TRIANGULAR-01",
+            "member_id": "BEAM-02",
+            "member_length_mm": 5000,
+            "member_geometry_verified": True,
+            "member_geometry_evidence_reference": "VERIFY-E2C-GEOMETRY-02",
+            "second_order_start_moment_knm": 0,
+            "second_order_end_moment_knm": 0,
+            "second_order_end_moments_verified": True,
+            "second_order_end_moment_evidence_reference": "VERIFY-E2C-END-MOMENTS-02",
+            "end_moment_sign_convention_verified": True,
+            "end_moment_sign_evidence_reference": "VERIFY-E2C-SIGN-02",
+            "distributed_loads": [
+                {
+                    "load_id": "TRIANGULAR-01",
+                    "start_fraction": 0,
+                    "end_fraction": 1,
+                    "transverse_force_start_kn_per_m": 0,
+                    "transverse_force_end_kn_per_m": 4,
+                    "load_verified": True,
+                    "evidence_reference": "VERIFY-E2C-TRIANGULAR-LOAD-01",
+                }
+            ],
+            "point_loads": [],
+            "all_transverse_loads_listed_verified": True,
+            "transverse_load_list_evidence_reference": "VERIFY-E2C-LOAD-LIST-02",
+            "simple_beam_model_verified": True,
+            "simple_beam_model_evidence_reference": "VERIFY-E2C-SIMPLE-BEAM-02",
+            "bending_axis_verified": True,
+            "bending_axis_evidence_reference": "VERIFY-E2C-AXIS-02",
+        }
+    )["values"]
+    triangular_shear_root = sqrt((2 * (10 / 3)) / 8e-7)
+    triangular_moment = (
+        (10 / 3) * triangular_shear_root - 8e-7 * triangular_shear_root**3 / 6
+    ) / 1000
+    record(
+        "Appendix E.2(c) triangular-load maximum-moment location (mm)",
+        e2c_triangular["maximum_moment_position_mm"],
+        triangular_shear_root,
+    )
+    record(
+        "Appendix E.2(c) triangular-load maximum moment (kN m)",
+        e2c_triangular["maximum_second_order_moment_knm"],
+        triangular_moment,
+    )
     transverse_moment = run_design_actions(
         {
             "operation": "moment_amplification",

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """AS 4100 sections 3/4 numerical design-action checks, reviewed against scanned text."""
 
-from math import isclose, isfinite, pi, tan
+from math import isclose, isfinite, pi, sqrt, tan
 
 from .frame_buckling import run_frame_buckling
 from .iterative_analysis import run_iterative_second_order_frame_analysis
@@ -368,6 +368,26 @@ _FRAME_DISTRIBUTED_MEMBER_LOAD = object_schema(
         "evidence_reference": _REFERENCE,
     }
 )
+_E2_SUPERPOSITION_DISTRIBUTED_LOAD = object_schema(
+    {
+        "load_id": _REFERENCE,
+        "start_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "end_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "transverse_force_start_kn_per_m": SIGNED,
+        "transverse_force_end_kn_per_m": SIGNED,
+        "load_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_E2_SUPERPOSITION_POINT_LOAD = object_schema(
+    {
+        "load_id": _REFERENCE,
+        "position_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+        "transverse_force_kn": SIGNED,
+        "load_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
 _PLASTIC_JOINT = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -647,6 +667,38 @@ SCHEMAS = {
             "compression_kn",
             "first_order_moment_knm",
         ],
+    ),
+    "appendix_e_superposition_member_moment": object_schema(
+        {
+            "operation": {"const": "appendix_e_superposition_member_moment"},
+            "design_load_set_id": _REFERENCE,
+            "member_id": _REFERENCE,
+            "member_length_mm": POSITIVE,
+            "member_geometry_verified": _BOOL,
+            "member_geometry_evidence_reference": _REFERENCE,
+            "second_order_start_moment_knm": SIGNED,
+            "second_order_end_moment_knm": SIGNED,
+            "second_order_end_moments_verified": _BOOL,
+            "second_order_end_moment_evidence_reference": _REFERENCE,
+            "end_moment_sign_convention_verified": _BOOL,
+            "end_moment_sign_evidence_reference": _REFERENCE,
+            "distributed_loads": {
+                "type": "array",
+                "maxItems": 200,
+                "items": _E2_SUPERPOSITION_DISTRIBUTED_LOAD,
+            },
+            "point_loads": {
+                "type": "array",
+                "maxItems": 200,
+                "items": _E2_SUPERPOSITION_POINT_LOAD,
+            },
+            "all_transverse_loads_listed_verified": _BOOL,
+            "transverse_load_list_evidence_reference": _REFERENCE,
+            "simple_beam_model_verified": _BOOL,
+            "simple_beam_model_evidence_reference": _REFERENCE,
+            "bending_axis_verified": _BOOL,
+            "bending_axis_evidence_reference": _REFERENCE,
+        }
     ),
     "appendix_e_design_bending_moment": object_schema(
         {
@@ -1160,6 +1212,160 @@ def _run_sway_frame_buckling_factor(d):
             "compliance.",
         ],
     )
+
+
+def _unit_interval_quadratic_roots(a, b, c):
+    scale = max(abs(a), abs(b), abs(c), 1e-30)
+    tolerance = 1e-14 * scale
+    if abs(a) <= tolerance:
+        if abs(b) <= tolerance:
+            return []
+        return [-c / b]
+    discriminant = b * b - 4 * a * c
+    discriminant_tolerance = 1e-14 * max(b * b, abs(4 * a * c), 1e-60)
+    if discriminant < -discriminant_tolerance:
+        return []
+    root = sqrt(max(discriminant, 0.0))
+    denominator = 2 * a
+    return sorted({(-b - root) / denominator, (-b + root) / denominator})
+
+
+def _appendix_e_superposition_moment(d):
+    length = d["member_length_mm"]
+    distributed_loads = d["distributed_loads"]
+    point_loads = d["point_loads"]
+    load_ids = [load["load_id"] for load in (*distributed_loads, *point_loads)]
+    if len(load_ids) != len(set(load_ids)):
+        raise ValueError("Transverse load identifiers must be unique for this member.")
+    for load in distributed_loads:
+        if not 0 <= load["start_fraction"] < load["end_fraction"] <= 1:
+            raise ValueError("Distributed-load fractions must satisfy 0 <= start < end <= 1.")
+
+    stations = {0.0, 1.0}
+    stations.update(load["start_fraction"] for load in distributed_loads)
+    stations.update(load["end_fraction"] for load in distributed_loads)
+    stations.update(load["position_fraction"] for load in point_loads)
+    positions = sorted(fraction * length for fraction in stations)
+
+    def distributed_intensity(load, position_mm):
+        span_start = load["start_fraction"] * length
+        span_end = load["end_fraction"] * length
+        ratio = (position_mm - span_start) / (span_end - span_start)
+        value = load["transverse_force_start_kn_per_m"] + ratio * (
+            load["transverse_force_end_kn_per_m"] - load["transverse_force_start_kn_per_m"]
+        )
+        return value / 1000
+
+    interval_loads = []
+    total_transverse_force = 0.0
+    transverse_load_first_moment = 0.0
+    for start, end in zip(positions[:-1], positions[1:], strict=True):
+        span = end - start
+        if span <= 0:
+            raise ValueError("Member load stations must have positive spacing.")
+        midpoint = (start + end) / 2
+        intensity_start = 0.0
+        intensity_end = 0.0
+        for load in distributed_loads:
+            load_start = load["start_fraction"] * length
+            load_end = load["end_fraction"] * length
+            if load_start < midpoint < load_end:
+                intensity_start += distributed_intensity(load, start)
+                intensity_end += distributed_intensity(load, end)
+        interval_force = (intensity_start + intensity_end) * span / 2
+        intensity_slope = (intensity_end - intensity_start) / span
+        interval_first_moment = (
+            start * interval_force + intensity_start * span**2 / 2 + intensity_slope * span**3 / 3
+        )
+        total_transverse_force += interval_force
+        transverse_load_first_moment += interval_first_moment
+        interval_loads.append((start, end, intensity_start, intensity_end, interval_force))
+
+    point_forces = {}
+    for load in point_loads:
+        position = load["position_fraction"] * length
+        force = load["transverse_force_kn"]
+        point_forces[position] = point_forces.get(position, 0.0) + force
+        total_transverse_force += force
+        transverse_load_first_moment += force * position
+
+    reaction_end = transverse_load_first_moment / length
+    reaction_start = total_transverse_force - reaction_end
+    end_moment_start = d["second_order_start_moment_knm"] * 1000
+    end_moment_end = d["second_order_end_moment_knm"] * 1000
+    end_moment_slope = (end_moment_end - end_moment_start) / length
+    simple_moment = 0.0
+    shear = reaction_start
+    candidates_by_position = {}
+
+    def add_candidate(position, simple_moment_at_position, candidate_type):
+        total_moment = simple_moment_at_position + end_moment_start + end_moment_slope * position
+        candidates_by_position[position] = {
+            "position_mm": position,
+            "moment_knm": total_moment / 1000,
+            "candidate_type": candidate_type,
+        }
+
+    for index, (start, end, intensity_start, intensity_end, interval_force) in enumerate(
+        interval_loads
+    ):
+        span = end - start
+        intensity_slope = (intensity_end - intensity_start) / span
+        if index == 0:
+            shear -= point_forces.get(start, 0.0)
+        add_candidate(start, simple_moment, "interval_boundary")
+
+        # The moment derivative is quadratic on each linear-load interval.
+        roots = _unit_interval_quadratic_roots(
+            -0.5 * (intensity_end - intensity_start) * span,
+            -intensity_start * span,
+            shear + end_moment_slope,
+        )
+        for fraction in roots:
+            if 0 < fraction < 1:
+                offset = fraction * span
+                simple_at_root = (
+                    simple_moment
+                    + shear * offset
+                    - intensity_start * offset**2 / 2
+                    - intensity_slope * offset**3 / 6
+                )
+                add_candidate(start + offset, simple_at_root, "stationary_point")
+
+        simple_moment += (
+            shear * span - intensity_start * span**2 / 2 - intensity_slope * span**3 / 6
+        )
+        add_candidate(end, simple_moment, "interval_boundary")
+        shear -= interval_force
+        if index < len(interval_loads) - 1:
+            shear -= point_forces.get(end, 0.0)
+
+    candidates = sorted(candidates_by_position.values(), key=lambda item: item["position_mm"])
+    maximum = max(
+        candidates,
+        key=lambda item: (abs(item["moment_knm"]), -item["position_mm"]),
+    )
+    return {
+        "design_load_set_id": d["design_load_set_id"],
+        "member_id": d["member_id"],
+        "member_length_mm": length,
+        "simple_beam_reaction_start_kn": reaction_start,
+        "simple_beam_reaction_end_kn": reaction_end,
+        "total_transverse_load_kn": total_transverse_force,
+        "transverse_load_resultant_position_mm": (
+            transverse_load_first_moment / total_transverse_force
+            if not isclose(total_transverse_force, 0, abs_tol=1e-12)
+            else None
+        ),
+        "second_order_start_moment_knm": d["second_order_start_moment_knm"],
+        "second_order_end_moment_knm": d["second_order_end_moment_knm"],
+        "maximum_second_order_moment_knm": maximum["moment_knm"],
+        "maximum_absolute_second_order_moment_knm": abs(maximum["moment_knm"]),
+        "maximum_moment_position_mm": maximum["position_mm"],
+        "maximum_moment_position_fraction": maximum["position_mm"] / length,
+        "governing_candidate_type": maximum["candidate_type"],
+        "critical_section_candidates": candidates,
+    }
 
 
 def run_design_actions(inputs):
@@ -2115,6 +2321,67 @@ def run_design_actions(inputs):
                 "Deflections used for the Clause 4.4.2.2(c) route are supplied analysis results; "
                 "this operation does not perform the elastic member analysis or determine the "
                 "first-order maximum moment from the actual load distribution.",
+            ],
+        )
+    if op == "appendix_e_superposition_member_moment":
+        values = _appendix_e_superposition_moment(d)
+        checks = [
+            {
+                "clause": "E.2(c)",
+                "condition": "member length and geometry are assessed",
+                "satisfied": d["member_geometry_verified"],
+                "evidence_reference": d["member_geometry_evidence_reference"],
+            },
+            {
+                "clause": "E.2(c)",
+                "condition": (
+                    "second-order end moments are assessed with a consistent sign convention"
+                ),
+                "satisfied": (
+                    d["second_order_end_moments_verified"]
+                    and d["end_moment_sign_convention_verified"]
+                ),
+                "analysis_evidence_reference": d["second_order_end_moment_evidence_reference"],
+                "sign_convention_evidence_reference": d["end_moment_sign_evidence_reference"],
+            },
+            {
+                "clause": "E.2(c)",
+                "condition": "the complete transverse-load list and every load are assessed",
+                "satisfied": d["all_transverse_loads_listed_verified"]
+                and all(load["load_verified"] for load in d["distributed_loads"])
+                and all(load["load_verified"] for load in d["point_loads"]),
+                "evidence_reference": d["transverse_load_list_evidence_reference"],
+                "distributed_load_count": len(d["distributed_loads"]),
+                "point_load_count": len(d["point_loads"]),
+            },
+            {
+                "clause": "E.2(c)",
+                "condition": "the simple-beam superposition idealization is assessed",
+                "satisfied": d["simple_beam_model_verified"],
+                "evidence_reference": d["simple_beam_model_evidence_reference"],
+            },
+            {
+                "clause": "E.2(c)",
+                "condition": "the local bending axis is assessed for the member",
+                "satisfied": d["bending_axis_verified"],
+                "evidence_reference": d["bending_axis_evidence_reference"],
+            },
+        ]
+        return result(
+            op,
+            ["E.2(c)"],
+            values,
+            checks,
+            limitations=[
+                "This calculates the Appendix E.2(c) superposition of a simply supported "
+                "transverse-load moment diagram with the supplied second-order end moments. "
+                "It does not perform or validate the second-order analysis that supplies those "
+                "end moments.",
+                "The load model supports one local bending axis, point transverse forces and "
+                "piecewise-linear transverse loads on a prismatic member. Applied span couples, "
+                "axial distributed loads, other axes and member or section capacity checks are "
+                "outside this operation. Pass the returned M_m* to "
+                "appendix_e_design_bending_moment for the Appendix E.2 design moment.",
             ],
         )
     if op == "appendix_e_design_bending_moment":
