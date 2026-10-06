@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """Bounded in-plane buckling analysis for planar frames of prismatic segments."""
 
-from math import hypot, isfinite, sqrt
+from math import atan2, hypot, isfinite, sqrt
 
 from .standards import ELASTIC_MODULUS_MPA
 
@@ -293,10 +293,15 @@ def assemble_frame_matrices(inputs, subdivisions):
                     "dofs": dofs,
                     "transform": transform,
                     "member_id": member["member_id"],
+                    "area_mm2": member["area_mm2"],
+                    "second_moment_in_plane_mm4": member["second_moment_in_plane_mm4"],
                     "member_length_mm": physical_length,
                     "start_fraction": start_fraction,
                     "end_fraction": end_fraction,
                     "length_mm": element_length,
+                    "reference_start": coordinates[path_start],
+                    "reference_end": coordinates[path_end],
+                    "reference_angle": atan2(total_dy, total_dx),
                     "elastic": local_elastic,
                     "geometric": local_geometric,
                 }

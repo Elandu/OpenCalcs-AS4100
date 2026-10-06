@@ -2686,6 +2686,135 @@ def verify():
     second_order_frame = run_design_actions(second_order_inputs)
     second_order_values = second_order_frame["values"]
     wave_number = sqrt(50_000 / (200_000 * 8e6))
+    iterative_evidence = "VERIFY-COROTATIONAL-CANTILEVER-ANALYTIC"
+    iterative_inputs = {
+        key: value
+        for key, value in second_order_inputs.items()
+        if key
+        not in {
+            "operation",
+            "linearized_model_applicability_verified",
+            "linearized_model_evidence_reference",
+        }
+    }
+    iterative_inputs.update(
+        {
+            "operation": "iterative_second_order_elastic_frame_analysis",
+            "corotational_method_applicability_verified": True,
+            "corotational_method_evidence_reference": iterative_evidence,
+            "members": [
+                {
+                    key: value
+                    for key, value in member.items()
+                    if key not in {"axial_force_profile_kn", "axial_force_verified"}
+                }
+                for member in second_order_inputs["members"]
+            ],
+        }
+    )
+    iterative_frame = run_design_actions(iterative_inputs)
+    iterative_values = iterative_frame["values"]
+    expected_column_moment = 10_000 * tan(wave_number * 4000) / wave_number / 1e6
+    expected_column_displacement = 10_000 / 50_000 * (tan(wave_number * 4000) / wave_number - 4000)
+    record(
+        "Appendix E.2(b) corotational cantilever end-moment agreement ratio",
+        iterative_values["member_moments"][0]["maximum_absolute_element_end_moment_knm"]
+        / expected_column_moment,
+        1,
+        0.005,
+    )
+    record(
+        "Appendix E.2(b) corotational cantilever displacement agreement ratio",
+        abs(iterative_values["joint_displacements"][-1]["ux_mm"]) / expected_column_displacement,
+        1,
+        0.005,
+    )
+    record(
+        "OpenSeesPy 3.8.0 16-element corotational end moment (kN m)",
+        iterative_values["member_moments"][0]["maximum_absolute_element_end_moment_knm"],
+        48.27748141928913,
+        0.0001,
+    )
+    record(
+        "OpenSeesPy 3.8.0 16-element corotational tip displacement (mm)",
+        abs(iterative_values["joint_displacements"][-1]["ux_mm"]),
+        166.4040891604727,
+        0.0001,
+    )
+    record(
+        "OpenSeesPy 3.8.0 16-element corotational support moment (kN m)",
+        iterative_values["support_reactions"][0]["moment_knm"],
+        48.27748141928913,
+        0.0001,
+    )
+    iterative_udl_evidence = "VERIFY-COROTATIONAL-UDL-OPENSEES"
+    iterative_udl_inputs = {
+        **iterative_inputs,
+        "design_load_set_id": "VERIFY-COROTATIONAL-UDL-50-2.5",
+        "design_load_evidence_reference": iterative_udl_evidence,
+        "frame_action_equilibrium_evidence_reference": iterative_udl_evidence,
+        "joint_action_list_evidence_reference": iterative_udl_evidence,
+        "distributed_member_load_list_evidence_reference": iterative_udl_evidence,
+        "joint_actions": [
+            {**iterative_inputs["joint_actions"][0], "evidence_reference": iterative_udl_evidence},
+            {
+                **iterative_inputs["joint_actions"][1],
+                "force_x_kn": 0,
+                "evidence_reference": iterative_udl_evidence,
+            },
+        ],
+        "distributed_member_loads": [
+            {
+                "load_id": "VERIFY-COROTATIONAL-UDL",
+                "member_id": "COLUMN",
+                "start_fraction": 0,
+                "end_fraction": 1,
+                "transverse_force_start_kn_per_m": 2.5,
+                "transverse_force_end_kn_per_m": 2.5,
+                "member_load_verified": True,
+                "evidence_reference": iterative_udl_evidence,
+            }
+        ],
+    }
+    iterative_udl_values = run_design_actions(iterative_udl_inputs)["values"]
+    record(
+        "OpenSeesPy 3.8.0 16-element uniform-load tip displacement (mm)",
+        abs(iterative_udl_values["joint_displacements"][-1]["ux_mm"]),
+        62.15323697933561,
+        0.0001,
+    )
+    record(
+        "OpenSeesPy 3.8.0 16-element uniform-load end moment (kN m)",
+        iterative_udl_values["member_moments"][0]["maximum_absolute_element_end_moment_knm"],
+        23.105265467937336,
+        0.0001,
+    )
+    record(
+        "OpenSeesPy 3.8.0 16-element uniform-load support moment (kN m)",
+        iterative_udl_values["support_reactions"][0]["moment_knm"],
+        -23.105265467937336,
+        0.0001,
+    )
+    record(
+        "Clause 4.5.1 corotational uniform-load global equilibrium",
+        int(iterative_udl_values["global_equilibrium"]["satisfied"]),
+        1,
+    )
+    record(
+        "Appendix E.1 corotational nonlinear residual threshold",
+        int(iterative_values["nonlinear_residual_relative"] < 1e-8),
+        1,
+    )
+    record(
+        "Appendix E.2(b) corotational mesh-convergence threshold",
+        int(iterative_values["relative_mesh_difference"] <= 0.001),
+        1,
+    )
+    record(
+        "Clause 4.5.1 corotational global equilibrium",
+        int(iterative_values["global_equilibrium"]["satisfied"]),
+        1,
+    )
     record(
         "Appendix E.2(b) fixed-free column elastic buckling factor",
         second_order_values["elastic_buckling_load_factor"],

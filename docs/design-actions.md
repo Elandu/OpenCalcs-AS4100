@@ -217,6 +217,50 @@ moment; the refined calculation agrees within the stated benchmark tolerance.
 This is also an independent analytic verification case, not a Standard worked
 example.
 
+## Iterative corotational second-order elastic frame analysis
+
+`iterative_second_order_elastic_frame_analysis` solves a proportional design
+load set by corotational Newton iterations. Unlike the fixed-force route above,
+it updates the frame geometry and element axial-force response as equilibrium
+is advanced. It reports support reactions, global equilibrium, joint
+displacements, element axial forces, element-end moments, nonlinear residuals,
+and a mesh-convergence comparison. A mesh must converge within 0.1% before a
+result is returned.
+
+The model is limited to a complete, in-plane, rigidly connected frame of
+prismatic Euler-Bernoulli members with small axial strain and elastic modulus
+`E=200000 MPa`. Every joint needs one complete action record. Transverse
+distributed loads act in each member's initial local axes; nodal actions remain
+fixed in global directions. The solver accepts only stable equilibrium paths.
+It does not model axial distributed loads, follower loads, member-end releases,
+semi-rigid connections, shear deformation, initial imperfections, residual
+stress, yielding, out-of-plane response, or torsion. Assess these assumptions
+for the actual design case and set
+`corotational_method_applicability_verified` only with supporting engineering
+evidence.
+
+The reported moments and axial forces are analysis actions, not member
+capacities or a complete member design. Apply the applicable AS 4100 Clause
+E.2 design-moment treatment, including any required Clause 4.4.2.2 factor,
+without double-counting effects already included by the analysis. The operation
+does not establish complete AS 4100 compliance.
+
+An independent fixed-free beam-column benchmark uses `E=200000 MPa`,
+`I=8e6 mm4`, `L=4000 mm`, 50 kN compression, and a 10 kN transverse tip force.
+OpenSeesPy/OpenSees 3.8.0 with 16 elastic beam-column elements and a
+corotational transformation gives a 48.2774814193 kN·m maximum element-end
+moment, a 166.4040891605 mm tip displacement, and a 48.2774814193 kN·m support
+moment. The plugin agrees within 0.0001 in the stated units. Independent
+8- and 32-element OpenSees runs bracket the 16-element result with less than
+0.1% change. A closed-form linear beam-column solution gives 48.338410 kN·m
+and 166.768194 mm; that separate comparison checks response scale. A second
+case with 2.5 kN/m uniform transverse member loading matches an independent
+OpenSees 16-element result of 62.1532369793 mm tip displacement and
+23.1052654679 kN·m maximum element-end moment. These are verification cases,
+not worked examples from the Standard. Reproduce the
+independent mesh study with `python validation/opensees_corotational_cantilever.py`
+in an environment with OpenSeesPy/OpenSees 3.8.0 installed.
+
 ## Braced-member moment amplification
 
 `moment_amplification` calculates the Clause 4.4.2.2 braced-member factor and

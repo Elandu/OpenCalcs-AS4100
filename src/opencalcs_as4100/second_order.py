@@ -360,8 +360,7 @@ def _relative_change(current, previous):
     return difference / max(scale, 1e-9)
 
 
-def run_second_order_frame_analysis(inputs):
-    """Solve the planar linearized second-order response for one assessed load set."""
+def _validate_frame_model(inputs):
     joint_ids = [joint["joint_id"] for joint in inputs["joints"]]
     member_ids = [member["member_id"] for member in inputs["members"]]
     action_ids = [action["joint_id"] for action in inputs["joint_actions"]]
@@ -390,6 +389,11 @@ def run_second_order_frame_analysis(inputs):
             raise ValueError(
                 "Distributed member-load fractions must satisfy 0 <= start < end <= 1."
             )
+
+
+def run_second_order_frame_analysis(inputs):
+    """Solve the planar linearized second-order response for one assessed load set."""
+    _validate_frame_model(inputs)
 
     mesh_results = []
     previous = None

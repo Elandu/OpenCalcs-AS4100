@@ -4,6 +4,7 @@
 from math import isclose, isfinite, pi, tan
 
 from .frame_buckling import run_frame_buckling
+from .iterative_analysis import run_iterative_second_order_frame_analysis
 from .second_order import run_second_order_frame_analysis
 from .standards import ELASTIC_MODULUS_MPA
 from .validation import NONNEGATIVE, POSITIVE, SIGNED, object_schema, result, validate
@@ -319,6 +320,19 @@ _FRAME_BUCKLING_MEMBER["oneOf"] = [
     {"required": ["axial_force_kn"], "not": {"required": ["axial_force_profile_kn"]}},
     {"required": ["axial_force_profile_kn"], "not": {"required": ["axial_force_kn"]}},
 ]
+_ITERATIVE_FRAME_MEMBER = object_schema(
+    {
+        "member_id": _REFERENCE,
+        "start_joint_id": _REFERENCE,
+        "end_joint_id": _REFERENCE,
+        "area_mm2": POSITIVE,
+        "second_moment_in_plane_mm4": POSITIVE,
+        "prismatic_member_verified": _BOOL,
+        "geometry_verified": _BOOL,
+        "section_properties_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
 _FRAME_JOINT_ACTION = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -521,6 +535,49 @@ SCHEMAS = {
                 "type": "array",
                 "minItems": 1,
                 "items": _FRAME_BUCKLING_MEMBER,
+            },
+            "joint_actions": {
+                "type": "array",
+                "minItems": 2,
+                "items": _FRAME_JOINT_ACTION,
+            },
+            "distributed_member_loads": {
+                "type": "array",
+                "items": _FRAME_DISTRIBUTED_MEMBER_LOAD,
+            },
+        }
+    ),
+    "iterative_second_order_elastic_frame_analysis": object_schema(
+        {
+            "operation": {"const": "iterative_second_order_elastic_frame_analysis"},
+            "design_load_set_id": _REFERENCE,
+            "design_load_actions_verified": _BOOL,
+            "design_load_evidence_reference": _REFERENCE,
+            "frame_model_verified": _BOOL,
+            "frame_model_evidence_reference": _REFERENCE,
+            "corotational_method_applicability_verified": _BOOL,
+            "corotational_method_evidence_reference": _REFERENCE,
+            "frame_action_equilibrium_verified": _BOOL,
+            "frame_action_equilibrium_evidence_reference": _REFERENCE,
+            "all_frame_joints_listed_verified": _BOOL,
+            "joint_list_evidence_reference": _REFERENCE,
+            "all_frame_members_listed_verified": _BOOL,
+            "member_list_evidence_reference": _REFERENCE,
+            "all_joint_actions_listed_verified": _BOOL,
+            "joint_action_list_evidence_reference": _REFERENCE,
+            "all_distributed_member_loads_listed_verified": _BOOL,
+            "distributed_member_load_list_evidence_reference": _REFERENCE,
+            "members_remain_elastic_verified": _BOOL,
+            "elastic_response_evidence_reference": _REFERENCE,
+            "joints": {
+                "type": "array",
+                "minItems": 2,
+                "items": _FRAME_BUCKLING_JOINT,
+            },
+            "members": {
+                "type": "array",
+                "minItems": 1,
+                "items": _ITERATIVE_FRAME_MEMBER,
             },
             "joint_actions": {
                 "type": "array",
@@ -1550,6 +1607,120 @@ def run_design_actions(inputs):
                 "moment route in Appendix E.2(b). Assess whether the mesh and model represent "
                 "the complete design situation; the operation does not determine load "
                 "combinations, section/member capacities, or full AS 4100 compliance.",
+            ],
+        )
+    if op == "iterative_second_order_elastic_frame_analysis":
+        values = run_iterative_second_order_frame_analysis(d)
+        all_member_properties_verified = all(
+            member["prismatic_member_verified"]
+            and member["geometry_verified"]
+            and member["section_properties_verified"]
+            for member in d["members"]
+        )
+        all_joint_geometry_and_restraints_verified = all(
+            joint["joint_geometry_verified"] and joint["restraint_assessment_verified"]
+            for joint in d["joints"]
+        )
+        checks = [
+            {
+                "clause": "4.4.1.2",
+                "condition": "the second-order analysis model and design load set are assessed",
+                "satisfied": d["frame_model_verified"] and d["design_load_actions_verified"],
+                "frame_evidence_reference": d["frame_model_evidence_reference"],
+                "load_evidence_reference": d["design_load_evidence_reference"],
+            },
+            {
+                "clause": "E.1",
+                "condition": (
+                    "the corotational elastic method and its in-plane model assumptions are "
+                    "assessed as applicable"
+                ),
+                "satisfied": d["corotational_method_applicability_verified"],
+                "evidence_reference": d["corotational_method_evidence_reference"],
+            },
+            {
+                "clause": "E.1",
+                "condition": "members remain elastic for the design load set",
+                "satisfied": d["members_remain_elastic_verified"],
+                "evidence_reference": d["elastic_response_evidence_reference"],
+            },
+            {
+                "clause": "4.5.1",
+                "condition": (
+                    "the complete frame action inventory and member-load equilibrium are assessed"
+                ),
+                "satisfied": d["frame_action_equilibrium_verified"],
+                "evidence_reference": d["frame_action_equilibrium_evidence_reference"],
+            },
+            {
+                "clause": "4.5.1",
+                "condition": "calculated global force and moment equilibrium is satisfied",
+                "satisfied": values["global_equilibrium"]["satisfied"],
+                "residual": values["global_equilibrium"]["residual"],
+                "numerical_tolerance": values["global_equilibrium"]["numerical_tolerance"],
+            },
+            {
+                "clause": "E.1",
+                "condition": (
+                    "the complete joint and member model, geometry, restraints and properties "
+                    "are assessed"
+                ),
+                "satisfied": (
+                    d["all_frame_joints_listed_verified"]
+                    and d["all_frame_members_listed_verified"]
+                    and all_member_properties_verified
+                    and all_joint_geometry_and_restraints_verified
+                ),
+                "joint_list_evidence_reference": d["joint_list_evidence_reference"],
+                "member_list_evidence_reference": d["member_list_evidence_reference"],
+            },
+            {
+                "clause": "4.5.1",
+                "condition": "all joint actions and transverse member loads are listed",
+                "satisfied": (
+                    d["all_joint_actions_listed_verified"]
+                    and d["all_distributed_member_loads_listed_verified"]
+                    and all(action["joint_actions_verified"] for action in d["joint_actions"])
+                    and all(load["member_load_verified"] for load in d["distributed_member_loads"])
+                ),
+                "joint_action_list_evidence_reference": d["joint_action_list_evidence_reference"],
+                "distributed_member_load_list_evidence_reference": d[
+                    "distributed_member_load_list_evidence_reference"
+                ],
+            },
+            {
+                "clause": "E.2(b)",
+                "condition": (
+                    "the greatest element-end moment response is mesh-converged within 0.1%"
+                ),
+                "satisfied": values["relative_mesh_difference"] <= 0.001,
+                "relative_mesh_difference": values["relative_mesh_difference"],
+            },
+        ]
+        return result(
+            op,
+            ["4.4.1.2", "4.5.1", "E.1", "E.2(b)"],
+            values,
+            checks,
+            limitations=[
+                "This is a two-dimensional corotational elastic analysis of a complete planar "
+                "frame with rigid joints and prismatic Euler-Bernoulli members. It updates the "
+                "deformed member geometry and axial-force response during proportional load "
+                "stepping. The model assumes small axial strain and constant elastic modulus "
+                "of 200 000 MPa; only stable equilibrium paths are accepted.",
+                "Nodal actions remain fixed in global directions. Piecewise-linear transverse "
+                "loads act in the initial local axes of each member. Axial distributed loads, "
+                "follower loads, member-end releases, semi-rigid connections, shear deformation, "
+                "initial imperfections, residual stress, material nonlinearity, and out-of-plane "
+                "or torsional response are outside this model.",
+                "The reported element-end moments and axial forces are analysis actions. This "
+                "operation does not calculate section or member capacities, apply any separate "
+                "Clause 4.4.2.2 member moment amplification required for design, or establish "
+                "full AS 4100 compliance. Assess the applicable Clause E.2 design-moment route "
+                "and avoid double-counting second-order effects.",
+                "Evidence flags record engineer assessments; the operation does not authenticate "
+                "the source model, action inventory, elastic-response assessment, or method "
+                "applicability evidence.",
             ],
         )
     if op == "rectangular_frame_stiffness_ratio":

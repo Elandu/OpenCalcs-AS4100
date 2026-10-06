@@ -1,6 +1,6 @@
 # OpenCalcs AS 4100
 
-OpenCalcs plugin version 0.7.50 provides twelve bounded calculation families for
+OpenCalcs plugin version 0.7.51 provides twelve bounded calculation families for
 AS 4100:2020 steel design. It evaluates selected equations and declared
 conditions; it does not establish full standard or project compliance. Every
 applicable member, connection, action, detail and construction requirement needs
@@ -14,7 +14,7 @@ an engineering assessment supported by evidence.
 | `advanced_members` | Selected cross-section restraint classification and full-restraint length limits, critical-section/flange checks, variable/built-up member, buckling-analysis, plastic, restraint, separator/diaphragm, lacing, batten and pin/angle geometry checks; derives selected Clause 7.4.2 lacing/batten actions from verified member moment diagrams. |
 | `connection_design` | Selected bolts, pins, welds, groups, holes and connection detailing. |
 | `durability` | Selected brittle-fracture, fatigue, fire and earthquake checks. |
-| `design_actions` | Stability, serviceability, notional load, selected member and whole-frame buckling/amplification calculations, global/joint equilibrium and support-boundary comparisons under Clause 4.5.1, prescriptive Clause 4.5.2 limits and an alternative-ductility evidence assessment, plus selected Clause 4.5.3 checks ([details](docs/design-actions.md)). |
+| `design_actions` | Stability, serviceability, notional load, selected member and whole-frame buckling/amplification calculations, bounded linearized and corotational second-order frame-response analyses, global/joint equilibrium and support-boundary comparisons under Clause 4.5.1, prescriptive Clause 4.5.2 limits and an alternative-ductility evidence assessment, plus selected Clause 4.5.3 checks ([details](docs/design-actions.md)). |
 | `webs` | Selected web thickness/opening limits, bearing, bearing/bending and stiffener checks. |
 | `fabrication` | Selected Clause 14.1 acceptance routes, 14.2 material/fabrication checks, 14.3 hole and bolt-assembly checks, and 14.4 tolerance paths. |
 | `erection` | Selected Clause 15.1.1 acceptance routes, 15.1.2 safety, 15.2 erection and bolt tensioning, and 15.3 tolerance checks. |

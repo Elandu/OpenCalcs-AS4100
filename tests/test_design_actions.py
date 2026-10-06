@@ -4,6 +4,8 @@ from math import cos, pi, sin, sqrt, tan, tanh
 import pytest
 
 from opencalcs_as4100.design_actions import run_design_actions as run
+from opencalcs_as4100.frame_buckling import assemble_frame_matrices
+from opencalcs_as4100.iterative_analysis import _corotational_element_response
 from opencalcs_as4100.members import run_members
 
 
@@ -195,6 +197,38 @@ def second_order_uniform_member_load_frame():
     return inputs
 
 
+def iterative_second_order_elastic_frame(**overrides):
+    inputs = second_order_elastic_frame()
+    inputs["operation"] = "iterative_second_order_elastic_frame_analysis"
+    inputs.pop("linearized_model_applicability_verified")
+    inputs.pop("linearized_model_evidence_reference")
+    inputs["corotational_method_applicability_verified"] = True
+    inputs["corotational_method_evidence_reference"] = "COROTATIONAL-METHOD-01"
+    for member in inputs["members"]:
+        member.pop("axial_force_profile_kn")
+        member.pop("axial_force_verified")
+    inputs.update(overrides)
+    return inputs
+
+
+def iterative_second_order_uniform_load_frame():
+    inputs = iterative_second_order_elastic_frame(design_load_set_id="ULS-COROTATIONAL-UDL-01")
+    inputs["joint_actions"][1]["force_x_kn"] = 0
+    inputs["distributed_member_loads"] = [
+        {
+            "load_id": "COROTATIONAL-UDL-01",
+            "member_id": "COL-01",
+            "start_fraction": 0,
+            "end_fraction": 1,
+            "transverse_force_start_kn_per_m": 2.5,
+            "transverse_force_end_kn_per_m": 2.5,
+            "member_load_verified": True,
+            "evidence_reference": "COROTATIONAL-UDL-REFERENCE-01",
+        }
+    ]
+    return inputs
+
+
 def test_second_order_elastic_frame_matches_independent_cantilever_solution():
     inputs = second_order_elastic_frame()
     inputs["joint_actions"].reverse()
@@ -233,6 +267,108 @@ def test_second_order_elastic_frame_matches_independent_cantilever_solution():
         ]
         for name, residual in values["global_equilibrium"]["residual"].items()
     )
+
+
+def test_iterative_second_order_frame_matches_independent_beam_column_benchmark():
+    result = run(iterative_second_order_elastic_frame())
+    values = result["values"]
+    elastic_modulus = 200000
+    second_moment = 8e6
+    length = 4000
+    axial_force = 50000
+    transverse_force = 10000
+    wave_number = sqrt(axial_force / (elastic_modulus * second_moment))
+    expected_base_moment = transverse_force * tan(wave_number * length) / wave_number / 1e6
+    expected_tip_displacement = (
+        transverse_force / axial_force * (tan(wave_number * length) / wave_number - length)
+    )
+    base_moment = values["member_moments"][0]["maximum_absolute_element_end_moment_knm"]
+    tip_displacement = abs(values["joint_displacements"][-1]["ux_mm"])
+
+    assert result["clauses"] == ["4.4.1.2", "4.5.1", "E.1", "E.2(b)"]
+    assert result["full_standard_compliance"] is False
+    assert result["checked_conditions_satisfied"]
+    assert values["relative_mesh_difference"] <= 0.001
+    assert values["nonlinear_residual_relative"] < 1e-8
+    assert values["global_equilibrium"]["satisfied"]
+    assert base_moment > 40
+    assert base_moment == pytest.approx(expected_base_moment, rel=0.005)
+    assert tip_displacement == pytest.approx(expected_tip_displacement, rel=0.005)
+    assert base_moment == pytest.approx(48.27748141928913, rel=1e-7)
+    assert tip_displacement == pytest.approx(166.4040891604727, rel=1e-7)
+
+
+def test_iterative_second_order_frame_matches_opensees_uniform_member_load():
+    values = run(iterative_second_order_uniform_load_frame())["values"]
+
+    assert abs(values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(
+        62.15323697933561, rel=1e-7
+    )
+    assert values["member_moments"][0]["maximum_absolute_element_end_moment_knm"] == (
+        pytest.approx(23.105265467937336, rel=1e-7)
+    )
+    assert values["support_reactions"][0]["moment_knm"] == pytest.approx(
+        -23.105265467937336, rel=1e-7
+    )
+    assert values["global_equilibrium"]["satisfied"]
+
+
+def test_corotational_element_tangent_matches_finite_difference_of_internal_force():
+    assembly = assemble_frame_matrices(second_order_elastic_frame(), 1)
+    element = assembly["member_elements"][0][0]
+    member = second_order_elastic_frame()["members"][0]
+    displacement = [0.2, -0.1, 0.0002, 0.6, 0.3, -0.0001]
+    tangent = _corotational_element_response(element, member, displacement)["tangent"]
+    maximum_error = 0.0
+    derivative_scale = 0.0
+    step = 1e-4
+
+    for column in range(6):
+        positive = displacement[:]
+        negative = displacement[:]
+        positive[column] += step
+        negative[column] -= step
+        positive_force = _corotational_element_response(element, member, positive)["internal_force"]
+        negative_force = _corotational_element_response(element, member, negative)["internal_force"]
+        for row in range(6):
+            derivative = (positive_force[row] - negative_force[row]) / (2 * step)
+            derivative_scale = max(derivative_scale, abs(derivative))
+            maximum_error = max(maximum_error, abs(derivative - tangent[row][column]))
+
+    assert maximum_error / derivative_scale < 1e-8
+
+
+def test_corotational_element_has_zero_internal_force_under_rigid_body_motion():
+    inputs = second_order_elastic_frame()
+    assembly = assemble_frame_matrices(inputs, 1)
+    element = assembly["member_elements"][0][0]
+    member = inputs["members"][0]
+    angle = 0.1
+    cosine = cos(angle)
+    sine = sin(angle)
+    start_x, start_y = element["reference_start"]
+    end_x, end_y = element["reference_end"]
+    moved_start = (100 + start_x * cosine - start_y * sine, 200 + start_x * sine + start_y * cosine)
+    moved_end = (100 + end_x * cosine - end_y * sine, 200 + end_x * sine + end_y * cosine)
+    displacement = [
+        moved_start[0] - start_x,
+        moved_start[1] - start_y,
+        angle,
+        moved_end[0] - end_x,
+        moved_end[1] - end_y,
+        angle,
+    ]
+    state = _corotational_element_response(element, member, displacement)
+
+    assert max(abs(value) for value in state["basic_force"]) < 1e-3
+
+
+def test_iterative_second_order_frame_requires_method_applicability_evidence():
+    inputs = iterative_second_order_elastic_frame()
+    del inputs["corotational_method_applicability_verified"]
+
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(inputs)
 
 
 def test_second_order_elastic_frame_matches_uniformly_loaded_beam_column_solution():

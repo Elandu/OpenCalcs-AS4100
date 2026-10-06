@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.50",
+  "package_version": "0.7.51",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1786,6 +1786,90 @@
       "actual": 26.4130477581358,
       "expected": 26.422688110351565,
       "absolute_tolerance": 0.01,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) corotational cantilever end-moment agreement ratio",
+      "actual": 0.9987395475647151,
+      "expected": 1,
+      "absolute_tolerance": 0.005,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) corotational cantilever displacement agreement ratio",
+      "actual": 0.9978167026861945,
+      "expected": 1,
+      "absolute_tolerance": 0.005,
+      "passed": true
+    },
+    {
+      "name": "OpenSeesPy 3.8.0 16-element corotational end moment (kN m)",
+      "actual": 48.277481419284975,
+      "expected": 48.27748141928913,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "OpenSeesPy 3.8.0 16-element corotational tip displacement (mm)",
+      "actual": 166.4040891604622,
+      "expected": 166.4040891604727,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "OpenSeesPy 3.8.0 16-element corotational support moment (kN m)",
+      "actual": 48.277481419284975,
+      "expected": 48.27748141928913,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "OpenSeesPy 3.8.0 16-element uniform-load tip displacement (mm)",
+      "actual": 62.153236978916325,
+      "expected": 62.15323697933561,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "OpenSeesPy 3.8.0 16-element uniform-load end moment (kN m)",
+      "actual": 23.105265467839057,
+      "expected": 23.105265467937336,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "OpenSeesPy 3.8.0 16-element uniform-load support moment (kN m)",
+      "actual": -23.105265467839057,
+      "expected": -23.105265467937336,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 corotational uniform-load global equilibrium",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.1 corotational nonlinear residual threshold",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) corotational mesh-convergence threshold",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 corotational global equilibrium",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
       "passed": true
     },
     {
