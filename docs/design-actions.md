@@ -97,12 +97,17 @@ area and second moment, and rigid connections at shared joints. A physical membe
 with discrete changes in section or axial force can be represented by separate
 prismatic segments meeting at explicitly listed rigid joints; each segment must
 have verified constant properties. Smoothly varying sections are outside this
-bounded model. Provide complete joint coordinates and restrained `ux`, `uy`, and
-`rz` degrees of freedom, plus each segment's area, in-plane second moment, and
-axial force from the same identified load set. The input separately records
-complete joint and member inventories. Geometry, restraints, frame completeness,
-member properties, force pattern, and analysis assumptions require evidence
-references and engineering assessment.
+bounded model. Axial force may be constant along a segment or supplied at both
+ends for linear interpolation; both end values must belong to the same
+proportional load set, ordered from `start_joint_id` to `end_joint_id`. Provide
+complete joint coordinates and restrained `ux`,
+`uy`, and `rz` degrees of freedom, plus each segment's area, in-plane second
+moment, and axial-force profile. Supply exactly one of `axial_force_kn` for a
+constant member force or `axial_force_profile_kn: [N_start, N_end]` for a linear
+profile, with force values in kN. The result preserves the supplied form.
+The input separately records complete joint and member inventories. Geometry,
+restraints, frame completeness, member properties, force pattern, and analysis
+assumptions require evidence references and engineering assessment.
 
 This route excludes out-of-plane or torsional modes, member-end releases,
 connection flexibility, shear deformation, initial imperfections, residual
@@ -114,6 +119,10 @@ Euler solutions. The stepped-member route was checked against the exact
 beam-column transfer solution for a pin-ended 4 m column with 2 m segments,
 `I=8e6 mm4` and `I=2e6 mm4`, and 100 kN compression in each segment: the exact
 factor is `3.650519`, and the operation returns `3.650534` (0.0004% difference).
+The linearly varying axial-force route was checked against independent RK4
+integration of the continuous beam-column transfer equations for a pinned 4 m
+column with compression varying from 100 kN to 20 kN: the reference factor is
+`15.983725`, and the operation returns `15.984568` (0.0053% difference).
 A one-bay portal frame was also cross-checked against the
 zero crossing of the lowest tangent-stiffness eigenvalue in OpenSeesPy 3.8.0:
 6 m bay, 4 m columns, fixed bases, `E=200000 MPa`, `A=10000 mm2`,

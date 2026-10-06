@@ -2494,6 +2494,55 @@ def verify():
         0.001,
     )
 
+    variable_force_evidence = "VERIFY-VARIABLE-FORCE-TRANSFER-REFERENCE"
+    variable_force_frame_buckling = run_design_actions(
+        {
+            "operation": "whole_frame_elastic_buckling",
+            "design_load_set_id": "VERIFY-ULS-LINEAR-FORCE-PROFILE",
+            "design_load_actions_verified": True,
+            "design_load_evidence_reference": variable_force_evidence,
+            "frame_model_verified": True,
+            "frame_model_evidence_reference": variable_force_evidence,
+            "all_frame_joints_listed_verified": True,
+            "joint_list_evidence_reference": variable_force_evidence,
+            "all_frame_members_listed_verified": True,
+            "member_list_evidence_reference": variable_force_evidence,
+            "joints": [
+                {
+                    "joint_id": joint_id,
+                    "x_mm": x,
+                    "y_mm": 0,
+                    "restrained_dofs": ["ux", "uy"],
+                    "joint_geometry_verified": True,
+                    "restraint_assessment_verified": True,
+                    "evidence_reference": variable_force_evidence,
+                }
+                for joint_id, x in (("START", 0), ("END", 4000))
+            ],
+            "members": [
+                {
+                    "member_id": "COLUMN",
+                    "start_joint_id": "START",
+                    "end_joint_id": "END",
+                    "area_mm2": 10_000,
+                    "second_moment_in_plane_mm4": 8e6,
+                    "axial_force_profile_kn": [100, 20],
+                    "prismatic_member_verified": True,
+                    "geometry_verified": True,
+                    "section_properties_verified": True,
+                    "axial_force_verified": True,
+                    "evidence_reference": variable_force_evidence,
+                }
+            ],
+        }
+    )
+    record(
+        "Clause 4.7.2(b) linearly varying axial-force transfer benchmark",
+        variable_force_frame_buckling["values"]["lambda_c"],
+        15.98372499511359,
+        0.002,
+    )
+
     portal_evidence = "VERIFY-PORTAL-OPENSEES-REFERENCE"
     portal_joints = [
         ("BASE-L", 0, 0, ["ux", "uy", "rz"]),

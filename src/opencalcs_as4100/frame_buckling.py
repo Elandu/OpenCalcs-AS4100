@@ -106,7 +106,7 @@ def _largest_symmetric_eigenvalue(matrix):
     return max(values[index][index] for index in range(size))
 
 
-def _local_element_matrices(length, area, second_moment, axial_force_n):
+def _local_element_matrices(length, area, second_moment, axial_force_start_n, axial_force_end_n):
     elastic = _zeros(6)
     axial = ELASTIC_MODULUS_MPA * area / length
     elastic[0][0] = elastic[3][3] = axial
@@ -125,17 +125,58 @@ def _local_element_matrices(length, area, second_moment, axial_force_n):
             elastic[global_row][global_column] = bending_scale * bending[row][column]
 
     geometric = _zeros(6)
-    geometric_shape = (
-        (36.0, 3.0 * length, -36.0, 3.0 * length),
-        (3.0 * length, 4.0 * length**2, -3.0 * length, -(length**2)),
-        (-36.0, -3.0 * length, 36.0, -3.0 * length),
-        (3.0 * length, -(length**2), -3.0 * length, 4.0 * length**2),
+    # Three-point Gauss integration is exact for linearly varying axial force
+    # multiplied by the fourth-degree products of Hermite shape derivatives.
+    gauss_points = (
+        (-sqrt(3.0 / 5.0), 5.0 / 9.0),
+        (0.0, 8.0 / 9.0),
+        (sqrt(3.0 / 5.0), 5.0 / 9.0),
     )
-    geometric_scale = axial_force_n / (30.0 * length)
-    for row, global_row in enumerate(bending_indices):
-        for column, global_column in enumerate(bending_indices):
-            geometric[global_row][global_column] = geometric_scale * geometric_shape[row][column]
+    for point, weight in gauss_points:
+        fraction = (point + 1.0) / 2.0
+        axial_force = axial_force_start_n + fraction * (
+            axial_force_end_n - axial_force_start_n
+        )
+        xi = fraction
+        derivatives = (
+            (-6.0 * xi + 6.0 * xi**2) / length,
+            1.0 - 4.0 * xi + 3.0 * xi**2,
+            (6.0 * xi - 6.0 * xi**2) / length,
+            -2.0 * xi + 3.0 * xi**2,
+        )
+        integration_scale = axial_force * length * weight / 2.0
+        for row, global_row in enumerate(bending_indices):
+            for column, global_column in enumerate(bending_indices):
+                geometric[global_row][global_column] += (
+                    integration_scale * derivatives[row] * derivatives[column]
+                )
     return elastic, geometric
+
+
+def _member_axial_force_profile(member):
+    if "axial_force_profile_kn" in member:
+        return member["axial_force_profile_kn"]
+    return [member["axial_force_kn"], member["axial_force_kn"]]
+
+
+def _member_result_record(member):
+    result = {
+        "member_id": member["member_id"],
+        "start_joint_id": member["start_joint_id"],
+        "end_joint_id": member["end_joint_id"],
+        "area_mm2": member["area_mm2"],
+        "second_moment_in_plane_mm4": member["second_moment_in_plane_mm4"],
+        "prismatic_member_verified": member["prismatic_member_verified"],
+        "geometry_verified": member["geometry_verified"],
+        "section_properties_verified": member["section_properties_verified"],
+        "axial_force_verified": member["axial_force_verified"],
+        "evidence_reference": member["evidence_reference"],
+    }
+    if "axial_force_profile_kn" in member:
+        result["axial_force_profile_kn"] = member["axial_force_profile_kn"]
+    else:
+        result["axial_force_kn"] = member["axial_force_kn"]
+    return result
 
 
 def _element_transform(cosine, sine):
@@ -223,15 +264,24 @@ def _solve_mesh(d, subdivisions):
         transform = _element_transform(cosine, sine)
         transform_t = _transpose(transform)
         element_length = physical_length / subdivisions
-        local_elastic, local_geometric = _local_element_matrices(
-            element_length,
-            member["area_mm2"],
-            member["second_moment_in_plane_mm4"],
-            member["axial_force_kn"] * 1000.0,
-        )
-        global_elastic = _multiply(_multiply(transform_t, local_elastic), transform)
-        global_geometric = _multiply(_multiply(transform_t, local_geometric), transform)
-        for path_start, path_end in zip(path[:-1], path[1:], strict=True):
+        force_profile = _member_axial_force_profile(member)
+        for division, (path_start, path_end) in enumerate(
+            zip(path[:-1], path[1:], strict=True)
+        ):
+            start_fraction = division / subdivisions
+            end_fraction = (division + 1) / subdivisions
+            force_difference = force_profile[1] - force_profile[0]
+            force_start_n = (force_profile[0] + force_difference * start_fraction) * 1000.0
+            force_end_n = (force_profile[0] + force_difference * end_fraction) * 1000.0
+            local_elastic, local_geometric = _local_element_matrices(
+                element_length,
+                member["area_mm2"],
+                member["second_moment_in_plane_mm4"],
+                force_start_n,
+                force_end_n,
+            )
+            global_elastic = _multiply(_multiply(transform_t, local_elastic), transform)
+            global_geometric = _multiply(_multiply(transform_t, local_geometric), transform)
             dofs = [
                 *range(3 * node_index[path_start], 3 * node_index[path_start] + 3),
                 *range(3 * node_index[path_end], 3 * node_index[path_end] + 3),
@@ -283,8 +333,10 @@ def _solve_mesh(d, subdivisions):
 def run_frame_buckling(inputs):
     """Solve the lowest positive elastic factor for a verified planar frame model.
 
-    Each listed member has constant properties. Discrete property and axial-force
-    changes are represented by separate members joined at modelled rigid joints.
+    Each listed member has constant geometry and section properties. Axial force
+    may be constant or vary linearly between its verified end-station values.
+    Discrete property changes are represented by separate members joined at
+    modelled rigid joints.
     """
     joints = inputs["joints"]
     members = inputs["members"]
@@ -361,20 +413,5 @@ def run_frame_buckling(inputs):
             }
             for joint in joints
         ],
-        "members": [
-            {
-                "member_id": member["member_id"],
-                "start_joint_id": member["start_joint_id"],
-                "end_joint_id": member["end_joint_id"],
-                "area_mm2": member["area_mm2"],
-                "second_moment_in_plane_mm4": member["second_moment_in_plane_mm4"],
-                "axial_force_kn": member["axial_force_kn"],
-                "prismatic_member_verified": member["prismatic_member_verified"],
-                "geometry_verified": member["geometry_verified"],
-                "section_properties_verified": member["section_properties_verified"],
-                "axial_force_verified": member["axial_force_verified"],
-                "evidence_reference": member["evidence_reference"],
-            }
-            for member in members
-        ],
+        "members": [_member_result_record(member) for member in members],
     }

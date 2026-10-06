@@ -1762,21 +1762,28 @@
     },
     {
       "name": "Clause 4.7.2(b) whole-frame elastic eigenvalue matches pinned Euler column",
-      "actual": 986.9927789391796,
+      "actual": 986.9927789391794,
       "expected": 986.9604401089358,
       "absolute_tolerance": 0.05,
       "passed": true
     },
     {
       "name": "Clause 4.7.2(b) stepped column exact transfer-solution benchmark",
-      "actual": 3.650533875273884,
+      "actual": 3.6505338752738856,
       "expected": 3.650519363459397,
       "absolute_tolerance": 0.001,
       "passed": true
     },
     {
+      "name": "Clause 4.7.2(b) linearly varying axial-force transfer benchmark",
+      "actual": 15.984567608611208,
+      "expected": 15.98372499511359,
+      "absolute_tolerance": 0.002,
+      "passed": true
+    },
+    {
       "name": "Clause 4.7.2(b) portal frame cross-check against OpenSeesPy P-Delta analysis",
-      "actual": 26.413047758135814,
+      "actual": 26.4130477581358,
       "expected": 26.422688110351565,
       "absolute_tolerance": 0.01,
       "passed": true

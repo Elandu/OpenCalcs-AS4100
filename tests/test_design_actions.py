@@ -85,6 +85,8 @@ def test_whole_frame_elastic_buckling_matches_independent_euler_solution():
     assert values["relative_mesh_difference"] < 0.001
     assert values["design_load_set_id"] == "ULS-FRAME-01"
     assert values["refined_mesh"]["mesh_subdivisions_per_member"] in (8, 16, 32)
+    assert values["members"][0]["axial_force_kn"] == 1
+    assert "axial_force_profile_kn" not in values["members"][0]
     scaled = whole_frame_elastic_buckling()
     scaled["members"][0]["axial_force_kn"] = 3
     scaled_factor = run(scaled)["values"]["lambda_c"]
@@ -98,6 +100,80 @@ def test_whole_frame_elastic_buckling_matches_fixed_end_euler_solution():
     values = run(inputs)["values"]
     assert values["elastic_buckling_load_factor"] == pytest.approx(4 * 100 * pi**2, rel=5e-5)
     assert values["refined_mesh"]["mesh_subdivisions_per_member"] >= 16
+
+
+def test_whole_frame_elastic_buckling_matches_variable_force_transfer_solution():
+    inputs = whole_frame_elastic_buckling()
+    member = inputs["members"][0]
+    member.pop("axial_force_kn")
+    member["axial_force_profile_kn"] = [100, 20]
+
+    values = run(inputs)["values"]
+    # Independent RK4 transfer integration of EI*w'''' + (N(x)*w')' = 0.
+    assert values["lambda_c"] == pytest.approx(15.98372499511359, rel=1e-4)
+    assert values["relative_mesh_difference"] < 0.001
+    assert values["members"][0]["axial_force_profile_kn"] == [100, 20]
+    assert "axial_force_kn" not in values["members"][0]
+
+    reverse = whole_frame_elastic_buckling()
+    reverse_member = reverse["members"][0]
+    reverse_member.pop("axial_force_kn")
+    reverse_member["axial_force_profile_kn"] = [20, 100]
+    assert run(reverse)["values"]["lambda_c"] == pytest.approx(values["lambda_c"], rel=1e-12)
+
+    scaled = whole_frame_elastic_buckling()
+    scaled_member = scaled["members"][0]
+    scaled_member.pop("axial_force_kn")
+    scaled_member["axial_force_profile_kn"] = [300, 60]
+    assert run(scaled)["values"]["lambda_c"] * 3 == pytest.approx(values["lambda_c"], rel=1e-12)
+
+
+def test_variable_force_profile_preserves_station_order_and_member_orientation():
+    def factor(profile, *, reverse_member=False):
+        inputs = whole_frame_elastic_buckling()
+        inputs["joints"][0]["restrained_dofs"] = ["ux", "uy", "rz"]
+        inputs["joints"][1]["restrained_dofs"] = []
+        member = inputs["members"][0]
+        member.pop("axial_force_kn")
+        member["axial_force_profile_kn"] = list(profile)
+        if reverse_member:
+            member["start_joint_id"], member["end_joint_id"] = (
+                member["end_joint_id"],
+                member["start_joint_id"],
+            )
+            member["axial_force_profile_kn"] = list(reversed(profile))
+        return run(inputs)["values"]["lambda_c"]
+
+    start_compression = factor([100, 20])
+    end_compression = factor([20, 100])
+    assert start_compression == pytest.approx(5.537520283, rel=1e-3)
+    assert end_compression == pytest.approx(3.219735399, rel=1e-3)
+    assert factor([100, 20], reverse_member=True) == pytest.approx(
+        start_compression,
+        rel=1e-10,
+    )
+
+
+def test_variable_force_profile_with_tension_region_matches_transfer_solution():
+    inputs = whole_frame_elastic_buckling()
+    inputs["joints"][0]["restrained_dofs"] = ["ux", "uy", "rz"]
+    inputs["joints"][1]["restrained_dofs"] = []
+    member = inputs["members"][0]
+    member.pop("axial_force_kn")
+    member["axial_force_profile_kn"] = [100, -20]
+
+    result = run(inputs)["values"]
+    assert result["lambda_c"] == pytest.approx(12.4159456041, rel=1e-3)
+
+
+def test_constant_axial_force_profile_matches_scalar_force_route():
+    constant = run(whole_frame_elastic_buckling())["values"]["lambda_c"]
+    inputs = whole_frame_elastic_buckling()
+    member = inputs["members"][0]
+    member.pop("axial_force_kn")
+    member["axial_force_profile_kn"] = [1, 1]
+    profiled = run(inputs)["values"]["lambda_c"]
+    assert profiled == pytest.approx(constant, rel=1e-12)
 
 
 def test_whole_frame_elastic_buckling_matches_piecewise_column_transfer_solution():
@@ -287,6 +363,19 @@ def test_whole_frame_elastic_buckling_rejects_all_tension_pattern():
     inputs["members"][0]["axial_force_kn"] = -1
     with pytest.raises(ValueError, match="no positive elastic buckling eigenvalue"):
         run(inputs)
+
+
+def test_frame_buckling_requires_either_scalar_or_complete_axial_profile():
+    scalar_and_profile = whole_frame_elastic_buckling()
+    scalar_and_profile["members"][0]["axial_force_profile_kn"] = [1, 1]
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(scalar_and_profile)
+
+    incomplete_profile = whole_frame_elastic_buckling()
+    incomplete_profile["members"][0].pop("axial_force_kn")
+    incomplete_profile["members"][0]["axial_force_profile_kn"] = [1]
+    with pytest.raises(ValueError, match="Invalid input"):
+        run(incomplete_profile)
 
 
 def test_euler_buckling_uses_clause_2_2_4_elastic_modulus():

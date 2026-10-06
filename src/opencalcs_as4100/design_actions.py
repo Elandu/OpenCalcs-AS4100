@@ -289,13 +289,35 @@ _FRAME_BUCKLING_MEMBER = object_schema(
         "area_mm2": POSITIVE,
         "second_moment_in_plane_mm4": POSITIVE,
         "axial_force_kn": SIGNED,
+        "axial_force_profile_kn": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": SIGNED,
+        },
         "prismatic_member_verified": _BOOL,
         "geometry_verified": _BOOL,
         "section_properties_verified": _BOOL,
         "axial_force_verified": _BOOL,
         "evidence_reference": _REFERENCE,
-    }
+    },
+    required=[
+        "member_id",
+        "start_joint_id",
+        "end_joint_id",
+        "area_mm2",
+        "second_moment_in_plane_mm4",
+        "prismatic_member_verified",
+        "geometry_verified",
+        "section_properties_verified",
+        "axial_force_verified",
+        "evidence_reference",
+    ],
 )
+_FRAME_BUCKLING_MEMBER["oneOf"] = [
+    {"required": ["axial_force_kn"], "not": {"required": ["axial_force_profile_kn"]}},
+    {"required": ["axial_force_profile_kn"], "not": {"required": ["axial_force_kn"]}},
+]
 _PLASTIC_JOINT = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -1290,8 +1312,8 @@ def run_design_actions(inputs):
             {
                 "clause": "4.7.1",
                 "condition": (
-                    "all prismatic member geometry, in-plane properties, and axial forces "
-                    "are assessed"
+                    "all prismatic member geometry, in-plane properties, and constant or "
+                    "linearly varying axial-force profiles are assessed"
                 ),
                 "satisfied": all(
                     member["prismatic_member_verified"]
@@ -1323,9 +1345,9 @@ def run_design_actions(inputs):
             checks,
             limitations=[
                 "The calculation is a two-dimensional, first-mode elastic eigenvalue analysis "
-                "of prismatic, rigidly connected frame members with constant axial force in "
-                "each member. Verify that the frame model is planar, complete, and suitable "
-                "for this idealization.",
+                "of prismatic, rigidly connected frame members. Axial force is constant or "
+                "varies linearly between the verified member-end values. Verify that the "
+                "frame model is planar, complete, and suitable for this idealization.",
                 "The analysis uses elastic frame stiffness and beam-column geometric stiffness; "
                 "it excludes out-of-plane and torsional modes, shear deformation, member-end "
                 "releases, initial imperfections, residual stresses, material nonlinearity, "
