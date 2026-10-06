@@ -708,6 +708,113 @@ def test_moment_amplification_and_instability_gate():
         run(d)
 
 
+def test_clause_4_4_2_2_transverse_load_beta_m_from_deflection_ratio():
+    result = run(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "delta_ct_mm": 4,
+            "delta_cw_mm": 10,
+            "first_order_moment_knm": 20,
+        }
+    )
+
+    assert result["values"]["beta_m"] == pytest.approx(0.2)
+    assert result["values"]["beta_m_method"] == "4.4.2.2(c)_deflection_ratio"
+    assert result["values"]["cm"] == pytest.approx(0.52)
+    assert result["values"]["braced_factor"] == pytest.approx(1.3)
+    assert result["values"]["governing_factor"] == pytest.approx(1.3)
+    assert result["values"]["amplified_moment_knm"] == pytest.approx(26)
+    assert result["values"]["delta_ct_mm"] == 4
+    assert result["values"]["delta_cw_mm"] == 10
+    assert result["clauses"] == ["4.4.1.2", "4.4.2.2(c)"]
+    assert result["checked_conditions_satisfied"]
+
+
+def test_clause_4_4_2_2_transverse_beta_m_rejects_incomplete_or_inconsistent_inputs():
+    base = {
+        "operation": "moment_amplification",
+        "compression_kn": 600,
+        "elastic_buckling_load_kn": 1000,
+        "first_order_moment_knm": 20,
+    }
+    cases = [
+        ({"delta_ct_mm": 4}, "requires both delta_ct_mm and delta_cw_mm"),
+        ({"delta_cw_mm": 10}, "requires both delta_ct_mm and delta_cw_mm"),
+        (
+            {"beta_m": 0.2, "delta_ct_mm": 4, "delta_cw_mm": 10},
+            "Supply beta_m or the Clause 4.4.2.2(c) deflections, not both",
+        ),
+        (
+            {"delta_ct_mm": 11, "delta_cw_mm": 10},
+            "must produce beta_m within [-1, 1]",
+        ),
+        ({}, "Provide beta_m or both Clause 4.4.2.2(c) deflection values"),
+    ]
+    for changes, message in cases:
+        with pytest.raises(ValueError) as error:
+            run({**base, **changes})
+        assert message in str(error.value)
+
+
+@pytest.mark.parametrize("axial_force_kn", [0, -50])
+def test_clause_4_4_2_2_zero_or_tensile_axial_force_needs_no_braced_amplification_inputs(
+    axial_force_kn,
+):
+    result = run(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": axial_force_kn,
+            "first_order_moment_knm": 20,
+        }
+    )
+
+    assert result["values"]["beta_m"] is None
+    assert result["values"]["beta_m_method"] == "not_required_zero_or_tensile_axial_force"
+    assert result["values"]["cm"] is None
+    assert result["values"]["braced_factor"] == 1
+    assert result["values"]["governing_factor"] == 1
+    assert result["values"]["amplified_moment_knm"] == 20
+    assert result["clauses"] == ["4.4.2.2"]
+    assert result["checked_conditions_satisfied"]
+
+
+def test_clause_4_4_2_2_positive_compression_requires_elastic_buckling_load():
+    with pytest.raises(ValueError) as error:
+        run(
+            {
+                "operation": "moment_amplification",
+                "compression_kn": 600,
+                "beta_m": 0.2,
+                "first_order_moment_knm": 20,
+            }
+        )
+
+    assert "Positive compression requires elastic_buckling_load_kn" in str(error.value)
+
+
+def test_clause_4_4_2_3_sway_factor_combines_with_transverse_load_amplification():
+    result = run(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "delta_ct_mm": 4,
+            "delta_cw_mm": 10,
+            "first_order_moment_knm": 20,
+            "sway_buckling_factor": 2,
+        }
+    )
+
+    assert result["values"]["braced_factor"] == pytest.approx(1.3)
+    assert result["values"]["sway_factor"] == pytest.approx(2)
+    assert result["values"]["governing_factor"] == pytest.approx(2)
+    assert result["values"]["amplified_moment_knm"] == pytest.approx(40)
+    assert result["clauses"] == ["4.4.1.2", "4.4.2.2(c)", "4.4.2.3"]
+    assert not result["checked_conditions_satisfied"]
+
+
 def test_reverse_curvature_factor_floored_to_one():
     r = run(
         {

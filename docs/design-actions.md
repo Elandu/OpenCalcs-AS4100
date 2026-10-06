@@ -80,6 +80,37 @@ satisfies the chart's idealized assumptions. The result is an elastic buckling
 load, not a Clause 6.3 member design capacity or a whole-frame buckling
 analysis.
 
+## Braced-member moment amplification
+
+`moment_amplification` calculates the Clause 4.4.2.2 braced-member factor and
+applies it to the supplied first-order maximum moment. With compression, the
+member buckling load `elastic_buckling_load_kn` is the Clause 4.6.2 value about
+the same axis as the bending moment. The braced-member factor is
+`max(1, Cm / (1 - N*/Nomb))`, where `Cm = min(1, 0.6 - 0.4 beta_m)`. The
+operation rejects `N* >= Nomb`. If a Clause 4.4.2.3 sway buckling factor is
+also supplied, the larger braced or sway factor governs.
+
+For zero axial force or axial tension, enter zero or a negative value in
+`compression_kn`; the Clause 4.4.2.2 result is the supplied first-order moment
+without a braced-member amplification factor, `beta_m`, or elastic buckling
+load. A supplied sway factor is still applied and checked separately.
+
+Supply either `beta_m` or both deflections for the Clause 4.4.2.2(c) route.
+`delta_ct_mm` is the mid-span deflection from the transverse load together
+with both end bending moments. `delta_cw_mm` is the mid-span deflection from
+the transverse load together with only the end moments that produce a
+mid-span deflection in the same direction as that transverse load. The
+operation calculates `beta_m = 1 - 2(delta_ct_mm / delta_cw_mm)` and enforces
+the Standard's `-1 <= beta_m <= 1` limit. Do not provide `beta_m` together
+with these deflections. The supplied-value route also accepts `beta_m` obtained
+from the applicable end-moment method or the Figure 4.4.2.2 distributions; it
+does not calculate those values or verify their basis.
+
+The operation uses analysis results supplied by the caller; it does not
+calculate member deflections, the first-order maximum moment or the elastic
+buckling load. A moment amplification factor above 1.4 is diagnostic and
+requires second-order analysis under Clause 4.4.1.2.
+
 ## Triangulated-member effective length
 
 `triangulated_member_buckling` calculates the Clause 4.6.2 elastic buckling

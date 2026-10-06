@@ -1669,6 +1669,58 @@ def verify():
         986.9604401089358,
         1e-8,
     )
+    transverse_moment = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "delta_ct_mm": 4,
+            "delta_cw_mm": 10,
+            "first_order_moment_knm": 20,
+        }
+    )
+    record(
+        "Clause 4.4.2.2(c) displacement-derived beta_m",
+        transverse_moment["values"]["beta_m"],
+        1 - 2 * 4 / 10,
+    )
+    record(
+        "Clause 4.4.2.2(c) displacement-derived Cm",
+        transverse_moment["values"]["cm"],
+        0.6 - 0.4 * (1 - 2 * 4 / 10),
+    )
+    record(
+        "Clause 4.4.2.2(c) braced-member amplification factor",
+        transverse_moment["values"]["braced_factor"],
+        (0.6 - 0.4 * (1 - 2 * 4 / 10)) / (1 - 600 / 1000),
+    )
+    record(
+        "Clause 4.4.2.2(c) amplified first-order moment",
+        transverse_moment["values"]["amplified_moment_knm"],
+        20 * ((0.6 - 0.4 * (1 - 2 * 4 / 10)) / (1 - 600 / 1000)),
+    )
+    record(
+        "Clause 4.4.1.2 below-1.4 first-order amplification check",
+        int(transverse_moment["checked_conditions_satisfied"]),
+        1,
+    )
+    tensile_moment = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": -50,
+            "first_order_moment_knm": 20,
+        }
+    )
+    record(
+        "Clause 4.4.2.2 axial-tension moment without braced amplification",
+        tensile_moment["values"]["amplified_moment_knm"],
+        20,
+    )
+    record(
+        "Clause 4.4.2.2 axial-tension unit governing factor",
+        tensile_moment["values"]["governing_factor"],
+        1,
+    )
     idealized_restraint_cases = {
         "braced_fixed_fixed": 0.7,
         "braced_top_pinned_bottom_fixed": 0.85,

@@ -201,6 +201,59 @@ def fatigue_welded_coped_splice():
     return {"detail_category_mpa": result["detail_category_mpa"]}
 
 
+def clause_4_4_2_2_c_deflection_ratio():
+    result = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "delta_ct_mm": 4,
+            "delta_cw_mm": 10,
+            "first_order_moment_knm": 20,
+        }
+    )
+    values = result["values"]
+    expected = {
+        "beta_m": 0.2,
+        "cm": 0.52,
+        "braced_factor": 1.3,
+        "governing_factor": 1.3,
+        "amplified_moment_knm": 26,
+    }
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 4.4.1.2 first-order amplification limit should be satisfied")
+    if values["beta_m_method"] != "4.4.2.2(c)_deflection_ratio":
+        raise AssertionError("Clause 4.4.2.2(c) deflection route was not reported")
+    if result["clauses"] != ["4.4.1.2", "4.4.2.2(c)"]:
+        raise AssertionError(
+            "The result should report only the applied moment-amplification clauses"
+        )
+    for name, expected_value in expected.items():
+        if not isclose(values[name], expected_value, rel_tol=0, abs_tol=1e-12):
+            raise AssertionError(f"Clause 4.4.2.2(c) {name} should equal {expected_value}")
+    return expected
+
+
+def clause_4_4_2_2_axial_tension_no_amplification():
+    result = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": -50,
+            "first_order_moment_knm": 20,
+        }
+    )
+    values = result["values"]
+    if result["clauses"] != ["4.4.2.2"]:
+        raise AssertionError("Axial tension should use the unamplified Clause 4.4.2.2 route")
+    if values["beta_m"] is not None or values["cm"] is not None:
+        raise AssertionError("Axial tension should not require beta_m or Cm")
+    if values["governing_factor"] != 1 or values["amplified_moment_knm"] != 20:
+        raise AssertionError("Axial tension should leave the first-order moment unchanged")
+    if not result["checked_conditions_satisfied"]:
+        raise AssertionError("The unamplified axial-tension case should pass")
+    return {"governing_factor": 1, "amplified_moment_knm": 20}
+
+
 def clause_4_6_3_2_idealized_member_buckling():
     cases = {
         "braced_fixed_fixed": 0.7,
@@ -4738,6 +4791,10 @@ def main():
         "clause_9_6_5_compound_weld_profile_capacity": incomplete_compound_weld_profile_capacity,
         "clause_9_6_2_prequalified_butt_macro_throat": prequalified_incomplete_butt_macro_throat,
         "clause_9_6_3_4_fillet_macro_test_throat": fillet_macro_test_throat,
+        "clause_4_4_2_2_c_deflection_ratio": clause_4_4_2_2_c_deflection_ratio,
+        "clause_4_4_2_2_axial_tension_no_amplification": (
+            clause_4_4_2_2_axial_tension_no_amplification
+        ),
         "clause_9_6_4_2_circular_plug_weld_area": plug_slot_circular_hole,
         "clause_9_6_4_2_round_ended_slot_weld_area": plug_slot_round_ended_slot,
         "clause_9_6_4_2_rectangular_slot_weld_area": plug_slot_rectangular_slot,

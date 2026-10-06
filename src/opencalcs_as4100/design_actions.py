@@ -398,17 +398,17 @@ SCHEMAS = {
     "moment_amplification": object_schema(
         {
             "operation": {"const": "moment_amplification"},
-            "compression_kn": NONNEGATIVE,
+            "compression_kn": SIGNED,
             "elastic_buckling_load_kn": POSITIVE,
             "beta_m": {"type": "number", "minimum": -1, "maximum": 1},
+            "delta_ct_mm": NONNEGATIVE,
+            "delta_cw_mm": POSITIVE,
             "first_order_moment_knm": SIGNED,
             "sway_buckling_factor": {"type": "number", "exclusiveMinimum": 1, "maximum": 1e15},
         },
         [
             "operation",
             "compression_kn",
-            "elastic_buckling_load_kn",
-            "beta_m",
             "first_order_moment_knm",
         ],
     ),
@@ -1320,19 +1320,66 @@ def run_design_actions(inputs):
             ],
         )
     if op == "moment_amplification":
-        ratio = d["compression_kn"] / d["elastic_buckling_load_kn"]
-        if ratio >= 1:
-            raise ValueError("Axial compression reaches elastic instability.")
-        cm = min(1.0, 0.6 - 0.4 * d["beta_m"])
-        db = max(1.0, cm / (1 - ratio)) if d["compression_kn"] else 1.0
+        axial_force = d["compression_kn"]
+        has_delta_ct = "delta_ct_mm" in d
+        has_delta_cw = "delta_cw_mm" in d
+        if has_delta_ct != has_delta_cw:
+            raise ValueError("Clause 4.4.2.2(c) requires both delta_ct_mm and delta_cw_mm.")
+        if has_delta_ct and "beta_m" in d:
+            raise ValueError("Supply beta_m or the Clause 4.4.2.2(c) deflections, not both.")
+        if has_delta_ct:
+            beta_m = 1 - 2 * d["delta_ct_mm"] / d["delta_cw_mm"]
+            if not -1 <= beta_m <= 1:
+                raise ValueError(
+                    "Clause 4.4.2.2(c) deflections must produce beta_m within [-1, 1]."
+                )
+            beta_m_method = "4.4.2.2(c)_deflection_ratio"
+        elif "beta_m" in d:
+            beta_m = d["beta_m"]
+            beta_m_method = "supplied"
+        elif axial_force > 0:
+            raise ValueError(
+                "Provide beta_m or both Clause 4.4.2.2(c) deflection values for compression."
+            )
+        else:
+            beta_m = None
+            beta_m_method = "not_required_zero_or_tensile_axial_force"
+        cm = min(1.0, 0.6 - 0.4 * beta_m) if beta_m is not None else None
+        if axial_force > 0:
+            if "elastic_buckling_load_kn" not in d:
+                raise ValueError("Positive compression requires elastic_buckling_load_kn.")
+            ratio = axial_force / d["elastic_buckling_load_kn"]
+            if ratio >= 1:
+                raise ValueError("Axial compression reaches elastic instability.")
+            db = max(1.0, cm / (1 - ratio))
+        else:
+            db = 1.0
         ds = 1.0
         if "sway_buckling_factor" in d:
             ds = 1 / (1 - 1 / d["sway_buckling_factor"])
         factor = max(db, ds)
+        clauses = []
+        if axial_force > 0:
+            clauses.extend(["4.4.1.2", "4.4.2.2(c)" if has_delta_ct else "4.4.2.2"])
+        else:
+            clauses.append("4.4.2.2")
+        if "sway_buckling_factor" in d:
+            if "4.4.1.2" not in clauses:
+                clauses.insert(0, "4.4.1.2")
+            clauses.append("4.4.2.3")
+        checks = (
+            [{"clause": "4.4.1.2", "satisfied": factor <= 1.4}]
+            if "4.4.1.2" in clauses
+            else [{"clause": "4.4.2.2", "satisfied": True}]
+        )
         return result(
             op,
-            ["4.4.1.2", "4.4.2.2", "4.4.2.3"],
+            clauses,
             {
+                "beta_m": beta_m,
+                "beta_m_method": beta_m_method,
+                "delta_ct_mm": d.get("delta_ct_mm"),
+                "delta_cw_mm": d.get("delta_cw_mm"),
                 "cm": cm,
                 "braced_factor": db,
                 "sway_factor": ds,
@@ -1340,10 +1387,14 @@ def run_design_actions(inputs):
                 "amplified_moment_knm": factor * d["first_order_moment_knm"],
                 "second_order_analysis_required": factor > 1.4,
             },
-            [{"clause": "4.4.1.2", "satisfied": factor <= 1.4}],
+            checks,
             limitations=[
                 "Factors above 1.4 require second-order analysis; values are diagnostic only.",
-                "Reverse curvature is positive beta_m; assess transverse loads under 4.4.2.2.",
+                "Reverse curvature is positive beta_m. When beta_m is supplied, verify it under "
+                "the applicable Clause 4.4.2.2 end-moment or transverse-load method.",
+                "Deflections used for the Clause 4.4.2.2(c) route are supplied analysis results; "
+                "this operation does not perform the elastic member analysis or determine the "
+                "first-order maximum moment from the actual load distribution.",
             ],
         )
     if op == "storey_sway_amplification":
