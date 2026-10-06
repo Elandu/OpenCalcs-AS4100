@@ -1721,6 +1721,37 @@ def verify():
         tensile_moment["values"]["governing_factor"],
         1,
     )
+    appendix_e_compression_moment = run_design_actions(
+        {
+            "operation": "appendix_e_design_bending_moment",
+            "design_load_set_id": "VERIFY-BRACED-MEMBER-01",
+            "second_order_method": "element_end_moments",
+            "maximum_second_order_moment_knm": -24,
+            "maximum_second_order_moment_verified": True,
+            "second_order_analysis_evidence_reference": "VERIFY-E2-MEMBER-MOMENT-01",
+            "compression_kn": 50,
+            "compression_force_verified": True,
+            "compression_force_evidence_reference": "VERIFY-BRACED-MEMBER-FORCE-01",
+            "elastic_buckling_load_kn": 200,
+            "elastic_buckling_load_verified": True,
+            "buckling_load_evidence_reference": "VERIFY-SAME-AXIS-NOMB-01",
+            "braced_member_verified": True,
+            "braced_member_evidence_reference": "VERIFY-BRACING-01",
+            "beta_m_basis_verified": True,
+            "beta_m_evidence_reference": "VERIFY-BETA-M-BASIS-01",
+            "beta_m": -1,
+        }
+    )
+    record(
+        "Appendix E.2 compression-member braced factor after second-order analysis",
+        appendix_e_compression_moment["values"]["delta_b"],
+        1 / (1 - 50 / 200),
+    )
+    record(
+        "Appendix E.2 design moment from braced-member analysis moment (kN m)",
+        appendix_e_compression_moment["values"]["design_bending_moment_knm"],
+        -24 / (1 - 50 / 200),
+    )
     conservative_moment = run_design_actions(
         {
             "operation": "moment_amplification",

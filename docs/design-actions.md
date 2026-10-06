@@ -140,7 +140,11 @@ second-order response route for Clauses 4.4.1.2, 4.5.1, 4.7.1, 4.7.2(b) and
 Appendix E.1/E.2(b). It assembles elastic and initial-stress geometric
 stiffness matrices, solves the supplied joint-action vector and distributed
 member loads with the supplied first-order member axial-force pattern, and reports the greatest element-end
-moment in each member. The 4-, 8-, 16- and 32-element-per-member results are
+moment in each member as the Appendix E.2(b) analysis moment `M_m*`. For a
+compression member, pass that moment, the matching design axial force, the
+same-axis Clause 4.6.2 elastic buckling load and the verified Clause 4.4.2.2
+moment distribution to `appendix_e_design_bending_moment` to calculate `M*`.
+The 4-, 8-, 16- and 32-element-per-member results are
 compared; the calculation accepts the first consecutive meshes agreeing
 within 0.1% in model-joint response, member end moments and elastic buckling
 factor.
@@ -240,10 +244,10 @@ for the actual design case and set
 evidence.
 
 The reported moments and axial forces are analysis actions, not member
-capacities or a complete member design. Apply the applicable AS 4100 Clause
-E.2 design-moment treatment, including any required Clause 4.4.2.2 factor,
-without double-counting effects already included by the analysis. The operation
-does not establish complete AS 4100 compliance.
+capacities or a complete member design. Apply Appendix E.2 with
+`appendix_e_design_bending_moment`; for a compression member, it applies the
+Clause 4.4.2.2 factor to the maximum moment obtained from the second-order
+analysis. The operation does not establish complete AS 4100 compliance.
 
 An independent fixed-free beam-column benchmark uses `E=200000 MPa`,
 `I=8e6 mm4`, `L=4000 mm`, 50 kN compression, and a 10 kN transverse tip force.
@@ -261,10 +265,30 @@ not worked examples from the Standard. Reproduce the
 independent mesh study with `python validation/opensees_corotational_cantilever.py`
 in an environment with OpenSeesPy/OpenSees 3.8.0 installed.
 
+## Appendix E second-order design bending moment
+
+`appendix_e_design_bending_moment` takes the signed controlling maximum member
+moment from an assessed Appendix E.2 route (`direct_analysis`,
+`element_end_moments` or `superposition`) and calculates the design moment. For
+zero axial force or tension, it returns that moment unchanged. For compression,
+it applies `delta_b = max(1, Cm / (1 - N*/Nomb))` using the Clause 4.4.2.2
+`beta_m` method and the Clause 4.6.2 elastic buckling load about the same axis.
+
+The operation requires references to the second-order moment and axial-force
+assessments. Compression also requires verified braced-member classification,
+`Nomb` and a referenced, assessed Clause 4.4.2.2 `beta_m` basis. The solver does
+not run the second-order analysis, find the controlling moment, classify the moment
+distribution, establish the physical bracing or calculate `Nomb`. Its result is
+the design bending action only; section/member resistance and other axes still
+need their own checks.
+
 ## Braced-member moment amplification
 
 `moment_amplification` calculates the Clause 4.4.2.2 braced-member factor and
-applies it to the supplied first-order maximum moment. With compression, the
+applies it to the supplied first-order maximum moment. For a maximum moment
+from a second-order analysis under Appendix E, use
+`appendix_e_design_bending_moment`, which applies the same braced-member factor
+to the Appendix E.2 analysis moment `M_m*`. With compression, the
 member buckling load `elastic_buckling_load_kn` is the Clause 4.6.2 value about
 the same axis as the bending moment. The braced-member factor is
 `max(1, Cm / (1 - N*/Nomb))`, where `Cm = min(1, 0.6 - 0.4 beta_m)`. The

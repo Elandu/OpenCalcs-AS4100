@@ -46,6 +46,19 @@ _BETA_M_FIGURE_CASES = {
     "figure_b_right_5": -0.1,
     "figure_b_right_6": 1.0,
 }
+_BRACED_MOMENT_BETA_INPUTS = {
+    "beta_m": {"type": "number", "minimum": -1, "maximum": 1},
+    "beta_m_figure_case": {"enum": [*_BETA_M_FIGURE_CASES, "figure_b_left_6"]},
+    "end_moment_1_abs_knm": NONNEGATIVE,
+    "end_moment_2_abs_knm": NONNEGATIVE,
+    "end_moment_curvature": {"enum": ["single_curvature", "reverse_curvature"]},
+    "end_moments_only_verified": {"const": True},
+    "end_moment_curvature_verified": {"const": True},
+    "end_moment_evidence_reference": _REFERENCE,
+    "conservative_transverse_beta_m": {"const": True},
+    "delta_ct_mm": NONNEGATIVE,
+    "delta_cw_mm": POSITIVE,
+}
 _FRAME_STIFFNESS_MODIFIERS = {
     "braced": {"pinned": 1.5, "rigidly_connected_to_column": 1.0, "fixed": 2.0},
     "sway": {"pinned": 0.5, "rigidly_connected_to_column": 1.0, "fixed": 0.67},
@@ -625,17 +638,7 @@ SCHEMAS = {
             "operation": {"const": "moment_amplification"},
             "compression_kn": SIGNED,
             "elastic_buckling_load_kn": POSITIVE,
-            "beta_m": {"type": "number", "minimum": -1, "maximum": 1},
-            "beta_m_figure_case": {"enum": [*_BETA_M_FIGURE_CASES, "figure_b_left_6"]},
-            "end_moment_1_abs_knm": NONNEGATIVE,
-            "end_moment_2_abs_knm": NONNEGATIVE,
-            "end_moment_curvature": {"enum": ["single_curvature", "reverse_curvature"]},
-            "end_moments_only_verified": {"const": True},
-            "end_moment_curvature_verified": {"const": True},
-            "end_moment_evidence_reference": _REFERENCE,
-            "conservative_transverse_beta_m": {"const": True},
-            "delta_ct_mm": NONNEGATIVE,
-            "delta_cw_mm": POSITIVE,
+            **_BRACED_MOMENT_BETA_INPUTS,
             "first_order_moment_knm": SIGNED,
             "sway_buckling_factor": {"type": "number", "exclusiveMinimum": 1, "maximum": 1e15},
         },
@@ -643,6 +646,40 @@ SCHEMAS = {
             "operation",
             "compression_kn",
             "first_order_moment_knm",
+        ],
+    ),
+    "appendix_e_design_bending_moment": object_schema(
+        {
+            "operation": {"const": "appendix_e_design_bending_moment"},
+            "design_load_set_id": _REFERENCE,
+            "second_order_method": {
+                "enum": ["direct_analysis", "element_end_moments", "superposition"]
+            },
+            "maximum_second_order_moment_knm": SIGNED,
+            "maximum_second_order_moment_verified": _BOOL,
+            "second_order_analysis_evidence_reference": _REFERENCE,
+            "compression_kn": SIGNED,
+            "compression_force_verified": _BOOL,
+            "compression_force_evidence_reference": _REFERENCE,
+            "elastic_buckling_load_kn": POSITIVE,
+            "elastic_buckling_load_verified": _BOOL,
+            "buckling_load_evidence_reference": _REFERENCE,
+            "braced_member_verified": _BOOL,
+            "braced_member_evidence_reference": _REFERENCE,
+            "beta_m_basis_verified": _BOOL,
+            "beta_m_evidence_reference": _REFERENCE,
+            **_BRACED_MOMENT_BETA_INPUTS,
+        },
+        [
+            "operation",
+            "design_load_set_id",
+            "second_order_method",
+            "maximum_second_order_moment_knm",
+            "maximum_second_order_moment_verified",
+            "second_order_analysis_evidence_reference",
+            "compression_kn",
+            "compression_force_verified",
+            "compression_force_evidence_reference",
         ],
     ),
     "storey_sway_amplification": object_schema(
@@ -761,6 +798,41 @@ SCHEMAS = {
         }
     ),
 }
+SCHEMAS["appendix_e_design_bending_moment"]["allOf"] = [
+    {
+        "if": {
+            "properties": {"compression_kn": {"exclusiveMinimum": 0}},
+            "required": ["compression_kn"],
+        },
+        "then": {
+            "required": [
+                "elastic_buckling_load_kn",
+                "elastic_buckling_load_verified",
+                "buckling_load_evidence_reference",
+                "braced_member_verified",
+                "braced_member_evidence_reference",
+                "beta_m_basis_verified",
+                "beta_m_evidence_reference",
+            ],
+            "anyOf": [
+                {"required": ["beta_m"]},
+                {"required": ["beta_m_figure_case"]},
+                {
+                    "required": [
+                        "end_moment_1_abs_knm",
+                        "end_moment_2_abs_knm",
+                        "end_moment_curvature",
+                        "end_moments_only_verified",
+                        "end_moment_curvature_verified",
+                        "end_moment_evidence_reference",
+                    ]
+                },
+                {"required": ["conservative_transverse_beta_m"]},
+                {"required": ["delta_ct_mm", "delta_cw_mm"]},
+            ],
+        },
+    }
+]
 INPUT_SCHEMA = {"oneOf": list(SCHEMAS.values())}
 OUTPUT_SCHEMA = {"type": "object"}
 
@@ -1603,9 +1675,11 @@ def run_design_actions(inputs):
                 "member-end releases, connection flexibility, shear "
                 "deformation, initial imperfections, residual stresses, and material "
                 "nonlinearity are outside this model.",
-                "The reported design bending moments use the converged maximum element-end "
-                "moment route in Appendix E.2(b). Assess whether the mesh and model represent "
-                "the complete design situation; the operation does not determine load "
+                "The reported maximum element-end moments provide the Appendix E.2(b) analysis "
+                "moment input M_m*. For a compression member, apply the Appendix E.2 design "
+                "moment treatment, including the Clause 4.4.2.2 factor, with "
+                "appendix_e_design_bending_moment. Assess whether the mesh and model represent "
+                "the complete design situation; this operation does not determine load "
                 "combinations, section/member capacities, or full AS 4100 compliance.",
             ],
         )
@@ -2041,6 +2115,128 @@ def run_design_actions(inputs):
                 "Deflections used for the Clause 4.4.2.2(c) route are supplied analysis results; "
                 "this operation does not perform the elastic member analysis or determine the "
                 "first-order maximum moment from the actual load distribution.",
+            ],
+        )
+    if op == "appendix_e_design_bending_moment":
+        axial_force = d["compression_kn"]
+        moment = d["maximum_second_order_moment_knm"]
+        factor_values = None
+        if axial_force > 0:
+            factor_inputs = {
+                "operation": "moment_amplification",
+                "compression_kn": axial_force,
+                "elastic_buckling_load_kn": d["elastic_buckling_load_kn"],
+                "first_order_moment_knm": moment,
+                **{key: d[key] for key in _BRACED_MOMENT_BETA_INPUTS if key in d},
+            }
+            factor_values = run_design_actions(factor_inputs)["values"]
+            delta_b = factor_values["braced_factor"]
+        else:
+            delta_b = 1.0
+
+        design_moment = delta_b * moment
+        checks = [
+            {
+                "clause": "E.2",
+                "condition": (
+                    "the selected second-order analysis moment is the assessed maximum "
+                    "for this member and load set"
+                ),
+                "design_load_set_id": d["design_load_set_id"],
+                "second_order_method": d["second_order_method"],
+                "satisfied": d["maximum_second_order_moment_verified"],
+                "evidence_reference": d["second_order_analysis_evidence_reference"],
+            },
+            {
+                "clause": "E.2",
+                "condition": "the design axial force is taken from the same assessed load set",
+                "design_load_set_id": d["design_load_set_id"],
+                "satisfied": d["compression_force_verified"],
+                "evidence_reference": d["compression_force_evidence_reference"],
+            },
+        ]
+        clauses = ["4.4.2.2", "E.2"]
+        if axial_force > 0:
+            clauses.insert(1, "4.6.2")
+            checks.extend(
+                [
+                    {
+                        "clause": "4.4.2.2",
+                        "condition": "the member is verified as braced about the bending axis",
+                        "satisfied": d["braced_member_verified"],
+                        "evidence_reference": d["braced_member_evidence_reference"],
+                    },
+                    {
+                        "clause": "4.4.2.2",
+                        "condition": (
+                            "the beta_m basis is assessed for the analysed moment distribution"
+                        ),
+                        "satisfied": d["beta_m_basis_verified"],
+                        "evidence_reference": d["beta_m_evidence_reference"],
+                    },
+                    {
+                        "clause": "4.6.2",
+                        "condition": (
+                            "the elastic buckling load is verified about the same axis as the "
+                            "design bending moment"
+                        ),
+                        "satisfied": d["elastic_buckling_load_verified"],
+                        "evidence_reference": d["buckling_load_evidence_reference"],
+                    },
+                    {
+                        "clause": "4.4.2.2",
+                        "condition": "the design compression is below the elastic buckling load",
+                        "compression_to_buckling_load_ratio": (
+                            axial_force / d["elastic_buckling_load_kn"]
+                        ),
+                        "satisfied": True,
+                    },
+                ]
+            )
+        return result(
+            op,
+            clauses,
+            {
+                "design_load_set_id": d["design_load_set_id"],
+                "second_order_method": d["second_order_method"],
+                "maximum_second_order_moment_knm": moment,
+                "compression_kn": axial_force,
+                "elastic_buckling_load_kn": d.get("elastic_buckling_load_kn"),
+                "beta_m": factor_values["beta_m"] if factor_values else None,
+                "beta_m_method": (
+                    factor_values["beta_m_method"]
+                    if factor_values
+                    else "not_required_zero_or_tensile_axial_force"
+                ),
+                "beta_m_figure_case": (
+                    factor_values["beta_m_figure_case"] if factor_values else None
+                ),
+                "beta_m_figure_reference": (
+                    factor_values["beta_m_figure_reference"] if factor_values else None
+                ),
+                "beta_m_end_moment_ratio": (
+                    factor_values["beta_m_end_moment_ratio"] if factor_values else None
+                ),
+                "end_moment_curvature": (
+                    factor_values["end_moment_curvature"] if factor_values else None
+                ),
+                "delta_ct_mm": d.get("delta_ct_mm"),
+                "delta_cw_mm": d.get("delta_cw_mm"),
+                "cm": factor_values["cm"] if factor_values else None,
+                "beta_m_evidence_reference": d.get("beta_m_evidence_reference"),
+                "delta_b": delta_b,
+                "design_bending_moment_knm": design_moment,
+                "design_bending_moment_magnitude_knm": abs(design_moment),
+            },
+            checks,
+            limitations=[
+                "Supply the assessed maximum moment from one of the Appendix E.2 analysis routes. "
+                "This operation applies the design-moment treatment; it does not perform or "
+                "independently validate the second-order analysis or derive the controlling "
+                "moment.",
+                "For compression, the Clause 4.4.2.2 factor is applied to the moment returned by "
+                "the second-order analysis as required by Appendix E.2. Verify beta_m, the braced "
+                "member classification, and the same-axis Clause 4.6.2 elastic buckling load.",
             ],
         )
     if op == "storey_sway_amplification":

@@ -1792,6 +1792,90 @@ def test_clause_4_4_2_2_zero_or_tensile_axial_force_needs_no_braced_amplificatio
     assert result["checked_conditions_satisfied"]
 
 
+def test_appendix_e_design_moment_applies_braced_factor_to_second_order_moment():
+    result = run(
+        {
+            "operation": "appendix_e_design_bending_moment",
+            "design_load_set_id": "BENCHMARK-BRACED-MEMBER-01",
+            "second_order_method": "element_end_moments",
+            "maximum_second_order_moment_knm": -24,
+            "maximum_second_order_moment_verified": True,
+            "second_order_analysis_evidence_reference": "BENCHMARK-E2-MEMBER-MOMENT-01",
+            "compression_kn": 50,
+            "compression_force_verified": True,
+            "compression_force_evidence_reference": "BENCHMARK-MEMBER-FORCE-01",
+            "elastic_buckling_load_kn": 200,
+            "elastic_buckling_load_verified": True,
+            "buckling_load_evidence_reference": "BENCHMARK-SAME-AXIS-NOMB-01",
+            "braced_member_verified": True,
+            "braced_member_evidence_reference": "BENCHMARK-BRACING-01",
+            "beta_m_basis_verified": True,
+            "beta_m_evidence_reference": "BENCHMARK-BETA-M-BASIS-01",
+            "beta_m": -1,
+        }
+    )
+
+    values = result["values"]
+    assert values["maximum_second_order_moment_knm"] == pytest.approx(-24)
+    assert values["cm"] == pytest.approx(1)
+    assert values["delta_b"] == pytest.approx(4 / 3)
+    assert values["design_bending_moment_knm"] == pytest.approx(-32)
+    assert values["design_bending_moment_magnitude_knm"] == pytest.approx(32)
+    assert values["beta_m_method"] == "supplied"
+    assert result["clauses"] == ["4.4.2.2", "4.6.2", "E.2"]
+    assert result["checked_conditions_satisfied"]
+
+
+@pytest.mark.parametrize("compression_kn", [0, -50])
+def test_appendix_e_design_moment_does_not_amplify_zero_or_tension(compression_kn):
+    result = run(
+        {
+            "operation": "appendix_e_design_bending_moment",
+            "design_load_set_id": "ULS-TENSION-01",
+            "second_order_method": "direct_analysis",
+            "maximum_second_order_moment_knm": -12,
+            "maximum_second_order_moment_verified": True,
+            "second_order_analysis_evidence_reference": "E2-DIRECT-ANALYSIS-01",
+            "compression_kn": compression_kn,
+            "compression_force_verified": True,
+            "compression_force_evidence_reference": "ULS-TENSION-01-FORCES",
+        }
+    )
+
+    assert result["values"]["delta_b"] == 1
+    assert result["values"]["design_bending_moment_knm"] == -12
+    assert result["values"]["beta_m_method"] == "not_required_zero_or_tensile_axial_force"
+    assert result["clauses"] == ["4.4.2.2", "E.2"]
+    assert result["checked_conditions_satisfied"]
+
+
+def test_appendix_e_design_moment_requires_stable_same_axis_compression_inputs():
+    inputs = {
+        "operation": "appendix_e_design_bending_moment",
+        "design_load_set_id": "ULS-COLUMN-01",
+        "second_order_method": "element_end_moments",
+        "maximum_second_order_moment_knm": 10,
+        "maximum_second_order_moment_verified": True,
+        "second_order_analysis_evidence_reference": "E2-ELEMENT-ENDS-01",
+        "compression_kn": 50,
+        "compression_force_verified": True,
+        "compression_force_evidence_reference": "ULS-COLUMN-01-FORCES",
+        "elastic_buckling_load_kn": 100,
+        "elastic_buckling_load_verified": True,
+        "buckling_load_evidence_reference": "CLAUSE-4-6-2-COLUMN-01",
+        "braced_member_verified": True,
+        "braced_member_evidence_reference": "COLUMN-BRACING-01",
+        "beta_m_basis_verified": True,
+        "beta_m_evidence_reference": "COLUMN-BETA-M-01",
+        "beta_m": 0,
+    }
+
+    with pytest.raises(ValueError, match="elastic instability"):
+        run({**inputs, "elastic_buckling_load_kn": 50})
+    with pytest.raises(ValueError, match="not valid under any of the given schemas"):
+        run({key: value for key, value in inputs.items() if key != "beta_m"})
+
+
 def test_clause_4_4_2_2_positive_compression_requires_elastic_buckling_load():
     with pytest.raises(ValueError) as error:
         run(
