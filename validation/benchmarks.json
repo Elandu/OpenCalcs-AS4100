@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.61",
+  "package_version": "0.7.62",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -3777,9 +3777,30 @@
       "passed": true
     },
     {
+      "name": "Clause 5.6.3(a) records the verified segment length basis",
+      "actual": true,
+      "expected": true,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Table 5.6.3(C) rejects unlisted FL end-rotation combination",
       "actual": 1,
       "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.3(b) sub-segment effective length uses the restraint spacing",
+      "actual": 1020.0,
+      "expected": 1020,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.6.3(a) retains full segment for one unrestrained end",
+      "actual": 4800.0,
+      "expected": 4800,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

@@ -1094,6 +1094,19 @@ SCHEMAS = {
         "lateral_buckling_effective_length",
         {
             "segment_length_mm": P,
+            "effective_length_basis": {
+                "enum": [
+                    "segment_without_intermediate_restraints",
+                    "segment_unrestrained_at_one_end",
+                    "subsegment_with_intermediate_restraints",
+                ]
+            },
+            "effective_length_basis_verified": BOOL,
+            "effective_length_basis_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+            },
             "clear_flange_depth_mm": P,
             "critical_flange_thickness_mm": P,
             "web_thickness_mm": P,
@@ -3405,6 +3418,26 @@ def run_advanced_members(inputs):
         )
     if op == "lateral_buckling_effective_length":
         arrangement = d["restraint_arrangement"]
+        length_basis = d["effective_length_basis"]
+        if not d["effective_length_basis_verified"]:
+            raise ValueError("Verify the Clause 5.6.3 segment or sub-segment length basis.")
+        length_basis_reference = d["effective_length_basis_reference"].strip()
+        if not length_basis_reference:
+            raise ValueError("Effective-length basis reference must not be blank.")
+        if length_basis == "segment_unrestrained_at_one_end" and arrangement not in {"FU", "PU"}:
+            raise ValueError(
+                "Clause 5.6.3(a) permits the full segment length with intermediate restraints "
+                "only when one end is unrestrained (FU or PU)."
+            )
+        if length_basis == "subsegment_with_intermediate_restraints" and arrangement not in {
+            "FF",
+            "FP",
+            "PP",
+        }:
+            raise ValueError(
+                "Clause 5.6.3(b) permits a restrained sub-segment only when both segment ends "
+                "are fully or partially restrained (FF, FP, or PP)."
+            )
         if (
             d["effective_rotation_restraint_count"]
             and not d["effective_rotation_restraints_verified"]
@@ -3440,22 +3473,40 @@ def run_advanced_members(inputs):
         factor = kt * kl * kr
         return result(
             op,
-            ["5.6.3", "Table 5.6.3(A)", "Table 5.6.3(B)", "Table 5.6.3(C)"],
+            [
+                "5.6.3(a)",
+                "5.6.3(b)",
+                "Table 5.6.3(A)",
+                "Table 5.6.3(B)",
+                "Table 5.6.3(C)",
+            ],
             {
+                "effective_length_basis": length_basis,
+                "effective_length_basis_verified": d["effective_length_basis_verified"],
+                "effective_length_basis_reference": length_basis_reference,
+                "reference_length_mm": d["segment_length_mm"],
                 "twist_restraint_factor": kt,
                 "load_height_factor": kl,
                 "lateral_rotation_factor": kr,
                 "effective_length_factor": factor,
                 "effective_length_mm": factor * d["segment_length_mm"],
             },
-            [],
+            [
+                {
+                    "clause": "5.6.3(a)/(b) effective-length basis",
+                    "satisfied": d["effective_length_basis_verified"],
+                }
+            ],
             [
                 "Tables 5.6.3(A) and (B) cover only the listed beam-end restraint "
                 "and gravity-load cases.",
                 "Only effective lateral-rotation restraints under 5.4.3.4 reduce kr.",
-                "The segment length must use restraint spacing or a valid sub-segment length.",
-                "Verify geometry, end labels, loading, intermediate restraint and "
-                "applicability independently.",
+                "The basis is explicit: the full segment is used without intermediate restraints, "
+                "or for FU/PU arrangements with or without intermediate restraints; a sub-segment "
+                "is used for intermediate restraints in FF/FP/PP arrangements.",
+                "The supplied basis reference and verification are user evidence and are not "
+                "authenticated here. Verify restraint geometry, end labels, loading and "
+                "applicability.",
             ],
         )
     if op == "nonprincipal_bending":

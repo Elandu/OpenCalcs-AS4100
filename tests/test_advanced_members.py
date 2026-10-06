@@ -1281,6 +1281,9 @@ def test_table_5_6_3_effective_length(arrangement, position, height, rotation_co
         {
             "operation": "lateral_buckling_effective_length",
             "segment_length_mm": 1000,
+            "effective_length_basis": "segment_without_intermediate_restraints",
+            "effective_length_basis_verified": True,
+            "effective_length_basis_reference": "TEST-LENGTH-BASIS-01",
             "clear_flange_depth_mm": 200,
             "critical_flange_thickness_mm": 20,
             "web_thickness_mm": 10,
@@ -1300,6 +1303,9 @@ def test_table_5_6_3_requires_effective_rotation_restraint_evidence():
     inputs = {
         "operation": "lateral_buckling_effective_length",
         "segment_length_mm": 1000,
+        "effective_length_basis": "segment_without_intermediate_restraints",
+        "effective_length_basis_verified": True,
+        "effective_length_basis_reference": "TEST-LENGTH-BASIS-01",
         "clear_flange_depth_mm": 200,
         "critical_flange_thickness_mm": 20,
         "web_thickness_mm": 10,
@@ -1326,6 +1332,9 @@ def test_table_5_6_3_rejects_unlisted_lateral_rotation_restraint_combinations(
             {
                 "operation": "lateral_buckling_effective_length",
                 "segment_length_mm": 1000,
+                "effective_length_basis": "segment_without_intermediate_restraints",
+                "effective_length_basis_verified": True,
+                "effective_length_basis_reference": "TEST-LENGTH-BASIS-01",
                 "clear_flange_depth_mm": 200,
                 "critical_flange_thickness_mm": 20,
                 "web_thickness_mm": 10,
@@ -1337,6 +1346,112 @@ def test_table_5_6_3_rejects_unlisted_lateral_rotation_restraint_combinations(
                 "effective_rotation_restraints_verified": True,
             }
         )
+
+
+@pytest.mark.parametrize(
+    (
+        "arrangement",
+        "basis",
+        "length_mm",
+        "load_position",
+        "load_height",
+        "rotation_count",
+        "expected",
+    ),
+    [
+        (
+            "FF",
+            "subsegment_with_intermediate_restraints",
+            1200,
+            "at_segment_end",
+            "shear_centre",
+            1,
+            1020,
+        ),
+        ("FU", "segment_unrestrained_at_one_end", 2400, "within_segment", "top_flange", 0, 4800),
+    ],
+)
+def test_table_5_6_3_selects_verified_segment_or_subsegment_length(
+    arrangement, basis, length_mm, load_position, load_height, rotation_count, expected
+):
+    out = run_advanced_members(
+        {
+            "operation": "lateral_buckling_effective_length",
+            "segment_length_mm": length_mm,
+            "effective_length_basis": basis,
+            "effective_length_basis_verified": True,
+            "effective_length_basis_reference": "TEST-RESTRAINT-GEOMETRY-02",
+            "clear_flange_depth_mm": 200,
+            "critical_flange_thickness_mm": 20,
+            "web_thickness_mm": 10,
+            "number_of_webs": 2,
+            "restraint_arrangement": arrangement,
+            "gravity_load_position": load_position,
+            "load_height_position": load_height,
+            "effective_rotation_restraint_count": rotation_count,
+            "effective_rotation_restraints_verified": True,
+        }
+    )
+    assert out["values"]["reference_length_mm"] == pytest.approx(length_mm)
+    assert out["values"]["effective_length_basis"] == basis
+    assert out["values"]["effective_length_mm"] == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("arrangement", "basis"),
+    [
+        ("FL", "segment_unrestrained_at_one_end"),
+        ("LL", "segment_unrestrained_at_one_end"),
+        ("FL", "subsegment_with_intermediate_restraints"),
+        ("PL", "subsegment_with_intermediate_restraints"),
+        ("FU", "subsegment_with_intermediate_restraints"),
+    ],
+)
+def test_table_5_6_3_rejects_inapplicable_length_basis(arrangement, basis):
+    with pytest.raises(ValueError, match="Clause 5.6.3"):
+        run_advanced_members(
+            {
+                "operation": "lateral_buckling_effective_length",
+                "segment_length_mm": 1000,
+                "effective_length_basis": basis,
+                "effective_length_basis_verified": True,
+                "effective_length_basis_reference": "TEST-RESTRAINT-GEOMETRY-03",
+                "clear_flange_depth_mm": 200,
+                "critical_flange_thickness_mm": 20,
+                "web_thickness_mm": 10,
+                "number_of_webs": 2,
+                "restraint_arrangement": arrangement,
+                "gravity_load_position": "within_segment",
+                "load_height_position": "shear_centre",
+                "effective_rotation_restraint_count": 0,
+                "effective_rotation_restraints_verified": True,
+            }
+        )
+
+
+def test_table_5_6_3_requires_verified_length_basis_and_reference():
+    inputs = {
+        "operation": "lateral_buckling_effective_length",
+        "segment_length_mm": 1000,
+        "effective_length_basis": "segment_without_intermediate_restraints",
+        "effective_length_basis_verified": False,
+        "effective_length_basis_reference": "TEST-LENGTH-BASIS-04",
+        "clear_flange_depth_mm": 200,
+        "critical_flange_thickness_mm": 20,
+        "web_thickness_mm": 10,
+        "number_of_webs": 2,
+        "restraint_arrangement": "FF",
+        "gravity_load_position": "within_segment",
+        "load_height_position": "shear_centre",
+        "effective_rotation_restraint_count": 0,
+        "effective_rotation_restraints_verified": True,
+    }
+    with pytest.raises(ValueError, match="Verify the Clause 5.6.3"):
+        run_advanced_members(inputs)
+    inputs["effective_length_basis_verified"] = True
+    inputs["effective_length_basis_reference"] = "   "
+    with pytest.raises(ValueError, match="must not be blank"):
+        run_advanced_members(inputs)
 
 
 def full_restraint(section_type, **properties):

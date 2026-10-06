@@ -567,6 +567,9 @@ def table_5_6_3_lateral_rotation_restraint_combinations():
             {
                 "operation": "lateral_buckling_effective_length",
                 "segment_length_mm": 1000,
+                "effective_length_basis": "segment_without_intermediate_restraints",
+                "effective_length_basis_verified": True,
+                "effective_length_basis_reference": "BENCHMARK-LENGTH-BASIS",
                 "clear_flange_depth_mm": 200,
                 "critical_flange_thickness_mm": 20,
                 "web_thickness_mm": 10,
@@ -589,6 +592,9 @@ def table_5_6_3_lateral_rotation_restraint_combinations():
                     {
                         "operation": "lateral_buckling_effective_length",
                         "segment_length_mm": 1000,
+                        "effective_length_basis": "segment_without_intermediate_restraints",
+                        "effective_length_basis_verified": True,
+                        "effective_length_basis_reference": "BENCHMARK-LENGTH-BASIS",
                         "clear_flange_depth_mm": 200,
                         "critical_flange_thickness_mm": 20,
                         "web_thickness_mm": 10,
@@ -608,7 +614,55 @@ def table_5_6_3_lateral_rotation_restraint_combinations():
                 )
     if rejected != 6:
         raise AssertionError("Table 5.6.3(C) unlisted restraint combinations were not all rejected")
-    return {"valid_cases": observed, "unlisted_combinations_rejected": rejected}
+
+    subsegment = run_advanced_members(
+        {
+            "operation": "lateral_buckling_effective_length",
+            "segment_length_mm": 1200,
+            "effective_length_basis": "subsegment_with_intermediate_restraints",
+            "effective_length_basis_verified": True,
+            "effective_length_basis_reference": "BENCHMARK-SUBSEGMENT-RESTRAINTS",
+            "clear_flange_depth_mm": 200,
+            "critical_flange_thickness_mm": 20,
+            "web_thickness_mm": 10,
+            "number_of_webs": 2,
+            "restraint_arrangement": "FF",
+            "gravity_load_position": "at_segment_end",
+            "load_height_position": "shear_centre",
+            "effective_rotation_restraint_count": 1,
+            "effective_rotation_restraints_verified": True,
+        }
+    )
+    expect_close(subsegment["values"]["effective_length_mm"], 1020)
+    expect_close(subsegment["values"]["reference_length_mm"], 1200)
+
+    unrestrained_segment = run_advanced_members(
+        {
+            "operation": "lateral_buckling_effective_length",
+            "segment_length_mm": 2400,
+            "effective_length_basis": "segment_unrestrained_at_one_end",
+            "effective_length_basis_verified": True,
+            "effective_length_basis_reference": "BENCHMARK-UNRESTRAINED-SEGMENT",
+            "clear_flange_depth_mm": 200,
+            "critical_flange_thickness_mm": 20,
+            "web_thickness_mm": 10,
+            "number_of_webs": 2,
+            "restraint_arrangement": "FU",
+            "gravity_load_position": "within_segment",
+            "load_height_position": "top_flange",
+            "effective_rotation_restraint_count": 0,
+            "effective_rotation_restraints_verified": True,
+        }
+    )
+    expect_close(unrestrained_segment["values"]["effective_length_mm"], 4800)
+    return {
+        "valid_cases": observed,
+        "unlisted_combinations_rejected": rejected,
+        "subsegment_effective_length_mm": subsegment["values"]["effective_length_mm"],
+        "unrestrained_segment_effective_length_mm": unrestrained_segment["values"][
+            "effective_length_mm"
+        ],
+    }
 
 
 def clause_4_6_3_3_chart_factor_buckling():

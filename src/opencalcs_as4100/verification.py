@@ -6321,6 +6321,9 @@ def verify():
         {
             "operation": "lateral_buckling_effective_length",
             "segment_length_mm": 1000,
+            "effective_length_basis": "segment_without_intermediate_restraints",
+            "effective_length_basis_verified": True,
+            "effective_length_basis_reference": "VERIFY-LENGTH-BASIS-01",
             "clear_flange_depth_mm": 200,
             "critical_flange_thickness_mm": 20,
             "web_thickness_mm": 10,
@@ -6340,12 +6343,20 @@ def verify():
         ("effective_length_mm", 1176),
     ]:
         record(f"Table 5.6.3 {key}", effective_length["values"][key], expected)
+    record(
+        "Clause 5.6.3(a) records the verified segment length basis",
+        effective_length["values"]["effective_length_basis_verified"],
+        True,
+    )
     rejected_unlisted_rotation_restraints = 0
     try:
         run_advanced_members(
             {
                 "operation": "lateral_buckling_effective_length",
                 "segment_length_mm": 1000,
+                "effective_length_basis": "segment_without_intermediate_restraints",
+                "effective_length_basis_verified": True,
+                "effective_length_basis_reference": "VERIFY-LENGTH-BASIS-02",
                 "clear_flange_depth_mm": 200,
                 "critical_flange_thickness_mm": 20,
                 "web_thickness_mm": 10,
@@ -6363,6 +6374,52 @@ def verify():
         "Table 5.6.3(C) rejects unlisted FL end-rotation combination",
         rejected_unlisted_rotation_restraints,
         1,
+    )
+    subsegment = run_advanced_members(
+        {
+            "operation": "lateral_buckling_effective_length",
+            "segment_length_mm": 1200,
+            "effective_length_basis": "subsegment_with_intermediate_restraints",
+            "effective_length_basis_verified": True,
+            "effective_length_basis_reference": "VERIFY-SUBSEGMENT-RESTRAINTS",
+            "clear_flange_depth_mm": 200,
+            "critical_flange_thickness_mm": 20,
+            "web_thickness_mm": 10,
+            "number_of_webs": 2,
+            "restraint_arrangement": "FF",
+            "gravity_load_position": "at_segment_end",
+            "load_height_position": "shear_centre",
+            "effective_rotation_restraint_count": 1,
+            "effective_rotation_restraints_verified": True,
+        }
+    )
+    record(
+        "Clause 5.6.3(b) sub-segment effective length uses the restraint spacing",
+        subsegment["values"]["effective_length_mm"],
+        1020,
+    )
+    unrestrained_segment = run_advanced_members(
+        {
+            "operation": "lateral_buckling_effective_length",
+            "segment_length_mm": 2400,
+            "effective_length_basis": "segment_unrestrained_at_one_end",
+            "effective_length_basis_verified": True,
+            "effective_length_basis_reference": "VERIFY-UNRESTRAINED-SEGMENT",
+            "clear_flange_depth_mm": 200,
+            "critical_flange_thickness_mm": 20,
+            "web_thickness_mm": 10,
+            "number_of_webs": 2,
+            "restraint_arrangement": "FU",
+            "gravity_load_position": "within_segment",
+            "load_height_position": "top_flange",
+            "effective_rotation_restraint_count": 0,
+            "effective_rotation_restraints_verified": True,
+        }
+    )
+    record(
+        "Clause 5.6.3(a) retains full segment for one unrestrained end",
+        unrestrained_segment["values"]["effective_length_mm"],
+        4800,
     )
     restraint_cases = [
         ("equal_flanged_i", {"radius_of_gyration_y_mm": 10}, 300, 30),
