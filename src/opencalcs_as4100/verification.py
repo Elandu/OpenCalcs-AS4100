@@ -1917,6 +1917,49 @@ def verify():
         int(compression_capacity["checks"]["x"]["satisfied"]),
         1,
     )
+    for geometry in (
+        "unlipped_angle",
+        "tee",
+        "cruciform",
+        "hot_rolled_channel",
+    ):
+        exception_member = {
+            "operation": "compression",
+            "yield_strength_mpa": 250,
+            "gross_area_mm2": 1000,
+            "net_area_mm2": 1000,
+            "effective_area_mm2": 1000,
+            "effective_length_x_mm": 900,
+            "effective_length_y_mm": 900,
+            "radius_x_mm": 10,
+            "radius_y_mm": 10,
+            "section_constant_x": 0.5,
+            "section_constant_y": 0.5,
+            "action_kn": 100,
+            "geometry": geometry,
+            "flexural_buckling_basis_verified": True,
+            "flexural_buckling_basis_reference": "VERIFY-CLAUSE-6.3.3-SECTION-EXCEPTION-01",
+        }
+        if geometry == "hot_rolled_channel":
+            exception_member.update(
+                {
+                    "minor_principal_axis_bracing_verified": True,
+                    "minor_principal_axis_bracing_reference": "VERIFY-CHANNEL-BRACING-01",
+                }
+            )
+        exception_capacity = run_members(exception_member)
+        record(
+            f"Clause 6.3.3 {geometry} flexural-buckling reduction, Table 6.3.3(C)",
+            exception_capacity["values"]["reduction_x"],
+            0.547,
+            tolerance=0.00051,
+        )
+        record(
+            f"Clause 6.3.3 {geometry} flexural-buckling design capacity (kN)",
+            exception_capacity["checks"]["x"]["design_capacity"],
+            123.075,
+            tolerance=0.115,
+        )
 
     chart_buckling = run_design_actions(
         {

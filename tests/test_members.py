@@ -26,6 +26,25 @@ def compression(length=900, constant=0):
     }
 
 
+def flexural_only_compression(geometry):
+    data = compression(length=900, constant=0.5)
+    data.update(
+        {
+            "geometry": geometry,
+            "flexural_buckling_basis_verified": True,
+            "flexural_buckling_basis_reference": "verified principal-axis member schedule 01",
+        }
+    )
+    if geometry == "hot_rolled_channel":
+        data.update(
+            {
+                "minor_principal_axis_bracing_verified": True,
+                "minor_principal_axis_bracing_reference": "channel restraint drawing 01",
+            }
+        )
+    return data
+
+
 def test_member_yield_strength_scope_boundary():
     data = compression()
     data["yield_strength_mpa"] = 690
@@ -63,6 +82,41 @@ def test_amendment_1_corrected_table_6_3_3_c_lambda_20_row(constant, expected):
     # AS 4100:2020 Amd 1:2021 replaces the complete row beginning at lambda_n=20.
     out = run_members(compression(200, constant))
     assert out["values"]["reduction_x"] == pytest.approx(expected, abs=0.00051)
+
+
+@pytest.mark.parametrize(
+    "geometry",
+    ["unlipped_angle", "tee", "cruciform", "hot_rolled_channel"],
+)
+def test_clause_6_3_3_flexural_only_section_exceptions(geometry):
+    out = run_members(flexural_only_compression(geometry))
+
+    # At lambda_n=90 and alpha_b=0.5, Table 6.3.3(C) gives alpha_c=0.547.
+    assert out["values"]["reduction_x"] == pytest.approx(0.547, abs=0.00051)
+    assert out["values"]["member_capacity_x_kn"] == pytest.approx(136.75, abs=0.128)
+    assert out["checks"]["x"]["design_capacity"] == pytest.approx(123.075, abs=0.115)
+    assert out["values"]["geometry"] == geometry
+    assert out["checks"]["flexural_buckling_exception"]["satisfied"]
+    if geometry == "hot_rolled_channel":
+        assert out["checks"]["minor_principal_axis_bracing"]["satisfied"]
+        assert out["values"]["minor_principal_axis_bracing_verified"]
+
+
+def test_clause_6_3_3_flexural_only_exceptions_require_applicability_evidence():
+    data = flexural_only_compression("tee")
+    del data["flexural_buckling_basis_verified"]
+    with pytest.raises(ValueError):
+        run_members(data)
+
+    data = flexural_only_compression("hot_rolled_channel")
+    del data["minor_principal_axis_bracing_verified"]
+    with pytest.raises(ValueError):
+        run_members(data)
+
+    data = flexural_only_compression("cruciform")
+    data["flexural_buckling_basis_reference"] = "  "
+    with pytest.raises(ValueError, match="basis reference must not be blank"):
+        run_members(data)
 
 
 def test_compression_axes_and_monotonicity():
@@ -1628,7 +1682,7 @@ def test_both_flange_force_transfer_capacity_is_required_for_each_flange():
     [
         {"gross_area_mm2": 900},
         {"action_kn": float("nan")},
-        {"geometry": "angle"},
+        {"geometry": "fabricated_nonsymmetric"},
         {"section_constant_x": 0.25},
     ],
 )

@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.46",
+  "package_version": "0.7.47",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1016,6 +1016,62 @@
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 unlipped_angle flexural-buckling reduction, Table 6.3.3(C)",
+      "actual": 0.5465575700306343,
+      "expected": 0.547,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 unlipped_angle flexural-buckling design capacity (kN)",
+      "actual": 122.97545325689273,
+      "expected": 123.075,
+      "absolute_tolerance": 0.115,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 tee flexural-buckling reduction, Table 6.3.3(C)",
+      "actual": 0.5465575700306343,
+      "expected": 0.547,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 tee flexural-buckling design capacity (kN)",
+      "actual": 122.97545325689273,
+      "expected": 123.075,
+      "absolute_tolerance": 0.115,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 cruciform flexural-buckling reduction, Table 6.3.3(C)",
+      "actual": 0.5465575700306343,
+      "expected": 0.547,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 cruciform flexural-buckling design capacity (kN)",
+      "actual": 122.97545325689273,
+      "expected": 123.075,
+      "absolute_tolerance": 0.115,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 hot_rolled_channel flexural-buckling reduction, Table 6.3.3(C)",
+      "actual": 0.5465575700306343,
+      "expected": 0.547,
+      "absolute_tolerance": 0.00051,
+      "passed": true
+    },
+    {
+      "name": "Clause 6.3.3 hot_rolled_channel flexural-buckling design capacity (kN)",
+      "actual": 122.97545325689273,
+      "expected": 123.075,
+      "absolute_tolerance": 0.115,
       "passed": true
     },
     {

@@ -30,6 +30,92 @@ def _variant(operation, properties, required):
     }
 
 
+_FLEXURAL_ONLY_COMPRESSION_GEOMETRIES = (
+    "unlipped_angle",
+    "cruciform",
+    "hot_rolled_channel",
+    "tee",
+)
+
+
+def _compression_variant():
+    properties = {
+        "yield_strength_mpa": P,
+        "gross_area_mm2": P,
+        "net_area_mm2": P,
+        "effective_area_mm2": P,
+        "effective_length_x_mm": P,
+        "effective_length_y_mm": P,
+        "radius_x_mm": P,
+        "radius_y_mm": P,
+        "section_constant_x": {"enum": [-1, -0.5, 0, 0.5, 1]},
+        "section_constant_y": {"enum": [-1, -0.5, 0, 0.5, 1]},
+        "action_kn": N,
+        "geometry": {
+            "enum": [
+                "doubly_symmetric",
+                "chs",
+                "rhs",
+                *_FLEXURAL_ONLY_COMPRESSION_GEOMETRIES,
+            ]
+        },
+        "flexural_buckling_basis_verified": {"const": True},
+        "flexural_buckling_basis_reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+        },
+        "minor_principal_axis_bracing_verified": {"const": True},
+        "minor_principal_axis_bracing_reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+        },
+    }
+    required = [
+        "yield_strength_mpa",
+        "gross_area_mm2",
+        "net_area_mm2",
+        "effective_area_mm2",
+        "effective_length_x_mm",
+        "effective_length_y_mm",
+        "radius_x_mm",
+        "radius_y_mm",
+        "section_constant_x",
+        "section_constant_y",
+        "action_kn",
+        "geometry",
+    ]
+    variant = _variant("compression", properties, required)
+    variant["allOf"] = [
+        {
+            "if": {
+                "properties": {"geometry": {"enum": sorted(_FLEXURAL_ONLY_COMPRESSION_GEOMETRIES)}},
+                "required": ["geometry"],
+            },
+            "then": {
+                "required": [
+                    "flexural_buckling_basis_verified",
+                    "flexural_buckling_basis_reference",
+                ]
+            },
+        },
+        {
+            "if": {
+                "properties": {"geometry": {"const": "hot_rolled_channel"}},
+                "required": ["geometry"],
+            },
+            "then": {
+                "required": [
+                    "minor_principal_axis_bracing_verified",
+                    "minor_principal_axis_bracing_reference",
+                ]
+            },
+        },
+    ]
+    return variant
+
+
 def _tension_field_variant(operation, properties, required):
     variant = _variant(operation, properties, required)
     variant["properties"].update(
@@ -265,37 +351,7 @@ INPUT_SCHEMA = {
                 "gross_plastic_modulus_mm3",
             ],
         ),
-        _variant(
-            "compression",
-            {
-                "yield_strength_mpa": P,
-                "gross_area_mm2": P,
-                "net_area_mm2": P,
-                "effective_area_mm2": P,
-                "effective_length_x_mm": P,
-                "effective_length_y_mm": P,
-                "radius_x_mm": P,
-                "radius_y_mm": P,
-                "section_constant_x": {"enum": [-1, -0.5, 0, 0.5, 1]},
-                "section_constant_y": {"enum": [-1, -0.5, 0, 0.5, 1]},
-                "action_kn": N,
-                "geometry": {"enum": ["doubly_symmetric", "chs", "rhs"]},
-            },
-            [
-                "yield_strength_mpa",
-                "gross_area_mm2",
-                "net_area_mm2",
-                "effective_area_mm2",
-                "effective_length_x_mm",
-                "effective_length_y_mm",
-                "radius_x_mm",
-                "radius_y_mm",
-                "section_constant_x",
-                "section_constant_y",
-                "action_kn",
-                "geometry",
-            ],
-        ),
+        _compression_variant(),
         _variant(
             "bending",
             {
@@ -1232,15 +1288,51 @@ def _compression(d):
             }
         )
         checks[axis] = _check(d["action_kn"], 0.9 * alpha * ns)
+    clauses = ["6.2.1", "6.2.2", "6.3.2", "6.3.3"]
+    manual = [
+        "Effective lengths require structural restraint/analysis assessment under 4.6.3.",
+        "Select section constants from Table 6.3.3(A/B) for fabrication and form factor.",
+        "Limited to constant-section members whose governing mode is flexural buckling.",
+        "Other fabricated monosymmetric or non-symmetric sections require the Clause 6.3.3 "
+        "AS/NZS 4600 flexural-torsional route.",
+    ]
+    if d["geometry"] in _FLEXURAL_ONLY_COMPRESSION_GEOMETRIES:
+        basis_reference = d["flexural_buckling_basis_reference"].strip()
+        if not basis_reference:
+            raise ValueError("Flexural-buckling basis reference must not be blank.")
+        values.update(
+            {
+                "geometry": d["geometry"],
+                "flexural_buckling_basis_verified": True,
+                "flexural_buckling_basis_reference": basis_reference,
+            }
+        )
+        checks["flexural_buckling_exception"] = {
+            "clause": "6.3.3 flexural-only section exception",
+            "section_form": d["geometry"],
+            "evidence_reference": basis_reference,
+            "satisfied": True,
+        }
+        if d["geometry"] == "hot_rolled_channel":
+            bracing_reference = d["minor_principal_axis_bracing_reference"].strip()
+            if not bracing_reference:
+                raise ValueError("Minor principal-axis bracing reference must not be blank.")
+            values.update(
+                {
+                    "minor_principal_axis_bracing_verified": True,
+                    "minor_principal_axis_bracing_reference": bracing_reference,
+                }
+            )
+            checks["minor_principal_axis_bracing"] = {
+                "clause": "6.3.3 hot-rolled channel braced about minor principal axis",
+                "evidence_reference": bracing_reference,
+                "satisfied": True,
+            }
     return (
         values,
         checks,
-        ["6.2.1", "6.2.2", "6.3.2", "6.3.3"],
-        [
-            "Effective lengths require structural restraint/analysis assessment under 4.6.3.",
-            "Select section constants from Table 6.3.3(A/B) for fabrication and form factor.",
-            "Limited to constant-section members whose governing mode is flexural buckling.",
-        ],
+        clauses,
+        manual,
     )
 
 

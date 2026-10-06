@@ -1,6 +1,6 @@
 # AS 4100:2020 coverage map
 
-This map describes the bounded version 0.7.46 implementation. **Calculated**
+This map describes the bounded version 0.7.47 implementation. **Calculated**
 means a stated operation evaluates an equation or compares supplied values.
 **Assessed** means the user must establish applicability, inputs and supporting
 evidence independently. **Missing** identifies examples of provisions for
@@ -18,6 +18,14 @@ supported by verified rational buckling analysis evidence. The Clause 4.7.2
 operations calculate rectangular-frame factors from verified member buckling
 loads and design actions for the selected load set; they do not solve the
 whole-frame eigenvalue problem.
+
+For Clause 6.3.3, `member_design.compression` applies the existing flexural
+buckling equations to verified unlipped-angle, tee, cruciform and hot-rolled
+channel cases; the channel route requires bracing about its minor principal
+axis. The calculation checks both supplied principal axes using the verified
+effective lengths, radii and Table 6.3.3 section constants. Other fabricated
+monosymmetric or non-symmetric sections remain on the external AS/NZS 4600
+flexural-torsional route.
 
 For Clauses 5.2.1–5.2.5, `member_design.section_moment_capacity` selects the
 controlling supplied flat compression plate element by the greatest
