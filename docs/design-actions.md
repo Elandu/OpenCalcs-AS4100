@@ -80,6 +80,36 @@ satisfies the chart's idealized assumptions. The result is an elastic buckling
 load, not a Clause 6.3 member design capacity or a whole-frame buckling
 analysis.
 
+## Whole-frame elastic buckling
+
+`whole_frame_elastic_buckling` solves the in-plane elastic buckling eigenvalue
+for a planar frame under one proportional member-force pattern, tracing Clauses
+4.7.1 and 4.7.2(b). `lambda_c` (also returned as
+`elastic_buckling_load_factor`) is the multiplier on the supplied member axial
+forces at the first positive elastic buckling eigenvalue.
+Compression is positive and tension is negative. The operation reports the
+results from four, eight, sixteen, and (if needed) thirty-two elements per
+member. It accepts the first consecutive pair that agrees within 0.1%; otherwise
+it rejects the calculation.
+
+The model uses 200 000 MPa elastic modulus, prismatic Euler-Bernoulli frame
+members, in-plane area and second moment, and rigid connections at shared joints.
+Provide complete joint coordinates and restrained `ux`, `uy`, and `rz` degrees
+of freedom, plus each member's area, in-plane second moment, and axial force
+from the same identified load set. The input separately records complete joint
+and member inventories. Geometry, restraints, frame completeness, member
+properties, force pattern, and analysis assumptions require evidence references
+and engineering assessment.
+
+This route excludes out-of-plane or torsional modes, member-end releases,
+connection flexibility, shear deformation, initial imperfections, residual
+stress, material nonlinearity, and second-order design actions. It calculates
+elastic frame stability only; it does not determine the load combinations or
+member design capacities, and a passing check does not establish full AS 4100
+compliance. The independent benchmark compares a pinned column result with the
+Clause 4.6.2 Euler solution. To apply the Clause 4.5.4 threshold route, pass
+`lambda_c` as `frame_buckling_factor` to `plastic_amplification`.
+
 ## Braced-member moment amplification
 
 `moment_amplification` calculates the Clause 4.4.2.2 braced-member factor and

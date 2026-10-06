@@ -20,6 +20,131 @@ def test_euler_pin_ended_hand_benchmark():
     assert r["values"]["elastic_buckling_load_kn"] == pytest.approx(100 * pi * pi)
 
 
+def whole_frame_elastic_buckling(**overrides):
+    evidence = "FRAME-ANALYSIS-01"
+    inputs = {
+        "operation": "whole_frame_elastic_buckling",
+        "design_load_set_id": "ULS-FRAME-01",
+        "design_load_actions_verified": True,
+        "design_load_evidence_reference": evidence,
+        "frame_model_verified": True,
+        "frame_model_evidence_reference": evidence,
+        "all_frame_joints_listed_verified": True,
+        "joint_list_evidence_reference": evidence,
+        "all_frame_members_listed_verified": True,
+        "member_list_evidence_reference": evidence,
+        "joints": [
+            {
+                "joint_id": "A",
+                "x_mm": 0,
+                "y_mm": 0,
+                "restrained_dofs": ["ux", "uy"],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": evidence,
+            },
+            {
+                "joint_id": "B",
+                "x_mm": 4000,
+                "y_mm": 0,
+                "restrained_dofs": ["ux", "uy"],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": evidence,
+            },
+        ],
+        "members": [
+            {
+                "member_id": "COL-01",
+                "start_joint_id": "A",
+                "end_joint_id": "B",
+                "area_mm2": 10_000,
+                "second_moment_in_plane_mm4": 8e6,
+                "axial_force_kn": 1,
+                "prismatic_member_verified": True,
+                "geometry_verified": True,
+                "section_properties_verified": True,
+                "axial_force_verified": True,
+                "evidence_reference": evidence,
+            }
+        ],
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_whole_frame_elastic_buckling_matches_independent_euler_solution():
+    r = run(whole_frame_elastic_buckling())
+    values = r["values"]
+    expected_load_factor = 100 * pi**2
+    assert r["clauses"] == ["4.7.1", "4.7.2(b)"]
+    assert r["checked_conditions_satisfied"]
+    assert r["full_standard_compliance"] is False
+    assert values["elastic_buckling_load_factor"] == pytest.approx(expected_load_factor, rel=5e-5)
+    assert values["lambda_c"] == values["elastic_buckling_load_factor"]
+    assert values["relative_mesh_difference"] < 0.001
+    assert values["design_load_set_id"] == "ULS-FRAME-01"
+    assert values["refined_mesh"]["mesh_subdivisions_per_member"] in (8, 16, 32)
+    scaled = whole_frame_elastic_buckling()
+    scaled["members"][0]["axial_force_kn"] = 3
+    scaled_factor = run(scaled)["values"]["lambda_c"]
+    assert scaled_factor * 3 == pytest.approx(values["lambda_c"], rel=1e-10)
+
+
+def test_whole_frame_elastic_buckling_matches_fixed_end_euler_solution():
+    inputs = whole_frame_elastic_buckling()
+    for joint in inputs["joints"]:
+        joint["restrained_dofs"] = ["ux", "uy", "rz"]
+    values = run(inputs)["values"]
+    assert values["elastic_buckling_load_factor"] == pytest.approx(4 * 100 * pi**2, rel=5e-5)
+    assert values["refined_mesh"]["mesh_subdivisions_per_member"] >= 16
+
+
+def test_whole_frame_elastic_buckling_retains_failed_evidence_checks():
+    inputs = whole_frame_elastic_buckling(
+        frame_model_verified=False,
+        all_frame_joints_listed_verified=False,
+        all_frame_members_listed_verified=False,
+    )
+    inputs["members"][0]["axial_force_verified"] = False
+    r = run(inputs)
+    assert not r["checked_conditions_satisfied"]
+    assert not all(check["satisfied"] for check in r["checks"])
+    assert r["values"]["elastic_buckling_load_factor"] > 0
+
+
+def test_whole_frame_elastic_buckling_rejects_unstable_or_unrestrained_model():
+    inputs = whole_frame_elastic_buckling()
+    inputs["joints"][0]["restrained_dofs"] = ["uy"]
+    inputs["joints"][1]["restrained_dofs"] = ["uy"]
+    with pytest.raises(ValueError, match="singular or unstable"):
+        run(inputs)
+
+
+def test_whole_frame_elastic_buckling_rejects_unconnected_model():
+    inputs = whole_frame_elastic_buckling()
+    inputs["joints"].append(
+        {
+            "joint_id": "ISOLATED",
+            "x_mm": 9000,
+            "y_mm": 1000,
+            "restrained_dofs": [],
+            "joint_geometry_verified": True,
+            "restraint_assessment_verified": True,
+            "evidence_reference": "FRAME-ANALYSIS-01",
+        }
+    )
+    with pytest.raises(ValueError, match="one connected"):
+        run(inputs)
+
+
+def test_whole_frame_elastic_buckling_rejects_all_tension_pattern():
+    inputs = whole_frame_elastic_buckling()
+    inputs["members"][0]["axial_force_kn"] = -1
+    with pytest.raises(ValueError, match="no positive elastic buckling eigenvalue"):
+        run(inputs)
+
+
 def test_euler_buckling_uses_clause_2_2_4_elastic_modulus():
     with pytest.raises(ValueError, match="elastic_modulus_mpa"):
         run(

@@ -1,6 +1,6 @@
 # AS 4100:2020 coverage map
 
-This map describes the bounded version 0.7.47 implementation. **Calculated**
+This map describes the bounded version 0.7.48 implementation. **Calculated**
 means a stated operation evaluates an equation or compares supplied values.
 **Assessed** means the user must establish applicability, inputs and supporting
 evidence independently. **Missing** identifies examples of provisions for
@@ -16,8 +16,12 @@ factor to calculate elastic buckling load. `triangulated_member_buckling` applie
 Clause 4.6.3.5 centre-to-centre minimum unless a shorter effective length is
 supported by verified rational buckling analysis evidence. The Clause 4.7.2
 operations calculate rectangular-frame factors from verified member buckling
-loads and design actions for the selected load set; they do not solve the
-whole-frame eigenvalue problem.
+loads and design actions for the selected load set. `whole_frame_elastic_buckling`
+also solves a bounded two-dimensional rational elastic eigenvalue model under
+Clause 4.7.2(b), using a proportional member axial-force pattern and refining
+the member mesh until consecutive estimates agree within 0.1%. It is limited
+to assessed planar, prismatic, rigidly connected members, and it does not
+establish full frame or standard compliance.
 
 For Clause 6.3.3, `member_design.compression` applies the existing flexural
 buckling equations to verified unlipped-angle, tee, cruciform and hot-rolled

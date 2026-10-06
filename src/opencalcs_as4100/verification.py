@@ -2378,6 +2378,62 @@ def verify():
         3.0,
     )
 
+    rational_frame_buckling = run_design_actions(
+        {
+            "operation": "whole_frame_elastic_buckling",
+            "design_load_set_id": "VERIFY-PINNED-COLUMN-LOAD",
+            "design_load_actions_verified": True,
+            "design_load_evidence_reference": "VERIFY-PINNED-COLUMN-LOAD",
+            "frame_model_verified": True,
+            "frame_model_evidence_reference": "VERIFY-PINNED-COLUMN-MODEL",
+            "all_frame_joints_listed_verified": True,
+            "joint_list_evidence_reference": "VERIFY-PINNED-COLUMN-JOINTS",
+            "all_frame_members_listed_verified": True,
+            "member_list_evidence_reference": "VERIFY-PINNED-COLUMN-MEMBERS",
+            "joints": [
+                {
+                    "joint_id": "VERIFY-PINNED-COLUMN-A",
+                    "x_mm": 0,
+                    "y_mm": 0,
+                    "restrained_dofs": ["ux", "uy"],
+                    "joint_geometry_verified": True,
+                    "restraint_assessment_verified": True,
+                    "evidence_reference": "VERIFY-PINNED-COLUMN-SUPPORT-A",
+                },
+                {
+                    "joint_id": "VERIFY-PINNED-COLUMN-B",
+                    "x_mm": 4000,
+                    "y_mm": 0,
+                    "restrained_dofs": ["ux", "uy"],
+                    "joint_geometry_verified": True,
+                    "restraint_assessment_verified": True,
+                    "evidence_reference": "VERIFY-PINNED-COLUMN-SUPPORT-B",
+                },
+            ],
+            "members": [
+                {
+                    "member_id": "VERIFY-PINNED-COLUMN",
+                    "start_joint_id": "VERIFY-PINNED-COLUMN-A",
+                    "end_joint_id": "VERIFY-PINNED-COLUMN-B",
+                    "area_mm2": 10_000,
+                    "second_moment_in_plane_mm4": 8e6,
+                    "axial_force_kn": 1,
+                    "prismatic_member_verified": True,
+                    "geometry_verified": True,
+                    "section_properties_verified": True,
+                    "axial_force_verified": True,
+                    "evidence_reference": "VERIFY-PINNED-COLUMN-SECTION-AND-FORCE",
+                }
+            ],
+        }
+    )
+    record(
+        "Clause 4.7.2(b) whole-frame elastic eigenvalue matches pinned Euler column",
+        rational_frame_buckling["values"]["elastic_buckling_load_factor"],
+        100 * pi * pi,
+        0.05,
+    )
+
     def frame_stiffness_inputs(frame_type="braced", column_base_condition="not_column_base"):
         return {
             "operation": "rectangular_frame_stiffness_ratio",

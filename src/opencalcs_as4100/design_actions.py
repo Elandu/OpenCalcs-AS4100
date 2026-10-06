@@ -3,6 +3,7 @@
 
 from math import isclose, isfinite, pi, tan
 
+from .frame_buckling import run_frame_buckling
 from .standards import ELASTIC_MODULUS_MPA
 from .validation import NONNEGATIVE, POSITIVE, SIGNED, object_schema, result, validate
 
@@ -265,6 +266,36 @@ _SWAY_FRAME_STOREY = object_schema(
         "column_list_evidence_reference": _REFERENCE,
     }
 )
+_FRAME_BUCKLING_JOINT = object_schema(
+    {
+        "joint_id": _REFERENCE,
+        "x_mm": SIGNED,
+        "y_mm": SIGNED,
+        "restrained_dofs": {
+            "type": "array",
+            "items": {"enum": ["ux", "uy", "rz"]},
+            "uniqueItems": True,
+        },
+        "joint_geometry_verified": _BOOL,
+        "restraint_assessment_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
+_FRAME_BUCKLING_MEMBER = object_schema(
+    {
+        "member_id": _REFERENCE,
+        "start_joint_id": _REFERENCE,
+        "end_joint_id": _REFERENCE,
+        "area_mm2": POSITIVE,
+        "second_moment_in_plane_mm4": POSITIVE,
+        "axial_force_kn": SIGNED,
+        "prismatic_member_verified": _BOOL,
+        "geometry_verified": _BOOL,
+        "section_properties_verified": _BOOL,
+        "axial_force_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
 _PLASTIC_JOINT = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -388,6 +419,30 @@ SCHEMAS = {
             "storeys": {"type": "array", "minItems": 1, "items": _SWAY_FRAME_STOREY},
             "all_storeys_in_frame_listed_verified": _BOOL,
             "storey_list_evidence_reference": _REFERENCE,
+        }
+    ),
+    "whole_frame_elastic_buckling": object_schema(
+        {
+            "operation": {"const": "whole_frame_elastic_buckling"},
+            "design_load_set_id": _REFERENCE,
+            "design_load_actions_verified": _BOOL,
+            "design_load_evidence_reference": _REFERENCE,
+            "frame_model_verified": _BOOL,
+            "frame_model_evidence_reference": _REFERENCE,
+            "all_frame_joints_listed_verified": _BOOL,
+            "joint_list_evidence_reference": _REFERENCE,
+            "all_frame_members_listed_verified": _BOOL,
+            "member_list_evidence_reference": _REFERENCE,
+            "joints": {
+                "type": "array",
+                "minItems": 2,
+                "items": _FRAME_BUCKLING_JOINT,
+            },
+            "members": {
+                "type": "array",
+                "minItems": 1,
+                "items": _FRAME_BUCKLING_MEMBER,
+            },
         }
     ),
     "rectangular_frame_stiffness_ratio": object_schema(
@@ -1199,6 +1254,87 @@ def run_design_actions(inputs):
         return _run_braced_frame_buckling_factor(d)
     if op == "sway_frame_buckling_factor":
         return _run_sway_frame_buckling_factor(d)
+    if op == "whole_frame_elastic_buckling":
+        values = run_frame_buckling(d)
+        checks = [
+            {
+                "clause": "4.7.2(b)",
+                "condition": (
+                    "the planar elastic frame model, rigid connections, section properties, "
+                    "and restraint assumptions have been assessed"
+                ),
+                "satisfied": d["frame_model_verified"],
+                "evidence_reference": d["frame_model_evidence_reference"],
+            },
+            {
+                "clause": "4.7.1",
+                "condition": "the complete frame joint inventory is represented",
+                "satisfied": d["all_frame_joints_listed_verified"],
+                "evidence_reference": d["joint_list_evidence_reference"],
+            },
+            {
+                "clause": "4.7.1",
+                "condition": "the complete frame member inventory is represented",
+                "satisfied": d["all_frame_members_listed_verified"],
+                "evidence_reference": d["member_list_evidence_reference"],
+            },
+            {
+                "clause": "4.7.1",
+                "condition": "all joint coordinates and support restraints are assessed",
+                "satisfied": all(
+                    joint["joint_geometry_verified"] and joint["restraint_assessment_verified"]
+                    for joint in d["joints"]
+                ),
+                "joint_count": len(d["joints"]),
+            },
+            {
+                "clause": "4.7.1",
+                "condition": (
+                    "all prismatic member geometry, in-plane properties, and axial forces "
+                    "are assessed"
+                ),
+                "satisfied": all(
+                    member["prismatic_member_verified"]
+                    and member["geometry_verified"]
+                    and member["section_properties_verified"]
+                    and member["axial_force_verified"]
+                    for member in d["members"]
+                ),
+                "member_count": len(d["members"]),
+            },
+            {
+                "clause": "4.7.1",
+                "condition": "member axial forces belong to one proportional design load set",
+                "load_set_id": d["design_load_set_id"],
+                "satisfied": d["design_load_actions_verified"],
+                "evidence_reference": d["design_load_evidence_reference"],
+            },
+            {
+                "clause": "4.7.2(b)",
+                "condition": "consecutive member meshes agree within 0.1%",
+                "relative_difference": values["relative_mesh_difference"],
+                "satisfied": values["relative_mesh_difference"] <= 0.001,
+            },
+        ]
+        return result(
+            op,
+            ["4.7.1", "4.7.2(b)"],
+            values,
+            checks,
+            limitations=[
+                "The calculation is a two-dimensional, first-mode elastic eigenvalue analysis "
+                "of prismatic, rigidly connected frame members with constant axial force in "
+                "each member. Verify that the frame model is planar, complete, and suitable "
+                "for this idealization.",
+                "The analysis uses elastic frame stiffness and beam-column geometric stiffness; "
+                "it excludes out-of-plane and torsional modes, shear deformation, member-end "
+                "releases, initial imperfections, residual stresses, material nonlinearity, "
+                "connection flexibility, and second-order strength design checks.",
+                "The returned load factor scales the supplied member axial-force pattern. It "
+                "does not establish load combinations, member resistance, second-order actions, "
+                "or full AS 4100 compliance.",
+            ],
+        )
     if op == "rectangular_frame_stiffness_ratio":
         compression_member_ids = [member["member_id"] for member in d["compression_members"]]
         beam_ids = [beam["beam_id"] for beam in d["beams"]]

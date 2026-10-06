@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.47",
+  "package_version": "0.7.48",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1758,6 +1758,13 @@
       "actual": 2.9999999999999996,
       "expected": 3.0,
       "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.7.2(b) whole-frame elastic eigenvalue matches pinned Euler column",
+      "actual": 986.9927789391796,
+      "expected": 986.9604401089358,
+      "absolute_tolerance": 0.05,
       "passed": true
     },
     {
