@@ -1781,7 +1781,11 @@ def incomplete_compound_weld_design(**changes):
         "compound_weld_classification_reference": "DETAIL-CW-01",
         "action_kn": 190,
     }
-    inputs.update(changes)
+    for key, value in changes.items():
+        if value is None:
+            inputs.pop(key, None)
+        else:
+            inputs[key] = value
     return run_connections(inputs)
 
 
@@ -1822,6 +1826,34 @@ def test_clause_9_6_5_compound_weld_throat_is_capped_by_butting_part():
     )
 
 
+def test_clause_9_6_5_compound_weld_uses_nearest_point_on_curved_face_profile():
+    result = incomplete_compound_weld_design(
+        incomplete_butt_root_point_mm=[0, 0],
+        fillet_face_start_point_mm=None,
+        fillet_face_end_point_mm=None,
+        fillet_face_points_mm=[[3, -2], [2, 2], [0, 3]],
+        continuous_full_size_weld_length_mm=200,
+        action_kn=0,
+    )
+    throat = 10 / 17**0.5
+    area = throat * 200
+    nominal = 0.6 * 490 * area / 1000
+    design = 0.8 * nominal
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+
+    assert intermediate["fillet_face_geometry_representation"] == "piecewise_linear_profile"
+    assert intermediate["closest_face_segment_index"] == 0
+    assert intermediate["closest_face_segment_parameter"] == pytest.approx(11 / 17)
+    assert intermediate["nearest_face_point_mm"] == pytest.approx([40 / 17, 10 / 17])
+    assert intermediate["root_to_fillet_face_distance_mm"] == pytest.approx(throat)
+    assert intermediate["design_throat_mm"] == pytest.approx(throat)
+    assert intermediate["effective_area_mm2"] == pytest.approx(area)
+    assert weld["nominal_capacity_kn"] == pytest.approx(nominal)
+    assert weld["design_capacity_kn"] == pytest.approx(design)
+    assert weld["satisfied"]
+
+
 @pytest.mark.parametrize(
     "changes, message",
     [
@@ -1835,7 +1867,27 @@ def test_clause_9_6_5_compound_weld_throat_is_capped_by_butting_part():
         ),
         (
             {"incomplete_butt_root_point_mm": [5, 5]},
-            "butt root must not lie on the fillet face segment",
+            "butt root must not lie on the fillet face",
+        ),
+        (
+            {"fillet_face_start_point_mm": None},
+            "A straight fillet face requires both start and end points",
+        ),
+        (
+            {"fillet_face_start_point_mm": None, "fillet_face_end_point_mm": None},
+            "Supply either both straight-face endpoints or fillet_face_points_mm",
+        ),
+        (
+            {
+                "fillet_face_points_mm": [[10, 0], [10, 0], [0, 10]],
+                "fillet_face_start_point_mm": None,
+                "fillet_face_end_point_mm": None,
+            },
+            "Every fillet face polyline segment must have positive length",
+        ),
+        (
+            {"fillet_face_points_mm": [[10, 0], [0, 10]]},
+            "Supply one face geometry representation, not both",
         ),
         (
             {"as1101_3_compound_weld_classification_verified": False},

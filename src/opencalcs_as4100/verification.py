@@ -4573,6 +4573,63 @@ def verify():
         compound_weld["checks"]["weld_strength"]["design_capacity_kn"],
         0.8 * compound_nominal_capacity,
     )
+    profile_compound_weld = run_connections(
+        {
+            "check_type": "incomplete_compound_weld_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "incomplete_butt_root_point_mm": [0, 0],
+            "fillet_face_points_mm": [[3, -2], [2, 2], [0, 3]],
+            "butting_part_thickness_mm": 10,
+            "continuous_full_size_weld_length_mm": 200,
+            "as1101_3_compound_weld_classification_verified": True,
+            "compound_weld_classification_reference": "COMPOUND-WELD-PROFILE-INDEPENDENT-BENCHMARK",
+            "action_kn": 0,
+        }
+    )
+    profile_throat = 10 / 17**0.5
+    profile_area = profile_throat * 200
+    profile_nominal_capacity = 0.6 * 490 * profile_area / 1000
+    record(
+        "Clause 9.6.5.2(b) curved-profile nearest segment",
+        profile_compound_weld["intermediate"]["closest_face_segment_index"],
+        0,
+    )
+    record(
+        "Clause 9.6.5.2(b) curved-profile nearest-point parameter",
+        profile_compound_weld["intermediate"]["closest_face_segment_parameter"],
+        11 / 17,
+    )
+    record(
+        "Clause 9.6.5.2(b) curved-profile nearest-point x coordinate",
+        profile_compound_weld["intermediate"]["nearest_face_point_mm"][0],
+        40 / 17,
+    )
+    record(
+        "Clause 9.6.5.2(b) curved-profile nearest-point y coordinate",
+        profile_compound_weld["intermediate"]["nearest_face_point_mm"][1],
+        10 / 17,
+    )
+    record(
+        "Clause 9.6.5.2(b) curved-profile shortest root-to-face throat",
+        profile_compound_weld["intermediate"]["design_throat_mm"],
+        profile_throat,
+    )
+    record(
+        "Clause 9.6.5.2(b) curved-profile effective area",
+        profile_compound_weld["intermediate"]["effective_area_mm2"],
+        profile_area,
+    )
+    record(
+        "Clause 9.6.5.3 curved-profile nominal capacity, hand arithmetic",
+        profile_compound_weld["checks"]["weld_strength"]["nominal_capacity_kn"],
+        profile_nominal_capacity,
+    )
+    record(
+        "Clause 9.6.5.3 curved-profile design capacity, hand arithmetic",
+        profile_compound_weld["checks"]["weld_strength"]["design_capacity_kn"],
+        0.8 * profile_nominal_capacity,
+    )
     built_up_end_weld = run_connections(
         {
             "check_type": "built_up_component_end_weld",

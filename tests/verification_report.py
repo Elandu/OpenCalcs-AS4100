@@ -1202,6 +1202,44 @@ def incomplete_compound_weld_capacity():
     return expected
 
 
+def incomplete_compound_weld_profile_capacity():
+    result = run_connections(
+        {
+            "check_type": "incomplete_compound_weld_design",
+            "weld_strength_mpa": 490,
+            "quality": "SP",
+            "incomplete_butt_root_point_mm": [0, 0],
+            "fillet_face_points_mm": [[3, -2], [2, 2], [0, 3]],
+            "butting_part_thickness_mm": 10,
+            "continuous_full_size_weld_length_mm": 200,
+            "as1101_3_compound_weld_classification_verified": True,
+            "compound_weld_classification_reference": "AS1101.3 independent profile benchmark",
+            "action_kn": 0,
+        }
+    )
+    # Independent point-to-segment geometry: projection fraction 11/17 and distance 10/sqrt(17).
+    throat = 10 / 17**0.5
+    area = throat * 200
+    nominal = 0.6 * 490 * area / 1000
+    design = 0.8 * nominal
+    intermediate = result["intermediate"]
+    weld = result["checks"]["weld_strength"]
+    expect_close(intermediate["closest_face_segment_parameter"], 11 / 17)
+    expect_close(intermediate["root_to_fillet_face_distance_mm"], throat)
+    expect_close(intermediate["design_throat_mm"], throat)
+    expect_close(intermediate["effective_area_mm2"], area)
+    expect_close(weld["nominal_capacity_kn"], nominal)
+    expect_close(weld["design_capacity_kn"], design)
+    if intermediate["closest_face_segment_index"] != 0 or not weld["satisfied"]:
+        raise AssertionError("Clause 9.6.5 polyline throat/capacity benchmark failed")
+    return {
+        "design_throat_mm": throat,
+        "effective_area_mm2": area,
+        "nominal_capacity_kn": nominal,
+        "design_capacity_kn": design,
+    }
+
+
 def prequalified_incomplete_butt_capacity():
     result = run_connections(
         {
@@ -4697,6 +4735,7 @@ def main():
         "clause_9_6_2_6_butt_weld_transition": butt_weld_transition,
         "clause_9_6_2_prequalified_butt_weld_capacity": prequalified_incomplete_butt_capacity,
         "clause_9_6_5_incomplete_compound_weld_capacity": incomplete_compound_weld_capacity,
+        "clause_9_6_5_compound_weld_profile_capacity": incomplete_compound_weld_profile_capacity,
         "clause_9_6_2_prequalified_butt_macro_throat": prequalified_incomplete_butt_macro_throat,
         "clause_9_6_3_4_fillet_macro_test_throat": fillet_macro_test_throat,
         "clause_9_6_4_2_circular_plug_weld_area": plug_slot_circular_hole,

@@ -513,6 +513,12 @@ FIELDS = {
         "incomplete_butt_root_point_mm": POINT,
         "fillet_face_start_point_mm": POINT,
         "fillet_face_end_point_mm": POINT,
+        "fillet_face_points_mm": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 100,
+            "items": POINT,
+        },
         "butting_part_thickness_mm": P,
         "continuous_full_size_weld_length_mm": P,
         "as1101_3_compound_weld_classification_verified": {"const": True},
@@ -1238,6 +1244,11 @@ OPTIONAL_FIELDS = {
         "macro_test_required_penetration_achieved_verified",
         "macro_test_record_reference",
         "macro_test_penetration_beyond_preparation_mm",
+    ),
+    "incomplete_compound_weld_design": (
+        "fillet_face_start_point_mm",
+        "fillet_face_end_point_mm",
+        "fillet_face_points_mm",
     ),
     "minimum_beam_shear_action": (
         "reaction_shear_direction_unit_vector",
@@ -4078,23 +4089,65 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         }
     elif k == "incomplete_compound_weld_design":
         root_x, root_y = d["incomplete_butt_root_point_mm"]
-        start_x, start_y = d["fillet_face_start_point_mm"]
-        end_x, end_y = d["fillet_face_end_point_mm"]
-        face_dx, face_dy = end_x - start_x, end_y - start_y
-        face_length_squared = face_dx * face_dx + face_dy * face_dy
-        if face_length_squared == 0:
-            raise ValueError("The fillet face segment must have positive length.")
-        projection_parameter = (
-            (root_x - start_x) * face_dx + (root_y - start_y) * face_dy
-        ) / face_length_squared
-        if not -1e-12 <= projection_parameter <= 1 + 1e-12:
-            raise ValueError("The butt-root perpendicular projection must land on the fillet face.")
-        projection_parameter = min(1.0, max(0.0, projection_parameter))
-        projection_x = start_x + projection_parameter * face_dx
-        projection_y = start_y + projection_parameter * face_dy
-        root_to_face_distance = hypot(root_x - projection_x, root_y - projection_y)
+        legacy_face_fields = {
+            "fillet_face_start_point_mm",
+            "fillet_face_end_point_mm",
+        }
+        has_legacy_face = bool(legacy_face_fields.intersection(d))
+        has_polyline_face = "fillet_face_points_mm" in d
+        if has_legacy_face and has_polyline_face:
+            raise ValueError("Supply one face geometry representation, not both.")
+        if not has_legacy_face and not has_polyline_face:
+            raise ValueError("Supply either both straight-face endpoints or fillet_face_points_mm.")
+        if has_legacy_face:
+            if not legacy_face_fields.issubset(d):
+                raise ValueError("A straight fillet face requires both start and end points.")
+            face_points = [d["fillet_face_start_point_mm"], d["fillet_face_end_point_mm"]]
+        else:
+            face_points = d["fillet_face_points_mm"]
+
+        nearest = None
+        segments = zip(face_points[:-1], face_points[1:], strict=True)
+        for segment_index, (start, end) in enumerate(segments):
+            start_x, start_y = start
+            end_x, end_y = end
+            face_dx, face_dy = end_x - start_x, end_y - start_y
+            face_length_squared = face_dx * face_dx + face_dy * face_dy
+            if face_length_squared == 0:
+                if has_legacy_face:
+                    raise ValueError("The fillet face segment must have positive length.")
+                raise ValueError("Every fillet face polyline segment must have positive length.")
+            projection_parameter = (
+                (root_x - start_x) * face_dx + (root_y - start_y) * face_dy
+            ) / face_length_squared
+            if has_legacy_face and not -1e-12 <= projection_parameter <= 1 + 1e-12:
+                raise ValueError(
+                    "The butt-root perpendicular projection must land on the fillet face."
+                )
+            projection_parameter = min(1.0, max(0.0, projection_parameter))
+            projection_x = start_x + projection_parameter * face_dx
+            projection_y = start_y + projection_parameter * face_dy
+            distance_squared = (root_x - projection_x) ** 2 + (root_y - projection_y) ** 2
+            if nearest is None or distance_squared < nearest[0]:
+                nearest = (
+                    distance_squared,
+                    segment_index,
+                    projection_parameter,
+                    projection_x,
+                    projection_y,
+                )
+        if nearest is None:  # The schema requires at least two face points.
+            raise ValueError("A fillet face requires at least two points.")
+        (
+            root_to_face_distance_squared,
+            closest_face_segment_index,
+            closest_face_segment_parameter,
+            closest_face_x,
+            closest_face_y,
+        ) = nearest
+        root_to_face_distance = sqrt(root_to_face_distance_squared)
         if root_to_face_distance <= 0:
-            raise ValueError("The butt root must not lie on the fillet face segment.")
+            raise ValueError("The butt root must not lie on the fillet face.")
         throat = min(root_to_face_distance, d["butting_part_thickness_mm"])
         length = d["continuous_full_size_weld_length_mm"]
         clause = "9.6.5.2(b); 9.6.5.3; 9.6.2.4; 9.6.2.5; 9.6.2.7(c); 9.6.3.10"
@@ -4113,10 +4166,13 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "as1101_3_compound_weld_classification_verified": True,
             "compound_weld_classification_reference": d["compound_weld_classification_reference"],
             "incomplete_butt_root_point_mm": [root_x, root_y],
-            "fillet_face_start_point_mm": [start_x, start_y],
-            "fillet_face_end_point_mm": [end_x, end_y],
-            "perpendicular_projection_parameter": projection_parameter,
-            "perpendicular_projection_point_mm": [projection_x, projection_y],
+            "fillet_face_geometry_representation": (
+                "straight_segment" if has_legacy_face else "piecewise_linear_profile"
+            ),
+            "fillet_face_points_mm": [list(point) for point in face_points],
+            "closest_face_segment_index": closest_face_segment_index,
+            "closest_face_segment_parameter": closest_face_segment_parameter,
+            "nearest_face_point_mm": [closest_face_x, closest_face_y],
             "root_to_fillet_face_distance_mm": root_to_face_distance,
             "butting_part_thickness_mm": d["butting_part_thickness_mm"],
             "design_throat_mm": throat,
@@ -4127,6 +4183,15 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
             "effective_area_mm2": throat * length,
             **strength_intermediate,
         }
+        if has_legacy_face:
+            intermediate.update(
+                {
+                    "fillet_face_start_point_mm": list(face_points[0]),
+                    "fillet_face_end_point_mm": list(face_points[-1]),
+                    "perpendicular_projection_parameter": closest_face_segment_parameter,
+                    "perpendicular_projection_point_mm": [closest_face_x, closest_face_y],
+                }
+            )
     elif k in {"fillet", "complete_butt", "plug_slot"}:
         phi = 0.8 if d["quality"] == "SP" else 0.6
         if k == "fillet":
@@ -4321,15 +4386,17 @@ def _run_connections(inputs: Mapping[str, Any]) -> dict[str, Any]:
         )
     elif k == "incomplete_compound_weld_design":
         scope = (
-            "Clauses 9.6.5.2(b) and 9.6.5.3 for a straight planar fillet face in an "
-            "incomplete-penetration compound weld. The perpendicular projection from the butt "
-            "root must fall on the supplied face segment; the throat is capped at the butting-part "
-            "thickness, then effective area and strength are calculated under 9.6.2.4–5, "
-            "9.6.2.7(c) and 9.6.3.10. Verify the AS 1101.3 classification, weld geometry, "
+            "Clauses 9.6.5.2(b) and 9.6.5.3 for an incomplete-penetration compound weld. "
+            "The shortest root-to-face distance is calculated from either a straight segment or "
+            "an ordered piecewise-linear cross-section profile; the throat is capped at the "
+            "butting-part thickness, then effective area and strength are calculated under "
+            "9.6.2.4–5, 9.6.2.7(c) and 9.6.3.10. A curved face must be represented by a "
+            "sufficiently "
+            "refined measured profile. Verify the AS 1101.3 classification, weld geometry, "
             "procedure, consumable strength, quality and inspection from project evidence. "
             "The supplied classification reference and declarations are not authenticated. "
-            "Curved or non-planar faces, fatigue assessment and complete connection design "
-            "remain separate."
+            "Three-dimensional face variation, fatigue assessment and complete connection "
+            "design remain separate."
         )
     elif k == "butt_weld_transition":
         scope = (
