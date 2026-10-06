@@ -17,6 +17,8 @@ route; a lower thickness supported by rational analysis is assessed separately.
 | `web_minimum_thickness` with `design_case=longitudinal_and_transverse` | 5.10.5 thickness bands for longitudinal stiffeners at `0.2 d2`, with the additional neutral-axis stiffener limit | Verify the stiffener layout and `d2`, which is twice the distance from the neutral axis to the compression flange. The operation does not check stiffener strength or attachment. |
 | `web_minimum_thickness` with `design_case=plastic_hinge` | 5.10.6 minimum web thickness and load-bearing-stiffener trigger near a plastic hinge; optional per-plate 5.2.2 slenderness against the Table 5.2 plasticity limit for flat stiffeners | Verify hinge location, the hinge-zone design load, design web shear yield capacity, stiffener location and Clause 5.14 design. Supply every flat stiffener plate when using the plasticity check, with its clear outstand, thickness, yield stress and residual-stress category. |
 | `web_opening_geometry` | 5.10.7 unstiffened opening dimension ratios, spacing between adjacent openings and the multiple-opening condition | Verify opening dimensions and layout. For adjacent openings, supply the greatest internal dimension of the neighboring opening; required boundary spacing uses three times the larger dimension in the pair. Check each adjacent pair. Stiffened openings, castellated members and member capacity at openings require rational analysis. |
+| `web_opening_layout_geometry` | 5.10.7 size limits for every opening, longitudinal boundary spacing for every adjacent pair in overlapping transverse bands, and the maximum number of openings at any member cross-section | Supply the complete non-castellated web layout on a common longitudinal/transverse datum. Each opening needs longitudinal and transverse clear bounds and its greatest internal dimension; that dimension must be at least either clear extent. Adjacent pairs are derived by partitioning the web depth at opening boundaries and sorting the openings in each transverse band. The 0.10 limit applies without longitudinal web stiffeners and 0.33 with them. A section through multiple openings requires a referenced, separately verified rational analysis showing stiffeners are unnecessary. Geometry and completeness declarations are not authenticated. |
+| `web_shear_stress_field_postprocess` | 5.11.3 area-weighted average design shear stress, governing maximum-to-average ratio and nominal-capacity reduction factor for a flat web at one section cut and load combination | Supply signed longitudinal/transverse shear stresses and cross-section area weights covering the complete actual web steel area. The operation integrates the web shear resultant, compares it with the independently established web share of shear, and checks the integrated area against the declared cut area. Supply the governing peak stress and mesh-sensitivity assessment; the true maximum is not inferred from samples alone. The force-equilibrium tolerance is a software quality threshold, not a standard requirement. It reports the reduction factor only and does not calculate the 5.11.2 uniform-distribution nominal capacity. Circular hollow sections use the separate 5.11.3 exception and are rejected by this operation. |
 | `web_opening_shear_design` | 5.10.7 qualifying unstiffened opening geometry; 5.11.1–5.11.5 web shear resistance using the supplied opening web area, panel dimensions and verified maximum/average shear-stress ratio; 5.12.3 whole-section shear/bending interaction | Provide a verified web-area basis and referenced rational elastic analysis for the supplied maximum and average design shear stresses. Check adjacent-opening spacing and all geometry. The operation does not perform or authenticate the analysis and does not calculate local opening bending/bearing resistance; stiffened or castellated openings remain outside this route. |
 | `load_bearing_stiffener_requirement` | 5.10.2 load-bearing stiffener trigger when a design bearing force exceeds the design capacity of the web alone, or an end post is required; optional nested calculation of 5.13.1–5.13.4 web bearing capacity | Supply the design web bearing capacity from 5.13.2, or provide the full `web_bearing_inputs` object to calculate it in this operation. Assess the end-post trigger under 5.15.2.2. Stiffener resistance, detailing and force transfer remain separate checks. |
 | `load_bearing_stiffener_attachment` | 5.14.4 flange fit or flange-to-stiffener transfer, both-flange provision at a support, and force transfer from the stiffener to the web | Supply capacities from the applicable Clause 9 checks and verify the flange fit and connection arrangement against the details. |
@@ -100,6 +102,31 @@ analysis inputs and reports separate 5.11.1 shear and 5.12.3 interaction checks.
 The supplied opening area and panel geometry must represent the governing section.
 Local tee bending, bearing and load redistribution at the opening require separate
 engineering analysis.
+
+`web_opening_layout_geometry` checks a complete declared layout of unstiffened openings
+under 5.10.7. Opening bounds use a shared longitudinal datum and coordinates through
+the clear web depth. It checks every opening's greatest internal dimension against the
+applicable 0.10 or 0.33 ratio, derives adjacent longitudinal pairs within each band of
+overlapping transverse extents, and finds the maximum number of openings at any
+longitudinal station. Every opening that shares a section with another requires a
+referenced rational analysis that has been assessed to show stiffeners are unnecessary.
+The operation checks the supplied drawing dimensions and declared inventory; it does
+not authenticate them or calculate opening actions or resistance. Its result is limited
+to Clause 5.10.7 geometry, and `full_standard_compliance` remains false.
+
+`web_shear_stress_field_postprocess` evaluates the stress-distribution inputs for Clause
+5.11.3 for flat-web sections at one declared governing section cut and load combination.
+Circular hollow sections are excluded because 5.11.3 specifies their shear yield capacity
+route separately. Area weights must
+represent cross-section integration over the complete actual web steel, not shell-panel
+surface area. It derives the signed web shear resultant and average stress, checks area
+coverage and force equilibrium, then reports `fvm/fva` and
+`min(1, 2 / (0.9 + fvm/fva))`. The separately assessed governing peak must be no lower
+than every supplied sample and must include mesh-sensitivity review. The operation does
+not establish the uniform-distribution nominal shear capacity under 5.11.2 or calculate
+the resulting member capacity; supply its average/maximum stresses or ratio to an
+applicable shear design operation. Its equilibrium threshold is a software quality check,
+not a code requirement.
 
 `load_bearing_stiffener` checks 5.14.1–5.14.3 and calculates the optional 5.14.5
 minimum second moment of area for stiffener pairs when they provide the sole torsional

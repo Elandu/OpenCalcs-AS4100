@@ -396,6 +396,490 @@ def test_clause_5_10_7_longitudinally_stiffened_opening_limit_and_multiple_openi
     assert out["values"]["permitted_ratio"] == 0.33
 
 
+def web_opening_layout_geometry(**changes):
+    inputs = {
+        "operation": "web_opening_layout_geometry",
+        "clear_web_depth_mm": 1500,
+        "longitudinal_stiffeners_present": False,
+        "openings": [
+            {
+                "opening_id": "left",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 100,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 100,
+                "greatest_internal_dimension_mm": 100,
+            },
+            {
+                "opening_id": "right",
+                "longitudinal_start_mm": 550,
+                "longitudinal_end_mm": 700,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 150,
+                "greatest_internal_dimension_mm": 150,
+            },
+        ],
+        "opening_geometry_verified": True,
+        "opening_geometry_reference": "DRAWING-OPENINGS-01",
+        "opening_layout_complete_verified": True,
+        "all_openings_unstiffened_verified": True,
+        "castellated_member_present": False,
+        "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": False,
+        "rational_analysis_reference": None,
+    }
+    inputs.update(changes)
+    return run(inputs)
+
+
+def test_clause_5_10_7_complete_opening_layout_checks_size_and_adjacent_spacing():
+    out = web_opening_layout_geometry()
+    values = out["values"]
+    assert out["clauses"] == ["5.10.7"]
+    assert values["opening_count"] == 2
+    assert [item["opening_dimension_to_web_depth_ratio"] for item in values["openings"]] == [
+        pytest.approx(100 / 1500),
+        pytest.approx(150 / 1500),
+    ]
+    assert values["adjacent_opening_pair_count"] == 1
+    pair = values["adjacent_opening_spacing_checks"][0]
+    assert pair["left_opening_id"] == "left"
+    assert pair["right_opening_id"] == "right"
+    assert pair["provided_boundary_spacing_mm"] == 450
+    assert pair["required_boundary_spacing_mm"] == 450
+    assert pair["satisfied"]
+    assert values["maximum_openings_at_any_cross_section"] == 1
+    assert out["checked_conditions_satisfied"]
+    assert out["full_standard_compliance"] is False
+
+    too_close = web_opening_layout_geometry(
+        openings=[
+            {
+                "opening_id": "left",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 100,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 100,
+                "greatest_internal_dimension_mm": 100,
+            },
+            {
+                "opening_id": "right",
+                "longitudinal_start_mm": 549.999,
+                "longitudinal_end_mm": 699.999,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 150,
+                "greatest_internal_dimension_mm": 150,
+            },
+        ]
+    )
+    assert not too_close["values"]["adjacent_opening_spacing_checks"][0]["satisfied"]
+    assert not too_close["checked_conditions_satisfied"]
+
+
+def test_clause_5_10_7_layout_derives_neighbors_in_each_transverse_band():
+    out = web_opening_layout_geometry(
+        openings=[
+            {
+                "opening_id": "first",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 100,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 60,
+                "greatest_internal_dimension_mm": 100,
+            },
+            {
+                "opening_id": "middle",
+                "longitudinal_start_mm": 550,
+                "longitudinal_end_mm": 700,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 100,
+                "greatest_internal_dimension_mm": 150,
+            },
+            {
+                "opening_id": "last",
+                "longitudinal_start_mm": 1150,
+                "longitudinal_end_mm": 1300,
+                "transverse_start_mm": 40,
+                "transverse_end_mm": 100,
+                "greatest_internal_dimension_mm": 150,
+            },
+        ]
+    )
+    pairs = {
+        (item["left_opening_id"], item["right_opening_id"]): item
+        for item in out["values"]["adjacent_opening_spacing_checks"]
+    }
+    assert set(pairs) == {("first", "middle"), ("middle", "last")}
+    assert pairs[("first", "middle")]["vertical_overlap_start_mm"] == 0
+    assert pairs[("first", "middle")]["vertical_overlap_end_mm"] == 60
+    assert pairs[("middle", "last")]["vertical_overlap_start_mm"] == 40
+    assert pairs[("middle", "last")]["vertical_overlap_end_mm"] == 100
+    assert all(item["satisfied"] for item in pairs.values())
+    assert out["checked_conditions_satisfied"]
+
+
+def test_clause_5_10_7_layout_checks_each_opening_ratio_and_stiffened_limit():
+    too_large = web_opening_layout_geometry(
+        openings=[
+            {
+                "opening_id": "oversize",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 100,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 151,
+                "greatest_internal_dimension_mm": 151,
+            }
+        ]
+    )
+    assert too_large["values"]["openings"][0][
+        "opening_dimension_to_web_depth_ratio"
+    ] == pytest.approx(151 / 1500)
+    assert not too_large["checked_conditions_satisfied"]
+
+    at_stiffened_limit = web_opening_layout_geometry(
+        clear_web_depth_mm=1000,
+        longitudinal_stiffeners_present=True,
+        openings=[
+            {
+                "opening_id": "stiffened-limit",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 100,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 330,
+                "greatest_internal_dimension_mm": 330,
+            }
+        ],
+    )
+    assert at_stiffened_limit["values"]["permitted_opening_dimension_ratio"] == 0.33
+    assert at_stiffened_limit["checked_conditions_satisfied"]
+
+    above_stiffened_limit = web_opening_layout_geometry(
+        clear_web_depth_mm=1000,
+        longitudinal_stiffeners_present=True,
+        openings=[
+            {
+                "opening_id": "above-limit",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 100,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 331,
+                "greatest_internal_dimension_mm": 331,
+            }
+        ],
+    )
+    assert not above_stiffened_limit["checked_conditions_satisfied"]
+
+
+def test_clause_5_10_7_layout_is_order_independent_and_checks_stacked_openings():
+    original = web_opening_layout_geometry()
+    reversed_layout = web_opening_layout_geometry(
+        openings=[
+            {
+                "opening_id": "right",
+                "longitudinal_start_mm": 550,
+                "longitudinal_end_mm": 700,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 150,
+                "greatest_internal_dimension_mm": 150,
+            },
+            {
+                "opening_id": "left",
+                "longitudinal_start_mm": 0,
+                "longitudinal_end_mm": 100,
+                "transverse_start_mm": 0,
+                "transverse_end_mm": 100,
+                "greatest_internal_dimension_mm": 100,
+            },
+        ]
+    )
+    assert reversed_layout["values"]["openings"] == original["values"]["openings"]
+    assert (
+        reversed_layout["values"]["adjacent_opening_spacing_checks"]
+        == original["values"]["adjacent_opening_spacing_checks"]
+    )
+
+    stacked = [
+        {
+            "opening_id": "lower",
+            "longitudinal_start_mm": 0,
+            "longitudinal_end_mm": 100,
+            "transverse_start_mm": 0,
+            "transverse_end_mm": 40,
+            "greatest_internal_dimension_mm": 100,
+        },
+        {
+            "opening_id": "upper",
+            "longitudinal_start_mm": 0,
+            "longitudinal_end_mm": 100,
+            "transverse_start_mm": 60,
+            "transverse_end_mm": 100,
+            "greatest_internal_dimension_mm": 100,
+        },
+    ]
+    without_analysis = web_opening_layout_geometry(openings=stacked)
+    cross_section = without_analysis["checks"][-1]
+    assert cross_section["maximum_openings_at_cross_section"] == 2
+    assert not cross_section["satisfied"]
+    assert without_analysis["values"]["adjacent_opening_pair_count"] == 0
+    assert not without_analysis["checked_conditions_satisfied"]
+
+    with_analysis = web_opening_layout_geometry(
+        openings=stacked,
+        multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified=True,
+        rational_analysis_reference="ANALYSIS-OPENING-STACK-01",
+    )
+    assert with_analysis["checks"][-1]["satisfied"]
+    assert with_analysis["checked_conditions_satisfied"]
+
+
+def test_clause_5_10_7_layout_rejects_invalid_geometry_and_unreferenced_analysis():
+    with pytest.raises(ValueError, match="positive longitudinal extent"):
+        web_opening_layout_geometry(
+            openings=[
+                {
+                    "opening_id": "invalid",
+                    "longitudinal_start_mm": 100,
+                    "longitudinal_end_mm": 100,
+                    "transverse_start_mm": 0,
+                    "transverse_end_mm": 100,
+                    "greatest_internal_dimension_mm": 100,
+                }
+            ]
+        )
+
+    with pytest.raises(ValueError, match="requires a reference"):
+        web_opening_layout_geometry(
+            multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified=True,
+            rational_analysis_reference="  ",
+        )
+
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        web_opening_layout_geometry(
+            openings=[
+                {
+                    "opening_id": "same",
+                    "longitudinal_start_mm": 0,
+                    "longitudinal_end_mm": 100,
+                    "transverse_start_mm": 0,
+                    "transverse_end_mm": 100,
+                    "greatest_internal_dimension_mm": 100,
+                },
+                {
+                    "opening_id": "SAME",
+                    "longitudinal_start_mm": 500,
+                    "longitudinal_end_mm": 600,
+                    "transverse_start_mm": 0,
+                    "transverse_end_mm": 100,
+                    "greatest_internal_dimension_mm": 100,
+                },
+            ]
+        )
+
+
+def web_shear_stress_field_postprocess(**changes):
+    inputs = {
+        "operation": "web_shear_stress_field_postprocess",
+        "member_reference": "MEMBER-WEB-01",
+        "section_form": "flat_web",
+        "section_station_mm": 1200,
+        "load_combination_reference": "ULS-COMBINATION-01",
+        "rational_analysis_reference": "ELASTIC-FE-RESULTS-01",
+        "rational_analysis_verified": True,
+        "stress_component": "longitudinal_transverse_web_shear",
+        "stress_component_verified": True,
+        "section_cut_orientation_verified": True,
+        "web_area_at_cut_mm2": 2000,
+        "web_area_at_cut_basis_verified": True,
+        "web_area_at_cut_reference": "WEB-SECTION-GEOMETRY-01",
+        "quadrature_coverage_verified": True,
+        "quadrature_coverage_reference": "WEB-MESH-AREA-01",
+        "stress_samples": [
+            {
+                "integration_point_id": "lower-gauss-point",
+                "design_shear_stress_mpa": 2.4,
+                "cross_section_area_weight_mm2": 5000 / 9,
+            },
+            {
+                "integration_point_id": "middle-gauss-point",
+                "design_shear_stress_mpa": 6,
+                "cross_section_area_weight_mm2": 8000 / 9,
+            },
+            {
+                "integration_point_id": "upper-gauss-point",
+                "design_shear_stress_mpa": 2.4,
+                "cross_section_area_weight_mm2": 5000 / 9,
+            },
+        ],
+        "expected_web_shear_force_kn": 8,
+        "expected_web_shear_force_basis_verified": True,
+        "expected_web_shear_force_reference": "SECTION-CUT-SHEAR-01",
+        "governing_section_cut_verified": True,
+        "governing_section_cut_reference": "GOVERNING-STATION-REVIEW-01",
+        "governing_peak_shear_stress_mpa": 6,
+        "governing_peak_assessment_verified": True,
+        "governing_peak_assessment_reference": "WEB-PEAK-ASSESSMENT-01",
+        "mesh_peak_sensitivity_verified": True,
+        "mesh_peak_sensitivity_reference": "WEB-MESH-CONVERGENCE-01",
+    }
+    inputs.update(changes)
+    return run(inputs)
+
+
+def test_clause_5_11_3_stress_field_postprocess_matches_parabolic_web_solution():
+    out = web_shear_stress_field_postprocess()
+    values = out["values"]
+    assert out["clauses"] == ["5.11.3"]
+    assert values["quadrature_web_area_mm2"] == pytest.approx(2000)
+    assert values["signed_web_shear_resultant_kn"] == pytest.approx(8)
+    assert values["average_design_shear_stress_mpa"] == pytest.approx(4)
+    assert values["sampled_peak_shear_stress_mpa"] == pytest.approx(6)
+    assert values["stress_max_average_ratio"] == pytest.approx(1.5)
+    assert values["clause_5_11_3_capacity_reduction_factor"] == pytest.approx(5 / 6)
+    assert out["checked_conditions_satisfied"]
+    assert out["full_standard_compliance"] is False
+
+
+def test_clause_5_11_3_stress_field_uses_unequal_area_weights_and_sign():
+    out = web_shear_stress_field_postprocess(
+        web_area_at_cut_mm2=1000,
+        stress_samples=[
+            {
+                "integration_point_id": "low-stress-large-area",
+                "design_shear_stress_mpa": 1,
+                "cross_section_area_weight_mm2": 750,
+            },
+            {
+                "integration_point_id": "peak-stress-small-area",
+                "design_shear_stress_mpa": 13,
+                "cross_section_area_weight_mm2": 250,
+            },
+        ],
+        expected_web_shear_force_kn=4,
+        governing_peak_shear_stress_mpa=13,
+    )
+    values = out["values"]
+    assert values["signed_web_shear_resultant_kn"] == pytest.approx(4)
+    assert values["average_design_shear_stress_mpa"] == pytest.approx(4)
+    assert values["stress_max_average_ratio"] == pytest.approx(3.25)
+    assert values["clause_5_11_3_capacity_reduction_factor"] == pytest.approx(40 / 83)
+    assert out["checked_conditions_satisfied"]
+
+    reversed_sign = web_shear_stress_field_postprocess(
+        stress_samples=[
+            {
+                "integration_point_id": "lower",
+                "design_shear_stress_mpa": -2.4,
+                "cross_section_area_weight_mm2": 5000 / 9,
+            },
+            {
+                "integration_point_id": "middle",
+                "design_shear_stress_mpa": -6,
+                "cross_section_area_weight_mm2": 8000 / 9,
+            },
+            {
+                "integration_point_id": "upper",
+                "design_shear_stress_mpa": -2.4,
+                "cross_section_area_weight_mm2": 5000 / 9,
+            },
+        ],
+        expected_web_shear_force_kn=-8,
+        governing_peak_shear_stress_mpa=6,
+    )
+    assert reversed_sign["values"]["signed_web_shear_resultant_kn"] == pytest.approx(-8)
+    assert reversed_sign["values"]["signed_area_average_shear_stress_mpa"] == pytest.approx(-4)
+    assert reversed_sign["checked_conditions_satisfied"]
+
+
+def test_clause_5_11_3_uniform_web_stress_caps_the_reduction_factor_at_one():
+    out = web_shear_stress_field_postprocess(
+        web_area_at_cut_mm2=1000,
+        stress_samples=[
+            {
+                "integration_point_id": "uniform-stress",
+                "design_shear_stress_mpa": 4,
+                "cross_section_area_weight_mm2": 1000,
+            }
+        ],
+        expected_web_shear_force_kn=4,
+        governing_peak_shear_stress_mpa=4,
+    )
+    values = out["values"]
+    assert values["stress_max_average_ratio"] == pytest.approx(1)
+    assert values["clause_5_11_3_capacity_reduction_factor"] == pytest.approx(1)
+    assert out["checked_conditions_satisfied"]
+
+
+def test_clause_5_11_3_stress_field_checks_area_and_section_equilibrium():
+    area_mismatch = web_shear_stress_field_postprocess(web_area_at_cut_mm2=2001)
+    area_check = next(
+        check for check in area_mismatch["checks"] if "area coverage" in check["clause"]
+    )
+    assert not area_check["satisfied"]
+    assert not area_mismatch["checked_conditions_satisfied"]
+
+    force_mismatch = web_shear_stress_field_postprocess(expected_web_shear_force_kn=7.5)
+    equilibrium = next(
+        check for check in force_mismatch["checks"] if "equilibrium" in check["clause"]
+    )
+    assert equilibrium["equilibrium_residual_kn"] == pytest.approx(0.5)
+    assert equilibrium["software_quality_tolerance_kn"] == pytest.approx(0.075)
+    assert not equilibrium["satisfied"]
+    assert not force_mismatch["checked_conditions_satisfied"]
+
+
+def test_clause_5_11_3_stress_field_rejects_ambiguous_or_unreferenced_inputs():
+    with pytest.raises(ValueError, match="mixed-sign"):
+        web_shear_stress_field_postprocess(
+            stress_samples=[
+                {
+                    "integration_point_id": "positive",
+                    "design_shear_stress_mpa": 2,
+                    "cross_section_area_weight_mm2": 1000,
+                },
+                {
+                    "integration_point_id": "negative",
+                    "design_shear_stress_mpa": -2,
+                    "cross_section_area_weight_mm2": 1000,
+                },
+            ]
+        )
+
+    with pytest.raises(ValueError, match="nonzero resultant"):
+        web_shear_stress_field_postprocess(
+            stress_samples=[
+                {
+                    "integration_point_id": "zero",
+                    "design_shear_stress_mpa": 0,
+                    "cross_section_area_weight_mm2": 2000,
+                },
+            ]
+        )
+
+    with pytest.raises(ValueError, match="largest sampled stress"):
+        web_shear_stress_field_postprocess(governing_peak_shear_stress_mpa=5.9)
+
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        web_shear_stress_field_postprocess(
+            stress_samples=[
+                {
+                    "integration_point_id": "same",
+                    "design_shear_stress_mpa": 2.4,
+                    "cross_section_area_weight_mm2": 1000,
+                },
+                {
+                    "integration_point_id": "SAME",
+                    "design_shear_stress_mpa": 2.4,
+                    "cross_section_area_weight_mm2": 1000,
+                },
+            ]
+        )
+
+    with pytest.raises(ValueError, match="must not be blank"):
+        web_shear_stress_field_postprocess(rational_analysis_reference="  ")
+
+    with pytest.raises(ValueError, match="Invalid input"):
+        web_shear_stress_field_postprocess(section_form="circular_hollow_section")
+
+
 def web_opening_shear_design(**changes):
     inputs = {
         "operation": "web_opening_shear_design",

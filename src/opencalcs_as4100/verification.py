@@ -4637,6 +4637,167 @@ def verify():
         450,
         1e-12,
     )
+    opening_layout = run_webs(
+        {
+            "operation": "web_opening_layout_geometry",
+            "clear_web_depth_mm": 1500,
+            "longitudinal_stiffeners_present": False,
+            "openings": [
+                {
+                    "opening_id": "left",
+                    "longitudinal_start_mm": 0,
+                    "longitudinal_end_mm": 100,
+                    "transverse_start_mm": 0,
+                    "transverse_end_mm": 100,
+                    "greatest_internal_dimension_mm": 100,
+                },
+                {
+                    "opening_id": "right",
+                    "longitudinal_start_mm": 550,
+                    "longitudinal_end_mm": 700,
+                    "transverse_start_mm": 0,
+                    "transverse_end_mm": 150,
+                    "greatest_internal_dimension_mm": 150,
+                },
+            ],
+            "opening_geometry_verified": True,
+            "opening_geometry_reference": "INDEPENDENT-OPENING-LAYOUT-01",
+            "opening_layout_complete_verified": True,
+            "all_openings_unstiffened_verified": True,
+            "castellated_member_present": False,
+            "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": False,
+            "rational_analysis_reference": None,
+        }
+    )
+    record(
+        "Clause 5.10.7 complete layout opening ratio by hand arithmetic",
+        opening_layout["values"]["openings"][1]["opening_dimension_to_web_depth_ratio"],
+        150 / 1500,
+        1e-12,
+    )
+    record(
+        "Clause 5.10.7 complete layout adjacent boundary spacing",
+        opening_layout["values"]["adjacent_opening_spacing_checks"][0][
+            "required_boundary_spacing_mm"
+        ],
+        3 * 150,
+        1e-12,
+    )
+    record(
+        "Clause 5.10.7 complete layout cross-section count",
+        opening_layout["values"]["maximum_openings_at_any_cross_section"],
+        1,
+    )
+    stacked_opening_layout = run_webs(
+        {
+            "operation": "web_opening_layout_geometry",
+            "clear_web_depth_mm": 1000,
+            "longitudinal_stiffeners_present": False,
+            "openings": [
+                {
+                    "opening_id": "lower",
+                    "longitudinal_start_mm": 0,
+                    "longitudinal_end_mm": 100,
+                    "transverse_start_mm": 0,
+                    "transverse_end_mm": 40,
+                    "greatest_internal_dimension_mm": 100,
+                },
+                {
+                    "opening_id": "upper",
+                    "longitudinal_start_mm": 0,
+                    "longitudinal_end_mm": 100,
+                    "transverse_start_mm": 60,
+                    "transverse_end_mm": 100,
+                    "greatest_internal_dimension_mm": 100,
+                },
+            ],
+            "opening_geometry_verified": True,
+            "opening_geometry_reference": "INDEPENDENT-STACKED-OPENINGS-01",
+            "opening_layout_complete_verified": True,
+            "all_openings_unstiffened_verified": True,
+            "castellated_member_present": False,
+            "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": True,
+            "rational_analysis_reference": "INDEPENDENT-STACKED-ANALYSIS-01",
+        }
+    )
+    record(
+        "Clause 5.10.7 stacked opening cross-section count",
+        stacked_opening_layout["values"]["maximum_openings_at_any_cross_section"],
+        2,
+    )
+    record(
+        "Clause 5.10.7 referenced multiple-opening analysis exception",
+        int(stacked_opening_layout["checks"][-1]["satisfied"]),
+        1,
+    )
+    web_stress_field = run_webs(
+        {
+            "operation": "web_shear_stress_field_postprocess",
+            "member_reference": "INDEPENDENT-WEB-01",
+            "section_form": "flat_web",
+            "section_station_mm": 1200,
+            "load_combination_reference": "INDEPENDENT-ULS-01",
+            "rational_analysis_reference": "INDEPENDENT-ELASTIC-WEB-FIELD-01",
+            "rational_analysis_verified": True,
+            "stress_component": "longitudinal_transverse_web_shear",
+            "stress_component_verified": True,
+            "section_cut_orientation_verified": True,
+            "web_area_at_cut_mm2": 2000,
+            "web_area_at_cut_basis_verified": True,
+            "web_area_at_cut_reference": "INDEPENDENT-WEB-AREA-01",
+            "quadrature_coverage_verified": True,
+            "quadrature_coverage_reference": "INDEPENDENT-GAUSS-AREA-01",
+            "stress_samples": [
+                {
+                    "integration_point_id": "lower-gauss-point",
+                    "design_shear_stress_mpa": 2.4,
+                    "cross_section_area_weight_mm2": 5000 / 9,
+                },
+                {
+                    "integration_point_id": "middle-gauss-point",
+                    "design_shear_stress_mpa": 6,
+                    "cross_section_area_weight_mm2": 8000 / 9,
+                },
+                {
+                    "integration_point_id": "upper-gauss-point",
+                    "design_shear_stress_mpa": 2.4,
+                    "cross_section_area_weight_mm2": 5000 / 9,
+                },
+            ],
+            "expected_web_shear_force_kn": 8,
+            "expected_web_shear_force_basis_verified": True,
+            "expected_web_shear_force_reference": "INDEPENDENT-SECTION-SHEAR-01",
+            "governing_section_cut_verified": True,
+            "governing_section_cut_reference": "INDEPENDENT-GOVERNING-CUT-01",
+            "governing_peak_shear_stress_mpa": 6,
+            "governing_peak_assessment_verified": True,
+            "governing_peak_assessment_reference": "INDEPENDENT-WEB-PEAK-01",
+            "mesh_peak_sensitivity_verified": True,
+            "mesh_peak_sensitivity_reference": "INDEPENDENT-WEB-MESH-01",
+        }
+    )
+    record(
+        "Clause 5.11.3 parabolic web-field mean shear stress",
+        web_stress_field["values"]["average_design_shear_stress_mpa"],
+        4,
+    )
+    record(
+        "Clause 5.11.3 parabolic web-field maximum-to-average ratio",
+        web_stress_field["values"]["stress_max_average_ratio"],
+        1.5,
+    )
+    record(
+        "Clause 5.11.3 parabolic web-field capacity reduction factor",
+        web_stress_field["values"]["clause_5_11_3_capacity_reduction_factor"],
+        5 / 6,
+    )
+    record(
+        "Clause 5.11.3 parabolic field resultant equilibrium",
+        web_stress_field["values"]["web_shear_force_equilibrium_residual_kn"],
+        0,
+    )
+    if not web_stress_field["checked_conditions_satisfied"]:
+        raise AssertionError("Clause 5.11.3 failed its independently integrated web shear field")
     opening_shear_inputs = {
         "operation": "web_opening_shear_design",
         "clear_web_depth_mm": 250,

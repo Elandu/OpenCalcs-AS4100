@@ -2825,6 +2825,69 @@
       "passed": true
     },
     {
+      "name": "Clause 5.10.7 complete layout opening ratio by hand arithmetic",
+      "actual": 0.1,
+      "expected": 0.1,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.7 complete layout adjacent boundary spacing",
+      "actual": 450,
+      "expected": 450,
+      "absolute_tolerance": 1e-12,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.7 complete layout cross-section count",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.7 stacked opening cross-section count",
+      "actual": 2,
+      "expected": 2,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.7 referenced multiple-opening analysis exception",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.3 parabolic web-field mean shear stress",
+      "actual": 4.0,
+      "expected": 4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.3 parabolic web-field maximum-to-average ratio",
+      "actual": 1.5,
+      "expected": 1.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.3 parabolic web-field capacity reduction factor",
+      "actual": 0.8333333333333334,
+      "expected": 0.8333333333333334,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.11.3 parabolic field resultant equilibrium",
+      "actual": 0.0,
+      "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Clause 5.11.3 opening max-to-average design shear stress ratio",
       "actual": 2.0,
       "expected": 2,

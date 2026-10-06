@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Web geometry, bearing and stiffener checks, clauses 5.10 and 5.13 to 5.16."""
+"""Web geometry, shear, bearing and stiffener checks under Clauses 5.10 to 5.16."""
 
-from math import isclose, sqrt
+from math import fsum, isclose, sqrt
 
 from .members import run_members
 from .standards import ELASTIC_MODULUS_MPA
@@ -444,6 +444,111 @@ SCHEMAS = {
             "multiple_openings_rational_analysis_verified",
             "opening_geometry_verified",
         ],
+    ),
+    "web_opening_layout_geometry": object_schema(
+        {
+            "operation": {"const": "web_opening_layout_geometry"},
+            "clear_web_depth_mm": POSITIVE,
+            "longitudinal_stiffeners_present": {"type": "boolean"},
+            "openings": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 1000,
+                "items": object_schema(
+                    {
+                        "opening_id": {"type": "string", "minLength": 1, "maxLength": 100},
+                        "longitudinal_start_mm": NONNEGATIVE,
+                        "longitudinal_end_mm": POSITIVE,
+                        "transverse_start_mm": NONNEGATIVE,
+                        "transverse_end_mm": POSITIVE,
+                        "greatest_internal_dimension_mm": POSITIVE,
+                    }
+                ),
+            },
+            "opening_geometry_verified": {"const": True},
+            "opening_geometry_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "opening_layout_complete_verified": {"const": True},
+            "all_openings_unstiffened_verified": {"const": True},
+            "castellated_member_present": {"const": False},
+            "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": {
+                "type": "boolean"
+            },
+            "rational_analysis_reference": {"type": ["string", "null"], "maxLength": 200},
+        },
+        [
+            "operation",
+            "clear_web_depth_mm",
+            "longitudinal_stiffeners_present",
+            "openings",
+            "opening_geometry_verified",
+            "opening_geometry_reference",
+            "opening_layout_complete_verified",
+            "all_openings_unstiffened_verified",
+            "castellated_member_present",
+            "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified",
+            "rational_analysis_reference",
+        ],
+    ),
+    "web_shear_stress_field_postprocess": object_schema(
+        {
+            "operation": {"const": "web_shear_stress_field_postprocess"},
+            "member_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "section_form": {"const": "flat_web"},
+            "section_station_mm": NONNEGATIVE,
+            "load_combination_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "rational_analysis_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "rational_analysis_verified": {"const": True},
+            "stress_component": {"const": "longitudinal_transverse_web_shear"},
+            "stress_component_verified": {"const": True},
+            "section_cut_orientation_verified": {"const": True},
+            "web_area_at_cut_mm2": POSITIVE,
+            "web_area_at_cut_basis_verified": {"const": True},
+            "web_area_at_cut_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "quadrature_coverage_verified": {"const": True},
+            "quadrature_coverage_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "stress_samples": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100000,
+                "items": object_schema(
+                    {
+                        "integration_point_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100,
+                        },
+                        "design_shear_stress_mpa": SIGNED,
+                        "cross_section_area_weight_mm2": POSITIVE,
+                    }
+                ),
+            },
+            "expected_web_shear_force_kn": SIGNED,
+            "expected_web_shear_force_basis_verified": {"const": True},
+            "expected_web_shear_force_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "governing_section_cut_verified": {"const": True},
+            "governing_section_cut_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "governing_peak_shear_stress_mpa": POSITIVE,
+            "governing_peak_assessment_verified": {"const": True},
+            "governing_peak_assessment_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+            "mesh_peak_sensitivity_verified": {"const": True},
+            "mesh_peak_sensitivity_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+            },
+        }
     ),
     "web_opening_shear_design": object_schema(
         {
@@ -1258,9 +1363,391 @@ def _web_opening_shear_design(d):
     )
 
 
+def _web_opening_layout_geometry(d):
+    clear_depth = d["clear_web_depth_mm"]
+    geometry_reference = d["opening_geometry_reference"].strip()
+    rational_reference = (d["rational_analysis_reference"] or "").strip()
+    rational_analysis_verified = d[
+        "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified"
+    ]
+    if not geometry_reference:
+        raise ValueError("Opening geometry reference must not be blank.")
+    if rational_analysis_verified and not rational_reference:
+        raise ValueError("Verified multiple-opening rational analysis requires a reference.")
+
+    openings = []
+    identifiers = set()
+    for item in d["openings"]:
+        identifier = item["opening_id"].strip()
+        if not identifier:
+            raise ValueError("Opening identifiers must not be blank.")
+        normalized_identifier = identifier.casefold()
+        if normalized_identifier in identifiers:
+            raise ValueError("Opening identifiers must be unique.")
+        identifiers.add(normalized_identifier)
+
+        longitudinal_start = item["longitudinal_start_mm"]
+        longitudinal_end = item["longitudinal_end_mm"]
+        transverse_start = item["transverse_start_mm"]
+        transverse_end = item["transverse_end_mm"]
+        if longitudinal_start >= longitudinal_end:
+            raise ValueError("Each opening must have positive longitudinal extent.")
+        if transverse_start >= transverse_end or transverse_end > clear_depth:
+            raise ValueError("Opening transverse bounds must lie within the clear web depth.")
+        longitudinal_extent = longitudinal_end - longitudinal_start
+        transverse_extent = transverse_end - transverse_start
+        greatest_dimension = item["greatest_internal_dimension_mm"]
+        if greatest_dimension < max(longitudinal_extent, transverse_extent):
+            raise ValueError(
+                "Greatest internal dimension must be at least each opening's clear extent."
+            )
+        openings.append(
+            {
+                "opening_id": identifier,
+                "longitudinal_start_mm": longitudinal_start,
+                "longitudinal_end_mm": longitudinal_end,
+                "transverse_start_mm": transverse_start,
+                "transverse_end_mm": transverse_end,
+                "longitudinal_extent_mm": longitudinal_extent,
+                "transverse_extent_mm": transverse_extent,
+                "greatest_internal_dimension_mm": greatest_dimension,
+                "opening_dimension_to_web_depth_ratio": greatest_dimension / clear_depth,
+            }
+        )
+
+    openings.sort(
+        key=lambda item: (
+            item["longitudinal_start_mm"],
+            item["longitudinal_end_mm"],
+            item["opening_id"].casefold(),
+        )
+    )
+    permitted_ratio = 0.33 if d["longitudinal_stiffeners_present"] else 0.10
+    size_checks = []
+    for item in openings:
+        size_checks.append(
+            {
+                "opening_id": item["opening_id"],
+                "greatest_internal_dimension_mm": item["greatest_internal_dimension_mm"],
+                "opening_dimension_to_web_depth_ratio": item[
+                    "opening_dimension_to_web_depth_ratio"
+                ],
+                "permitted_ratio": permitted_ratio,
+                "satisfied": item["opening_dimension_to_web_depth_ratio"] <= permitted_ratio,
+            }
+        )
+
+    vertical_stations = sorted(
+        {
+            coordinate
+            for item in openings
+            for coordinate in (item["transverse_start_mm"], item["transverse_end_mm"])
+        }
+    )
+    adjacent_pairs = {}
+    for lower, upper in zip(vertical_stations[:-1], vertical_stations[1:], strict=True):
+        if lower == upper:
+            continue
+        row_openings = [
+            item
+            for item in openings
+            if item["transverse_start_mm"] <= lower and item["transverse_end_mm"] >= upper
+        ]
+        row_openings.sort(
+            key=lambda item: (
+                item["longitudinal_start_mm"],
+                item["longitudinal_end_mm"],
+                item["opening_id"].casefold(),
+            )
+        )
+        for left, right in zip(row_openings[:-1], row_openings[1:], strict=True):
+            key = (left["opening_id"].casefold(), right["opening_id"].casefold())
+            pair = adjacent_pairs.setdefault(
+                key,
+                {
+                    "left_opening_id": left["opening_id"],
+                    "right_opening_id": right["opening_id"],
+                    "vertical_overlap_start_mm": lower,
+                    "vertical_overlap_end_mm": upper,
+                },
+            )
+            pair["vertical_overlap_start_mm"] = min(pair["vertical_overlap_start_mm"], lower)
+            pair["vertical_overlap_end_mm"] = max(pair["vertical_overlap_end_mm"], upper)
+
+    spacing_checks = []
+    openings_by_id = {item["opening_id"]: item for item in openings}
+    for pair in adjacent_pairs.values():
+        left = openings_by_id[pair["left_opening_id"]]
+        right = openings_by_id[pair["right_opening_id"]]
+        spacing = right["longitudinal_start_mm"] - left["longitudinal_end_mm"]
+        spacing_dimension = max(
+            left["greatest_internal_dimension_mm"],
+            right["greatest_internal_dimension_mm"],
+        )
+        required_spacing = 3 * spacing_dimension
+        spacing_checks.append(
+            {
+                **pair,
+                "provided_boundary_spacing_mm": spacing,
+                "spacing_reference_dimension_mm": spacing_dimension,
+                "required_boundary_spacing_mm": required_spacing,
+                "satisfied": spacing >= required_spacing,
+            }
+        )
+    spacing_checks.sort(
+        key=lambda item: (
+            item["left_opening_id"].casefold(),
+            item["right_opening_id"].casefold(),
+        )
+    )
+
+    events = []
+    for item in openings:
+        events.append((item["longitudinal_start_mm"], 1))
+        events.append((item["longitudinal_end_mm"], -1))
+    events.sort(key=lambda event: (event[0], event[1]))
+    active_openings = 0
+    maximum_openings_at_cross_section = 0
+    for _, change in events:
+        active_openings += change
+        maximum_openings_at_cross_section = max(maximum_openings_at_cross_section, active_openings)
+
+    multiple_openings_satisfied = maximum_openings_at_cross_section <= 1 or (
+        rational_analysis_verified and bool(rational_reference)
+    )
+    checks = [
+        {
+            "clause": "5.10.7 complete unstiffened opening layout evidence",
+            "evidence_reference": geometry_reference,
+            "satisfied": True,
+        }
+    ]
+    checks.extend(
+        {
+            "clause": (
+                "5.10.7(b) opening dimension ratio"
+                if d["longitudinal_stiffeners_present"]
+                else "5.10.7(a) opening dimension ratio"
+            ),
+            **item,
+        }
+        for item in size_checks
+    )
+    checks.extend(
+        {
+            "clause": "5.10.7 adjacent opening boundary spacing",
+            **item,
+        }
+        for item in spacing_checks
+    )
+    checks.append(
+        {
+            "clause": "5.10.7 one unstiffened opening at any cross-section",
+            "maximum_openings_at_cross_section": maximum_openings_at_cross_section,
+            "rational_analysis_shows_stiffeners_unnecessary_verified": rational_analysis_verified,
+            "rational_analysis_reference": rational_reference or None,
+            "satisfied": multiple_openings_satisfied,
+        }
+    )
+
+    return result(
+        "web_opening_layout_geometry",
+        ["5.10.7"],
+        {
+            "clear_web_depth_mm": clear_depth,
+            "longitudinal_stiffeners_present": d["longitudinal_stiffeners_present"],
+            "permitted_opening_dimension_ratio": permitted_ratio,
+            "opening_geometry_reference": geometry_reference,
+            "opening_count": len(openings),
+            "openings": openings,
+            "adjacent_opening_spacing_checks": spacing_checks,
+            "adjacent_opening_pair_count": len(spacing_checks),
+            "maximum_openings_at_any_cross_section": maximum_openings_at_cross_section,
+            "multiple_openings_rational_analysis_shows_stiffeners_unnecessary_verified": (
+                rational_analysis_verified
+            ),
+            "rational_analysis_reference": rational_reference or None,
+        },
+        checks,
+        [
+            "This operation checks Clause 5.10.7 geometry for a complete declared layout of "
+            "unstiffened openings in a non-castellated member. It does not calculate member "
+            "capacity, opening actions, or local tee, web, stiffener or bearing resistance.",
+            "Opening coordinates and greatest internal dimensions are supplied from the "
+            "verified geometry reference. For multiple openings at one cross-section, the "
+            "rational-analysis result and its conclusion that stiffeners are unnecessary "
+            "remain externally assessed.",
+            "Stiffened openings and castellated members require a separate rational analysis. "
+            "The geometry reference and completeness declarations are not authenticated.",
+        ],
+    )
+
+
+def _web_shear_stress_field_postprocess(d):
+    references = {
+        "member_reference": d["member_reference"].strip(),
+        "load_combination_reference": d["load_combination_reference"].strip(),
+        "rational_analysis_reference": d["rational_analysis_reference"].strip(),
+        "web_area_at_cut_reference": d["web_area_at_cut_reference"].strip(),
+        "quadrature_coverage_reference": d["quadrature_coverage_reference"].strip(),
+        "expected_web_shear_force_reference": d["expected_web_shear_force_reference"].strip(),
+        "governing_section_cut_reference": d["governing_section_cut_reference"].strip(),
+        "governing_peak_assessment_reference": d["governing_peak_assessment_reference"].strip(),
+        "mesh_peak_sensitivity_reference": d["mesh_peak_sensitivity_reference"].strip(),
+    }
+    for name, reference in references.items():
+        if not reference:
+            raise ValueError(f"{name} must not be blank.")
+
+    sample_ids = set()
+    weighted_stresses_n = []
+    area_weights_mm2 = []
+    sample_peak_mpa = 0.0
+    nonzero_signs = set()
+    for sample in d["stress_samples"]:
+        identifier = sample["integration_point_id"].strip()
+        if not identifier:
+            raise ValueError("Integration-point identifiers must not be blank.")
+        normalized_identifier = identifier.casefold()
+        if normalized_identifier in sample_ids:
+            raise ValueError("Integration-point identifiers must be unique.")
+        sample_ids.add(normalized_identifier)
+
+        stress = sample["design_shear_stress_mpa"]
+        area_weight = sample["cross_section_area_weight_mm2"]
+        weighted_stresses_n.append(stress * area_weight)
+        area_weights_mm2.append(area_weight)
+        sample_peak_mpa = max(sample_peak_mpa, abs(stress))
+        if stress > 0:
+            nonzero_signs.add(1)
+        elif stress < 0:
+            nonzero_signs.add(-1)
+
+    signed_force_n = fsum(weighted_stresses_n)
+    total_area_mm2 = fsum(area_weights_mm2)
+    if len(nonzero_signs) > 1:
+        raise ValueError("A mixed-sign web shear field requires a separate assessment.")
+    if not nonzero_signs or signed_force_n == 0:
+        raise ValueError("The web shear stress field must have a nonzero resultant.")
+
+    resultant_kn = signed_force_n / 1000
+    average_signed_mpa = signed_force_n / total_area_mm2
+    average_mpa = abs(average_signed_mpa)
+    governing_peak_mpa = d["governing_peak_shear_stress_mpa"]
+    if governing_peak_mpa < sample_peak_mpa:
+        raise ValueError("Governing peak shear stress must be at least the largest sampled stress.")
+    stress_ratio = governing_peak_mpa / average_mpa
+    if stress_ratio < 1:
+        raise ValueError("Governing peak shear stress must not be below the area average.")
+
+    expected_force_kn = d["expected_web_shear_force_kn"]
+    equilibrium_residual_kn = resultant_kn - expected_force_kn
+    equilibrium_tolerance_kn = max(1e-6, 0.01 * abs(expected_force_kn))
+    declared_area_mm2 = d["web_area_at_cut_mm2"]
+    area_residual_mm2 = total_area_mm2 - declared_area_mm2
+    area_tolerance_mm2 = max(1e-6, 1e-6 * declared_area_mm2)
+    reduction_factor = min(1.0, 2 / (0.9 + stress_ratio))
+
+    checks = [
+        {
+            "clause": "5.11.3 rational elastic analysis and governing load case evidence",
+            "rational_analysis_reference": references["rational_analysis_reference"],
+            "load_combination_reference": references["load_combination_reference"],
+            "section_station_mm": d["section_station_mm"],
+            "satisfied": d["rational_analysis_verified"]
+            and d["stress_component_verified"]
+            and d["section_cut_orientation_verified"]
+            and d["governing_section_cut_verified"],
+        },
+        {
+            "clause": "web cross-section quadrature area coverage",
+            "web_area_at_cut_reference": references["web_area_at_cut_reference"],
+            "quadrature_coverage_reference": references["quadrature_coverage_reference"],
+            "area_residual_mm2": area_residual_mm2,
+            "area_tolerance_mm2": area_tolerance_mm2,
+            "satisfied": d["web_area_at_cut_basis_verified"]
+            and d["quadrature_coverage_verified"]
+            and abs(area_residual_mm2) <= area_tolerance_mm2,
+        },
+        {
+            "clause": "web shear field signed section equilibrium",
+            "expected_web_shear_force_reference": references["expected_web_shear_force_reference"],
+            "equilibrium_residual_kn": equilibrium_residual_kn,
+            "software_quality_tolerance_kn": equilibrium_tolerance_kn,
+            "satisfied": d["expected_web_shear_force_basis_verified"]
+            and abs(equilibrium_residual_kn) <= equilibrium_tolerance_kn,
+        },
+        {
+            "clause": "5.11.3 governing maximum stress assessment",
+            "governing_section_cut_reference": references["governing_section_cut_reference"],
+            "governing_peak_assessment_reference": references[
+                "governing_peak_assessment_reference"
+            ],
+            "mesh_peak_sensitivity_reference": references["mesh_peak_sensitivity_reference"],
+            "governing_peak_at_least_all_samples": governing_peak_mpa >= sample_peak_mpa,
+            "satisfied": d["governing_peak_assessment_verified"]
+            and d["mesh_peak_sensitivity_verified"]
+            and governing_peak_mpa >= sample_peak_mpa,
+        },
+        {
+            "clause": "5.11.3 non-uniform shear stress capacity reduction factor",
+            "stress_max_average_ratio": stress_ratio,
+            "capacity_reduction_factor": reduction_factor,
+            "satisfied": stress_ratio >= 1 and 0 < reduction_factor <= 1,
+        },
+    ]
+    return result(
+        "web_shear_stress_field_postprocess",
+        ["5.11.3"],
+        {
+            "member_reference": references["member_reference"],
+            "section_form": d["section_form"],
+            "section_station_mm": d["section_station_mm"],
+            "load_combination_reference": references["load_combination_reference"],
+            "rational_analysis_reference": references["rational_analysis_reference"],
+            "stress_sample_count": len(d["stress_samples"]),
+            "quadrature_web_area_mm2": total_area_mm2,
+            "declared_web_area_at_cut_mm2": declared_area_mm2,
+            "signed_web_shear_resultant_kn": resultant_kn,
+            "expected_web_shear_force_kn": expected_force_kn,
+            "web_shear_force_equilibrium_residual_kn": equilibrium_residual_kn,
+            "web_shear_force_equilibrium_tolerance_kn": equilibrium_tolerance_kn,
+            "signed_area_average_shear_stress_mpa": average_signed_mpa,
+            "average_design_shear_stress_mpa": average_mpa,
+            "sampled_peak_shear_stress_mpa": sample_peak_mpa,
+            "governing_peak_shear_stress_mpa": governing_peak_mpa,
+            "stress_max_average_ratio": stress_ratio,
+            "clause_5_11_3_capacity_reduction_factor": reduction_factor,
+            "governing_section_cut_reference": references["governing_section_cut_reference"],
+            "governing_peak_assessment_reference": references[
+                "governing_peak_assessment_reference"
+            ],
+            "mesh_peak_sensitivity_reference": references["mesh_peak_sensitivity_reference"],
+        },
+        checks,
+        [
+            "This operation derives the maximum-to-average design shear stress ratio and "
+            "Clause 5.11.3 capacity reduction factor from one verified rational-analysis "
+            "stress field. It does not calculate the uniform-distribution nominal shear "
+            "capacity under 5.11.2 or the resulting member capacity.",
+            "Quadrature weights must integrate the complete actual web steel area at the "
+            "section cut; they are cross-section area weights, not shell-panel surface areas. "
+            "The maximum stress, governing section/load case, area coverage and analysis "
+            "evidence remain externally assessed.",
+            "The signed force-equilibrium tolerance is a software quality threshold, not an "
+            "AS 4100 requirement. A passing result is limited to the supplied section cut "
+            "and load combination and does not establish full standard compliance.",
+        ],
+    )
+
+
 def run_webs(inputs):
     d = validate(inputs, INPUT_SCHEMA)
     op = d["operation"]
+    if op == "web_opening_layout_geometry":
+        return _web_opening_layout_geometry(d)
+    if op == "web_shear_stress_field_postprocess":
+        return _web_shear_stress_field_postprocess(d)
     if op == "web_panel_geometry":
         longitudinal_extent = d["web_longitudinal_extent_mm"]
         clear_depth = d["clear_web_depth_mm"]
