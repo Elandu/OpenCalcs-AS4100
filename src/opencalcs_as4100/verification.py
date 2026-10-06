@@ -4110,6 +4110,70 @@ def verify():
         int(attachment_check["checks"][-1]["satisfied"]),
         1,
     )
+    minimum_inertia_inputs = {
+        "operation": "transverse_stiffener",
+        "clear_web_depth_mm": 500,
+        "web_panel_depth_mm": 500,
+        "web_thickness_mm": 10,
+        "panel_spacing_mm": 500,
+        "web_area_mm2": 5000,
+        "web_yield_mpa": 250,
+        "shear_buckling_coefficient": 0.5,
+        "stiffener_configuration": "pair",
+        "shear_action_kn": 20,
+        "nominal_web_shear_kn": 100,
+        "nominal_web_buckling_no_tension_field_kn": 100,
+        "nominal_stiffener_buckling_kn": 100,
+        "stiffener_area_mm2": 1000,
+        "stiffener_second_moment_mm4": 400000,
+        "stiffener_outstand_mm": 100,
+        "stiffener_thickness_mm": 12,
+        "stiffener_yield_mpa": 300,
+        "outer_edge_continuously_stiffened": False,
+        "stiffener_layout_verified": True,
+        "longitudinal_stiffeners_present": False,
+        "web_connection_design_shear_capacity_kn_per_mm": 1,
+        "web_connection_capacity_verified": True,
+    }
+    minimum_inertia_short_spacing = run_webs(minimum_inertia_inputs)
+    record(
+        "Clause 5.15.5 short-spacing minimum inertia, hand arithmetic",
+        minimum_inertia_short_spacing["values"]["minimum_second_moment_mm4"],
+        375000,
+    )
+    minimum_inertia_boundary = run_webs(
+        minimum_inertia_inputs | {"panel_spacing_mm": 500 * sqrt(2)}
+    )
+    record(
+        "Clause 5.15.5 s/d1 = sqrt(2) selects the short-spacing branch",
+        int(
+            minimum_inertia_boundary["values"]["minimum_second_moment_expression"] == "0.75*d1*tw^3"
+        ),
+        1,
+    )
+    minimum_inertia_long_spacing = run_webs(minimum_inertia_inputs | {"panel_spacing_mm": 1000})
+    record(
+        "Clause 5.15.5 long-spacing minimum inertia, hand arithmetic",
+        minimum_inertia_long_spacing["values"]["minimum_second_moment_mm4"],
+        187500,
+    )
+    outstand_limit_mm = 164.31676725154983
+    outstand_at_limit = run_webs(
+        minimum_inertia_inputs | {"stiffener_outstand_mm": outstand_limit_mm}
+    )
+    record(
+        "Clause 5.14.3 and 5.15.6 outstand limit, hand arithmetic",
+        outstand_at_limit["values"]["outstand_limit_mm"],
+        outstand_limit_mm,
+        1e-10,
+    )
+    record(
+        "Clause 5.15.6 outstand equality satisfies the limit",
+        int(
+            {check["clause"]: check for check in outstand_at_limit["checks"]}["5.15.6"]["satisfied"]
+        ),
+        1,
+    )
     reduced_end_panel = run_webs(
         {
             "operation": "end_panel_design",

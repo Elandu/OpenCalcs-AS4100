@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.56",
+  "package_version": "0.7.57",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2525,6 +2525,41 @@
     },
     {
       "name": "Clause 5.15.7.2 checks Clause 5.14.4 web force transfer",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.15.5 short-spacing minimum inertia, hand arithmetic",
+      "actual": 375000.0,
+      "expected": 375000,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.15.5 s/d1 = sqrt(2) selects the short-spacing branch",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.15.5 long-spacing minimum inertia, hand arithmetic",
+      "actual": 187500.0,
+      "expected": 187500,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.14.3 and 5.15.6 outstand limit, hand arithmetic",
+      "actual": 164.31676725154983,
+      "expected": 164.31676725154983,
+      "absolute_tolerance": 1e-10,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.15.6 outstand equality satisfies the limit",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

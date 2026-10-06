@@ -1894,9 +1894,13 @@ def run_webs(inputs):
             * (d["shear_action_kn"] / (0.9 * nominal_web_shear))
             * (ratio / (sqrt(1 + ratio**2) * (sqrt(1 + ratio**2) + ratio)))
         )
-        inertia_min = (
-            0.75 * depth * t**3 if spacing / depth < sqrt(2) else 1.5 * depth**3 * t**3 / spacing**2
-        )
+        stiffener_spacing_to_depth_ratio = spacing / depth
+        if stiffener_spacing_to_depth_ratio <= sqrt(2):
+            inertia_min = 0.75 * depth * t**3
+            inertia_expression = "0.75*d1*tw^3"
+        else:
+            inertia_min = 1.5 * depth**3 * t**3 / spacing**2
+            inertia_expression = "1.5*d1^3*tw^3/s^2"
         outstand_limit = 15 * d["stiffener_thickness_mm"] / sqrt(d["stiffener_yield_mpa"] / 250)
         shear_per_length = 0.0008 * t * t * d["web_yield_mpa"] / d["stiffener_outstand_mm"]
         nominal = nominal_stiffener_buckling + nominal_web_buckling
@@ -1913,6 +1917,8 @@ def run_webs(inputs):
             "clause_5_15_2_1_web_thickness_check": web_thickness_check,
             "minimum_area_mm2": area_min,
             "minimum_second_moment_mm4": inertia_min,
+            "minimum_second_moment_expression": inertia_expression,
+            "stiffener_spacing_to_depth_ratio": stiffener_spacing_to_depth_ratio,
             "outstand_limit_mm": outstand_limit,
             "connection_design_shear_kn_per_mm": shear_per_length,
             "shear_buckling_coefficient": shear_buckling_coefficient,

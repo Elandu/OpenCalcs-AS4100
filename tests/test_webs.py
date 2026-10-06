@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
+from math import sqrt
+
 import pytest
 
 from opencalcs_as4100.webs import buckling_alpha
@@ -860,6 +862,64 @@ def test_clause_5_15_1_stiffener_termination_gaps_at_four_web_thicknesses():
     inputs["web_thickness_mm"] = 0.9
     checks = {check["clause"]: check for check in run(inputs)["checks"]}
     assert not checks["5.15.2.1 interior panel spacing via 5.10.4/5.10.5"]["satisfied"]
+
+
+def test_clause_5_15_5_inertia_branches_and_clause_5_15_6_outstand_limit():
+    inputs = {
+        "operation": "transverse_stiffener",
+        "clear_web_depth_mm": 500,
+        "web_panel_depth_mm": 500,
+        "web_thickness_mm": 10,
+        "panel_spacing_mm": 500,
+        "web_area_mm2": 5000,
+        "web_yield_mpa": 250,
+        "shear_buckling_coefficient": 0.5,
+        "stiffener_configuration": "pair",
+        "shear_action_kn": 20,
+        "nominal_web_shear_kn": 100,
+        "nominal_web_buckling_no_tension_field_kn": 100,
+        "nominal_stiffener_buckling_kn": 100,
+        "stiffener_area_mm2": 1000,
+        "stiffener_second_moment_mm4": 400000,
+        "stiffener_outstand_mm": 100,
+        "stiffener_thickness_mm": 12,
+        "stiffener_yield_mpa": 300,
+        "outer_edge_continuously_stiffened": False,
+        "stiffener_layout_verified": True,
+        "longitudinal_stiffeners_present": False,
+        "web_connection_design_shear_capacity_kn_per_mm": 1,
+        "web_connection_capacity_verified": True,
+    }
+
+    short_spacing = run(inputs)
+    assert short_spacing["values"]["minimum_second_moment_mm4"] == pytest.approx(375000)
+    assert short_spacing["values"]["minimum_second_moment_expression"] == "0.75*d1*tw^3"
+    assert short_spacing["values"]["stiffener_spacing_to_depth_ratio"] == 1
+
+    boundary = run({**inputs, "panel_spacing_mm": 500 * sqrt(2)})
+    assert boundary["values"]["minimum_second_moment_mm4"] == pytest.approx(375000)
+    assert boundary["values"]["minimum_second_moment_expression"] == "0.75*d1*tw^3"
+
+    long_spacing = run({**inputs, "panel_spacing_mm": 1000})
+    assert long_spacing["values"]["minimum_second_moment_mm4"] == pytest.approx(187500)
+    assert long_spacing["values"]["minimum_second_moment_expression"] == "1.5*d1^3*tw^3/s^2"
+
+    checks = {check["clause"]: check for check in short_spacing["checks"]}
+    assert checks["5.15.5"]["satisfied"]
+    assert checks["5.15.6"]["satisfied"]
+
+    outstand_limit = 164.31676725154983
+    at_limit = run({**inputs, "stiffener_outstand_mm": outstand_limit})
+    assert at_limit["values"]["outstand_limit_mm"] == pytest.approx(outstand_limit)
+    assert {check["clause"]: check for check in at_limit["checks"]}["5.15.6"]["satisfied"]
+
+    over_limit_inputs = {**inputs, "stiffener_outstand_mm": outstand_limit + 0.001}
+    over_limit = run(over_limit_inputs)
+    assert not {check["clause"]: check for check in over_limit["checks"]}["5.15.6"]["satisfied"]
+    continuously_stiffened = run(over_limit_inputs | {"outer_edge_continuously_stiffened": True})
+    assert {check["clause"]: check for check in continuously_stiffened["checks"]}["5.15.6"][
+        "satisfied"
+    ]
 
 
 def test_clause_5_15_2_1_uses_clause_5_10_5_with_longitudinal_stiffeners():
