@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.48",
+  "package_version": "0.7.49",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1786,6 +1786,62 @@
       "actual": 26.4130477581358,
       "expected": 26.422688110351565,
       "absolute_tolerance": 0.01,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) fixed-free column elastic buckling factor",
+      "actual": 4.934812367277044,
+      "expected": 4.934802200544679,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) column maximum element-end moment (kN m)",
+      "actual": 48.338408803698144,
+      "expected": 48.33840968549085,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) column tip displacement (mm)",
+      "actual": 166.76817607474314,
+      "expected": 166.76819370981704,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) mesh convergence threshold",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) tension-column maximum element-end moment (kN m)",
+      "actual": 34.44228725459204,
+      "expected": 34.44228686322191,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) tension-column tip displacement (mm)",
+      "actual": 111.1542549082498,
+      "expected": 111.15426273556187,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) no positive buckling mode for tension pattern",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Appendix E.2(b) tension-column mesh convergence threshold",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
       "passed": true
     },
     {

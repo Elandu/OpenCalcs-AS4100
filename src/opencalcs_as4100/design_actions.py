@@ -4,6 +4,7 @@
 from math import isclose, isfinite, pi, tan
 
 from .frame_buckling import run_frame_buckling
+from .second_order import run_second_order_frame_analysis
 from .standards import ELASTIC_MODULUS_MPA
 from .validation import NONNEGATIVE, POSITIVE, SIGNED, object_schema, result, validate
 
@@ -318,6 +319,16 @@ _FRAME_BUCKLING_MEMBER["oneOf"] = [
     {"required": ["axial_force_kn"], "not": {"required": ["axial_force_profile_kn"]}},
     {"required": ["axial_force_profile_kn"], "not": {"required": ["axial_force_kn"]}},
 ]
+_FRAME_JOINT_ACTION = object_schema(
+    {
+        "joint_id": _REFERENCE,
+        "force_x_kn": SIGNED,
+        "force_y_kn": SIGNED,
+        "moment_knm": SIGNED,
+        "joint_actions_verified": _BOOL,
+        "evidence_reference": _REFERENCE,
+    }
+)
 _PLASTIC_JOINT = object_schema(
     {
         "joint_id": _REFERENCE,
@@ -464,6 +475,43 @@ SCHEMAS = {
                 "type": "array",
                 "minItems": 1,
                 "items": _FRAME_BUCKLING_MEMBER,
+            },
+        }
+    ),
+    "second_order_elastic_frame_analysis": object_schema(
+        {
+            "operation": {"const": "second_order_elastic_frame_analysis"},
+            "design_load_set_id": _REFERENCE,
+            "design_load_actions_verified": _BOOL,
+            "design_load_evidence_reference": _REFERENCE,
+            "frame_model_verified": _BOOL,
+            "frame_model_evidence_reference": _REFERENCE,
+            "linearized_model_applicability_verified": _BOOL,
+            "linearized_model_evidence_reference": _REFERENCE,
+            "frame_action_equilibrium_verified": _BOOL,
+            "frame_action_equilibrium_evidence_reference": _REFERENCE,
+            "all_frame_joints_listed_verified": _BOOL,
+            "joint_list_evidence_reference": _REFERENCE,
+            "all_frame_members_listed_verified": _BOOL,
+            "member_list_evidence_reference": _REFERENCE,
+            "all_joint_actions_listed_verified": _BOOL,
+            "joint_action_list_evidence_reference": _REFERENCE,
+            "members_remain_elastic_verified": _BOOL,
+            "elastic_response_evidence_reference": _REFERENCE,
+            "joints": {
+                "type": "array",
+                "minItems": 2,
+                "items": _FRAME_BUCKLING_JOINT,
+            },
+            "members": {
+                "type": "array",
+                "minItems": 1,
+                "items": _FRAME_BUCKLING_MEMBER,
+            },
+            "joint_actions": {
+                "type": "array",
+                "minItems": 2,
+                "items": _FRAME_JOINT_ACTION,
             },
         }
     ),
@@ -1355,6 +1403,115 @@ def run_design_actions(inputs):
                 "The returned load factor scales the supplied member axial-force pattern. It "
                 "does not establish load combinations, member resistance, second-order actions, "
                 "or full AS 4100 compliance.",
+            ],
+        )
+    if op == "second_order_elastic_frame_analysis":
+        values = run_second_order_frame_analysis(d)
+        checks = [
+            {
+                "clause": "4.4.1.2",
+                "condition": "the second-order analysis model and design load set are assessed",
+                "satisfied": d["frame_model_verified"] and d["design_load_actions_verified"],
+                "frame_evidence_reference": d["frame_model_evidence_reference"],
+                "load_evidence_reference": d["design_load_evidence_reference"],
+            },
+            {
+                "clause": "4.4.1.2",
+                "condition": (
+                    "the fixed-force linearized method is assessed as applicable to the design case"
+                ),
+                "satisfied": d["linearized_model_applicability_verified"],
+                "evidence_reference": d["linearized_model_evidence_reference"],
+            },
+            {
+                "clause": "E.1",
+                "condition": "members remain elastic for the design load set",
+                "satisfied": d["members_remain_elastic_verified"],
+                "evidence_reference": d["elastic_response_evidence_reference"],
+            },
+            {
+                "clause": "4.7.1",
+                "condition": "the member axial-force pattern belongs to one design load set",
+                "load_set_id": d["design_load_set_id"],
+                "satisfied": d["design_load_actions_verified"],
+                "evidence_reference": d["design_load_evidence_reference"],
+            },
+            {
+                "clause": "4.7.2(b)",
+                "condition": (
+                    "the supplied design load set is below the first positive elastic buckling "
+                    "load factor, if one exists"
+                ),
+                "elastic_buckling_load_factor": values["elastic_buckling_load_factor"],
+                "satisfied": values["elastic_buckling_load_factor"] is None
+                or values["elastic_buckling_load_factor"] > 1.0,
+            },
+            {
+                "clause": "E.2(b)",
+                "condition": "element-end moments converge with mesh refinement",
+                "relative_difference": values["relative_mesh_difference"],
+                "satisfied": values["relative_mesh_difference"] <= 0.001,
+            },
+            {
+                "clause": "4.7.1",
+                "condition": "the complete frame joint inventory is represented",
+                "satisfied": d["all_frame_joints_listed_verified"],
+                "evidence_reference": d["joint_list_evidence_reference"],
+            },
+            {
+                "clause": "4.7.1",
+                "condition": "the complete frame member inventory is represented",
+                "satisfied": d["all_frame_members_listed_verified"],
+                "evidence_reference": d["member_list_evidence_reference"],
+            },
+            {
+                "clause": "4.5.1",
+                "condition": (
+                    "the complete joint-action set and member axial-force pattern "
+                    "satisfy equilibrium"
+                ),
+                "satisfied": d["frame_action_equilibrium_verified"]
+                and d["all_joint_actions_listed_verified"]
+                and all(action["joint_actions_verified"] for action in d["joint_actions"]),
+                "evidence_reference": d["frame_action_equilibrium_evidence_reference"],
+                "joint_action_list_evidence_reference": d["joint_action_list_evidence_reference"],
+            },
+            {
+                "clause": "4.7.1",
+                "condition": "all member geometry, properties and axial-force actions are assessed",
+                "satisfied": all(
+                    member["prismatic_member_verified"]
+                    and member["geometry_verified"]
+                    and member["section_properties_verified"]
+                    and member["axial_force_verified"]
+                    for member in d["members"]
+                ),
+                "member_count": len(d["members"]),
+            },
+        ]
+        return result(
+            op,
+            ["4.4.1.2", "4.5.1", "4.7.1", "4.7.2(b)", "E.1", "E.2(b)"],
+            values,
+            checks,
+            limitations=[
+                "This is a linearized in-plane second-order elastic analysis of a complete "
+                "planar frame with rigid joints and prismatic Euler-Bernoulli members. The "
+                "supplied first-order axial-force pattern is held fixed in the geometric "
+                "stiffness matrix; deformed geometry and member axial forces are not iteratively "
+                "updated. A separately evidenced assessment must confirm that this fixed-force "
+                "linearization captures the required second-order response.",
+                "Joint forces and moments must be the complete applied design actions resolved "
+                "at every listed joint. The operation does not derive or check equilibrium "
+                "between these actions and the supplied member axial-force pattern; supply an "
+                "evidenced equilibrium assessment. Distributed member loads, "
+                "member-end releases, connection flexibility, shear "
+                "deformation, initial imperfections, residual stresses, and material "
+                "nonlinearity are outside this model.",
+                "The reported design bending moments use the converged maximum element-end "
+                "moment route in Appendix E.2(b). Assess whether the mesh and model represent "
+                "the complete design situation; the operation does not determine load "
+                "combinations, section/member capacities, or full AS 4100 compliance.",
             ],
         )
     if op == "rectangular_frame_stiffness_ratio":

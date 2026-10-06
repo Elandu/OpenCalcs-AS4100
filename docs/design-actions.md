@@ -133,6 +133,58 @@ independent verification reference only and is not a runtime dependency or a
 published Standard example. To apply the Clause 4.5.4 threshold route, pass
 `lambda_c` as `frame_buckling_factor` to `plastic_amplification`.
 
+## Linearized second-order elastic frame analysis
+
+`second_order_elastic_frame_analysis` provides a bounded in-plane linearized
+second-order response route for Clauses 4.4.1.2, 4.5.1, 4.7.1, 4.7.2(b) and
+Appendix E.1/E.2(b). It assembles elastic and initial-stress geometric
+stiffness matrices, solves the supplied joint-action vector with the supplied
+first-order member axial-force pattern, and reports the greatest element-end
+moment in each member. The 4-, 8-, 16- and 32-element-per-member results are
+compared; the calculation accepts the first consecutive meshes agreeing
+within 0.1% in model-joint response, member end moments and elastic buckling
+factor.
+
+Use a complete planar frame of prismatic Euler-Bernoulli members with rigid
+connections at shared joints. The elastic modulus is fixed at 200 000 MPa.
+Supply all joints and members, each member's area and in-plane second moment,
+restraints in `ux`, `uy` and `rz`, and one complete `joint_actions` record for
+each joint. Joint forces are in kN and moments in kN·m. The member's
+`axial_force_kn` or `[N_start, N_end]` profile is separately supplied in kN,
+ordered from `start_joint_id` to `end_joint_id`; compression is positive and
+tension is negative. Include every applied design action in the joint-action
+vector, including the axial actions that correspond to the member-force
+pattern. The solver rejects a design load set whose elastic buckling factor
+is at or below 1.0. It returns a null elastic buckling factor when the supplied
+axial-force pattern has no positive elastic buckling mode, as with zero or
+tension-only force patterns; the frame response remains available.
+
+This solver holds the assessed first-order axial-force profile fixed and does
+not iterate the deformed frame geometry or member forces. AS 4100 Appendix E.1
+requires second-order geometry effects to be accounted for; therefore set
+`linearized_model_applicability_verified` only when the engineer has assessed
+that this fixed-force linearization is adequate for the design case. Likewise,
+`frame_action_equilibrium_verified` records the engineer's evidence that the
+complete joint actions and member-force pattern are in equilibrium. The
+calculation records these assessments but does not establish them, derive the
+member-force pattern from the joint actions, or authenticate the evidence.
+Members' elastic response is also an evidenced input, not a capacity check.
+
+Distributed member loads, member-end releases, connection flexibility, shear
+deformation, initial imperfections, residual stress, material nonlinearity,
+out-of-plane and torsional response, iterative second-order analysis and
+member design capacities remain outside this model. Do not use it as a full
+Appendix E analysis where the fixed-force linearization is not adequate; use
+an independently verified second-order model that accounts for the required
+geometry and axial-force changes. The operation does not determine load
+combinations or establish full AS 4100 compliance.
+
+The fixed-free-column benchmark uses `E=200000 MPa`, `I=8e6 mm4`, `L=4000 mm`,
+50 kN compression and a 10 kN transverse tip force. The independent elastic
+beam-column solution gives a 48.338410 kN·m base moment and 166.768194 mm tip
+displacement; the refined operation agrees within 0.0001%. This is an analytic
+verification case, not a worked example from the Standard.
+
 ## Braced-member moment amplification
 
 `moment_amplification` calculates the Clause 4.4.2.2 braced-member factor and

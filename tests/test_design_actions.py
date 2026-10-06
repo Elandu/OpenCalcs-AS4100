@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-from math import pi
+from math import pi, sqrt, tan, tanh
 
 import pytest
 
@@ -71,6 +71,172 @@ def whole_frame_elastic_buckling(**overrides):
     }
     inputs.update(overrides)
     return inputs
+
+
+def second_order_elastic_frame(**overrides):
+    evidence = "FRAME-ANALYSIS-01"
+    inputs = {
+        "operation": "second_order_elastic_frame_analysis",
+        "design_load_set_id": "ULS-CANTILEVER-01",
+        "design_load_actions_verified": True,
+        "design_load_evidence_reference": evidence,
+        "frame_model_verified": True,
+        "frame_model_evidence_reference": evidence,
+        "linearized_model_applicability_verified": True,
+        "linearized_model_evidence_reference": evidence,
+        "frame_action_equilibrium_verified": True,
+        "frame_action_equilibrium_evidence_reference": evidence,
+        "all_frame_joints_listed_verified": True,
+        "joint_list_evidence_reference": evidence,
+        "all_frame_members_listed_verified": True,
+        "member_list_evidence_reference": evidence,
+        "all_joint_actions_listed_verified": True,
+        "joint_action_list_evidence_reference": evidence,
+        "members_remain_elastic_verified": True,
+        "elastic_response_evidence_reference": evidence,
+        "joints": [
+            {
+                "joint_id": "BASE",
+                "x_mm": 0,
+                "y_mm": 0,
+                "restrained_dofs": ["ux", "uy", "rz"],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": evidence,
+            },
+            {
+                "joint_id": "TOP",
+                "x_mm": 0,
+                "y_mm": 4000,
+                "restrained_dofs": [],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": evidence,
+            },
+        ],
+        "members": [
+            {
+                "member_id": "COL-01",
+                "start_joint_id": "BASE",
+                "end_joint_id": "TOP",
+                "area_mm2": 10000,
+                "second_moment_in_plane_mm4": 8e6,
+                "axial_force_profile_kn": [50, 50],
+                "prismatic_member_verified": True,
+                "geometry_verified": True,
+                "section_properties_verified": True,
+                "axial_force_verified": True,
+                "evidence_reference": evidence,
+            }
+        ],
+        "joint_actions": [
+            {
+                "joint_id": "BASE",
+                "force_x_kn": 0,
+                "force_y_kn": 0,
+                "moment_knm": 0,
+                "joint_actions_verified": True,
+                "evidence_reference": evidence,
+            },
+            {
+                "joint_id": "TOP",
+                "force_x_kn": 10,
+                "force_y_kn": -50,
+                "moment_knm": 0,
+                "joint_actions_verified": True,
+                "evidence_reference": evidence,
+            },
+        ],
+    }
+    inputs.update(overrides)
+    return inputs
+
+
+def test_second_order_elastic_frame_matches_independent_cantilever_solution():
+    result = run(second_order_elastic_frame())
+    values = result["values"]
+    elastic_modulus = 200000
+    second_moment = 8e6
+    length = 4000
+    axial_force = 50000
+    transverse_force = 10000
+    wave_number = sqrt(axial_force / (elastic_modulus * second_moment))
+    expected_base_moment = transverse_force * tan(wave_number * length) / wave_number / 1e6
+    expected_tip_displacement = (
+        transverse_force / axial_force * (tan(wave_number * length) / wave_number - length)
+    )
+
+    assert result["clauses"] == ["4.4.1.2", "4.5.1", "4.7.1", "4.7.2(b)", "E.1", "E.2(b)"]
+    assert result["full_standard_compliance"] is False
+    assert result["checked_conditions_satisfied"]
+    assert values["elastic_buckling_load_factor"] == pytest.approx(4.9348, rel=5e-5)
+    assert values["relative_mesh_difference"] < 0.001
+    assert values["member_moments"][0]["maximum_absolute_element_end_moment_knm"] == pytest.approx(
+        expected_base_moment, rel=1e-5
+    )
+    assert abs(values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(
+        expected_tip_displacement, rel=1e-5
+    )
+
+
+def test_second_order_elastic_frame_rejects_incomplete_joint_actions():
+    inputs = second_order_elastic_frame()
+    inputs["joint_actions"][1]["joint_id"] = "BASE"
+    with pytest.raises(ValueError, match="exactly one complete joint-action record"):
+        run(inputs)
+
+
+def test_second_order_elastic_frame_rejects_design_load_at_or_above_buckling():
+    inputs = second_order_elastic_frame()
+    inputs["members"][0]["axial_force_profile_kn"] = [300, 300]
+    inputs["joint_actions"][1]["force_y_kn"] = -300
+    with pytest.raises(ValueError, match="reaches or exceeds the frame elastic buckling load"):
+        run(inputs)
+
+
+def test_second_order_elastic_frame_handles_tension_and_zero_axial_force_patterns():
+    tension = second_order_elastic_frame()
+    tension["members"][0]["axial_force_profile_kn"] = [-50, -50]
+    tension["joint_actions"][1]["force_y_kn"] = 50
+    tension_result = run(tension)
+    tension_values = tension_result["values"]
+    wave_number = sqrt(50000 / (200000 * 8e6))
+    expected_tension_moment = 10000 * tanh(wave_number * 4000) / wave_number / 1e6
+    expected_tension_displacement = 10000 / 50000 * (4000 - tanh(wave_number * 4000) / wave_number)
+    assert tension_values["elastic_buckling_load_factor"] is None
+    assert tension_values["relative_mesh_difference"] < 0.001
+    assert tension_values["member_moments"][0]["maximum_absolute_element_end_moment_knm"] == (
+        pytest.approx(expected_tension_moment, rel=1e-5)
+    )
+    assert abs(tension_values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(
+        expected_tension_displacement, rel=1e-5
+    )
+
+    zero = second_order_elastic_frame()
+    zero["members"][0]["axial_force_profile_kn"] = [0, 0]
+    zero["joint_actions"][1]["force_y_kn"] = 0
+    zero_values = run(zero)["values"]
+    assert zero_values["elastic_buckling_load_factor"] is None
+    assert zero_values["member_moments"][0]["maximum_absolute_element_end_moment_knm"] == (
+        pytest.approx(40)
+    )
+    assert abs(zero_values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(4000 / 30)
+
+
+def test_second_order_elastic_frame_reports_unverified_method_or_equilibrium_assessments():
+    inputs = second_order_elastic_frame(
+        linearized_model_applicability_verified=False,
+        frame_action_equilibrium_verified=False,
+    )
+    result = run(inputs)
+
+    assert not result["checked_conditions_satisfied"]
+    assert not next(
+        check
+        for check in result["checks"]
+        if check["clause"] == "4.4.1.2" and "linearized method" in check["condition"]
+    )["satisfied"]
+    assert not next(check for check in result["checks"] if check["clause"] == "4.5.1")["satisfied"]
 
 
 def test_whole_frame_elastic_buckling_matches_independent_euler_solution():

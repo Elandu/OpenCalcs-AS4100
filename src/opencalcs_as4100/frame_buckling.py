@@ -206,9 +206,10 @@ def _connected_components(joints, members):
     return len(reached) == len(joints)
 
 
-def _solve_mesh(d, subdivisions):
-    joints = d["joints"]
-    members = d["members"]
+def assemble_frame_matrices(inputs, subdivisions):
+    """Assemble elastic and initial-stress matrices for a refined frame mesh."""
+    joints = inputs["joints"]
+    members = inputs["members"]
     coordinates = {joint["joint_id"]: (joint["x_mm"], joint["y_mm"]) for joint in joints}
     restraint_dofs = set()
     for joint_index, joint in enumerate(joints):
@@ -245,13 +246,14 @@ def _solve_mesh(d, subdivisions):
         raise ValueError("Frame buckling analysis requires unconstrained degrees of freedom.")
     if len(free_dofs) > 120:
         raise ValueError(
-            "Frame buckling model exceeds 120 free degrees of freedom; split or bound the "
-            "model before using this calculation."
+            "Frame model exceeds 120 free degrees of freedom; split or bound the model before "
+            "using this calculation."
         )
 
     stiffness = _zeros(3 * len(node_ids))
     geometric = _zeros(3 * len(node_ids))
-    for member, path in zip(members, member_paths, strict=True):
+    member_elements = [[] for _ in members]
+    for member_index, (member, path) in enumerate(zip(members, member_paths, strict=True)):
         first = coordinates[member["start_joint_id"]]
         last = coordinates[member["end_joint_id"]]
         total_dx = last[0] - first[0]
@@ -286,9 +288,35 @@ def _solve_mesh(d, subdivisions):
                 for column, global_column in enumerate(dofs):
                     stiffness[global_row][global_column] += global_elastic[row][column]
                     geometric[global_row][global_column] += global_geometric[row][column]
+            member_elements[member_index].append(
+                {
+                    "dofs": dofs,
+                    "transform": transform,
+                    "elastic": local_elastic,
+                    "geometric": local_geometric,
+                }
+            )
 
     reference_length = sum(characteristic_lengths) / len(characteristic_lengths)
     scales = [1.0 if dof % 3 != 2 else 1.0 / reference_length for dof in free_dofs]
+    return {
+        "coordinates": coordinates,
+        "node_index": node_index,
+        "stiffness": stiffness,
+        "geometric": geometric,
+        "member_elements": member_elements,
+        "free_dofs": free_dofs,
+        "scales": scales,
+        "reference_length_mm": reference_length,
+    }
+
+
+def _solve_mesh(d, subdivisions):
+    assembly = assemble_frame_matrices(d, subdivisions)
+    stiffness = assembly["stiffness"]
+    geometric = assembly["geometric"]
+    free_dofs = assembly["free_dofs"]
+    scales = assembly["scales"]
     reduced_stiffness = [
         [
             stiffness[row][column] * scales[row_index] * scales[column_index]
@@ -321,7 +349,7 @@ def _solve_mesh(d, subdivisions):
     return {
         "elastic_buckling_load_factor": 1.0 / eigenvalue,
         "mesh_subdivisions_per_member": subdivisions,
-        "joint_count_including_mesh": len(node_ids),
+        "joint_count_including_mesh": len(assembly["coordinates"]),
         "free_degree_count": len(free_dofs),
     }
 

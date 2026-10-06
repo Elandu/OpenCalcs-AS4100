@@ -2,7 +2,7 @@
 
 import argparse
 import json
-from math import isclose, pi, sqrt, tan
+from math import isclose, pi, sqrt, tan, tanh
 from pathlib import Path
 
 from . import __version__
@@ -2604,6 +2604,148 @@ def verify():
         portal_frame_buckling["values"]["lambda_c"],
         26.422688110351565,
         0.01,
+    )
+
+    second_order_evidence = "VERIFY-SECOND-ORDER-CANTILEVER-ANALYTIC"
+    second_order_inputs = {
+        "operation": "second_order_elastic_frame_analysis",
+        "design_load_set_id": "VERIFY-ULS-CANTILEVER-50-10",
+        "design_load_actions_verified": True,
+        "design_load_evidence_reference": second_order_evidence,
+        "frame_model_verified": True,
+        "frame_model_evidence_reference": second_order_evidence,
+        "linearized_model_applicability_verified": True,
+        "linearized_model_evidence_reference": second_order_evidence,
+        "frame_action_equilibrium_verified": True,
+        "frame_action_equilibrium_evidence_reference": second_order_evidence,
+        "all_frame_joints_listed_verified": True,
+        "joint_list_evidence_reference": second_order_evidence,
+        "all_frame_members_listed_verified": True,
+        "member_list_evidence_reference": second_order_evidence,
+        "all_joint_actions_listed_verified": True,
+        "joint_action_list_evidence_reference": second_order_evidence,
+        "members_remain_elastic_verified": True,
+        "elastic_response_evidence_reference": second_order_evidence,
+        "joints": [
+            {
+                "joint_id": "BASE",
+                "x_mm": 0,
+                "y_mm": 0,
+                "restrained_dofs": ["ux", "uy", "rz"],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": second_order_evidence,
+            },
+            {
+                "joint_id": "TOP",
+                "x_mm": 0,
+                "y_mm": 4000,
+                "restrained_dofs": [],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": second_order_evidence,
+            },
+        ],
+        "members": [
+            {
+                "member_id": "COLUMN",
+                "start_joint_id": "BASE",
+                "end_joint_id": "TOP",
+                "area_mm2": 10_000,
+                "second_moment_in_plane_mm4": 8e6,
+                "axial_force_profile_kn": [50, 50],
+                "prismatic_member_verified": True,
+                "geometry_verified": True,
+                "section_properties_verified": True,
+                "axial_force_verified": True,
+                "evidence_reference": second_order_evidence,
+            }
+        ],
+        "joint_actions": [
+            {
+                "joint_id": "BASE",
+                "force_x_kn": 0,
+                "force_y_kn": 0,
+                "moment_knm": 0,
+                "joint_actions_verified": True,
+                "evidence_reference": second_order_evidence,
+            },
+            {
+                "joint_id": "TOP",
+                "force_x_kn": 10,
+                "force_y_kn": -50,
+                "moment_knm": 0,
+                "joint_actions_verified": True,
+                "evidence_reference": second_order_evidence,
+            },
+        ],
+    }
+    second_order_frame = run_design_actions(second_order_inputs)
+    second_order_values = second_order_frame["values"]
+    wave_number = sqrt(50_000 / (200_000 * 8e6))
+    record(
+        "Appendix E.2(b) fixed-free column elastic buckling factor",
+        second_order_values["elastic_buckling_load_factor"],
+        pi**2 * 200_000 * 8e6 / (4 * 4000**2 * 50_000),
+        0.0001,
+    )
+    record(
+        "Appendix E.2(b) column maximum element-end moment (kN m)",
+        second_order_values["member_moments"][0]["maximum_absolute_element_end_moment_knm"],
+        10_000 * tan(wave_number * 4000) / wave_number / 1e6,
+        0.0001,
+    )
+    record(
+        "Appendix E.2(b) column tip displacement (mm)",
+        abs(second_order_values["joint_displacements"][-1]["ux_mm"]),
+        10_000 / 50_000 * (tan(wave_number * 4000) / wave_number - 4000),
+        0.0001,
+    )
+    record(
+        "Appendix E.2(b) mesh convergence threshold",
+        int(second_order_values["relative_mesh_difference"] <= 0.001),
+        1,
+    )
+    tension_axial_force = 50_000
+    tension_wave_number = sqrt(tension_axial_force / (200_000 * 8e6))
+    tension_inputs = {
+        **second_order_inputs,
+        "design_load_set_id": "VERIFY-ULS-CANTILEVER-TENSION-50-10",
+        "members": [
+            {
+                **second_order_inputs["members"][0],
+                "axial_force_profile_kn": [-50, -50],
+            }
+        ],
+        "joint_actions": [
+            second_order_inputs["joint_actions"][0],
+            {**second_order_inputs["joint_actions"][1], "force_y_kn": 50},
+        ],
+    }
+    tension_values = run_design_actions(tension_inputs)["values"]
+    record(
+        "Appendix E.2(b) tension-column maximum element-end moment (kN m)",
+        tension_values["member_moments"][0]["maximum_absolute_element_end_moment_knm"],
+        10_000 * tanh(tension_wave_number * 4000) / tension_wave_number / 1e6,
+        0.0001,
+    )
+    record(
+        "Appendix E.2(b) tension-column tip displacement (mm)",
+        abs(tension_values["joint_displacements"][-1]["ux_mm"]),
+        10_000
+        / tension_axial_force
+        * (4000 - tanh(tension_wave_number * 4000) / tension_wave_number),
+        0.0001,
+    )
+    record(
+        "Appendix E.2(b) no positive buckling mode for tension pattern",
+        int(tension_values["elastic_buckling_load_factor"] is None),
+        1,
+    )
+    record(
+        "Appendix E.2(b) tension-column mesh convergence threshold",
+        int(tension_values["relative_mesh_difference"] <= 0.001),
+        1,
     )
 
     def frame_stiffness_inputs(frame_type="braced", column_base_condition="not_column_base"):
