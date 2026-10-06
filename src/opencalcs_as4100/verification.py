@@ -1829,6 +1829,40 @@ def verify():
         int(symbolic_values["beta_m_figure_reference"] == "Figure 4.4.2.2(B)"),
         1,
     )
+    for curvature, expected_beta_m, expected_cm, expected_factor in (
+        ("reverse_curvature", 0.4, 0.44, 1.1),
+        ("single_curvature", -0.4, 0.76, 1.9),
+    ):
+        end_moment_result = run_design_actions(
+            {
+                "operation": "moment_amplification",
+                "compression_kn": 600,
+                "elastic_buckling_load_kn": 1000,
+                "end_moment_1_abs_knm": 20,
+                "end_moment_2_abs_knm": 50,
+                "end_moment_curvature": curvature,
+                "end_moments_only_verified": True,
+                "end_moment_curvature_verified": True,
+                "end_moment_evidence_reference": "VERIFY-END-MOMENT-DISTRIBUTION-01",
+                "first_order_moment_knm": 50,
+            }
+        )
+        values = end_moment_result["values"]
+        record(
+            f"Clause 4.4.2.2 {curvature} end-moment beta_m ratio",
+            values["beta_m"],
+            expected_beta_m,
+        )
+        record(
+            f"Clause 4.4.2.2 {curvature} end-moment Cm",
+            values["cm"],
+            expected_cm,
+        )
+        record(
+            f"Clause 4.4.2.2 {curvature} end-moment amplification factor",
+            values["braced_factor"],
+            expected_factor,
+        )
     idealized_restraint_cases = {
         "braced_fixed_fixed": 0.7,
         "braced_top_pinned_bottom_fixed": 0.85,

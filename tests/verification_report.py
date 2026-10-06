@@ -282,6 +282,50 @@ def clause_4_4_2_2_axial_tension_no_amplification():
     return {"governing_factor": 1, "amplified_moment_knm": 20}
 
 
+def clause_4_4_2_2_end_moment_ratio():
+    observations = {}
+    cases = {
+        "reverse_curvature": (0.4, 0.44, 1.1, 55.0),
+        "single_curvature": (-0.4, 0.76, 1.9, 95.0),
+    }
+    for curvature, (
+        expected_beta_m,
+        expected_cm,
+        expected_factor,
+        expected_moment,
+    ) in cases.items():
+        result = run_design_actions(
+            {
+                "operation": "moment_amplification",
+                "compression_kn": 600,
+                "elastic_buckling_load_kn": 1000,
+                "end_moment_1_abs_knm": 20,
+                "end_moment_2_abs_knm": 50,
+                "end_moment_curvature": curvature,
+                "end_moments_only_verified": True,
+                "end_moment_curvature_verified": True,
+                "end_moment_evidence_reference": "BENCHMARK-END-MOMENT-DISTRIBUTION-01",
+                "first_order_moment_knm": 50,
+            }
+        )
+        values = result["values"]
+        expect_close(values["beta_m_end_moment_ratio"], 20 / 50)
+        expect_close(values["beta_m"], expected_beta_m)
+        expect_close(values["cm"], expected_cm)
+        expect_close(values["braced_factor"], expected_factor)
+        expect_close(values["amplified_moment_knm"], expected_moment)
+        if values["end_moment_curvature"] != curvature:
+            raise AssertionError(
+                "Clause 4.4.2.2 end-moment curvature route lost its classification"
+            )
+        observations[curvature] = {
+            "beta_m": values["beta_m"],
+            "cm": values["cm"],
+            "braced_factor": values["braced_factor"],
+        }
+    return observations
+
+
 def clause_4_4_2_2_figure_beta_m_cases():
     cases = {
         "figure_a_left_1": -1.0,
@@ -4902,6 +4946,7 @@ def main():
         "clause_9_6_3_4_fillet_macro_test_throat": fillet_macro_test_throat,
         "clause_4_4_2_2_c_deflection_ratio": clause_4_4_2_2_c_deflection_ratio,
         "clause_4_4_2_2_figure_beta_m_cases": clause_4_4_2_2_figure_beta_m_cases,
+        "clause_4_4_2_2_end_moment_ratio": clause_4_4_2_2_end_moment_ratio,
         "clause_4_4_2_2_a_conservative_transverse_load": (
             clause_4_4_2_2_a_conservative_transverse_load
         ),

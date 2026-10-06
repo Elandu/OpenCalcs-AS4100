@@ -1453,6 +1453,48 @@
       "passed": true
     },
     {
+      "name": "Clause 4.4.2.2 reverse_curvature end-moment beta_m ratio",
+      "actual": 0.4,
+      "expected": 0.4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.2.2 reverse_curvature end-moment Cm",
+      "actual": 0.43999999999999995,
+      "expected": 0.44,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.2.2 reverse_curvature end-moment amplification factor",
+      "actual": 1.0999999999999999,
+      "expected": 1.1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.2.2 single_curvature end-moment beta_m ratio",
+      "actual": -0.4,
+      "expected": -0.4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.2.2 single_curvature end-moment Cm",
+      "actual": 0.76,
+      "expected": 0.76,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.2.2 single_curvature end-moment amplification factor",
+      "actual": 1.9,
+      "expected": 1.9,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Figure 4.6.3.2 idealized restraint factor: braced_fixed_fixed",
       "actual": 0.7,
       "expected": 0.7,

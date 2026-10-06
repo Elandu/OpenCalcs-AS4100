@@ -881,6 +881,70 @@ def test_clause_4_4_2_2_figure_b_left_row_6_uses_supplied_symbolic_beta():
     assert result["clauses"] == ["4.4.1.2", "4.4.2.2"]
 
 
+@pytest.mark.parametrize(
+    ("curvature", "expected_beta_m", "expected_cm", "expected_factor"),
+    [
+        ("reverse_curvature", 0.4, 0.44, 1.1),
+        ("single_curvature", -0.4, 0.76, 1.9),
+    ],
+)
+def test_clause_4_4_2_2_end_moment_ratio(curvature, expected_beta_m, expected_cm, expected_factor):
+    result = run(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "end_moment_1_abs_knm": 20,
+            "end_moment_2_abs_knm": 50,
+            "end_moment_curvature": curvature,
+            "end_moments_only_verified": True,
+            "end_moment_curvature_verified": True,
+            "end_moment_evidence_reference": "BENCHMARK-END-MOMENT-DISTRIBUTION-01",
+            "first_order_moment_knm": 50,
+        }
+    )
+    values = result["values"]
+
+    assert values["beta_m"] == pytest.approx(expected_beta_m)
+    assert values["beta_m_end_moment_ratio"] == pytest.approx(0.4)
+    assert values["end_moment_curvature"] == curvature
+    assert values["beta_m_method"] == "4.4.2.2_end_moment_ratio"
+    assert values["cm"] == pytest.approx(expected_cm)
+    assert values["braced_factor"] == pytest.approx(expected_factor)
+    assert values["amplified_moment_knm"] == pytest.approx(50 * expected_factor)
+    assert result["clauses"] == ["4.4.1.2", "4.4.2.2"]
+
+
+def test_clause_4_4_2_2_end_moment_ratio_requires_consistent_complete_evidence():
+    inputs = {
+        "operation": "moment_amplification",
+        "compression_kn": 600,
+        "elastic_buckling_load_kn": 1000,
+        "end_moment_1_abs_knm": 20,
+        "end_moment_2_abs_knm": 50,
+        "end_moment_curvature": "reverse_curvature",
+        "end_moments_only_verified": True,
+        "end_moment_curvature_verified": True,
+        "end_moment_evidence_reference": "BENCHMARK-END-MOMENT-DISTRIBUTION-01",
+        "first_order_moment_knm": 50,
+    }
+    with pytest.raises(ValueError, match="larger absolute end moment"):
+        run({**inputs, "first_order_moment_knm": 49})
+    with pytest.raises(ValueError, match="cannot be combined with another beta basis"):
+        run({**inputs, "beta_m": 0.4})
+    with pytest.raises(ValueError, match="both moment magnitudes"):
+        run({key: value for key, value in inputs.items() if key != "end_moment_evidence_reference"})
+    with pytest.raises(ValueError, match="non-zero end moment"):
+        run(
+            {
+                **inputs,
+                "end_moment_1_abs_knm": 0,
+                "end_moment_2_abs_knm": 0,
+                "first_order_moment_knm": 0,
+            }
+        )
+
+
 @pytest.mark.parametrize("axial_force_kn", [0, -50])
 def test_clause_4_4_2_2_zero_or_tensile_axial_force_needs_no_braced_amplification_inputs(
     axial_force_kn,

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """AS 4100 sections 3/4 numerical design-action checks, reviewed against scanned text."""
 
-from math import isfinite, pi, tan
+from math import isclose, isfinite, pi, tan
 
 from .standards import ELASTIC_MODULUS_MPA
 from .validation import NONNEGATIVE, POSITIVE, SIGNED, object_schema, result, validate
@@ -427,6 +427,12 @@ SCHEMAS = {
             "elastic_buckling_load_kn": POSITIVE,
             "beta_m": {"type": "number", "minimum": -1, "maximum": 1},
             "beta_m_figure_case": {"enum": [*_BETA_M_FIGURE_CASES, "figure_b_left_6"]},
+            "end_moment_1_abs_knm": NONNEGATIVE,
+            "end_moment_2_abs_knm": NONNEGATIVE,
+            "end_moment_curvature": {"enum": ["single_curvature", "reverse_curvature"]},
+            "end_moments_only_verified": {"const": True},
+            "end_moment_curvature_verified": {"const": True},
+            "end_moment_evidence_reference": _REFERENCE,
             "conservative_transverse_beta_m": {"const": True},
             "delta_ct_mm": NONNEGATIVE,
             "delta_cw_mm": POSITIVE,
@@ -1352,16 +1358,34 @@ def run_design_actions(inputs):
         has_delta_ct = "delta_ct_mm" in d
         has_delta_cw = "delta_cw_mm" in d
         has_figure_beta = "beta_m_figure_case" in d
+        end_moment_fields = (
+            "end_moment_1_abs_knm",
+            "end_moment_2_abs_knm",
+            "end_moment_curvature",
+            "end_moments_only_verified",
+            "end_moment_curvature_verified",
+            "end_moment_evidence_reference",
+        )
+        end_moment_fields_present = [field in d for field in end_moment_fields]
+        if any(end_moment_fields_present) and not all(end_moment_fields_present):
+            raise ValueError(
+                "The end-moment ratio route requires both moment magnitudes, curvature "
+                "classification and verification evidence."
+            )
+        has_end_moment_ratio = all(end_moment_fields_present)
         if has_delta_ct != has_delta_cw:
             raise ValueError("Clause 4.4.2.2(c) requires both delta_ct_mm and delta_cw_mm.")
-        if has_conservative_beta and (has_delta_ct or "beta_m" in d or has_figure_beta):
+        if has_conservative_beta and (
+            has_delta_ct or "beta_m" in d or has_figure_beta or has_end_moment_ratio
+        ):
             raise ValueError(
                 "Use the Clause 4.4.2.2(a) route alone; do not combine it with "
-                "beta_m, a figure case or deflections."
+                "beta_m, a figure case, end moments or deflections."
             )
-        if has_delta_ct and ("beta_m" in d or has_figure_beta):
+        if has_delta_ct and ("beta_m" in d or has_figure_beta or has_end_moment_ratio):
             raise ValueError(
-                "Supply beta_m or a figure case, or the Clause 4.4.2.2(c) deflections, not both."
+                "Supply beta_m, a figure case or end moments, or the Clause 4.4.2.2(c) "
+                "deflections, not both."
             )
         symbolic_figure_beta = has_figure_beta and d["beta_m_figure_case"] == "figure_b_left_6"
         if symbolic_figure_beta and "beta_m" not in d:
@@ -1370,7 +1394,13 @@ def run_design_actions(inputs):
             )
         if has_figure_beta and "beta_m" in d and not symbolic_figure_beta:
             raise ValueError("A numeric figure case cannot be combined with a separate beta_m.")
+        if has_end_moment_ratio and ("beta_m" in d or has_figure_beta):
+            raise ValueError(
+                "The end-moment ratio route cannot be combined with another beta basis."
+            )
         beta_m_figure_reference = None
+        beta_m_end_moment_ratio = None
+        end_moment_curvature = None
         if has_delta_ct:
             beta_m = 1 - 2 * d["delta_ct_mm"] / d["delta_cw_mm"]
             if not -1 <= beta_m <= 1:
@@ -1390,6 +1420,28 @@ def run_design_actions(inputs):
                 beta_m_method = "4.4.2.2_figure_lookup"
             figure = "A" if d["beta_m_figure_case"].startswith("figure_a_") else "B"
             beta_m_figure_reference = f"Figure 4.4.2.2({figure})"
+        elif has_end_moment_ratio:
+            larger_end_moment = max(d["end_moment_1_abs_knm"], d["end_moment_2_abs_knm"])
+            if larger_end_moment <= 0:
+                raise ValueError("The end-moment ratio requires at least one non-zero end moment.")
+            if not isclose(
+                abs(d["first_order_moment_knm"]),
+                larger_end_moment,
+                rel_tol=1e-9,
+                abs_tol=1e-9,
+            ):
+                raise ValueError(
+                    "For end moments only, first_order_moment_knm must equal the larger "
+                    "absolute end moment."
+                )
+            beta_m_end_moment_ratio = (
+                min(d["end_moment_1_abs_knm"], d["end_moment_2_abs_knm"]) / larger_end_moment
+            )
+            end_moment_curvature = d["end_moment_curvature"]
+            beta_m = beta_m_end_moment_ratio * (
+                1 if end_moment_curvature == "reverse_curvature" else -1
+            )
+            beta_m_method = "4.4.2.2_end_moment_ratio"
         elif "beta_m" in d:
             beta_m = d["beta_m"]
             beta_m_method = "supplied"
@@ -1444,6 +1496,8 @@ def run_design_actions(inputs):
                 "beta_m_method": beta_m_method,
                 "beta_m_figure_case": d.get("beta_m_figure_case"),
                 "beta_m_figure_reference": beta_m_figure_reference,
+                "beta_m_end_moment_ratio": beta_m_end_moment_ratio,
+                "end_moment_curvature": end_moment_curvature,
                 "delta_ct_mm": d.get("delta_ct_mm"),
                 "delta_cw_mm": d.get("delta_cw_mm"),
                 "cm": cm,
@@ -1457,7 +1511,9 @@ def run_design_actions(inputs):
             limitations=[
                 "Factors above 1.4 require second-order analysis; values are diagnostic only.",
                 "Reverse curvature is positive beta_m. When beta_m is supplied, verify it under "
-                "the applicable Clause 4.4.2.2 end-moment or transverse-load method.",
+                "the applicable Clause 4.4.2.2 end-moment or transverse-load method. The "
+                "end-moment ratio route requires a verified end-moments-only case and curvature "
+                "classification; these supplied analysis facts are not authenticated.",
                 "Deflections used for the Clause 4.4.2.2(c) route are supplied analysis results; "
                 "this operation does not perform the elastic member analysis or determine the "
                 "first-order maximum moment from the actual load distribution.",

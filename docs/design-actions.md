@@ -96,11 +96,12 @@ without a braced-member amplification factor, `beta_m`, or elastic buckling
 load. A supplied sway factor is still applied and checked separately.
 
 Supply `beta_m`, `beta_m_figure_case` for a distribution in Figure
-4.4.2.2(A)/(B), `conservative_transverse_beta_m: true` for the
-Clause 4.4.2.2(a) choice `beta_m = -1`, or both deflections for the
-Clause 4.4.2.2(c) route. These routes are mutually exclusive, except the
-symbolic Figure B, left, row 6 case. The figure-case identifier uses the panel
-side and top-to-bottom row number. For that symbolic case, set
+4.4.2.2(A)/(B), both end-moment magnitudes for the end-moments-only route,
+`conservative_transverse_beta_m: true` for the Clause 4.4.2.2(a) choice
+`beta_m = -1`, or both deflections for the Clause 4.4.2.2(c) route. These
+routes are mutually exclusive, except the symbolic Figure B, left, row 6 case.
+The figure-case identifier uses the panel side and top-to-bottom row number.
+For that symbolic case, set
 `beta_m_figure_case` to `figure_b_left_6` and supply the signed ratio of the
 smaller to larger end moment in `beta_m`; the Standard defines it as positive
 for reverse curvature, and the figure gives `beta_m = beta`. Select the
@@ -113,6 +114,16 @@ operation calculates `beta_m = 1 - 2(delta_ct_mm / delta_cw_mm)` and enforces
 the Standard's `-1 <= beta_m <= 1` limit. Do not provide `beta_m` together
 with these deflections. The direct `beta_m` route accepts an independently
 assessed value and does not verify its basis.
+
+For the end-moments-only route, provide nonnegative `end_moment_1_abs_knm` and
+`end_moment_2_abs_knm`, `end_moment_curvature` as `single_curvature` or
+`reverse_curvature`, `end_moments_only_verified: true`,
+`end_moment_curvature_verified: true`, and an evidence reference. The operation
+calculates the smaller-to-larger magnitude ratio, assigning a positive sign for
+reverse curvature. It requires `first_order_moment_knm` to equal the larger
+end-moment magnitude. Use this route only when the member has end moments and
+no transverse loading; the calculation does not authenticate the analysis or
+curvature classification.
 
 | `beta_m_figure_case` | `beta_m` |
 | --- | ---: |
