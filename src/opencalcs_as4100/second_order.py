@@ -81,6 +81,9 @@ def _element_distributed_load_vector(member_loads, element):
             integration_weight = (
                 length * (active_end - active_start) / element_fraction_length * weight / 2
             )
+            axial_force = member_load.get("axial_force_kn_per_m", 0.0)
+            local_load[0] += (1 - local_fraction) * axial_force * integration_weight
+            local_load[3] += local_fraction * axial_force * integration_weight
             for index, dof in enumerate((1, 2, 4, 5)):
                 local_load[dof] += shape_functions[index] * force * integration_weight
     return local_load
@@ -389,11 +392,44 @@ def _validate_frame_model(inputs):
             raise ValueError(
                 "Distributed member-load fractions must satisfy 0 <= start < end <= 1."
             )
+        if member_load.get("axial_force_kn_per_m", 0.0) and (
+            member_load["start_fraction"] != 0 or member_load["end_fraction"] != 1
+        ):
+            raise ValueError("Axial distributed member loads must cover the complete member span.")
+
+
+def _validate_axial_load_force_profiles(inputs):
+    joints = {joint["joint_id"]: joint for joint in inputs["joints"]}
+    loads_by_member = _member_loads_by_id(inputs)
+    for member in inputs["members"]:
+        member_loads = loads_by_member.get(member["member_id"], [])
+        axial_load = sum(load.get("axial_force_kn_per_m", 0.0) for load in member_loads)
+        if axial_load == 0:
+            continue
+        start = joints[member["start_joint_id"]]
+        end = joints[member["end_joint_id"]]
+        length_m = (
+            sqrt((end["x_mm"] - start["x_mm"]) ** 2 + (end["y_mm"] - start["y_mm"]) ** 2) / 1000
+        )
+        profile = (
+            member["axial_force_profile_kn"]
+            if "axial_force_profile_kn" in member
+            else [member["axial_force_kn"], member["axial_force_kn"]]
+        )
+        profile_change = profile[1] - profile[0]
+        load_resultant = axial_load * length_m
+        tolerance = 1e-7 * max(1.0, abs(profile_change), abs(load_resultant))
+        if abs(profile_change - load_resultant) > tolerance:
+            raise ValueError(
+                "The assessed axial-force profile must satisfy N_end - N_start = the "
+                "signed local axial distributed-load resultant for each member."
+            )
 
 
 def run_second_order_frame_analysis(inputs):
     """Solve the planar linearized second-order response for one assessed load set."""
     _validate_frame_model(inputs)
+    _validate_axial_load_force_profiles(inputs)
 
     mesh_results = []
     previous = None

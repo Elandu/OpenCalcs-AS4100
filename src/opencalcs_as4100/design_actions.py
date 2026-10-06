@@ -364,9 +364,20 @@ _FRAME_DISTRIBUTED_MEMBER_LOAD = object_schema(
         "end_fraction": {"type": "number", "minimum": 0, "maximum": 1},
         "transverse_force_start_kn_per_m": SIGNED,
         "transverse_force_end_kn_per_m": SIGNED,
+        "axial_force_kn_per_m": SIGNED,
         "member_load_verified": _BOOL,
         "evidence_reference": _REFERENCE,
-    }
+    },
+    required=[
+        "load_id",
+        "member_id",
+        "start_fraction",
+        "end_fraction",
+        "transverse_force_start_kn_per_m",
+        "transverse_force_end_kn_per_m",
+        "member_load_verified",
+        "evidence_reference",
+    ],
 )
 _E2_SUPERPOSITION_DISTRIBUTED_LOAD = object_schema(
     {
@@ -1874,10 +1885,13 @@ def run_design_actions(inputs):
                 "linearization captures the required second-order response.",
                 "Joint forces and moments must be the complete applied design actions resolved "
                 "at every listed joint. Piecewise-linear transverse member loads are applied "
-                "in local member axes over verified fractions of each member. The operation "
-                "does not derive or check equilibrium between these actions and the supplied "
+                "in local member axes over verified fractions of each member. Uniform local-axis "
+                "axial distributed loads are supported over a complete member span when their "
+                "signed resultant matches the change in the assessed compression-positive "
+                "member axial-force profile. Partial-span and varying axial distributed loads "
+                "remain outside this route. The operation "
+                "does not derive or check equilibrium between joint actions and the supplied "
                 "member axial-force pattern; supply an evidenced equilibrium assessment. "
-                "Axial distributed member loads, "
                 "member-end releases, connection flexibility, shear "
                 "deformation, initial imperfections, residual stresses, and material "
                 "nonlinearity are outside this model.",
@@ -1989,10 +2003,11 @@ def run_design_actions(inputs):
                 "stepping. The model assumes small axial strain and constant elastic modulus "
                 "of 200 000 MPa; only stable equilibrium paths are accepted.",
                 "Nodal actions remain fixed in global directions. Piecewise-linear transverse "
-                "loads act in the initial local axes of each member. Axial distributed loads, "
-                "follower loads, member-end releases, semi-rigid connections, shear deformation, "
-                "initial imperfections, residual stress, material nonlinearity, and out-of-plane "
-                "or torsional response are outside this model.",
+                "loads and uniform full-span axial distributed loads act in the initial local "
+                "axes of each member. Partial-span or varying axial distributed loads, follower "
+                "loads, member-end releases, semi-rigid connections, shear deformation, initial "
+                "imperfections, residual stress, material nonlinearity, and out-of-plane or "
+                "torsional response are outside this model.",
                 "The reported element-end moments and axial forces are analysis actions. This "
                 "operation does not calculate section or member capacities, apply any separate "
                 "Clause 4.4.2.2 member moment amplification required for design, or establish "

@@ -455,6 +455,122 @@ def test_second_order_elastic_frame_transforms_member_loads_to_global_axes():
     assert values["global_equilibrium"]["satisfied"]
 
 
+def _axially_distributed_second_order_column():
+    inputs = second_order_elastic_frame()
+    inputs["members"][0]["axial_force_profile_kn"] = [50, 0]
+    inputs["joint_actions"][1]["force_y_kn"] = 0
+    inputs["distributed_member_loads"] = [
+        {
+            "load_id": "COL-AXIAL-UDL-01",
+            "member_id": "COL-01",
+            "start_fraction": 0,
+            "end_fraction": 1,
+            "transverse_force_start_kn_per_m": 0,
+            "transverse_force_end_kn_per_m": 0,
+            "axial_force_kn_per_m": -12.5,
+            "member_load_verified": True,
+            "evidence_reference": "AXIAL-UDL-01",
+        }
+    ]
+    return inputs
+
+
+def _linear_axial_force_column_reference():
+    """Integrate the continuous beam-column transfer equations with RK4."""
+    length_mm = 4000.0
+    elastic_modulus_mpa = 200_000.0
+    second_moment_mm4 = 8e6
+    axial_start_n = 50_000.0
+    axial_end_n = 0.0
+    tip_force_n = 10_000.0
+    steps = 4000
+    step_mm = length_mm / steps
+    ei = elastic_modulus_mpa * second_moment_mm4
+
+    def integrate(initial_moment_nmm, initial_shear_n):
+        state = [0.0, 0.0, initial_moment_nmm, initial_shear_n]
+
+        def derivative(position_mm, values):
+            axial_n = axial_start_n + (axial_end_n - axial_start_n) * position_mm / length_mm
+            displacement, rotation, moment_nmm, shear_n = values
+            return [rotation, moment_nmm / ei, shear_n - axial_n * rotation, 0.0]
+
+        for index in range(steps):
+            position_mm = index * step_mm
+            k1 = derivative(position_mm, state)
+            k2 = derivative(
+                position_mm + step_mm / 2,
+                [value + step_mm * slope / 2 for value, slope in zip(state, k1, strict=True)],
+            )
+            k3 = derivative(
+                position_mm + step_mm / 2,
+                [value + step_mm * slope / 2 for value, slope in zip(state, k2, strict=True)],
+            )
+            k4 = derivative(
+                position_mm + step_mm,
+                [value + step_mm * slope for value, slope in zip(state, k3, strict=True)],
+            )
+            state = [
+                value + step_mm * (slope_1 + 2 * slope_2 + 2 * slope_3 + slope_4) / 6
+                for value, slope_1, slope_2, slope_3, slope_4 in zip(
+                    state, k1, k2, k3, k4, strict=True
+                )
+            ]
+        return state
+
+    load_response = integrate(0.0, -tip_force_n)
+    unit_moment_response = integrate(1.0, 0.0)
+    base_moment_nmm = -load_response[2] / unit_moment_response[2]
+    tip_displacement_mm = integrate(base_moment_nmm, -tip_force_n)[0]
+    return abs(base_moment_nmm) / 1_000_000.0, abs(tip_displacement_mm)
+
+
+def test_second_order_elastic_frame_applies_uniform_axial_member_load():
+    values = run(_axially_distributed_second_order_column())["values"]
+    reference_moment_knm, reference_tip_displacement_mm = _linear_axial_force_column_reference()
+
+    assert values["global_equilibrium"]["satisfied"]
+    assert values["support_reactions"][0]["force_y_kn"] == pytest.approx(50)
+    assert values["member_axial_force_pattern"][0]["axial_force_profile_kn"] == [50, 0]
+    assert values["relative_mesh_difference"] <= 0.001
+    assert values["member_moments"][0]["maximum_absolute_element_end_moment_knm"] == pytest.approx(
+        reference_moment_knm, rel=1e-6
+    )
+    assert abs(values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(
+        reference_tip_displacement_mm, rel=1e-6
+    )
+
+
+def test_second_order_elastic_frame_checks_axial_load_force_profile_equilibrium():
+    inputs = _axially_distributed_second_order_column()
+    inputs["distributed_member_loads"][0]["axial_force_kn_per_m"] = -10
+
+    with pytest.raises(ValueError, match="must satisfy N_end - N_start"):
+        run(inputs)
+
+
+def test_axial_distributed_member_load_requires_full_member_span():
+    inputs = _axially_distributed_second_order_column()
+    inputs["distributed_member_loads"][0]["start_fraction"] = 0.1
+
+    with pytest.raises(ValueError, match="complete member span"):
+        run(inputs)
+
+
+def test_iterative_second_order_frame_applies_uniform_axial_member_load():
+    inputs = iterative_second_order_elastic_frame()
+    inputs["joint_actions"][1]["force_y_kn"] = 0
+    inputs["distributed_member_loads"] = _axially_distributed_second_order_column()[
+        "distributed_member_loads"
+    ]
+
+    values = run(inputs)["values"]
+
+    assert values["global_equilibrium"]["satisfied"]
+    assert values["support_reactions"][0]["force_y_kn"] == pytest.approx(50)
+    assert values["relative_mesh_difference"] <= 0.001
+
+
 def test_second_order_elastic_frame_rejects_invalid_distributed_member_load():
     inputs = second_order_uniform_member_load_frame()
     inputs["distributed_member_loads"][0]["end_fraction"] = 0

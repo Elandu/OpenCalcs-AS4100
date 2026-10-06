@@ -165,13 +165,15 @@ member-force pattern or analysis assumptions are complete or correct.
 `distributed_member_loads` is a complete, possibly empty load list. Each item
 identifies a member and a span from `start_fraction` to `end_fraction`, measured
 from that member's start joint, plus the transverse force per unit length at
-each end. The force varies linearly over that span, acts in the member's local
-positive y direction, and is entered in kN/m; loads with overlapping spans
-superpose. A three-point Gauss integration assembles consistent member loads
-on each refined element and recovers element-end actions after subtracting
-those loads. Set `all_distributed_member_loads_listed_verified` and each
+each end. The transverse force varies linearly over that span and acts in the
+member's local positive y direction. An optional `axial_force_kn_per_m` adds
+a uniform load along the member's local positive x direction; it is supported
+only over the complete member span. Forces are entered in kN/m and overlapping
+loads superpose. A three-point Gauss integration assembles consistent member
+loads on each refined element and recovers element-end actions after
+subtracting those loads. Set `all_distributed_member_loads_listed_verified` and each
 `member_load_verified` only after assessing the full member-load inventory and
-its evidence. Axial distributed loads are not supported.
+its evidence.
 
 Use a complete planar frame of prismatic Euler-Bernoulli members with rigid
 connections at shared joints. The elastic modulus is fixed at 200 000 MPa.
@@ -180,7 +182,11 @@ restraints in `ux`, `uy` and `rz`, and one complete `joint_actions` record for
 each joint. Joint forces are in kN and moments in kN·m. The member's
 `axial_force_kn` or `[N_start, N_end]` profile is separately supplied in kN,
 ordered from `start_joint_id` to `end_joint_id`; compression is positive and
-tension is negative. Include every nodal applied design action in the
+tension is negative. When a uniform axial distributed load is present, the
+profile must satisfy `N_end - N_start = q L`, where `q` is the signed sum of
+the local axial load intensities in kN/m and `L` is member length in metres.
+The linearized route checks this relation and uses the assessed profile for
+geometric stiffness. Include every nodal applied design action in the
 joint-action vector, including the axial actions that correspond to the
 member-force pattern. Define non-nodal transverse actions in
 `distributed_member_loads`. The solver rejects a design load set whose elastic buckling factor
@@ -199,10 +205,11 @@ calculation records these assessments but does not establish them, derive the
 member-force pattern from the applied actions, or authenticate the evidence.
 Members' elastic response is also an evidenced input, not a capacity check.
 
-Axial distributed member loads, member-end releases, connection flexibility, shear
-deformation, initial imperfections, residual stress, material nonlinearity,
-out-of-plane and torsional response, iterative second-order analysis and
-member design capacities remain outside this model. Do not use it as a full
+Partial-span or varying axial distributed member loads, member-end releases,
+connection flexibility, shear deformation, initial imperfections, residual
+stress, material nonlinearity, out-of-plane and torsional response, iterative
+second-order analysis and member design capacities remain outside this model.
+Do not use it as a full
 Appendix E analysis where the fixed-force linearization is not adequate; use
 an independently verified second-order model that accounts for the required
 geometry and axial-force changes. The operation does not determine load
@@ -221,6 +228,15 @@ moment; the refined calculation agrees within the stated benchmark tolerance.
 This is also an independent analytic verification case, not a Standard worked
 example.
 
+The uniform axial-load check applies a local axial load of -12.5 kN/m over the
+same member, producing an assessed compression-force profile from 50 kN at the
+base to zero at the tip, together with a 10 kN transverse tip action. An
+independent fourth-order Runge-Kutta integration of the continuous
+beam-column transfer equations gives a 42.671682 kN·m base moment and a
+142.233582 mm tip displacement; the refined finite-element result agrees
+within 0.0001%. This is an independent numerical verification case, not a
+Standard worked example.
+
 ## Iterative corotational second-order elastic frame analysis
 
 `iterative_second_order_elastic_frame_analysis` solves a proportional design
@@ -234,11 +250,13 @@ result is returned.
 The model is limited to a complete, in-plane, rigidly connected frame of
 prismatic Euler-Bernoulli members with small axial strain and elastic modulus
 `E=200000 MPa`. Every joint needs one complete action record. Transverse
-distributed loads act in each member's initial local axes; nodal actions remain
-fixed in global directions. The solver accepts only stable equilibrium paths.
-It does not model axial distributed loads, follower loads, member-end releases,
+distributed loads act in each member's initial local axes; uniform axial
+distributed loads are supported over a complete member span and act along its
+initial local x axis. Nodal actions remain fixed in global directions. Partial
+or varying axial distributed loads, follower loads, member-end releases,
 semi-rigid connections, shear deformation, initial imperfections, residual
-stress, yielding, out-of-plane response, or torsion. Assess these assumptions
+stress, yielding, out-of-plane response, and torsion remain outside the model.
+The solver accepts only stable equilibrium paths. Assess these assumptions
 for the actual design case and set
 `corotational_method_applicability_verified` only with supporting engineering
 evidence.
