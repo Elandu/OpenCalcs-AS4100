@@ -67,6 +67,43 @@ STEEL_CASTING_CONFORMITY_SCHEMA = object_schema(
         "conformity_evidence_reference",
     ],
 )
+FASTENER_PRODUCT_CONFORMITY_SCHEMA = object_schema(
+    {
+        "operation": {"const": "fastener_product_conformity"},
+        "item_or_assembly_identifier": {"type": "string", "minLength": 1, "maxLength": 100},
+        "component_type": {
+            "enum": [
+                "bolt_or_screw",
+                "nut",
+                "washer",
+                "high_strength_bolting_assembly",
+                "galvanized_tower_bolting_assembly",
+            ]
+        },
+        "product_standard": {
+            "enum": [
+                "AS 1110",
+                "AS 1111",
+                "AS 1112",
+                "AS 1237.1",
+                "AS/NZS 1252.1",
+                "AS/NZS 1559",
+            ]
+        },
+        "product_standard_applicability_verified": {"type": "boolean"},
+        "conformity_certificate_verified": {"type": "boolean"},
+        "conformity_evidence_reference": {"type": ["string", "null"], "maxLength": 2000},
+    },
+    required=[
+        "operation",
+        "item_or_assembly_identifier",
+        "component_type",
+        "product_standard",
+        "product_standard_applicability_verified",
+        "conformity_certificate_verified",
+        "conformity_evidence_reference",
+    ],
+)
 DESIGN_PROPERTIES_SCHEMA = object_schema({"operation": {"const": "design_properties"}})
 THROUGH_THICKNESS_SCHEMA = object_schema(
     {
@@ -187,6 +224,112 @@ STEEL_CASTING_CONFORMITY_OUTPUT_SCHEMA = {
             "minItems": 1,
             "maxItems": 1,
             "items": _STEEL_CASTING_CONFORMITY_CHECK,
+        },
+        "checked_conditions_satisfied": {"type": "boolean"},
+        "full_standard_compliance": {"const": False},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+_FASTENER_PRODUCT_CONFORMITY_CHECK = {
+    "type": "object",
+    "required": [
+        "clause",
+        "component_type",
+        "product_standard",
+        "standard_listed_for_component",
+        "product_standard_applicability_verified",
+        "conformity_certificate_verified",
+        "evidence_reference",
+        "satisfied",
+    ],
+    "properties": {
+        "clause": {"const": "2.3.1"},
+        "component_type": {
+            "enum": [
+                "bolt_or_screw",
+                "nut",
+                "washer",
+                "high_strength_bolting_assembly",
+                "galvanized_tower_bolting_assembly",
+            ]
+        },
+        "product_standard": {
+            "enum": [
+                "AS 1110",
+                "AS 1111",
+                "AS 1112",
+                "AS 1237.1",
+                "AS/NZS 1252.1",
+                "AS/NZS 1559",
+            ]
+        },
+        "standard_listed_for_component": {"type": "boolean"},
+        "product_standard_applicability_verified": {"type": "boolean"},
+        "conformity_certificate_verified": {"type": "boolean"},
+        "evidence_reference": {"type": ["string", "null"]},
+        "satisfied": {"type": "boolean"},
+    },
+    "additionalProperties": False,
+}
+FASTENER_PRODUCT_CONFORMITY_OUTPUT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "standard",
+        "operation",
+        "values",
+        "clauses",
+        "checks",
+        "checked_conditions_satisfied",
+        "full_standard_compliance",
+        "warnings",
+    ],
+    "properties": {
+        "standard": {"const": "AS 4100:2020"},
+        "operation": {"const": "fastener_product_conformity"},
+        "values": {
+            "type": "object",
+            "required": [
+                "item_or_assembly_identifier",
+                "component_type",
+                "product_standard",
+                "product_standard_applicability_verified",
+                "conformity_certificate_verified",
+                "conformity_evidence_reference",
+            ],
+            "properties": {
+                "item_or_assembly_identifier": {"type": "string", "minLength": 1},
+                "component_type": {
+                    "enum": [
+                        "bolt_or_screw",
+                        "nut",
+                        "washer",
+                        "high_strength_bolting_assembly",
+                        "galvanized_tower_bolting_assembly",
+                    ]
+                },
+                "product_standard": {
+                    "enum": [
+                        "AS 1110",
+                        "AS 1111",
+                        "AS 1112",
+                        "AS 1237.1",
+                        "AS/NZS 1252.1",
+                        "AS/NZS 1559",
+                    ]
+                },
+                "product_standard_applicability_verified": {"type": "boolean"},
+                "conformity_certificate_verified": {"type": "boolean"},
+                "conformity_evidence_reference": {"type": ["string", "null"]},
+            },
+            "additionalProperties": False,
+        },
+        "clauses": {"const": ["2.3.1"]},
+        "checks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": _FASTENER_PRODUCT_CONFORMITY_CHECK,
         },
         "checked_conditions_satisfied": {"type": "boolean"},
         "full_standard_compliance": {"const": False},
@@ -424,6 +567,7 @@ INPUT_SCHEMA = {
     "oneOf": [
         TABLED_STRENGTH_SCHEMA,
         STEEL_CASTING_CONFORMITY_SCHEMA,
+        FASTENER_PRODUCT_CONFORMITY_SCHEMA,
         DESIGN_PROPERTIES_SCHEMA,
         THROUGH_THICKNESS_SCHEMA,
         APPENDIX_M_THROUGH_THICKNESS_SCHEMA,
@@ -492,6 +636,7 @@ OUTPUT_SCHEMA = {
     "oneOf": [
         TABLED_STRENGTH_OUTPUT_SCHEMA,
         STEEL_CASTING_CONFORMITY_OUTPUT_SCHEMA,
+        FASTENER_PRODUCT_CONFORMITY_OUTPUT_SCHEMA,
         DESIGN_PROPERTIES_OUTPUT_SCHEMA,
         THROUGH_THICKNESS_OUTPUT_SCHEMA,
         APPENDIX_M_THROUGH_THICKNESS_OUTPUT_SCHEMA,
@@ -616,6 +761,8 @@ def run_materials(inputs: Mapping) -> dict:
     validate_standard_strengths(data)
     if data["operation"] == "steel_casting_conformity":
         return _steel_casting_conformity(data)
+    if data["operation"] == "fastener_product_conformity":
+        return _fastener_product_conformity(data)
     if data["operation"] == "design_properties":
         return _design_properties()
     if data["operation"] == "through_thickness_deformation":
@@ -699,6 +846,74 @@ def _steel_casting_conformity(data: Mapping) -> dict:
             "for the casting; this operation does not calculate them.",
         ],
     }
+    Draft202012Validator(OUTPUT_SCHEMA).validate(result)
+    return result
+
+
+_FASTENER_COMPONENT_STANDARDS = {
+    "bolt_or_screw": {"AS 1110", "AS 1111"},
+    "nut": {"AS 1112"},
+    "washer": {"AS 1237.1"},
+    "high_strength_bolting_assembly": {"AS/NZS 1252.1"},
+    "galvanized_tower_bolting_assembly": {"AS/NZS 1559"},
+}
+
+
+def _fastener_product_conformity(data: Mapping) -> dict:
+    """Record the assessed product-standard evidence required by Clause 2.3.1."""
+    identifier = data["item_or_assembly_identifier"].strip()
+    reference = (data["conformity_evidence_reference"] or "").strip()
+    if not identifier:
+        raise ValueError("Fastener item or assembly identifier must not be blank.")
+    if data["conformity_certificate_verified"] and not reference:
+        raise ValueError("Verified fastener conformity requires an evidence reference.")
+
+    component_type = data["component_type"]
+    product_standard = data["product_standard"]
+    listed = product_standard in _FASTENER_COMPONENT_STANDARDS[component_type]
+    applicable = data["product_standard_applicability_verified"]
+    certificate_verified = data["conformity_certificate_verified"]
+    satisfied = listed and applicable and certificate_verified and bool(reference)
+    result = {
+        "standard": "AS 4100:2020",
+        "operation": "fastener_product_conformity",
+        "values": {
+            "item_or_assembly_identifier": identifier,
+            "component_type": component_type,
+            "product_standard": product_standard,
+            "product_standard_applicability_verified": applicable,
+            "conformity_certificate_verified": certificate_verified,
+            "conformity_evidence_reference": reference or None,
+        },
+        "clauses": ["2.3.1"],
+        "checks": [
+            {
+                "clause": "2.3.1",
+                "component_type": component_type,
+                "product_standard": product_standard,
+                "standard_listed_for_component": listed,
+                "product_standard_applicability_verified": applicable,
+                "conformity_certificate_verified": certificate_verified,
+                "evidence_reference": reference or None,
+                "satisfied": satisfied,
+            }
+        ],
+        "checked_conditions_satisfied": satisfied,
+        "full_standard_compliance": False,
+        "warnings": [
+            "This operation records the supplied Clause 2.3.1 assessment; it does not "
+            "authenticate the item, certificate or test report, or determine whether the "
+            "product standard is suitable for the project.",
+            "Verify the applicable product-standard certificate requirements and any "
+            "laboratory qualification requirements separately; this operation does not "
+            "assess laboratory accreditation.",
+        ],
+    }
+    if product_standard == "AS/NZS 1559":
+        result["warnings"].append(
+            "AS/NZS 1559 is specific to tower construction; verify its suitability for this "
+            "structure independently."
+        )
     Draft202012Validator(OUTPUT_SCHEMA).validate(result)
     return result
 

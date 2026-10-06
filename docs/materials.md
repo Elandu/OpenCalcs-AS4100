@@ -38,6 +38,23 @@ casting identity and properties independently. This operation does not calculate
 design strengths; use independently established AS 2074 properties in the
 member and connection checks.
 
+## Fastener product conformity
+
+Operation `fastener_product_conformity` records a Clause 2.3.1 fastener item or
+assembly identifier, its declared product standard, the user's applicability
+assessment and a conformity-certificate reference. It checks the listed product
+standard against the declared component category: AS 1110 or AS 1111 for bolts
+and screws, AS 1112 for nuts, AS 1237.1 for washers, AS/NZS 1252.1 for high-
+strength bolting assemblies, and AS/NZS 1559 for galvanized tower bolting
+assemblies.
+
+The operation does not authenticate the item, certificate or test report, or
+decide whether a standard is suitable for a project. Verify the applicable
+certificate and test-report requirements and any laboratory qualification
+requirements separately. AS/NZS 1559 is specific to tower construction and may
+not suit every structure. Clause 2.3.2 equivalent high-strength fasteners are
+checked separately.
+
 ## Unidentified steel
 
 Operation `unidentified_steel` implements the strength limits in Clause 2.2.3.

@@ -604,6 +604,27 @@ def verify():
         ),
         1,
     )
+    fastener = run_materials(
+        {
+            "operation": "fastener_product_conformity",
+            "item_or_assembly_identifier": "BENCHMARK-BOLT-SET-01",
+            "component_type": "high_strength_bolting_assembly",
+            "product_standard": "AS/NZS 1252.1",
+            "product_standard_applicability_verified": True,
+            "conformity_certificate_verified": True,
+            "conformity_evidence_reference": "BENCHMARK-FASTENER-CERT-01",
+        }
+    )
+    record(
+        "Clause 2.3.1 AS/NZS 1252.1 fastener assembly conformity evidence",
+        int(
+            fastener["clauses"] == ["2.3.1"]
+            and fastener["checks"][0]["standard_listed_for_component"]
+            and fastener["checks"][0]["satisfied"]
+            and fastener["values"]["conformity_evidence_reference"] == "BENCHMARK-FASTENER-CERT-01"
+        ),
+        1,
+    )
     through_thickness = run_materials(
         {
             "operation": "through_thickness_deformation",

@@ -1440,6 +1440,31 @@ def clause_2_4_steel_casting_conformity():
     }
 
 
+def clause_2_3_1_fastener_product_conformity():
+    result = run_materials(
+        {
+            "operation": "fastener_product_conformity",
+            "item_or_assembly_identifier": "BENCHMARK-BOLT-SET-01",
+            "component_type": "high_strength_bolting_assembly",
+            "product_standard": "AS/NZS 1252.1",
+            "product_standard_applicability_verified": True,
+            "conformity_certificate_verified": True,
+            "conformity_evidence_reference": "BENCHMARK-FASTENER-CERT-01",
+        }
+    )
+    if result["clauses"] != ["2.3.1"] or not result["checks"][0]["satisfied"]:
+        raise AssertionError("Clause 2.3.1 AS/NZS 1252.1 conformity record did not pass")
+    if result["full_standard_compliance"] is not False:
+        raise AssertionError("Clause 2.3.1 evidence record overstated its scope")
+    return {
+        "standard_listed_for_component": result["checks"][0]["standard_listed_for_component"],
+        "evidence_reference_recorded": (
+            result["values"]["conformity_evidence_reference"] == "BENCHMARK-FASTENER-CERT-01"
+        ),
+        "certificate_authenticated": False,
+    }
+
+
 def unidentified_steel_limits():
     boundary = run_materials(
         {
@@ -4619,6 +4644,7 @@ def main():
         "yield_above_690_mpa": over_scope_yield,
         "clause_2_2_3_unidentified_steel_limits": unidentified_steel_limits,
         "clause_2_4_steel_casting_conformity": clause_2_4_steel_casting_conformity,
+        "clause_2_3_1_fastener_product_conformity": (clause_2_3_1_fastener_product_conformity),
         "clause_2_2_4_standard_properties": clause_2_2_4_properties,
         "clause_2_2_5_through_thickness_quality": clause_2_2_5_z_quality,
         "clause_2_3_2_equivalent_high_strength_fastener": (

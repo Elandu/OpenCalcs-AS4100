@@ -180,6 +180,84 @@ def test_clause_2_4_verified_casting_requires_evidence_reference_and_grade():
         run_materials({**base, "casting_grade": "  ", "conformity_evidence_reference": "CERT-01"})
 
 
+def test_clause_2_3_1_fastener_product_standard_and_certificate_are_traceable():
+    result = run_materials(
+        {
+            "operation": "fastener_product_conformity",
+            "item_or_assembly_identifier": "BOLT-SET-01",
+            "component_type": "high_strength_bolting_assembly",
+            "product_standard": "AS/NZS 1252.1",
+            "product_standard_applicability_verified": True,
+            "conformity_certificate_verified": True,
+            "conformity_evidence_reference": "BOLT-CERTIFICATE-01",
+        }
+    )
+    assert result["clauses"] == ["2.3.1"]
+    assert result["values"]["item_or_assembly_identifier"] == "BOLT-SET-01"
+    assert result["checks"][0]["standard_listed_for_component"]
+    assert result["checks"][0]["satisfied"]
+    assert result["checked_conditions_satisfied"]
+    assert result["full_standard_compliance"] is False
+    assert any("does not authenticate" in warning for warning in result["warnings"])
+    assert any("laboratory accreditation" in warning for warning in result["warnings"])
+
+
+def test_clause_2_3_1_unlisted_component_standard_fails_declared_check():
+    result = run_materials(
+        {
+            "operation": "fastener_product_conformity",
+            "item_or_assembly_identifier": "NUT-01",
+            "component_type": "nut",
+            "product_standard": "AS 1110",
+            "product_standard_applicability_verified": True,
+            "conformity_certificate_verified": True,
+            "conformity_evidence_reference": "NUT-CERTIFICATE-01",
+        }
+    )
+    assert not result["checks"][0]["standard_listed_for_component"]
+    assert not result["checks"][0]["satisfied"]
+    assert not result["checked_conditions_satisfied"]
+
+
+def test_clause_2_3_1_tower_bolting_standard_records_project_suitability_assessment():
+    result = run_materials(
+        {
+            "operation": "fastener_product_conformity",
+            "item_or_assembly_identifier": "TOWER-BOLT-01",
+            "component_type": "galvanized_tower_bolting_assembly",
+            "product_standard": "AS/NZS 1559",
+            "product_standard_applicability_verified": False,
+            "conformity_certificate_verified": True,
+            "conformity_evidence_reference": "TOWER-CERTIFICATE-01",
+        }
+    )
+    assert result["checks"][0]["standard_listed_for_component"]
+    assert not result["checks"][0]["satisfied"]
+    assert any("specific to tower construction" in warning for warning in result["warnings"])
+
+
+def test_clause_2_3_1_verified_fastener_certificate_requires_identifier_and_reference():
+    base = {
+        "operation": "fastener_product_conformity",
+        "item_or_assembly_identifier": "BOLT-SET-01",
+        "component_type": "high_strength_bolting_assembly",
+        "product_standard": "AS/NZS 1252.1",
+        "product_standard_applicability_verified": True,
+        "conformity_certificate_verified": True,
+        "conformity_evidence_reference": None,
+    }
+    with pytest.raises(ValueError, match="requires an evidence reference"):
+        run_materials(base)
+    with pytest.raises(ValueError, match="identifier must not be blank"):
+        run_materials(
+            {
+                **base,
+                "item_or_assembly_identifier": "  ",
+                "conformity_certificate_verified": False,
+            }
+        )
+
+
 def through_thickness(**overrides):
     inputs = {
         "operation": "through_thickness_deformation",

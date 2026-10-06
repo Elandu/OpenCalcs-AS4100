@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.44",
+  "package_version": "0.7.45",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -292,6 +292,13 @@
     },
     {
       "name": "Clause 2.4 AS 2074 steel-casting conformity evidence",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.3.1 AS/NZS 1252.1 fastener assembly conformity evidence",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,
