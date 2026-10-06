@@ -2434,6 +2434,66 @@ def verify():
         0.05,
     )
 
+    stepped_evidence = "VERIFY-STEPPED-COLUMN-TRANSFER-REFERENCE"
+    stepped_joints = [
+        ("BASE", 0, 0, ["ux", "uy"]),
+        ("STEP", 0, 2000, []),
+        ("TOP", 0, 4000, ["ux", "uy"]),
+    ]
+    stepped_frame_joints = [
+        {
+            "joint_id": joint_id,
+            "x_mm": x,
+            "y_mm": y,
+            "restrained_dofs": restraints,
+            "joint_geometry_verified": True,
+            "restraint_assessment_verified": True,
+            "evidence_reference": stepped_evidence,
+        }
+        for joint_id, x, y, restraints in stepped_joints
+    ]
+    stepped_frame_members = [
+        {
+            "member_id": member_id,
+            "start_joint_id": start_joint_id,
+            "end_joint_id": end_joint_id,
+            "area_mm2": 10_000,
+            "second_moment_in_plane_mm4": inertia,
+            "axial_force_kn": 100,
+            "prismatic_member_verified": True,
+            "geometry_verified": True,
+            "section_properties_verified": True,
+            "axial_force_verified": True,
+            "evidence_reference": stepped_evidence,
+        }
+        for member_id, start_joint_id, end_joint_id, inertia in (
+            ("LOWER", "BASE", "STEP", 8e6),
+            ("UPPER", "STEP", "TOP", 2e6),
+        )
+    ]
+    stepped_frame_buckling = run_design_actions(
+        {
+            "operation": "whole_frame_elastic_buckling",
+            "design_load_set_id": "VERIFY-ULS-STEPPED-COLUMN-100KN",
+            "design_load_actions_verified": True,
+            "design_load_evidence_reference": stepped_evidence,
+            "frame_model_verified": True,
+            "frame_model_evidence_reference": stepped_evidence,
+            "all_frame_joints_listed_verified": True,
+            "joint_list_evidence_reference": stepped_evidence,
+            "all_frame_members_listed_verified": True,
+            "member_list_evidence_reference": stepped_evidence,
+            "joints": stepped_frame_joints,
+            "members": stepped_frame_members,
+        }
+    )
+    record(
+        "Clause 4.7.2(b) stepped column exact transfer-solution benchmark",
+        stepped_frame_buckling["values"]["lambda_c"],
+        3.650519363459397,
+        0.001,
+    )
+
     portal_evidence = "VERIFY-PORTAL-OPENSEES-REFERENCE"
     portal_joints = [
         ("BASE-L", 0, 0, ["ux", "uy", "rz"]),

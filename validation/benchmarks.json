@@ -1768,6 +1768,13 @@
       "passed": true
     },
     {
+      "name": "Clause 4.7.2(b) stepped column exact transfer-solution benchmark",
+      "actual": 3.650533875273884,
+      "expected": 3.650519363459397,
+      "absolute_tolerance": 0.001,
+      "passed": true
+    },
+    {
       "name": "Clause 4.7.2(b) portal frame cross-check against OpenSeesPy P-Delta analysis",
       "actual": 26.413047758135814,
       "expected": 26.422688110351565,

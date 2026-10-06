@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Bounded elastic in-plane frame buckling analysis for AS 4100 Clause 4.7.2(b)."""
+"""Bounded in-plane buckling analysis for planar frames of prismatic segments."""
 
 from math import hypot, isfinite, sqrt
 
@@ -281,7 +281,11 @@ def _solve_mesh(d, subdivisions):
 
 
 def run_frame_buckling(inputs):
-    """Solve the lowest positive elastic buckling factor for a verified planar frame model."""
+    """Solve the lowest positive elastic factor for a verified planar frame model.
+
+    Each listed member has constant properties. Discrete property and axial-force
+    changes are represented by separate members joined at modelled rigid joints.
+    """
     joints = inputs["joints"]
     members = inputs["members"]
     joint_ids = [joint["joint_id"] for joint in joints]

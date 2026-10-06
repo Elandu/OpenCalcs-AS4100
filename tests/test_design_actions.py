@@ -100,6 +100,70 @@ def test_whole_frame_elastic_buckling_matches_fixed_end_euler_solution():
     assert values["refined_mesh"]["mesh_subdivisions_per_member"] >= 16
 
 
+def test_whole_frame_elastic_buckling_matches_piecewise_column_transfer_solution():
+    evidence = "STEPPED-COLUMN-TRANSFER-REFERENCE"
+    inputs = whole_frame_elastic_buckling(
+        design_load_set_id="ULS-STEPPED-COLUMN-100KN",
+        design_load_evidence_reference=evidence,
+        frame_model_evidence_reference=evidence,
+        joint_list_evidence_reference=evidence,
+        member_list_evidence_reference=evidence,
+        joints=[
+            {
+                "joint_id": "BASE",
+                "x_mm": 0,
+                "y_mm": 0,
+                "restrained_dofs": ["ux", "uy"],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": evidence,
+            },
+            {
+                "joint_id": "STEP",
+                "x_mm": 0,
+                "y_mm": 2000,
+                "restrained_dofs": [],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": evidence,
+            },
+            {
+                "joint_id": "TOP",
+                "x_mm": 0,
+                "y_mm": 4000,
+                "restrained_dofs": ["ux", "uy"],
+                "joint_geometry_verified": True,
+                "restraint_assessment_verified": True,
+                "evidence_reference": evidence,
+            },
+        ],
+        members=[
+            {
+                "member_id": member_id,
+                "start_joint_id": start_joint_id,
+                "end_joint_id": end_joint_id,
+                "area_mm2": 10_000,
+                "second_moment_in_plane_mm4": inertia,
+                "axial_force_kn": 100,
+                "prismatic_member_verified": True,
+                "geometry_verified": True,
+                "section_properties_verified": True,
+                "axial_force_verified": True,
+                "evidence_reference": evidence,
+            }
+            for member_id, start_joint_id, end_joint_id, inertia in (
+                ("LOWER", "BASE", "STEP", 8e6),
+                ("UPPER", "STEP", "TOP", 2e6),
+            )
+        ],
+    )
+
+    values = run(inputs)["values"]
+    # Exact piecewise Euler-Bernoulli transfer solution for two 2 m segments.
+    assert values["lambda_c"] == pytest.approx(3.650519363459397, rel=1e-4)
+    assert values["relative_mesh_difference"] < 0.001
+
+
 def portal_frame_elastic_buckling():
     evidence = "PORTAL-FRAME-OPENSees-REFERENCE"
     joints = [

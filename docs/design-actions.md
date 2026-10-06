@@ -92,14 +92,17 @@ results from four, eight, sixteen, and (if needed) thirty-two elements per
 member. It accepts the first consecutive pair that agrees within 0.1%; otherwise
 it rejects the calculation.
 
-The model uses 200 000 MPa elastic modulus, prismatic Euler-Bernoulli frame
-members, in-plane area and second moment, and rigid connections at shared joints.
-Provide complete joint coordinates and restrained `ux`, `uy`, and `rz` degrees
-of freedom, plus each member's area, in-plane second moment, and axial force
-from the same identified load set. The input separately records complete joint
-and member inventories. Geometry, restraints, frame completeness, member
-properties, force pattern, and analysis assumptions require evidence references
-and engineering assessment.
+The model uses 200 000 MPa elastic modulus, Euler-Bernoulli frame members, in-plane
+area and second moment, and rigid connections at shared joints. A physical member
+with discrete changes in section or axial force can be represented by separate
+prismatic segments meeting at explicitly listed rigid joints; each segment must
+have verified constant properties. Smoothly varying sections are outside this
+bounded model. Provide complete joint coordinates and restrained `ux`, `uy`, and
+`rz` degrees of freedom, plus each segment's area, in-plane second moment, and
+axial force from the same identified load set. The input separately records
+complete joint and member inventories. Geometry, restraints, frame completeness,
+member properties, force pattern, and analysis assumptions require evidence
+references and engineering assessment.
 
 This route excludes out-of-plane or torsional modes, member-end releases,
 connection flexibility, shear deformation, initial imperfections, residual
@@ -107,7 +110,11 @@ stress, material nonlinearity, and second-order design actions. It calculates
 elastic frame stability only; it does not determine the load combinations or
 member design capacities, and a passing check does not establish full AS 4100
 compliance. Independent checks compare pin-ended and fixed-ended columns with
-Euler solutions. A one-bay portal frame was also cross-checked against the
+Euler solutions. The stepped-member route was checked against the exact
+beam-column transfer solution for a pin-ended 4 m column with 2 m segments,
+`I=8e6 mm4` and `I=2e6 mm4`, and 100 kN compression in each segment: the exact
+factor is `3.650519`, and the operation returns `3.650534` (0.0004% difference).
+A one-bay portal frame was also cross-checked against the
 zero crossing of the lowest tangent-stiffness eigenvalue in OpenSeesPy 3.8.0:
 6 m bay, 4 m columns, fixed bases, `E=200000 MPa`, `A=10000 mm2`,
 `I=8e6 mm4`, and column compression forces of 30 kN and 20 kN. The OpenSees
