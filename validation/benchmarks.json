@@ -1817,6 +1817,55 @@
       "passed": true
     },
     {
+      "name": "Clause 4.5.1 cantilever horizontal support reaction (kN)",
+      "actual": -9.999999999988825,
+      "expected": -10,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 cantilever axial support reaction (kN)",
+      "actual": 49.999999999999986,
+      "expected": 50,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 cantilever support moment (kN m)",
+      "actual": 48.338408803698165,
+      "expected": 48.33840968549085,
+      "absolute_tolerance": 0.0001,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 cantilever global horizontal force residual (kN)",
+      "actual": 1.1174089431520429e-11,
+      "expected": 0,
+      "absolute_tolerance": 1e-06,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 cantilever global vertical force residual (kN)",
+      "actual": -1.4210854715202004e-14,
+      "expected": 0,
+      "absolute_tolerance": 1e-06,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 cantilever global moment residual (kN m)",
+      "actual": -3.89892562679961e-11,
+      "expected": 0,
+      "absolute_tolerance": 1e-06,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.5.1 global equilibrium check",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Appendix E.2(b) tension-column maximum element-end moment (kN m)",
       "actual": 34.44228725459204,
       "expected": 34.44228686322191,

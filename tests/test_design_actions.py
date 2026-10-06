@@ -153,7 +153,9 @@ def second_order_elastic_frame(**overrides):
 
 
 def test_second_order_elastic_frame_matches_independent_cantilever_solution():
-    result = run(second_order_elastic_frame())
+    inputs = second_order_elastic_frame()
+    inputs["joint_actions"].reverse()
+    result = run(inputs)
     values = result["values"]
     elastic_modulus = 200000
     second_moment = 8e6
@@ -176,6 +178,17 @@ def test_second_order_elastic_frame_matches_independent_cantilever_solution():
     )
     assert abs(values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(
         expected_tip_displacement, rel=1e-5
+    )
+    assert values["support_reactions"][0]["force_x_kn"] == pytest.approx(-10)
+    assert values["support_reactions"][0]["force_y_kn"] == pytest.approx(50)
+    assert values["support_reactions"][0]["moment_knm"] == pytest.approx(expected_base_moment)
+    assert values["global_equilibrium"]["satisfied"]
+    assert all(
+        abs(residual)
+        <= values["global_equilibrium"]["numerical_tolerance"][
+            "moment_knm" if name == "moment_knm" else "force_kn"
+        ]
+        for name, residual in values["global_equilibrium"]["residual"].items()
     )
 
 
@@ -211,6 +224,7 @@ def test_second_order_elastic_frame_handles_tension_and_zero_axial_force_pattern
     assert abs(tension_values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(
         expected_tension_displacement, rel=1e-5
     )
+    assert tension_values["global_equilibrium"]["satisfied"]
 
     zero = second_order_elastic_frame()
     zero["members"][0]["axial_force_profile_kn"] = [0, 0]
@@ -221,6 +235,7 @@ def test_second_order_elastic_frame_handles_tension_and_zero_axial_force_pattern
         pytest.approx(40)
     )
     assert abs(zero_values["joint_displacements"][-1]["ux_mm"]) == pytest.approx(4000 / 30)
+    assert zero_values["global_equilibrium"]["satisfied"]
 
 
 def test_second_order_elastic_frame_reports_unverified_method_or_equilibrium_assessments():

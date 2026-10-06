@@ -1467,14 +1467,24 @@ def run_design_actions(inputs):
             {
                 "clause": "4.5.1",
                 "condition": (
-                    "the complete joint-action set and member axial-force pattern "
-                    "satisfy equilibrium"
+                    "the supplied first-order member axial-force pattern is assessed for the "
+                    "complete joint-action load set"
                 ),
                 "satisfied": d["frame_action_equilibrium_verified"]
                 and d["all_joint_actions_listed_verified"]
                 and all(action["joint_actions_verified"] for action in d["joint_actions"]),
                 "evidence_reference": d["frame_action_equilibrium_evidence_reference"],
                 "joint_action_list_evidence_reference": d["joint_action_list_evidence_reference"],
+            },
+            {
+                "clause": "4.5.1",
+                "condition": (
+                    "joint actions, support reactions and geometric-stiffness resultants "
+                    "balance in the assembled frame"
+                ),
+                "residual": values["global_equilibrium"]["residual"],
+                "numerical_tolerance": values["global_equilibrium"]["numerical_tolerance"],
+                "satisfied": values["global_equilibrium"]["satisfied"],
             },
             {
                 "clause": "4.7.1",

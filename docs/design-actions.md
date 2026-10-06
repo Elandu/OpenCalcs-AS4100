@@ -145,6 +145,19 @@ compared; the calculation accepts the first consecutive meshes agreeing
 within 0.1% in model-joint response, member end moments and elastic buckling
 factor.
 
+The result also reports `support_reactions` at restrained joint degrees of
+freedom and a `global_equilibrium` diagnostic. Reactions are calculated from
+the assembled tangent stiffness and supplied joint actions. The reported
+resultants separately show applied joint actions, support reactions and the
+geometric-stiffness contribution; the residual is their sum in kN and kN·m.
+The solver marks the diagnostic satisfied when each force residual is within
+`1e-8` times the sum of the absolute applied, reaction and geometric-stiffness
+force resultants in both axes; the moment residual uses the corresponding
+absolute moment resultants. Each scale has a minimum of 1 kN or 1 kN·m. This is
+a numerical check of the assembled
+linearized model, not independent evidence that the load list, restraints,
+member-force pattern or analysis assumptions are complete or correct.
+
 Use a complete planar frame of prismatic Euler-Bernoulli members with rigid
 connections at shared joints. The elastic modulus is fixed at 200 000 MPa.
 Supply all joints and members, each member's area and in-plane second moment,

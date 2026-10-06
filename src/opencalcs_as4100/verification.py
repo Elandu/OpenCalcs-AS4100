@@ -2706,6 +2706,49 @@ def verify():
         int(second_order_values["relative_mesh_difference"] <= 0.001),
         1,
     )
+    support_reaction = second_order_values["support_reactions"][0]
+    global_equilibrium = second_order_values["global_equilibrium"]
+    record(
+        "Clause 4.5.1 cantilever horizontal support reaction (kN)",
+        support_reaction["force_x_kn"],
+        -10,
+        0.0001,
+    )
+    record(
+        "Clause 4.5.1 cantilever axial support reaction (kN)",
+        support_reaction["force_y_kn"],
+        50,
+        0.0001,
+    )
+    record(
+        "Clause 4.5.1 cantilever support moment (kN m)",
+        support_reaction["moment_knm"],
+        10_000 * tan(wave_number * 4000) / wave_number / 1e6,
+        0.0001,
+    )
+    record(
+        "Clause 4.5.1 cantilever global horizontal force residual (kN)",
+        global_equilibrium["residual"]["force_x_kn"],
+        0,
+        1e-6,
+    )
+    record(
+        "Clause 4.5.1 cantilever global vertical force residual (kN)",
+        global_equilibrium["residual"]["force_y_kn"],
+        0,
+        1e-6,
+    )
+    record(
+        "Clause 4.5.1 cantilever global moment residual (kN m)",
+        global_equilibrium["residual"]["moment_knm"],
+        0,
+        1e-6,
+    )
+    record(
+        "Clause 4.5.1 global equilibrium check",
+        int(global_equilibrium["satisfied"]),
+        1,
+    )
     tension_axial_force = 50_000
     tension_wave_number = sqrt(tension_axial_force / (200_000 * 8e6))
     tension_inputs = {

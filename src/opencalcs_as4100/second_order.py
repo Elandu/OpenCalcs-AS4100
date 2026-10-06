@@ -50,6 +50,101 @@ def _frame_load_vector(inputs, assembly):
     return load
 
 
+def _support_reactions_and_equilibrium(inputs, assembly, displacement, load):
+    tangent = [
+        [elastic - geometric for elastic, geometric in zip(k_row, g_row, strict=True)]
+        for k_row, g_row in zip(assembly["stiffness"], assembly["geometric"], strict=True)
+    ]
+    resisting = _multiply(tangent, [[value] for value in displacement])
+    geometric_actions = _multiply(assembly["geometric"], [[value] for value in displacement])
+    free_dofs = set(assembly["free_dofs"])
+    joints_by_id = {joint["joint_id"]: joint for joint in inputs["joints"]}
+    reactions = []
+    for joint in inputs["joints"]:
+        offset = 3 * assembly["node_index"][joint["joint_id"]]
+        reaction = {
+            "joint_id": joint["joint_id"],
+            "force_x_kn": (resisting[offset][0] - load[offset]) / 1000.0
+            if offset not in free_dofs
+            else 0.0,
+            "force_y_kn": (resisting[offset + 1][0] - load[offset + 1]) / 1000.0
+            if offset + 1 not in free_dofs
+            else 0.0,
+            "moment_knm": (resisting[offset + 2][0] - load[offset + 2]) / 1_000_000.0
+            if offset + 2 not in free_dofs
+            else 0.0,
+        }
+        if joint["restrained_dofs"]:
+            reactions.append(reaction)
+
+    action_totals = {"force_x_kn": 0.0, "force_y_kn": 0.0, "moment_knm": 0.0}
+    for action in inputs["joint_actions"]:
+        joint = joints_by_id[action["joint_id"]]
+        x = joint["x_mm"]
+        y = joint["y_mm"]
+        force_x = action["force_x_kn"]
+        force_y = action["force_y_kn"]
+        action_totals["force_x_kn"] += force_x
+        action_totals["force_y_kn"] += force_y
+        action_totals["moment_knm"] += action["moment_knm"] + (x * force_y - y * force_x) / 1000.0
+
+    reaction_totals = {"force_x_kn": 0.0, "force_y_kn": 0.0, "moment_knm": 0.0}
+    for reaction in reactions:
+        joint = joints_by_id[reaction["joint_id"]]
+        x = joint["x_mm"]
+        y = joint["y_mm"]
+        force_x = reaction["force_x_kn"]
+        force_y = reaction["force_y_kn"]
+        reaction_totals["force_x_kn"] += force_x
+        reaction_totals["force_y_kn"] += force_y
+        reaction_totals["moment_knm"] += (
+            reaction["moment_knm"] + (x * force_y - y * force_x) / 1000.0
+        )
+
+    geometric_totals = {"force_x_kn": 0.0, "force_y_kn": 0.0, "moment_knm": 0.0}
+    for joint_id, node in assembly["node_index"].items():
+        offset = 3 * node
+        x, y = assembly["coordinates"][joint_id]
+        force_x = geometric_actions[offset][0] / 1000.0
+        force_y = geometric_actions[offset + 1][0] / 1000.0
+        moment = geometric_actions[offset + 2][0] / 1_000_000.0
+        geometric_totals["force_x_kn"] += force_x
+        geometric_totals["force_y_kn"] += force_y
+        geometric_totals["moment_knm"] += moment + (x * force_y - y * force_x) / 1000.0
+
+    residual = {
+        name: action_totals[name] + reaction_totals[name] + geometric_totals[name]
+        for name in action_totals
+    }
+    force_scale = max(
+        1.0,
+        abs(action_totals["force_x_kn"])
+        + abs(action_totals["force_y_kn"])
+        + abs(reaction_totals["force_x_kn"])
+        + abs(reaction_totals["force_y_kn"])
+        + abs(geometric_totals["force_x_kn"])
+        + abs(geometric_totals["force_y_kn"]),
+    )
+    moment_scale = max(
+        1.0,
+        abs(action_totals["moment_knm"])
+        + abs(reaction_totals["moment_knm"])
+        + abs(geometric_totals["moment_knm"]),
+    )
+    tolerance = {"force_kn": 1e-8 * force_scale, "moment_knm": 1e-8 * moment_scale}
+    equilibrium = {
+        "applied_joint_action_totals": action_totals,
+        "support_reaction_totals": reaction_totals,
+        "geometric_stiffness_resultants": geometric_totals,
+        "residual": residual,
+        "numerical_tolerance": tolerance,
+        "satisfied": abs(residual["force_x_kn"]) <= tolerance["force_kn"]
+        and abs(residual["force_y_kn"]) <= tolerance["force_kn"]
+        and abs(residual["moment_knm"]) <= tolerance["moment_knm"],
+    }
+    return reactions, equilibrium
+
+
 def _buckling_factor(elastic, geometric):
     lower = _cholesky(elastic)
     inverse_lower = _inverse_lower(lower)
@@ -150,6 +245,12 @@ def _solve_second_order_mesh(inputs, subdivisions):
     for index, dof in enumerate(free_dofs):
         displacement[dof] = scales[index] * scaled_displacements[index]
 
+    support_reactions, global_equilibrium = _support_reactions_and_equilibrium(
+        inputs,
+        assembly,
+        displacement,
+        load,
+    )
     member_moments = _member_end_moments(inputs, assembly, displacement)
     joint_displacements = [
         {
@@ -180,6 +281,8 @@ def _solve_second_order_mesh(inputs, subdivisions):
         "elastic_buckling_load_factor": buckling_factor,
         "member_moments": member_moments,
         "joint_displacements": joint_displacements,
+        "support_reactions": support_reactions,
+        "global_equilibrium": global_equilibrium,
         "displacement_response": displacement_response,
         "moment_response": moment_response,
     }
@@ -267,6 +370,8 @@ def run_second_order_frame_analysis(inputs):
             for item in mesh_results
         ],
         "joint_displacements": refined["joint_displacements"],
+        "support_reactions": refined["support_reactions"],
+        "global_equilibrium": refined["global_equilibrium"],
         "member_moments": refined["member_moments"],
         "joint_actions": inputs["joint_actions"],
         "member_axial_force_pattern": [
