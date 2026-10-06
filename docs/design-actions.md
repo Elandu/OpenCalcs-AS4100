@@ -95,8 +95,11 @@ For zero axial force or axial tension, enter zero or a negative value in
 without a braced-member amplification factor, `beta_m`, or elastic buckling
 load. A supplied sway factor is still applied and checked separately.
 
-Supply either `beta_m` or both deflections for the Clause 4.4.2.2(c) route.
-`delta_ct_mm` is the mid-span deflection from the transverse load together
+Supply either `beta_m`, `conservative_transverse_beta_m: true` for the
+Clause 4.4.2.2(a) choice `beta_m = -1`, or both deflections for the
+Clause 4.4.2.2(c) route. These routes are mutually exclusive. Select the
+conservative route only for a member with transverse loading. `delta_ct_mm` is
+the mid-span deflection from the transverse load together
 with both end bending moments. `delta_cw_mm` is the mid-span deflection from
 the transverse load together with only the end moments that produce a
 mid-span deflection in the same direction as that transverse load. The

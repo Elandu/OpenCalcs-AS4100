@@ -732,6 +732,28 @@ def test_clause_4_4_2_2_transverse_load_beta_m_from_deflection_ratio():
     assert result["checked_conditions_satisfied"]
 
 
+def test_clause_4_4_2_2_a_conservative_transverse_load_beta_m():
+    result = run(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "conservative_transverse_beta_m": True,
+            "first_order_moment_knm": 20,
+        }
+    )
+
+    assert result["values"]["beta_m"] == -1
+    assert result["values"]["beta_m_method"] == "4.4.2.2(a)_conservative_transverse_load"
+    assert result["values"]["cm"] == 1
+    assert result["values"]["braced_factor"] == pytest.approx(2.5)
+    assert result["values"]["governing_factor"] == pytest.approx(2.5)
+    assert result["values"]["amplified_moment_knm"] == pytest.approx(50)
+    assert result["values"]["second_order_analysis_required"]
+    assert result["clauses"] == ["4.4.1.2", "4.4.2.2(a)"]
+    assert not result["checked_conditions_satisfied"]
+
+
 def test_clause_4_4_2_2_transverse_beta_m_rejects_incomplete_or_inconsistent_inputs():
     base = {
         "operation": "moment_amplification",
@@ -745,6 +767,14 @@ def test_clause_4_4_2_2_transverse_beta_m_rejects_incomplete_or_inconsistent_inp
         (
             {"beta_m": 0.2, "delta_ct_mm": 4, "delta_cw_mm": 10},
             "Supply beta_m or the Clause 4.4.2.2(c) deflections, not both",
+        ),
+        (
+            {"conservative_transverse_beta_m": True, "beta_m": 0.2},
+            "Use the Clause 4.4.2.2(a) route alone",
+        ),
+        (
+            {"conservative_transverse_beta_m": True, "delta_ct_mm": 4, "delta_cw_mm": 10},
+            "Use the Clause 4.4.2.2(a) route alone",
         ),
         (
             {"delta_ct_mm": 11, "delta_cw_mm": 10},

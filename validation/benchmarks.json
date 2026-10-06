@@ -921,6 +921,41 @@
       "passed": true
     },
     {
+      "name": "Clause 4.4.2.2(a) conservative transverse-load beta_m",
+      "actual": -1.0,
+      "expected": -1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.2.2(a) conservative transverse-load Cm",
+      "actual": 1.0,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.2.2(a) braced-member amplification factor",
+      "actual": 2.5,
+      "expected": 2.5,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.2.2(a) amplified first-order moment",
+      "actual": 50.0,
+      "expected": 50.0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 4.4.1.2 conservative route second-order-analysis gate",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
       "name": "Figure 4.6.3.2 idealized restraint factor: braced_fixed_fixed",
       "actual": 0.7,
       "expected": 0.7,

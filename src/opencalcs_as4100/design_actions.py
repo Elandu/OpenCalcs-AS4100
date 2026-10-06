@@ -401,6 +401,7 @@ SCHEMAS = {
             "compression_kn": SIGNED,
             "elastic_buckling_load_kn": POSITIVE,
             "beta_m": {"type": "number", "minimum": -1, "maximum": 1},
+            "conservative_transverse_beta_m": {"const": True},
             "delta_ct_mm": NONNEGATIVE,
             "delta_cw_mm": POSITIVE,
             "first_order_moment_knm": SIGNED,
@@ -1321,10 +1322,16 @@ def run_design_actions(inputs):
         )
     if op == "moment_amplification":
         axial_force = d["compression_kn"]
+        has_conservative_beta = "conservative_transverse_beta_m" in d
         has_delta_ct = "delta_ct_mm" in d
         has_delta_cw = "delta_cw_mm" in d
         if has_delta_ct != has_delta_cw:
             raise ValueError("Clause 4.4.2.2(c) requires both delta_ct_mm and delta_cw_mm.")
+        if has_conservative_beta and (has_delta_ct or "beta_m" in d):
+            raise ValueError(
+                "Use the Clause 4.4.2.2(a) route alone; do not combine it with "
+                "beta_m or deflections."
+            )
         if has_delta_ct and "beta_m" in d:
             raise ValueError("Supply beta_m or the Clause 4.4.2.2(c) deflections, not both.")
         if has_delta_ct:
@@ -1334,6 +1341,9 @@ def run_design_actions(inputs):
                     "Clause 4.4.2.2(c) deflections must produce beta_m within [-1, 1]."
                 )
             beta_m_method = "4.4.2.2(c)_deflection_ratio"
+        elif has_conservative_beta:
+            beta_m = -1.0
+            beta_m_method = "4.4.2.2(a)_conservative_transverse_load"
         elif "beta_m" in d:
             beta_m = d["beta_m"]
             beta_m_method = "supplied"
@@ -1360,7 +1370,13 @@ def run_design_actions(inputs):
         factor = max(db, ds)
         clauses = []
         if axial_force > 0:
-            clauses.extend(["4.4.1.2", "4.4.2.2(c)" if has_delta_ct else "4.4.2.2"])
+            if has_conservative_beta:
+                beta_clause = "4.4.2.2(a)"
+            elif has_delta_ct:
+                beta_clause = "4.4.2.2(c)"
+            else:
+                beta_clause = "4.4.2.2"
+            clauses.extend(["4.4.1.2", beta_clause])
         else:
             clauses.append("4.4.2.2")
         if "sway_buckling_factor" in d:

@@ -234,6 +234,34 @@ def clause_4_4_2_2_c_deflection_ratio():
     return expected
 
 
+def clause_4_4_2_2_a_conservative_transverse_load():
+    result = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "conservative_transverse_beta_m": True,
+            "first_order_moment_knm": 20,
+        }
+    )
+    values = result["values"]
+    expected = {
+        "beta_m": -1,
+        "cm": 1,
+        "braced_factor": 2.5,
+        "governing_factor": 2.5,
+        "amplified_moment_knm": 50,
+    }
+    if result["clauses"] != ["4.4.1.2", "4.4.2.2(a)"]:
+        raise AssertionError("The conservative transverse-load route reported incorrect clauses")
+    if not values["second_order_analysis_required"] or result["checked_conditions_satisfied"]:
+        raise AssertionError("A 2.5 amplification factor must require second-order analysis")
+    for name, expected_value in expected.items():
+        if not isclose(values[name], expected_value, rel_tol=0, abs_tol=1e-12):
+            raise AssertionError(f"Clause 4.4.2.2(a) {name} should equal {expected_value}")
+    return expected
+
+
 def clause_4_4_2_2_axial_tension_no_amplification():
     result = run_design_actions(
         {
@@ -4792,6 +4820,9 @@ def main():
         "clause_9_6_2_prequalified_butt_macro_throat": prequalified_incomplete_butt_macro_throat,
         "clause_9_6_3_4_fillet_macro_test_throat": fillet_macro_test_throat,
         "clause_4_4_2_2_c_deflection_ratio": clause_4_4_2_2_c_deflection_ratio,
+        "clause_4_4_2_2_a_conservative_transverse_load": (
+            clause_4_4_2_2_a_conservative_transverse_load
+        ),
         "clause_4_4_2_2_axial_tension_no_amplification": (
             clause_4_4_2_2_axial_tension_no_amplification
         ),

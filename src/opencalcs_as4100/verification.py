@@ -1721,6 +1721,40 @@ def verify():
         tensile_moment["values"]["governing_factor"],
         1,
     )
+    conservative_moment = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "conservative_transverse_beta_m": True,
+            "first_order_moment_knm": 20,
+        }
+    )
+    record(
+        "Clause 4.4.2.2(a) conservative transverse-load beta_m",
+        conservative_moment["values"]["beta_m"],
+        -1,
+    )
+    record(
+        "Clause 4.4.2.2(a) conservative transverse-load Cm",
+        conservative_moment["values"]["cm"],
+        1,
+    )
+    record(
+        "Clause 4.4.2.2(a) braced-member amplification factor",
+        conservative_moment["values"]["braced_factor"],
+        1 / (1 - 600 / 1000),
+    )
+    record(
+        "Clause 4.4.2.2(a) amplified first-order moment",
+        conservative_moment["values"]["amplified_moment_knm"],
+        20 / (1 - 600 / 1000),
+    )
+    record(
+        "Clause 4.4.1.2 conservative route second-order-analysis gate",
+        int(conservative_moment["values"]["second_order_analysis_required"]),
+        1,
+    )
     idealized_restraint_cases = {
         "braced_fixed_fixed": 0.7,
         "braced_top_pinned_bottom_fixed": 0.85,
