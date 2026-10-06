@@ -25,6 +25,19 @@ expansion coefficient `11.7 × 10⁻⁶ /°C`. Member buckling and fire-modulus
 calculations use these same base properties; their inputs reject conflicting
 elastic modulus or Poisson values.
 
+## Steel castings
+
+Operation steel_casting_conformity records the casting grade, a reference to
+the conformity evidence, and whether the supplied assessment confirms the
+Clause 2.4 requirement that steel castings conform to AS 2074. It reports the
+declaration as a check and leaves full_standard_compliance false.
+
+The calculation does not authenticate the reference or determine whether the
+grade and material properties conform to AS 2074. Verify the certificate,
+casting identity and properties independently. This operation does not calculate
+design strengths; use independently established AS 2074 properties in the
+member and connection checks.
+
 ## Unidentified steel
 
 Operation `unidentified_steel` implements the strength limits in Clause 2.2.3.

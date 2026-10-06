@@ -131,6 +131,55 @@ def test_clause_2_2_4_design_properties_match_standard_values():
     }
 
 
+def test_clause_2_4_steel_casting_conformity_is_traceable_but_not_authenticated():
+    result = run_materials(
+        {
+            "operation": "steel_casting_conformity",
+            "casting_grade": "Supplier grade record",
+            "as_2074_conformity_verified": True,
+            "conformity_evidence_reference": "CASTING-CERTIFICATE-01",
+        }
+    )
+    assert result["clauses"] == ["2.4"]
+    assert result["values"] == {
+        "casting_grade": "Supplier grade record",
+        "product_standard": "AS 2074",
+        "as_2074_conformity_verified": True,
+        "conformity_evidence_reference": "CASTING-CERTIFICATE-01",
+    }
+    assert result["checks"][0]["satisfied"]
+    assert result["checked_conditions_satisfied"]
+    assert result["full_standard_compliance"] is False
+    assert any("does not authenticate" in warning for warning in result["warnings"])
+    assert any("does not calculate" in warning for warning in result["warnings"])
+
+
+def test_clause_2_4_unverified_casting_conformity_fails_and_needs_no_reference():
+    result = run_materials(
+        {
+            "operation": "steel_casting_conformity",
+            "casting_grade": "Supplier grade record",
+            "as_2074_conformity_verified": False,
+            "conformity_evidence_reference": None,
+        }
+    )
+    assert not result["checks"][0]["satisfied"]
+    assert not result["checked_conditions_satisfied"]
+
+
+def test_clause_2_4_verified_casting_requires_evidence_reference_and_grade():
+    base = {
+        "operation": "steel_casting_conformity",
+        "casting_grade": "Supplier grade record",
+        "as_2074_conformity_verified": True,
+        "conformity_evidence_reference": None,
+    }
+    with pytest.raises(ValueError, match="requires an evidence reference"):
+        run_materials(base)
+    with pytest.raises(ValueError, match="grade must not be blank"):
+        run_materials({**base, "casting_grade": "  ", "conformity_evidence_reference": "CERT-01"})
+
+
 def through_thickness(**overrides):
     inputs = {
         "operation": "through_thickness_deformation",

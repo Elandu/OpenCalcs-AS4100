@@ -1,6 +1,6 @@
 # OpenCalcs AS 4100
 
-OpenCalcs plugin version 0.7.43 provides twelve bounded calculation families for
+OpenCalcs plugin version 0.7.44 provides twelve bounded calculation families for
 AS 4100:2020 steel design. It evaluates selected equations and declared
 conditions; it does not establish full standard or project compliance. Every
 applicable member, connection, action, detail and construction requirement needs

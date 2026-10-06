@@ -1418,6 +1418,28 @@ def over_scope_yield():
     return expect_rejected(lambda: run_webs(stiffener(stiffener_yield_mpa=690.1)))
 
 
+def clause_2_4_steel_casting_conformity():
+    result = run_materials(
+        {
+            "operation": "steel_casting_conformity",
+            "casting_grade": "Supplier grade record",
+            "as_2074_conformity_verified": True,
+            "conformity_evidence_reference": "BENCHMARK-CASTING-CERT-01",
+        }
+    )
+    if result["clauses"] != ["2.4"] or not result["checks"][0]["satisfied"]:
+        raise AssertionError("Clause 2.4 AS 2074 conformity record did not pass")
+    if result["full_standard_compliance"] is not False:
+        raise AssertionError("Clause 2.4 evidence record overstated its scope")
+    return {
+        "product_standard": result["values"]["product_standard"],
+        "evidence_reference_recorded": (
+            result["values"]["conformity_evidence_reference"] == "BENCHMARK-CASTING-CERT-01"
+        ),
+        "properties_calculated": False,
+    }
+
+
 def unidentified_steel_limits():
     boundary = run_materials(
         {
@@ -4596,6 +4618,7 @@ def main():
         "zero_restrained_flanges": zero_restrained_flanges,
         "yield_above_690_mpa": over_scope_yield,
         "clause_2_2_3_unidentified_steel_limits": unidentified_steel_limits,
+        "clause_2_4_steel_casting_conformity": clause_2_4_steel_casting_conformity,
         "clause_2_2_4_standard_properties": clause_2_2_4_properties,
         "clause_2_2_5_through_thickness_quality": clause_2_2_5_z_quality,
         "clause_2_3_2_equivalent_high_strength_fastener": (

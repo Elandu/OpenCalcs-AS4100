@@ -53,6 +53,20 @@ TABLED_STRENGTH_SCHEMA = object_schema(
         "material_thickness_mm": _P,
     }
 )
+STEEL_CASTING_CONFORMITY_SCHEMA = object_schema(
+    {
+        "operation": {"const": "steel_casting_conformity"},
+        "casting_grade": {"type": "string", "minLength": 1, "maxLength": 60},
+        "as_2074_conformity_verified": {"type": "boolean"},
+        "conformity_evidence_reference": {"type": ["string", "null"], "maxLength": 2000},
+    },
+    required=[
+        "operation",
+        "casting_grade",
+        "as_2074_conformity_verified",
+        "conformity_evidence_reference",
+    ],
+)
 DESIGN_PROPERTIES_SCHEMA = object_schema({"operation": {"const": "design_properties"}})
 THROUGH_THICKNESS_SCHEMA = object_schema(
     {
@@ -120,6 +134,62 @@ TABLED_STRENGTH_OUTPUT_SCHEMA = {
             "additionalProperties": False,
         },
         "clauses": {"const": ["2.1.1", "2.1.2", "Table 2.1"]},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": False,
+}
+_STEEL_CASTING_CONFORMITY_CHECK = {
+    "type": "object",
+    "required": ["clause", "requirement", "as_2074_conformity_verified", "satisfied"],
+    "properties": {
+        "clause": {"const": "2.4"},
+        "requirement": {"const": "Steel castings conform to AS 2074"},
+        "as_2074_conformity_verified": {"type": "boolean"},
+        "evidence_reference": {"type": ["string", "null"]},
+        "satisfied": {"type": "boolean"},
+    },
+    "additionalProperties": False,
+}
+STEEL_CASTING_CONFORMITY_OUTPUT_SCHEMA = {
+    "type": "object",
+    "required": [
+        "standard",
+        "operation",
+        "values",
+        "clauses",
+        "checks",
+        "checked_conditions_satisfied",
+        "full_standard_compliance",
+        "warnings",
+    ],
+    "properties": {
+        "standard": {"const": "AS 4100:2020"},
+        "operation": {"const": "steel_casting_conformity"},
+        "values": {
+            "type": "object",
+            "required": [
+                "casting_grade",
+                "product_standard",
+                "as_2074_conformity_verified",
+                "conformity_evidence_reference",
+            ],
+            "properties": {
+                "casting_grade": {"type": "string", "minLength": 1},
+                "product_standard": {"const": "AS 2074"},
+                "as_2074_conformity_verified": {"type": "boolean"},
+                "conformity_evidence_reference": {"type": ["string", "null"]},
+            },
+            "additionalProperties": False,
+        },
+        "clauses": {"const": ["2.4"]},
+        "checks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": _STEEL_CASTING_CONFORMITY_CHECK,
+        },
+        "checked_conditions_satisfied": {"type": "boolean"},
+        "full_standard_compliance": {"const": False},
         "warnings": {"type": "array", "items": {"type": "string"}},
     },
     "additionalProperties": False,
@@ -353,6 +423,7 @@ _UNIDENTIFIED_TESTED_SCHEMA = object_schema(
 INPUT_SCHEMA = {
     "oneOf": [
         TABLED_STRENGTH_SCHEMA,
+        STEEL_CASTING_CONFORMITY_SCHEMA,
         DESIGN_PROPERTIES_SCHEMA,
         THROUGH_THICKNESS_SCHEMA,
         APPENDIX_M_THROUGH_THICKNESS_SCHEMA,
@@ -420,6 +491,7 @@ UNIDENTIFIED_STEEL_OUTPUT_SCHEMA = {
 OUTPUT_SCHEMA = {
     "oneOf": [
         TABLED_STRENGTH_OUTPUT_SCHEMA,
+        STEEL_CASTING_CONFORMITY_OUTPUT_SCHEMA,
         DESIGN_PROPERTIES_OUTPUT_SCHEMA,
         THROUGH_THICKNESS_OUTPUT_SCHEMA,
         APPENDIX_M_THROUGH_THICKNESS_OUTPUT_SCHEMA,
@@ -542,6 +614,8 @@ def run_materials(inputs: Mapping) -> dict:
     except ValidationError as exc:
         raise ValueError(exc.message) from exc
     validate_standard_strengths(data)
+    if data["operation"] == "steel_casting_conformity":
+        return _steel_casting_conformity(data)
     if data["operation"] == "design_properties":
         return _design_properties()
     if data["operation"] == "through_thickness_deformation":
@@ -581,6 +655,49 @@ def run_materials(inputs: Mapping) -> dict:
         "values": {"yield_strength_mpa": row[7], "tensile_strength_mpa": row[8]},
         "clauses": ["2.1.1", "2.1.2", "Table 2.1"],
         "warnings": warnings,
+    }
+    Draft202012Validator(OUTPUT_SCHEMA).validate(result)
+    return result
+
+
+def _steel_casting_conformity(data: Mapping) -> dict:
+    """Record the assessed AS 2074 conformity required by Clause 2.4."""
+    grade = data["casting_grade"].strip()
+    reference = (data["conformity_evidence_reference"] or "").strip()
+    verified = data["as_2074_conformity_verified"]
+    if not grade:
+        raise ValueError("Steel casting grade must not be blank.")
+    if verified and not reference:
+        raise ValueError("Verified AS 2074 conformity requires an evidence reference.")
+
+    result = {
+        "standard": "AS 4100:2020",
+        "operation": "steel_casting_conformity",
+        "values": {
+            "casting_grade": grade,
+            "product_standard": "AS 2074",
+            "as_2074_conformity_verified": verified,
+            "conformity_evidence_reference": reference or None,
+        },
+        "clauses": ["2.4"],
+        "checks": [
+            {
+                "clause": "2.4",
+                "requirement": "Steel castings conform to AS 2074",
+                "as_2074_conformity_verified": verified,
+                "evidence_reference": reference or None,
+                "satisfied": verified,
+            }
+        ],
+        "checked_conditions_satisfied": verified,
+        "full_standard_compliance": False,
+        "warnings": [
+            "This operation records the supplied Clause 2.4 conformity assessment; it does not "
+            "authenticate the evidence reference or confirm the casting grade or properties "
+            "against AS 2074.",
+            "Obtain and independently verify the design strengths and other properties used "
+            "for the casting; this operation does not calculate them.",
+        ],
     }
     Draft202012Validator(OUTPUT_SCHEMA).validate(result)
     return result

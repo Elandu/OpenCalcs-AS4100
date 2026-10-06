@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.43",
+  "package_version": "0.7.44",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -287,6 +287,13 @@
       "name": "Table 2.1 grade 350 plate at 16 mm, tensile strength",
       "actual": 450,
       "expected": 450,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 2.4 AS 2074 steel-casting conformity evidence",
+      "actual": 1,
+      "expected": 1,
       "absolute_tolerance": 1e-09,
       "passed": true
     },

@@ -587,6 +587,23 @@ def verify():
         material["values"]["tensile_strength_mpa"],
         450,
     )
+    casting = run_materials(
+        {
+            "operation": "steel_casting_conformity",
+            "casting_grade": "Supplier grade record",
+            "as_2074_conformity_verified": True,
+            "conformity_evidence_reference": "BENCHMARK-CASTING-CERT-01",
+        }
+    )
+    record(
+        "Clause 2.4 AS 2074 steel-casting conformity evidence",
+        int(
+            casting["clauses"] == ["2.4"]
+            and casting["checks"][0]["satisfied"]
+            and casting["values"]["conformity_evidence_reference"] == "BENCHMARK-CASTING-CERT-01"
+        ),
+        1,
+    )
     through_thickness = run_materials(
         {
             "operation": "through_thickness_deformation",
