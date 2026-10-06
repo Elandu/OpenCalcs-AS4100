@@ -2207,39 +2207,22 @@ def run_design_actions(inputs):
                 "deflections, not both."
             )
         symbolic_figure_beta = has_figure_beta and d["beta_m_figure_case"] == "figure_b_left_6"
-        if symbolic_figure_beta and "beta_m" not in d:
+        if symbolic_figure_beta and "beta_m" not in d and not has_end_moment_ratio:
             raise ValueError(
-                "Figure B left row 6 requires beta_m because the figure gives beta_m = beta."
+                "Figure B left row 6 requires beta_m or a complete verified end-moment ratio "
+                "because the figure gives beta_m = beta."
             )
         if has_figure_beta and "beta_m" in d and not symbolic_figure_beta:
             raise ValueError("A numeric figure case cannot be combined with a separate beta_m.")
-        if has_end_moment_ratio and ("beta_m" in d or has_figure_beta):
+        if has_end_moment_ratio and (
+            "beta_m" in d or (has_figure_beta and not symbolic_figure_beta)
+        ):
             raise ValueError(
                 "The end-moment ratio route cannot be combined with another beta basis."
             )
-        beta_m_figure_reference = None
         beta_m_end_moment_ratio = None
         end_moment_curvature = None
-        if has_delta_ct:
-            beta_m = 1 - 2 * d["delta_ct_mm"] / d["delta_cw_mm"]
-            if not -1 <= beta_m <= 1:
-                raise ValueError(
-                    "Clause 4.4.2.2(c) deflections must produce beta_m within [-1, 1]."
-                )
-            beta_m_method = "4.4.2.2(c)_deflection_ratio"
-        elif has_conservative_beta:
-            beta_m = -1.0
-            beta_m_method = "4.4.2.2(a)_conservative_transverse_load"
-        elif has_figure_beta:
-            if symbolic_figure_beta:
-                beta_m = d["beta_m"]
-                beta_m_method = "4.4.2.2_figure_symbolic_beta"
-            else:
-                beta_m = _BETA_M_FIGURE_CASES[d["beta_m_figure_case"]]
-                beta_m_method = "4.4.2.2_figure_lookup"
-            figure = "A" if d["beta_m_figure_case"].startswith("figure_a_") else "B"
-            beta_m_figure_reference = f"Figure 4.4.2.2({figure})"
-        elif has_end_moment_ratio:
+        if has_end_moment_ratio:
             larger_end_moment = max(d["end_moment_1_abs_knm"], d["end_moment_2_abs_knm"])
             if larger_end_moment <= 0:
                 raise ValueError("The end-moment ratio requires at least one non-zero end moment.")
@@ -2257,6 +2240,41 @@ def run_design_actions(inputs):
                 min(d["end_moment_1_abs_knm"], d["end_moment_2_abs_knm"]) / larger_end_moment
             )
             end_moment_curvature = d["end_moment_curvature"]
+        beta_m_figure_reference = None
+        if has_delta_ct:
+            beta_m = 1 - 2 * d["delta_ct_mm"] / d["delta_cw_mm"]
+            if not -1 <= beta_m <= 1:
+                raise ValueError(
+                    "Clause 4.4.2.2(c) deflections must produce beta_m within [-1, 1]."
+                )
+            beta_m_method = "4.4.2.2(c)_deflection_ratio"
+        elif has_conservative_beta:
+            beta_m = -1.0
+            beta_m_method = "4.4.2.2(a)_conservative_transverse_load"
+        elif has_figure_beta:
+            if symbolic_figure_beta:
+                if has_end_moment_ratio:
+                    if end_moment_curvature != "reverse_curvature":
+                        raise ValueError(
+                            "Figure B left row 6 depicts reverse curvature; its end-moment "
+                            "route requires reverse_curvature."
+                        )
+                    beta_m = beta_m_end_moment_ratio
+                    beta_m_method = "4.4.2.2_figure_symbolic_beta_end_moment_ratio"
+                else:
+                    beta_m = d["beta_m"]
+                    if beta_m < 0:
+                        raise ValueError(
+                            "Figure B left row 6 depicts reverse curvature; beta_m must be "
+                            "nonnegative for this figure case."
+                        )
+                    beta_m_method = "4.4.2.2_figure_symbolic_beta"
+            else:
+                beta_m = _BETA_M_FIGURE_CASES[d["beta_m_figure_case"]]
+                beta_m_method = "4.4.2.2_figure_lookup"
+            figure = "A" if d["beta_m_figure_case"].startswith("figure_a_") else "B"
+            beta_m_figure_reference = f"Figure 4.4.2.2({figure})"
+        elif has_end_moment_ratio:
             beta_m = beta_m_end_moment_ratio * (
                 1 if end_moment_curvature == "reverse_curvature" else -1
             )
@@ -2317,6 +2335,9 @@ def run_design_actions(inputs):
                 "beta_m_figure_reference": beta_m_figure_reference,
                 "beta_m_end_moment_ratio": beta_m_end_moment_ratio,
                 "end_moment_curvature": end_moment_curvature,
+                "end_moment_1_abs_knm": d.get("end_moment_1_abs_knm"),
+                "end_moment_2_abs_knm": d.get("end_moment_2_abs_knm"),
+                "end_moment_evidence_reference": d.get("end_moment_evidence_reference"),
                 "delta_ct_mm": d.get("delta_ct_mm"),
                 "delta_cw_mm": d.get("delta_cw_mm"),
                 "cm": cm,

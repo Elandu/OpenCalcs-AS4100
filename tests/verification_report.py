@@ -404,6 +404,38 @@ def clause_4_4_2_2_figure_beta_m_cases():
         "cm": symbolic_values["cm"],
         "braced_factor": symbolic_values["braced_factor"],
     }
+    derived = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "beta_m_figure_case": "figure_b_left_6",
+            "end_moment_1_abs_knm": 20,
+            "end_moment_2_abs_knm": 50,
+            "end_moment_curvature": "reverse_curvature",
+            "end_moments_only_verified": True,
+            "end_moment_curvature_verified": True,
+            "end_moment_evidence_reference": "BENCHMARK-FIGURE-B-LEFT-6-END-MOMENTS",
+            "first_order_moment_knm": 50,
+        }
+    )["values"]
+    # Hand calculation: beta=20/50=0.4, Cm=0.44, delta_b=0.44/0.4=1.1,
+    # and amplified moment=50*1.1=55 kN.m.
+    expect_close(derived["beta_m_end_moment_ratio"], 20 / 50)
+    expect_close(derived["beta_m"], 0.4)
+    expect_close(derived["cm"], 0.44)
+    expect_close(derived["braced_factor"], 1.1)
+    expect_close(derived["amplified_moment_knm"], 55)
+    if derived["beta_m_figure_reference"] != "Figure 4.4.2.2(B)":
+        raise AssertionError("Derived Figure B left row 6 beta_m lost its figure reference")
+    if derived["end_moment_evidence_reference"] != "BENCHMARK-FIGURE-B-LEFT-6-END-MOMENTS":
+        raise AssertionError("Derived Figure B left row 6 beta_m lost its evidence reference")
+    observations["figure_b_left_6_end_moment_derived"] = {
+        "beta_m": derived["beta_m"],
+        "cm": derived["cm"],
+        "braced_factor": derived["braced_factor"],
+        "amplified_moment_knm": derived["amplified_moment_knm"],
+    }
     return observations
 
 

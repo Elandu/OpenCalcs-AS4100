@@ -1952,6 +1952,59 @@ def verify():
         int(symbolic_values["beta_m_figure_reference"] == "Figure 4.4.2.2(B)"),
         1,
     )
+    derived_symbolic_figure_moment = run_design_actions(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "beta_m_figure_case": "figure_b_left_6",
+            "end_moment_1_abs_knm": 20,
+            "end_moment_2_abs_knm": 50,
+            "end_moment_curvature": "reverse_curvature",
+            "end_moments_only_verified": True,
+            "end_moment_curvature_verified": True,
+            "end_moment_evidence_reference": "VERIFY-FIGURE-B-LEFT-6-END-MOMENTS",
+            "first_order_moment_knm": 50,
+        }
+    )["values"]
+    # Hand calculation from the input values: beta=20/50=0.4; Cm=0.44;
+    # delta_b=0.44/(1-600/1000)=1.1; amplified moment=50*1.1=55 kN.m.
+    record(
+        "Figure 4.4.2.2(B) left row 6 end-moment ratio",
+        derived_symbolic_figure_moment["beta_m_end_moment_ratio"],
+        20 / 50,
+    )
+    record(
+        "Figure 4.4.2.2(B) left row 6 derived symbolic beta_m",
+        derived_symbolic_figure_moment["beta_m"],
+        0.4,
+    )
+    record(
+        "Figure 4.4.2.2(B) left row 6 end-moment Clause 4.4.2.2 Cm",
+        derived_symbolic_figure_moment["cm"],
+        0.44,
+    )
+    record(
+        "Figure 4.4.2.2(B) left row 6 end-moment amplification factor",
+        derived_symbolic_figure_moment["braced_factor"],
+        1.1,
+    )
+    record(
+        "Figure 4.4.2.2(B) left row 6 end-moment amplified moment",
+        derived_symbolic_figure_moment["amplified_moment_knm"],
+        55,
+    )
+    record(
+        "Figure 4.4.2.2(B) left row 6 derivation and source trace",
+        int(
+            derived_symbolic_figure_moment["beta_m_method"]
+            == "4.4.2.2_figure_symbolic_beta_end_moment_ratio"
+            and derived_symbolic_figure_moment["beta_m_figure_reference"] == "Figure 4.4.2.2(B)"
+            and derived_symbolic_figure_moment["end_moment_evidence_reference"]
+            == "VERIFY-FIGURE-B-LEFT-6-END-MOMENTS"
+        ),
+        1,
+    )
     for curvature, expected_beta_m, expected_cm, expected_factor in (
         ("reverse_curvature", 0.4, 0.44, 1.1),
         ("single_curvature", -0.4, 0.76, 1.9),

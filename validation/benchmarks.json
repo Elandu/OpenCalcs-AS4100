@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.59",
+  "package_version": "0.7.60",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -1489,6 +1489,48 @@
     },
     {
       "name": "Figure 4.4.2.2(B) left row 6 figure reference trace",
+      "actual": 1,
+      "expected": 1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.4.2.2(B) left row 6 end-moment ratio",
+      "actual": 0.4,
+      "expected": 0.4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.4.2.2(B) left row 6 derived symbolic beta_m",
+      "actual": 0.4,
+      "expected": 0.4,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.4.2.2(B) left row 6 end-moment Clause 4.4.2.2 Cm",
+      "actual": 0.43999999999999995,
+      "expected": 0.44,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.4.2.2(B) left row 6 end-moment amplification factor",
+      "actual": 1.0999999999999999,
+      "expected": 1.1,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.4.2.2(B) left row 6 end-moment amplified moment",
+      "actual": 54.99999999999999,
+      "expected": 55,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Figure 4.4.2.2(B) left row 6 derivation and source trace",
       "actual": 1,
       "expected": 1,
       "absolute_tolerance": 1e-09,

@@ -1822,6 +1822,69 @@ def test_clause_4_4_2_2_figure_b_left_row_6_uses_supplied_symbolic_beta():
     assert result["clauses"] == ["4.4.1.2", "4.4.2.2"]
 
 
+def test_clause_4_4_2_2_figure_b_left_row_6_derives_beta_from_verified_end_moments():
+    result = run(
+        {
+            "operation": "moment_amplification",
+            "compression_kn": 600,
+            "elastic_buckling_load_kn": 1000,
+            "beta_m_figure_case": "figure_b_left_6",
+            "end_moment_1_abs_knm": 20,
+            "end_moment_2_abs_knm": 50,
+            "end_moment_curvature": "reverse_curvature",
+            "end_moments_only_verified": True,
+            "end_moment_curvature_verified": True,
+            "end_moment_evidence_reference": "BENCHMARK-FIGURE-B-LEFT-6-END-MOMENTS",
+            "first_order_moment_knm": 50,
+        }
+    )
+    values = result["values"]
+
+    # Independent hand arithmetic: beta=20/50=0.4, Cm=0.6-0.4(0.4)=0.44,
+    # delta_b=0.44/(1-600/1000)=1.1, and M*=50(1.1)=55 kN.m.
+    assert values["beta_m"] == pytest.approx(0.4)
+    assert values["beta_m_end_moment_ratio"] == pytest.approx(0.4)
+    assert values["beta_m_method"] == "4.4.2.2_figure_symbolic_beta_end_moment_ratio"
+    assert values["beta_m_figure_reference"] == "Figure 4.4.2.2(B)"
+    assert values["end_moment_curvature"] == "reverse_curvature"
+    assert values["cm"] == pytest.approx(0.44)
+    assert values["braced_factor"] == pytest.approx(1.1)
+    assert values["amplified_moment_knm"] == pytest.approx(55)
+    assert values["end_moment_evidence_reference"] == "BENCHMARK-FIGURE-B-LEFT-6-END-MOMENTS"
+    assert result["clauses"] == ["4.4.1.2", "4.4.2.2"]
+
+
+def test_clause_4_4_2_2_figure_b_left_row_6_rejects_incompatible_beta_basis():
+    base = {
+        "operation": "moment_amplification",
+        "compression_kn": 600,
+        "elastic_buckling_load_kn": 1000,
+        "beta_m_figure_case": "figure_b_left_6",
+        "end_moment_1_abs_knm": 20,
+        "end_moment_2_abs_knm": 50,
+        "end_moment_curvature": "single_curvature",
+        "end_moments_only_verified": True,
+        "end_moment_curvature_verified": True,
+        "end_moment_evidence_reference": "BENCHMARK-FIGURE-B-LEFT-6-END-MOMENTS",
+        "first_order_moment_knm": 50,
+    }
+    with pytest.raises(ValueError, match="depicts reverse curvature"):
+        run(base)
+    with pytest.raises(ValueError, match="another beta basis"):
+        run({**base, "beta_m_figure_case": "figure_b_left_5"})
+    with pytest.raises(ValueError, match="nonnegative"):
+        run(
+            {
+                "operation": "moment_amplification",
+                "compression_kn": 600,
+                "elastic_buckling_load_kn": 1000,
+                "beta_m_figure_case": "figure_b_left_6",
+                "beta_m": -0.3,
+                "first_order_moment_knm": 50,
+            }
+        )
+
+
 @pytest.mark.parametrize(
     ("curvature", "expected_beta_m", "expected_cm", "expected_factor"),
     [

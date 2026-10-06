@@ -351,9 +351,9 @@ Supply `beta_m`, `beta_m_figure_case` for a distribution in Figure
 routes are mutually exclusive, except the symbolic Figure B, left, row 6 case.
 The figure-case identifier uses the panel side and top-to-bottom row number.
 For that symbolic case, set
-`beta_m_figure_case` to `figure_b_left_6` and supply the signed ratio of the
-smaller to larger end moment in `beta_m`; the Standard defines it as positive
-for reverse curvature, and the figure gives `beta_m = beta`. Select the
+`beta_m_figure_case` to `figure_b_left_6` and either supply a nonnegative
+`beta_m` or provide the verified end-moment-only inputs described below. The
+figure depicts reverse curvature and gives `beta_m = beta`. Select the
 conservative route only for a member with transverse loading. `delta_ct_mm` is
 the mid-span deflection from the transverse load together
 with both end bending moments. `delta_cw_mm` is the mid-span deflection from
@@ -372,7 +372,10 @@ calculates the smaller-to-larger magnitude ratio, assigning a positive sign for
 reverse curvature. It requires `first_order_moment_knm` to equal the larger
 end-moment magnitude. Use this route only when the member has end moments and
 no transverse loading; the calculation does not authenticate the analysis or
-curvature classification.
+curvature classification. For `figure_b_left_6`, the end-moment route is
+allowed only with reverse curvature; the calculated smaller-to-larger ratio is
+reported as `beta_m`, together with the Figure 4.4.2.2(B) reference and the
+end-moment evidence reference.
 
 | `beta_m_figure_case` | `beta_m` |
 | --- | ---: |
