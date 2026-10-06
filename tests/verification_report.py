@@ -3686,6 +3686,58 @@ def clause_5_10_web_geometry():
     }
 
 
+def clause_5_10_7_rational_analysis_result_review():
+    review = run_webs(
+        {
+            "operation": "web_opening_rational_analysis_review",
+            "opening_design_case": "stiffened_opening",
+            "opening_geometry_reference": "INDEPENDENT-OPENING-GEOMETRY-01",
+            "opening_geometry_verified": True,
+            "rational_analysis_reference": "INDEPENDENT-OPENING-ANALYSIS-01",
+            "rational_analysis_verified": True,
+            "analysis_scope_verified": True,
+            "equilibrium_verified": True,
+            "convergence_or_sensitivity_verified": True,
+            "all_openings_and_design_cases_included_verified": True,
+            "limit_state_register_complete_verified": True,
+            "limit_state_checks": [
+                {
+                    "limit_state_id": "tee-bending",
+                    "description": "Upper tee local bending interaction",
+                    "design_action": 46,
+                    "design_capacity": 50,
+                    "unit": "kN_m",
+                    "analysis_result_reference": "INDEPENDENT-OPENING-ANALYSIS-01:tee",
+                    "design_capacity_reference": "INDEPENDENT-TEE-CAPACITY-01",
+                    "actions_and_capacity_basis_verified": True,
+                },
+                {
+                    "limit_state_id": "web-shear",
+                    "description": "Web shear at opening",
+                    "design_action": 84,
+                    "design_capacity": 100,
+                    "unit": "kN",
+                    "analysis_result_reference": "INDEPENDENT-OPENING-ANALYSIS-01:web",
+                    "design_capacity_reference": "INDEPENDENT-WEB-CAPACITY-01",
+                    "actions_and_capacity_basis_verified": True,
+                },
+            ],
+        }
+    )
+    values = review["values"]
+    expected = {"tee-bending": 0.92, "web-shear": 0.84}
+    for item in values["limit_states"]:
+        expect_close(item["utilization_ratio"], expected[item["limit_state_id"]])
+    if values["governing_limit_state_id"] != "tee-bending":
+        raise AssertionError("Rational-analysis review selected the wrong governing limit state")
+    if not review["checked_conditions_satisfied"] or review["clauses"] != ["5.10.7"]:
+        raise AssertionError("Clause 5.10.7 rational-analysis evidence review failed")
+    return {
+        "governing_utilization_ratio": values["governing_utilization_ratio"],
+        "limit_state_count": values["limit_state_count"],
+    }
+
+
 def clause_5_11_5_2_tension_field_evidence():
     inputs = {
         "operation": "shear",
@@ -5284,6 +5336,9 @@ def main():
         "clause_5_7_1_continuous_restraint": clause_5_7_1_continuous_restraint,
         "clause_5_7_2_unconstrained_bending": clause_5_7_2_unconstrained_bending,
         "clause_5_10_web_geometry": clause_5_10_web_geometry,
+        "clause_5_10_7_rational_analysis_result_review": (
+            clause_5_10_7_rational_analysis_result_review
+        ),
         "clause_5_11_5_2_tension_field_evidence": clause_5_11_5_2_tension_field_evidence,
         "clause_6_5_1_5_interconnection": clause_6_5_1_5_interconnection,
         "clause_6_5_1_5_compression_interconnections": (

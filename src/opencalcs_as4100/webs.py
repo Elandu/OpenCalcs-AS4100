@@ -503,6 +503,56 @@ SCHEMAS = {
             "section_moment_capacity_knm",
         ],
     ),
+    "web_opening_rational_analysis_review": object_schema(
+        {
+            "operation": {"const": "web_opening_rational_analysis_review"},
+            "opening_design_case": {
+                "type": "string",
+                "enum": [
+                    "stiffened_opening",
+                    "castellated_member",
+                    "multiple_unstiffened_openings",
+                ],
+            },
+            "opening_geometry_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "opening_geometry_verified": {"type": "boolean"},
+            "rational_analysis_reference": {"type": "string", "minLength": 1, "maxLength": 200},
+            "rational_analysis_verified": {"type": "boolean"},
+            "analysis_scope_verified": {"type": "boolean"},
+            "equilibrium_verified": {"type": "boolean"},
+            "convergence_or_sensitivity_verified": {"type": "boolean"},
+            "all_openings_and_design_cases_included_verified": {"type": "boolean"},
+            "limit_state_register_complete_verified": {"type": "boolean"},
+            "limit_state_checks": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "items": object_schema(
+                    {
+                        "limit_state_id": {"type": "string", "minLength": 1, "maxLength": 80},
+                        "description": {"type": "string", "minLength": 1, "maxLength": 200},
+                        "design_action": NONNEGATIVE,
+                        "design_capacity": POSITIVE,
+                        "unit": {
+                            "type": "string",
+                            "enum": ["N", "kN", "N_mm", "kN_m", "MPa", "unitless"],
+                        },
+                        "analysis_result_reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                        },
+                        "design_capacity_reference": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                        },
+                        "actions_and_capacity_basis_verified": {"type": "boolean"},
+                    }
+                ),
+            },
+        }
+    ),
     "load_bearing_stiffener_requirement": _LOAD_BEARING_STIFFENER_REQUIREMENT_SCHEMA,
     "load_bearing_stiffener_attachment": _load_bearing_stiffener_attachment_schema(
         include_operation=True,
@@ -987,6 +1037,118 @@ def _web_shear_buckling_values(
     }
 
 
+def _web_opening_rational_analysis_review(d):
+    geometry_reference = d["opening_geometry_reference"].strip()
+    analysis_reference = d["rational_analysis_reference"].strip()
+    if not geometry_reference or not analysis_reference:
+        raise ValueError("Opening geometry and rational analysis references must not be blank.")
+
+    identifiers = [item["limit_state_id"].strip() for item in d["limit_state_checks"]]
+    normalized_identifiers = [identifier.casefold() for identifier in identifiers]
+    if any(not identifier for identifier in identifiers):
+        raise ValueError("Limit-state identifiers must not be blank.")
+    if len(set(normalized_identifiers)) != len(normalized_identifiers):
+        raise ValueError("Limit-state identifiers must be unique.")
+
+    limit_states = []
+    checks = [
+        {
+            "clause": "5.10.7 opening geometry and applicability evidence",
+            "evidence_reference": geometry_reference,
+            "satisfied": d["opening_geometry_verified"],
+        },
+        {
+            "clause": "5.10.7 rational analysis evidence",
+            "evidence_reference": analysis_reference,
+            "satisfied": d["rational_analysis_verified"],
+        },
+        {
+            "clause": "5.10.7 analysis scope and equilibrium evidence",
+            "satisfied": d["analysis_scope_verified"] and d["equilibrium_verified"],
+        },
+        {
+            "clause": "5.10.7 convergence or sensitivity evidence",
+            "satisfied": d["convergence_or_sensitivity_verified"],
+        },
+        {
+            "clause": "5.10.7 complete openings and design-case coverage",
+            "satisfied": d["all_openings_and_design_cases_included_verified"],
+        },
+        {
+            "clause": "5.10.7 complete limit-state register evidence",
+            "satisfied": d["limit_state_register_complete_verified"],
+        },
+    ]
+    for identifier, item in zip(identifiers, d["limit_state_checks"], strict=True):
+        analysis_result_reference = item["analysis_result_reference"].strip()
+        capacity_reference = item["design_capacity_reference"].strip()
+        if (
+            not item["description"].strip()
+            or not analysis_result_reference
+            or not capacity_reference
+        ):
+            raise ValueError(
+                "Each limit state requires a description and non-blank "
+                "analysis and capacity references."
+            )
+        utilization = item["design_action"] / item["design_capacity"]
+        satisfied = item["actions_and_capacity_basis_verified"] and utilization <= 1
+        limit_states.append(
+            {
+                "limit_state_id": identifier,
+                "description": item["description"].strip(),
+                "design_action": item["design_action"],
+                "design_capacity": item["design_capacity"],
+                "unit": item["unit"],
+                "utilization_ratio": utilization,
+                "analysis_result_reference": analysis_result_reference,
+                "design_capacity_reference": capacity_reference,
+                "actions_and_capacity_basis_verified": item["actions_and_capacity_basis_verified"],
+                "satisfied": satisfied,
+            }
+        )
+        checks.append(
+            {
+                "clause": "5.10.7 rational-analysis design-action/capacity comparison",
+                "limit_state_id": identifier,
+                "utilization_ratio": utilization,
+                "design_action": item["design_action"],
+                "design_capacity": item["design_capacity"],
+                "unit": item["unit"],
+                "satisfied": satisfied,
+            }
+        )
+
+    governing = max(limit_states, key=lambda item: item["utilization_ratio"])
+    return result(
+        "web_opening_rational_analysis_review",
+        ["5.10.7"],
+        {
+            "opening_design_case": d["opening_design_case"],
+            "opening_geometry_reference": geometry_reference,
+            "rational_analysis_reference": analysis_reference,
+            "rational_analysis_verified": d["rational_analysis_verified"],
+            "limit_state_count": len(limit_states),
+            "limit_states": limit_states,
+            "governing_limit_state_id": governing["limit_state_id"],
+            "governing_utilization_ratio": governing["utilization_ratio"],
+        },
+        checks,
+        [
+            "This operation reviews evidence and compares supplied design actions with "
+            "supplied design capacities; it does not perform or authenticate the rational "
+            "analysis, calculate opening actions, or calculate local tee, web, stiffener, "
+            "bearing, or member resistances.",
+            "Each action and capacity must use the stated common unit. Capacities must "
+            "already be design capacities. For coupled interaction checks, enter the "
+            "externally calculated utilization as a unitless design action against a "
+            "unitless capacity of 1.0 under the applicable clause.",
+            "A passing result is limited to the supplied evidence and checks and is not a "
+            "whole-member, Section 5, or standard-compliance assessment.",
+        ],
+    )
+
+
 def _web_opening_shear_design(d):
     maximum_stress = d["maximum_design_shear_stress_mpa"]
     average_stress = d["average_design_shear_stress_mpa"]
@@ -1180,6 +1342,8 @@ def run_webs(inputs):
                 "Confirm stiffener extents, free edges, and openings against referenced geometry."
             ],
         )
+    if op == "web_opening_rational_analysis_review":
+        return _web_opening_rational_analysis_review(d)
     if op == "web_opening_shear_design":
         return _web_opening_shear_design(d)
     if op == "web_minimum_thickness":

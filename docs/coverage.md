@@ -1,6 +1,6 @@
 # AS 4100:2020 coverage map
 
-This map describes the bounded version 0.7.63 implementation. **Calculated**
+This map describes the bounded version 0.7.64 implementation. **Calculated**
 means a stated operation evaluates an equation or compares supplied values.
 **Assessed** means the user must establish applicability, inputs and supporting
 evidence independently. **Missing** identifies examples of provisions for
@@ -80,6 +80,13 @@ The strict `s/d_p > 3` route applies
 5.10.1; `s/d_p = 3` remains in 5.10.4. A combination with `s/d_1 > 3` but
 `s/d_p <= 3` is rejected because 5.10.4 specifies no thickness band for it.
 The rational-analysis alternative for a lesser thickness remains external.
+
+For Clause 5.10.7, `webs.web_opening_rational_analysis_review` records the
+geometry and rational-analysis references, checks analysis-scope, equilibrium,
+convergence/sensitivity, and limit-state-completeness evidence, and compares
+each supplied design action with its referenced design capacity for stiffened,
+castellated, or multiple-opening cases. It does not perform the rational
+analysis or calculate local opening resistances.
 
 | Section | Calculated or compared in this release | Assessed externally; remaining gaps |
 | --- | --- | --- |

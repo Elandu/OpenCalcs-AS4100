@@ -4695,6 +4695,59 @@ def verify():
         int(opening_interaction["checked_conditions_satisfied"]),
         0,
     )
+    opening_analysis_review = run_webs(
+        {
+            "operation": "web_opening_rational_analysis_review",
+            "opening_design_case": "stiffened_opening",
+            "opening_geometry_reference": "INDEPENDENT-OPENING-GEOMETRY-01",
+            "opening_geometry_verified": True,
+            "rational_analysis_reference": "INDEPENDENT-OPENING-ANALYSIS-01",
+            "rational_analysis_verified": True,
+            "analysis_scope_verified": True,
+            "equilibrium_verified": True,
+            "convergence_or_sensitivity_verified": True,
+            "all_openings_and_design_cases_included_verified": True,
+            "limit_state_register_complete_verified": True,
+            "limit_state_checks": [
+                {
+                    "limit_state_id": "tee-bending",
+                    "description": "Upper tee local bending interaction",
+                    "design_action": 46,
+                    "design_capacity": 50,
+                    "unit": "kN_m",
+                    "analysis_result_reference": "INDEPENDENT-OPENING-ANALYSIS-01:tee",
+                    "design_capacity_reference": "INDEPENDENT-TEE-CAPACITY-01",
+                    "actions_and_capacity_basis_verified": True,
+                },
+                {
+                    "limit_state_id": "web-shear",
+                    "description": "Web shear at opening",
+                    "design_action": 84,
+                    "design_capacity": 100,
+                    "unit": "kN",
+                    "analysis_result_reference": "INDEPENDENT-OPENING-ANALYSIS-01:web",
+                    "design_capacity_reference": "INDEPENDENT-WEB-CAPACITY-01",
+                    "actions_and_capacity_basis_verified": True,
+                },
+            ],
+        }
+    )
+    review_values = opening_analysis_review["values"]
+    record(
+        "Clause 5.10.7 rational-analysis tee utilization, hand arithmetic",
+        review_values["limit_states"][0]["utilization_ratio"],
+        46 / 50,
+    )
+    record(
+        "Clause 5.10.7 rational-analysis web utilization, hand arithmetic",
+        review_values["limit_states"][1]["utilization_ratio"],
+        84 / 100,
+    )
+    record(
+        "Clause 5.10.7 governing rational-analysis utilization",
+        review_values["governing_utilization_ratio"],
+        0.92,
+    )
     bolt = run_connections(
         {
             "check_type": "bolt",

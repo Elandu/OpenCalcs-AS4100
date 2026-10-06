@@ -491,6 +491,159 @@ def test_clause_5_11_3_opening_shear_stress_ratio_requires_maximum_at_least_aver
         web_opening_shear_design(rational_elastic_analysis_reference="   ")
 
 
+def web_opening_rational_analysis_review(**changes):
+    inputs = {
+        "operation": "web_opening_rational_analysis_review",
+        "opening_design_case": "stiffened_opening",
+        "opening_geometry_reference": "OPENING-GEOMETRY-01",
+        "opening_geometry_verified": True,
+        "rational_analysis_reference": "OPENING-ANALYSIS-01",
+        "rational_analysis_verified": True,
+        "analysis_scope_verified": True,
+        "equilibrium_verified": True,
+        "convergence_or_sensitivity_verified": True,
+        "all_openings_and_design_cases_included_verified": True,
+        "limit_state_register_complete_verified": True,
+        "limit_state_checks": [
+            {
+                "limit_state_id": "upper-tee-bending",
+                "description": "Upper tee local bending interaction",
+                "design_action": 46,
+                "design_capacity": 50,
+                "unit": "kN_m",
+                "analysis_result_reference": "OPENING-ANALYSIS-01:upper-tee",
+                "design_capacity_reference": "AS4100-CALC-TEE-01",
+                "actions_and_capacity_basis_verified": True,
+            },
+            {
+                "limit_state_id": "web-shear",
+                "description": "Web shear at opening",
+                "design_action": 84,
+                "design_capacity": 100,
+                "unit": "kN",
+                "analysis_result_reference": "OPENING-ANALYSIS-01:web-shear",
+                "design_capacity_reference": "AS4100-CALC-WEB-01",
+                "actions_and_capacity_basis_verified": True,
+            },
+            {
+                "limit_state_id": "opening-bearing",
+                "description": "Local opening bearing interaction",
+                "design_action": 70,
+                "design_capacity": 80,
+                "unit": "kN",
+                "analysis_result_reference": "OPENING-ANALYSIS-01:bearing",
+                "design_capacity_reference": "AS4100-CALC-BEARING-01",
+                "actions_and_capacity_basis_verified": True,
+            },
+            {
+                "limit_state_id": "combined-interaction",
+                "description": "Externally calculated combined-action utilization",
+                "design_action": 0.88,
+                "design_capacity": 1,
+                "unit": "unitless",
+                "analysis_result_reference": "OPENING-ANALYSIS-01:interaction",
+                "design_capacity_reference": "AS4100-CALC-INTERACTION-01",
+                "actions_and_capacity_basis_verified": True,
+            },
+        ],
+    }
+    inputs.update(changes)
+    return run(inputs)
+
+
+def test_clause_5_10_7_rational_analysis_review_governs_and_checks_all_supplied_states():
+    out = web_opening_rational_analysis_review()
+    values = out["values"]
+    checks = [
+        check
+        for check in out["checks"]
+        if check["clause"] == "5.10.7 rational-analysis design-action/capacity comparison"
+    ]
+
+    assert out["clauses"] == ["5.10.7"]
+    assert values["limit_state_count"] == 4
+    assert values["governing_limit_state_id"] == "upper-tee-bending"
+    assert values["governing_utilization_ratio"] == pytest.approx(0.92)
+    assert [check["utilization_ratio"] for check in checks] == pytest.approx(
+        [0.92, 0.84, 0.875, 0.88]
+    )
+    assert all(check["satisfied"] for check in checks)
+    assert out["checked_conditions_satisfied"]
+    assert not out["full_standard_compliance"]
+
+
+def test_clause_5_10_7_rational_analysis_review_rejects_overload_and_missing_evidence():
+    overloaded = web_opening_rational_analysis_review(
+        limit_state_checks=[
+            {
+                "limit_state_id": "tee-bending",
+                "description": "Tee bending interaction",
+                "design_action": 101,
+                "design_capacity": 100,
+                "unit": "kN_m",
+                "analysis_result_reference": "OPENING-ANALYSIS-01:tee",
+                "design_capacity_reference": "AS4100-CALC-TEE-01",
+                "actions_and_capacity_basis_verified": True,
+            }
+        ]
+    )
+    assert not overloaded["checked_conditions_satisfied"]
+    assert not overloaded["checks"][-1]["satisfied"]
+
+    incomplete = web_opening_rational_analysis_review(
+        analysis_scope_verified=False,
+        limit_state_register_complete_verified=False,
+        limit_state_checks=[
+            {
+                "limit_state_id": "tee-bending",
+                "description": "Tee bending interaction",
+                "design_action": 50,
+                "design_capacity": 100,
+                "unit": "kN_m",
+                "analysis_result_reference": "OPENING-ANALYSIS-01:tee",
+                "design_capacity_reference": "AS4100-CALC-TEE-01",
+                "actions_and_capacity_basis_verified": False,
+            }
+        ],
+    )
+    assert not incomplete["checked_conditions_satisfied"]
+    assert not all(check["satisfied"] for check in incomplete["checks"])
+
+
+def test_clause_5_10_7_rational_analysis_review_rejects_duplicate_or_blank_evidence():
+    with pytest.raises(ValueError, match="Invalid input"):
+        web_opening_rational_analysis_review(limit_state_checks=[])
+
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        web_opening_rational_analysis_review(
+            limit_state_checks=[
+                {
+                    "limit_state_id": "same",
+                    "description": "First state",
+                    "design_action": 1,
+                    "design_capacity": 2,
+                    "unit": "kN",
+                    "analysis_result_reference": "REPORT-1",
+                    "design_capacity_reference": "CALC-1",
+                    "actions_and_capacity_basis_verified": True,
+                },
+                {
+                    "limit_state_id": "SAME",
+                    "description": "Second state",
+                    "design_action": 1,
+                    "design_capacity": 2,
+                    "unit": "kN",
+                    "analysis_result_reference": "REPORT-2",
+                    "design_capacity_reference": "CALC-2",
+                    "actions_and_capacity_basis_verified": True,
+                },
+            ]
+        )
+
+    with pytest.raises(ValueError, match="references must not be blank"):
+        web_opening_rational_analysis_review(rational_analysis_reference="   ")
+
+
 def test_clause_5_10_2_load_bearing_stiffener_trigger_boundaries():
     inputs = {
         "operation": "load_bearing_stiffener_requirement",

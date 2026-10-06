@@ -1,5 +1,5 @@
 {
-  "package_version": "0.7.63",
+  "package_version": "0.7.64",
   "standard": "AS 4100:2020",
   "passed": true,
   "cases": [
@@ -2863,6 +2863,27 @@
       "name": "Clause 5.12.3 opening shear-and-bending interaction rejection",
       "actual": 0,
       "expected": 0,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.7 rational-analysis tee utilization, hand arithmetic",
+      "actual": 0.92,
+      "expected": 0.92,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.7 rational-analysis web utilization, hand arithmetic",
+      "actual": 0.84,
+      "expected": 0.84,
+      "absolute_tolerance": 1e-09,
+      "passed": true
+    },
+    {
+      "name": "Clause 5.10.7 governing rational-analysis utilization",
+      "actual": 0.92,
+      "expected": 0.92,
       "absolute_tolerance": 1e-09,
       "passed": true
     },
