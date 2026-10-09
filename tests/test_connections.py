@@ -5,7 +5,7 @@ from math import pi
 
 import pytest
 
-from opencalcs_as4100.connections import run_connections
+from engcalcs_as4100.connections import run_connections
 
 
 def bolt(**changes):

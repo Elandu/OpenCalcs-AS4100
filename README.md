@@ -1,6 +1,6 @@
-# OpenCalcs AS 4100
+# EngCalcs AS 4100
 
-OpenCalcs plugin version 0.7.62 provides twelve bounded calculation families for
+EngCalcs plugin version 0.7.62 provides twelve bounded calculation families for
 AS 4100:2020 steel design. It evaluates selected equations and declared
 conditions; it does not establish full standard or project compliance. Every
 applicable member, connection, action, detail and construction requirement needs
@@ -22,7 +22,7 @@ an engineering assessment supported by evidence.
 | `testing` | Selected Section 16 existing-structure review gates; Section 17 scope, proof/prototype load and report checks; existing-material prerequisites; informative Appendix B deflection suggestions. |
 
 All IDs have the `structural.as4100.` prefix. Each family exposes an input
-schema through the installed `opencalcs.plugins` entry point. Most families
+schema through the installed `engcalcs.plugins` entry point. Most families
 accept one tagged operation per call; `design_review` accepts a schedule of
 calculation tasks and evidence records. Use the descriptors for exact input
 fields, units and result shapes. Start with [coverage](docs/coverage.md) to
@@ -37,7 +37,7 @@ unsupported. The detailed family notes are in
 Fabrication checks are detailed in [fabrication](docs/fabrication.md).
 Erection checks are detailed in [erection](docs/erection.md).
 
-Install with `pip install .`, then restart OpenCalcs. For development and host
+Install with `pip install .`, then restart EngCalcs. For development and host
 integration verification from a sibling checkout:
 
 ```bash

@@ -4,8 +4,8 @@ from math import pi
 
 import pytest
 
-from opencalcs_as4100.connections import run_connections
-from opencalcs_as4100.members import run_members
+from engcalcs_as4100.connections import run_connections
+from engcalcs_as4100.members import run_members
 
 
 def compression(length=900, constant=0):

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import pytest
 
-from opencalcs_as4100.review import REQUIREMENTS, run_review
+from engcalcs_as4100.review import REQUIREMENTS, run_review
 
 
 @pytest.fixture

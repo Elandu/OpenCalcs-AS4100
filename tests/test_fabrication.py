@@ -1,6 +1,6 @@
 import pytest
 
-from opencalcs_as4100.fabrication import run_fabrication
+from engcalcs_as4100.fabrication import run_fabrication
 
 
 def plate(*, thickness=4, clearance=10, product=True, coverage=True, material=True):

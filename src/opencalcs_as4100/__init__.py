@@ -1,3 +1,5 @@
-"""Steel section capacity checks."""
+"""Compatibility namespace for the former opencalcs_as4100 package."""
 
-__version__ = "0.7.65"
+from engcalcs_as4100 import __version__
+
+__all__ = ["__version__"]

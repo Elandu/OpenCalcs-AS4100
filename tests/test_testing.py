@@ -1,7 +1,7 @@
 import pytest
 from jsonschema import Draft202012Validator
 
-from opencalcs_as4100.testing import INPUT_SCHEMA, OUTPUT_SCHEMA, run_testing
+from engcalcs_as4100.testing import INPUT_SCHEMA, OUTPUT_SCHEMA, run_testing
 
 
 def specimen(op="proof_strength"):

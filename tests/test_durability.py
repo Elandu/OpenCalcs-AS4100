@@ -1,7 +1,7 @@
 import pytest
 from jsonschema import Draft202012Validator
 
-from opencalcs_as4100.durability import INPUT_SCHEMA, OUTPUT_SCHEMA, run_durability
+from engcalcs_as4100.durability import INPUT_SCHEMA, OUTPUT_SCHEMA, run_durability
 
 
 def fatigue(kind="fatigue_constant", stress="normal"):

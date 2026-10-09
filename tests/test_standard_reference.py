@@ -1,4 +1,4 @@
-from opencalcs_as4100.standards import STANDARD
+from engcalcs_as4100.standards import STANDARD
 
 
 def test_reference_reports_reviewed_amendment_with_bounded_application():

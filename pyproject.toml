@@ -2,9 +2,9 @@
 requires = ["hatchling>=1.26,<2"]
 build-backend = "hatchling.build"
 [project]
-name = "opencalcs-as4100"
+name = "engcalcs-as4100"
 version = "0.7.65"
-description = "Clause-traced AS 4100 steel design calculations for OpenCalcs."
+description = "Clause-traced AS 4100 steel design calculations for EngCalcs."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "AGPL-3.0-only"
@@ -14,10 +14,13 @@ Repository = "https://github.com/Elandu/OpenCalcs-AS4100"
 Issues = "https://github.com/Elandu/OpenCalcs-AS4100/issues"
 [project.optional-dependencies]
 dev = ["pytest>=8.3,<9", "ruff>=0.11,<1", "build>=1.2,<2"]
+[project.entry-points."engcalcs.plugins"]
+as4100 = "engcalcs_as4100.plugin:get_plugin"
+
 [project.entry-points."opencalcs.plugins"]
 as4100 = "opencalcs_as4100.plugin:get_plugin"
 [tool.hatch.build.targets.wheel]
-packages = ["src/opencalcs_as4100"]
+packages = ["src/engcalcs_as4100", "src/opencalcs_as4100"]
 [tool.hatch.build.targets.sdist]
 exclude = ["/tmp", "/uv.lock"]
 [tool.pytest.ini_options]

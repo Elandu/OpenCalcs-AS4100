@@ -2,7 +2,7 @@ from math import pi, sqrt, tan
 
 import pytest
 
-from opencalcs_as4100.advanced_members import run_advanced_members
+from engcalcs_as4100.advanced_members import run_advanced_members
 
 
 def closed_torsion_constant_inputs(**changes):

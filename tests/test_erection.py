@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import pytest
 
-from opencalcs_as4100.erection import run_erection
-from opencalcs_as4100.review import run_review
+from engcalcs_as4100.erection import run_erection
+from engcalcs_as4100.review import run_review
 
 
 @pytest.mark.parametrize(

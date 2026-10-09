@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Installed package discovery and real OpenCalcs HTTP integration."""
+"""Installed package discovery and real EngCalcs HTTP integration."""
 
 from importlib.metadata import entry_points
 
 import pytest
+from engcalcs.api import create_app
+from engcalcs.auth import AllowAllAuthenticator
+from engcalcs.registry import CalculationRegistry
 from fastapi.testclient import TestClient
-from opencalcs.api import create_app
-from opencalcs.auth import AllowAllAuthenticator
-from opencalcs.registry import CalculationRegistry
 
-from opencalcs_as4100.plugin import CALCULATION_ID
+from engcalcs_as4100.plugin import CALCULATION_ID
 
 
 @pytest.fixture
@@ -27,7 +27,7 @@ def axial_inputs():
 
 
 def test_installed_entry_point_and_host_provenance(axial_inputs):
-    entry = next(item for item in entry_points(group="opencalcs.plugins") if item.name == "as4100")
+    entry = next(item for item in entry_points(group="engcalcs.plugins") if item.name == "as4100")
     assert entry.load()().id == "structural.as4100"
     registry = CalculationRegistry()
     result = registry.run(CALCULATION_ID, axial_inputs)

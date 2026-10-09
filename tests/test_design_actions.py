@@ -3,10 +3,10 @@ from math import cos, pi, sin, sqrt, tan, tanh
 
 import pytest
 
-from opencalcs_as4100.design_actions import run_design_actions as run
-from opencalcs_as4100.frame_buckling import assemble_frame_matrices
-from opencalcs_as4100.iterative_analysis import _corotational_element_response
-from opencalcs_as4100.members import run_members
+from engcalcs_as4100.design_actions import run_design_actions as run
+from engcalcs_as4100.frame_buckling import assemble_frame_matrices
+from engcalcs_as4100.iterative_analysis import _corotational_element_response
+from engcalcs_as4100.members import run_members
 
 
 def test_euler_pin_ended_hand_benchmark():

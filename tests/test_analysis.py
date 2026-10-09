@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
 
-from opencalcs_as4100.analysis import run_analysis
-from opencalcs_as4100.plugin import get_plugin
-from opencalcs_as4100.schemas import INPUT_SCHEMA, OUTPUT_SCHEMA
+from engcalcs_as4100.analysis import run_analysis
+from engcalcs_as4100.plugin import get_plugin
+from engcalcs_as4100.schemas import INPUT_SCHEMA, OUTPUT_SCHEMA
 
 
 @pytest.fixture

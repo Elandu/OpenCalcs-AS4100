@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 import pytest
 
-from opencalcs_as4100.materials import run_materials
+from engcalcs_as4100.materials import run_materials
 
 
 def strength(product, form, grade, thickness):

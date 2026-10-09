@@ -3,8 +3,8 @@ from math import sqrt
 
 import pytest
 
-from opencalcs_as4100.webs import buckling_alpha
-from opencalcs_as4100.webs import run_webs as run
+from engcalcs_as4100.webs import buckling_alpha
+from engcalcs_as4100.webs import run_webs as run
 
 
 def test_web_buckling_reduction_against_standard_table():
