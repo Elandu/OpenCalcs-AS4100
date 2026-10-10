@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: LicenseRef-EngCalcs-Proprietary
 """Installed package discovery and real OpenCalcs HTTP integration."""
 
 from importlib.metadata import entry_points
